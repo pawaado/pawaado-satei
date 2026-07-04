@@ -1,0 +1,6 @@
+body{font-family:sans-serif;background:#eef;padding:20px}
+.card{max-width:500px;margin:auto;background:#fff;padding:20px;border-radius:12px}
+label{display:block;margin:8px 0}
+input{float:right;width:100px}
+button{width:100%;padding:12px;margin-top:10px}
+.skill{background:#dfd;margin:5px 0;padding:6px;border-radius:6px}
