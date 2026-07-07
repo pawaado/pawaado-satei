@@ -15,8 +15,8 @@ const specialState=new Map();
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
 function limits(){const r=academyRows()[0]; const m={}; basicNames.forEach((n,i)=>m[n]=r?Number(r[i+2]):999); return m;}
-function initAcademies(){academy.innerHTML='';Object.keys(jobsByAcademy).forEach(a=>academy.add(opt(a)));if(!academy.value&&academy.options.length) academy.selectedIndex=0;updateJobs();}
-function updateJobs(){const jobs=jobsByAcademy[academy.value]||[];job.innerHTML='';jobs.forEach(j=>job.add(opt(j)));if(!job.value&&job.options.length) job.selectedIndex=0;renderBasic();renderSpecials();}
+function initAcademies(){academy.innerHTML='';academy.add(opt('アカデミーを選択',''));Object.keys(jobsByAcademy).forEach(a=>academy.add(opt(a)));updateJobs();}
+function updateJobs(){const jobs=jobsByAcademy[academy.value]||[];job.innerHTML='';job.add(opt('ジョブを選択',''));jobs.forEach(j=>job.add(opt(j)));renderBasic();renderSpecials();}
 academy.addEventListener('change',updateJobs); job.addEventListener('change',()=>{renderBasic();renderSpecials();});
 
 function renderExp(){document.getElementById('expInputs').innerHTML=expNames.map(n=>`<div class="exp-row"><label>${n}</label><input type="number" min="0" id="exp_${n}" inputmode="numeric" autocomplete="off"></div>`).join('');}
@@ -71,10 +71,17 @@ function setHintBtn(btn,level){if(!btn)return; btn.textContent=Number(level)>0?`
 function cycleHint(v){return (Number(v)||0)>=5 ? 0 : (Number(v)||0)+1;}
 function applyBasicVisual(name){
   const row=document.querySelector(`.ability-row[data-basic="${name}"]`); if(!row)return;
+  const lim=limits();
   setHintBtn(row.querySelector('.hint-btn'),basicHints[name]||0);
   row.classList.toggle('owned',!!basicOwned[name]);
   const btn=row.querySelector('.name-btn');
   btn.innerHTML=`<span>${name}</span>${ownedLabel(!!basicOwned[name])}`;
+  const inp=document.getElementById('basic_'+name);
+  if(inp){
+    inp.disabled=!!basicOwned[name];
+    inp.classList.toggle('locked',!!basicOwned[name]);
+    if(basicOwned[name] && lim[name]!==999) inp.value=lim[name];
+  }
 }
 function applySkillVisual(i){
   const row=document.querySelector(`.skill-row[data-index="${i}"]`); if(!row)return;
@@ -101,11 +108,24 @@ document.addEventListener('click',e=>{
   if(kind==='basic-hint'){const name=t.dataset.name; basicHints[name]=cycleHint(basicHints[name]); applyBasicVisual(name); return;}
   if(kind==='basic-name'){
     const name=t.dataset.name; basicOwned[name]=!basicOwned[name];
-    const inp=document.getElementById('basic_'+name); if(inp) inp.value=basicOwned[name]?limits()[name]:'';
     applyBasicVisual(name); return;
   }
   if(kind==='special-hint'){const i=Number(t.dataset.index); setSpecialHint(i,cycleHint(getSpecialState(i).hint)); return;}
   if(kind==='special-name'){toggleSpecial(Number(t.dataset.index)); return;}
+});
+
+document.addEventListener('input',e=>{
+  const inp=e.target;
+  if(!inp || !inp.id || !inp.id.startsWith('basic_')) return;
+  const name=inp.id.replace('basic_','');
+  const lim=limits()[name];
+  if(lim!==999 && inp.value!=='' && Number(inp.value)>=lim){
+    basicOwned[name]=true;
+    applyBasicVisual(name);
+  }else{
+    basicOwned[name]=false;
+    applyBasicVisual(name);
+  }
 });
 
 function jobScoreIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
@@ -224,10 +244,33 @@ function resultTable(items,kind){
   const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from}→${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
   return `<table class="result-table"><tbody>${rows}</tbody></table>`;
 }
+function validateInputs(){
+  const errs=[];
+  if(!academy.value){errs.push('アカデミー及びジョブを選択してください。'); return errs;}
+  if(!job.value) errs.push('ジョブを選択してください。');
+  expNames.forEach(n=>{const v=document.getElementById('exp_'+n)?.value; if(v==='' || v==null) errs.push(`${n}経験点を入力してください。`);});
+  basicNames.forEach(n=>{const v=document.getElementById('basic_'+n)?.value; if(!basicOwned[n] && (v==='' || v==null)) errs.push(`${n}を入力してください。`);});
+  return errs;
+}
 function calc(){
+  const result=document.getElementById('result');
+  const errs=validateInputs();
+  if(errs.length){result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`; return;}
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
-  const best=optimize(exp);
-  document.getElementById('result').innerHTML=`<div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>`;
+  const btn=document.getElementById('calcBtn');
+  btn.disabled=true; btn.textContent='計算中…';
+  result.innerHTML='<p class="calculating">計算中…少し待ってな。</p>';
+  setTimeout(()=>{
+    try{
+      const best=optimize(exp);
+      result.innerHTML=`<div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>`;
+    }catch(err){
+      result.innerHTML='<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p></div>';
+      console.error(err);
+    }finally{
+      btn.disabled=false; btn.textContent='計算する';
+    }
+  },30);
 }
 function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});

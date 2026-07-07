@@ -37,3 +37,7 @@
   border:1.6px solid #111827;
   border-radius:50%;
 }
+/* v1.6: validation / locked state / smoother calculation */
+.ability-value.locked,.ability-value:disabled{background:#eef2f7;color:#334155;font-weight:800;opacity:1}
+.error-box{border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:12px;padding:12px;font-weight:800;line-height:1.5}
+.error-box p{margin:6px 0}.calculating{font-weight:800;color:#334155}button:disabled{opacity:.65}
