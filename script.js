@@ -1,169 +1,79 @@
+const D=window.PAWAADO_DATA;
+const jobsByAcademy={};
+D.academies.forEach(r=>{(jobsByAcademy[r[0]]??=[]).push(r[1])});
+const academy=document.getElementById('academy'),job=document.getElementById('job');
+Object.keys(jobsByAcademy).forEach(a=>academy.add(new Option(a,a)));
+function updateJobs(){job.innerHTML='';jobsByAcademy[academy.value].forEach(j=>job.add(new Option(j,j)))}
+academy.onchange=updateJobs;updateJobs();
 
-const resources = ["muscle", "agility", "tech", "intellect", "spirit"];
-const resourceLabels = { muscle:"筋", agility:"敏", tech:"技", intellect:"知", spirit:"精" };
-const hintDiscount = {0:0, 1:0.5, 2:0.6, 3:0.7, 4:0.8, 5:0.9};
+const expNames=['筋力','敏捷','技術','知力','精神'];
+document.getElementById('expInputs').innerHTML=expNames.map(n=>`<label>${n}<input type="number" min="0" value="0" id="exp_${n}"></label>`).join('');
 
-const state = {
-  hints: {},
-  obtained: new Set()
-};
+const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
+document.getElementById('basicInputs').innerHTML=basicNames.map(n=>`<div class="basic-row"><strong>${n}</strong><label>現在値<input type="number" min="1" value="1" id="basic_${n}"></label><label>コツLv<select id="bhint_${n}">${[0,1,2,3,4,5].map(x=>`<option>${x}</option>`).join('')}</select></label></div>`).join('');
 
-function baseName(name) {
-  return name.replace(/[○◎]$/, "");
+function renderSkillName(name){
+  return String(name).replace('○','<span class="mark">○</span>').replace('◎','<span class="mark">◎</span>');
 }
-function suffixOf(name) {
-  const m = name.match(/[○◎]$/);
-  return m ? m[0] : "";
-}
-function renderName(name) {
-  const suffix = suffixOf(name);
-  if (!suffix) return escapeHtml(name);
-  return `<span class="skill-name">${escapeHtml(name.slice(0, -1))}<span class="suffix">${suffix}</span></span>`;
-}
-function escapeHtml(str) {
-  return String(str ?? "").replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
-}
-function getHint(skill) {
-  return Number(state.hints[baseName(skill.name)] || 0);
-}
-function discountedCost(skill) {
-  const lv = getHint(skill);
-  const factor = 1 - (hintDiscount[lv] || 0);
-  const out = {};
-  for (const r of resources) out[r] = Math.floor(skill.cost[r] * factor);
-  return out;
-}
-function costSum(cost) {
-  return resources.reduce((a,r)=>a + Number(cost[r] || 0), 0);
-}
-function canAfford(cost, points) {
-  return resources.every(r => cost[r] <= points[r]);
-}
-function subtract(cost, points) {
-  for (const r of resources) points[r] -= cost[r];
-}
-function addCost(cost, points) {
-  for (const r of resources) points[r] += cost[r];
-}
-function pointsFromInputs() {
-  const p = {};
-  for (const r of resources) p[r] = Math.max(0, Number(document.getElementById(r).value || 0));
-  return p;
-}
+const tbody=document.querySelector('#specialTable tbody');
+tbody.innerHTML=D.special.map((s,i)=>`<tr><td><select class="hint" id="hint_${i}">${[0,1,2,3,4,5].map(x=>`<option>${x}</option>`).join('')}</select></td><td class="owned"><input type="checkbox" id="own_${i}"></td><td class="skill-name">${renderSkillName(s[1])}</td></tr>`).join('');
 
-function renderTable() {
-  const tbody = document.querySelector("#skillTable tbody");
-  const q = document.getElementById("search").value.trim();
-  tbody.innerHTML = "";
-  for (const skill of SKILLS) {
-    if (q && !skill.name.includes(q)) continue;
-    const tr = document.createElement("tr");
-    const cost = discountedCost(skill);
-    const appraisal = skill.appraisal === null ? `<span class="appraisal-none">${escapeHtml(skill.appraisalLabel || "調査中")}</span>` : skill.appraisal;
-    tr.innerHTML = `
-      <td>${skill.no}</td>
-      <td>${renderName(skill.name)}</td>
-      <td>${skill.requires ? renderName(skill.requires) : "-"}</td>
-      <td>
-        <select class="hint-select" data-base="${escapeHtml(baseName(skill.name))}">
-          ${[0,1,2,3,4,5].map(lv => `<option value="${lv}" ${getHint(skill)==lv?"selected":""}>Lv${lv}</option>`).join("")}
-        </select>
-      </td>
-      <td><input type="checkbox" class="obtained-check" data-name="${escapeHtml(skill.name)}" ${state.obtained.has(skill.name)?"checked":""}></td>
-      ${resources.map(r => `<td class="${cost[r]===0?"cost-zero":""}">${cost[r]}</td>`).join("")}
-      <td>${appraisal}</td>
-    `;
-    tbody.appendChild(tr);
+function jobGroupIndex(){
+  if(['剣士','弓使い','重戦士'].includes(job.value)) return 8;
+  if(['魔闘士','魔法使い'].includes(job.value)) return 9;
+  return 10;
+}
+function fixedAddIndex(){
+  if(['剣士','弓使い','重戦士'].includes(job.value)) return 12;
+  if(['魔闘士','魔法使い'].includes(job.value)) return 13;
+  return 14;
+}
+function skillScore(s, hp){
+  const group=jobGroupIndex();
+  const rate=Number(s[11]||0);
+  if(rate){
+    const fixed=Number(s[fixedAddIndex()]||0);
+    return Math.round((fixed+hp*rate)*10)/10;
   }
+  const v=s[group];
+  if(v==="HP依存") return 0;
+  return Number(v||0);
 }
-
-function syncHint(base, lv) {
-  state.hints[base] = Number(lv);
-  renderTable();
+function costAfter(cost,hint,basic=false){
+  const disc=basic?hint*0.02:({0:0,1:.5,2:.6,3:.7,4:.8,5:.9}[hint]||0);
+  return Math.floor(cost*(1-disc));
 }
-function toggleObtained(name, checked) {
-  if (checked) state.obtained.add(name); else state.obtained.delete(name);
-  renderTable();
+function currentHp(){
+  let hp=50;
+  const life=Number(document.getElementById('basic_生命力').value||1);
+  for(const r of D.hp){if(life>=Number(r[0])) hp=Number(r[1]);}
+  return hp;
 }
-
-function calculateGreedy() {
-  const points = pointsFromInputs();
-  const remaining = {...points};
-  const selected = new Set(state.obtained);
-  const plan = [];
-  let totalAppraisal = 0;
-
-  // Greedy with prerequisites. Repeat while a useful affordable skill exists.
-  while (true) {
-    let best = null;
-    for (const skill of SKILLS) {
-      if (selected.has(skill.name)) continue;
-      if (skill.appraisal === null || Number(skill.appraisal) <= 0) continue;
-      if (skill.requires && !selected.has(skill.requires)) continue;
-      const cost = discountedCost(skill);
-      if (!canAfford(cost, remaining)) continue;
-      const sum = Math.max(1, costSum(cost));
-      const score = Number(skill.appraisal) / sum;
-      if (!best || score > best.score || (score === best.score && skill.no < best.skill.no)) {
-        best = {skill, cost, sum, score};
-      }
+function calc(){
+  const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
+  const hp=currentHp();
+  let candidates=[];
+  D.special.forEach((s,i)=>{
+    if(document.getElementById('own_'+i).checked)return;
+    const req=s[2];
+    if(req){
+      const reqIndex=D.special.findIndex(x=>x[1]===req);
+      if(reqIndex>=0 && !document.getElementById('own_'+reqIndex).checked)return;
     }
-    if (!best) break;
-    selected.add(best.skill.name);
-    subtract(best.cost, remaining);
-    totalAppraisal += Number(best.skill.appraisal);
-    plan.push(best);
-  }
-  renderResult(plan, points, remaining, totalAppraisal);
+    const hint=Number(document.getElementById('hint_'+i).value);
+    const costs=[s[3],s[4],s[5],s[6],s[7]].map(c=>costAfter(Number(c||0),hint,false));
+    if(costs.every((c,ix)=>c<=exp[ix])){
+      let sc=skillScore(s,hp);
+      if(sc!==0) candidates.push({name:s[1],costs,score:sc,eff:sc/(costs.reduce((a,b)=>a+b,0)||1)});
+    }
+  });
+  candidates.sort((a,b)=>b.eff-a.eff);
+  document.getElementById('result').innerHTML='<ol>'+candidates.slice(0,20).map(c=>`<li><b>${c.name}</b>（目安査定 ${c.score} / 必要 ${c.costs.join('・')}）</li>`).join('')+'</ol>';
 }
-
-function renderResult(plan, start, remaining, totalAppraisal) {
-  const summary = document.getElementById("summary");
-  const result = document.getElementById("result");
-  const spent = {};
-  for (const r of resources) spent[r] = start[r] - remaining[r];
-
-  summary.innerHTML = `
-    <b>合計査定：</b>${totalAppraisal}
-    <br><b>使用経験点：</b>${resources.map(r => `${resourceLabels[r]}${spent[r]}`).join(" / ")}
-    <br><b>残り経験点：</b>${resources.map(r => `${resourceLabels[r]}${remaining[r]}`).join(" / ")}
-    <br><span class="hint">※現在は高速に使える貪欲計算です。査定値や仕様が固まったら、より厳密な最適化に差し替え可能です。</span>
-  `;
-
-  if (plan.length === 0) {
-    result.innerHTML = `<p class="hint">取得候補がありません。経験点・コツLv・取得済み能力を確認してください。</p>`;
-    return;
-  }
-
-  result.innerHTML = `<div class="result-list">` + plan.map((item, i) => {
-    const costText = resources.map(r => `${resourceLabels[r]}${item.cost[r]}`).join(" / ");
-    return `
-      <div class="result-item">
-        <div>
-          <b>${i+1}. ${renderName(item.skill.name)}</b>
-          <div class="meta">必要：${costText} / 査定：${item.skill.appraisal} / 効率：${item.score.toFixed(3)}</div>
-        </div>
-        <span class="badge">+${item.skill.appraisal}</span>
-      </div>
-    `;
-  }).join("") + `</div>`;
-}
-
-function resetInputs() {
-  for (const r of resources) document.getElementById(r).value = 0;
-  state.obtained.clear();
-  state.hints = {};
-  renderTable();
-  document.getElementById("summary").textContent = "経験点を入力して「計算する」を押してください。";
-  document.getElementById("result").innerHTML = "";
-}
-
-document.addEventListener("change", (e) => {
-  if (e.target.classList.contains("hint-select")) syncHint(e.target.dataset.base, e.target.value);
-  if (e.target.classList.contains("obtained-check")) toggleObtained(e.target.dataset.name, e.target.checked);
-});
-document.getElementById("search").addEventListener("input", renderTable);
-document.getElementById("calcBtn").addEventListener("click", calculateGreedy);
-document.getElementById("resetBtn").addEventListener("click", resetInputs);
-
-renderTable();
+document.getElementById('calcBtn').onclick=calc;
+document.getElementById('resetBtn').onclick=()=>{
+  document.querySelectorAll('input').forEach(i=>{if(i.type==='checkbox')i.checked=false;else i.value=i.id.startsWith('basic_')?1:0});
+  document.querySelectorAll('select.hint').forEach(s=>s.value=0);
+  document.querySelectorAll('[id^=bhint_]').forEach(s=>s.value=0);
+  document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
+};

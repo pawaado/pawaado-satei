@@ -2,84 +2,49 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>パワアド 査定最大化ツール</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>パワアド査定ツール</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="app-header">
-    <div>
-      <h1>パワアド 査定最大化ツール</h1>
-      <p>ジョブ・経験点・コツLvを入力して、青特殊能力の取得候補を確認できます。</p>
+<header>
+  <h1>パワアド査定ツール</h1>
+  <p>マスターデータベース v1.1 修正版</p>
+</header>
+<main>
+  <section class="card">
+    <label>アカデミー<select id="academy"></select></label>
+    <label>ジョブ<select id="job"></select></label>
+  </section>
+  <section class="card">
+    <h2>現在の各経験点</h2>
+    <div class="grid5" id="expInputs"></div>
+  </section>
+  <section class="card">
+    <h2>現在の基本能力・コツ</h2>
+    <div class="basic" id="basicInputs"></div>
+  </section>
+  <section class="card">
+    <h2>取得済 or コツを取得した特殊能力</h2>
+    <table id="specialTable">
+      <thead><tr><th>コツLv</th><th>取得済</th><th>特殊能力</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="buttons">
+      <button id="calcBtn">計算する</button>
+      <button id="resetBtn" class="secondary">入力をリセット</button>
     </div>
-  </header>
-
-  <main>
-    <section class="card">
-      <h2>入力</h2>
-      <div class="grid">
-        <label>ジョブ
-          <select id="job">
-            <option>剣士</option>
-            <option>重戦士</option>
-            <option>弓使い</option>
-            <option>魔法使い</option>
-            <option>僧侶</option>
-            <option>魔闘士</option>
-          </select>
-        </label>
-        <label>筋力 <input id="muscle" type="number" min="0" value="0"></label>
-        <label>敏捷 <input id="agility" type="number" min="0" value="0"></label>
-        <label>技術 <input id="tech" type="number" min="0" value="0"></label>
-        <label>知力 <input id="intellect" type="number" min="0" value="0"></label>
-        <label>精神 <input id="spirit" type="number" min="0" value="0"></label>
-      </div>
-      <div class="buttons">
-        <button id="calcBtn">計算する</button>
-        <button id="resetBtn" class="secondary">入力をリセット</button>
-      </div>
-      <p class="hint">コツLvは同名の○・◎で共有します。例：通常攻撃のコツLv3なら、通常攻撃○と通常攻撃◎の両方に70%OFFを適用します。</p>
-    </section>
-
-    <section class="card">
-      <h2>おすすめ取得候補</h2>
-      <div id="summary" class="summary">経験点を入力して「計算する」を押してください。</div>
-      <div id="result"></div>
-    </section>
-
-    <section class="card">
-      <div class="title-row">
-        <h2>特殊能力一覧</h2>
-        <input id="search" placeholder="能力名で検索">
-      </div>
-      <div class="table-wrap">
-        <table id="skillTable">
-          <thead>
-            <tr>
-              <th>No</th>
-              <th>特殊能力</th>
-              <th>前提</th>
-              <th>コツLv</th>
-              <th>取得済</th>
-              <th>筋</th>
-              <th>敏</th>
-              <th>技</th>
-              <th>知</th>
-              <th>精</th>
-              <th>査定</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <p>マスターExcel：パワアド_特殊能力マスター_査定反映済み_表示統一版.xlsx</p>
-  </footer>
-
-  <script src="data.js"></script>
-  <script src="script.js"></script>
+  </section>
+  <section class="card">
+    <h2>結果</h2>
+    <div id="result">条件を入力して「計算する」を押してください。</div>
+  </section>
+  <section class="note">
+    <p>小数点以下の査定が不明であることなどから、本ツールの結果が最大値とならない場合があります。また、必殺技、アクションスキル、超特殊能力は割愛しています。あらかじめご了承ください。</p>
+    <p>〜攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</p>
+  </section>
+</main>
+<script src="data.js"></script>
+<script src="script.js"></script>
 </body>
 </html>

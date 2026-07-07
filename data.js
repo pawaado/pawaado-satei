@@ -1,1817 +1,4002 @@
-const SKILLS = [
-  {
-    "no": 1,
-    "name": "物理攻撃○",
-    "requires": "",
-    "cost": {
-      "muscle": 190,
-      "agility": 15,
-      "tech": 65,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 135,
-    "appraisalLabel": "135",
-    "note": ""
-  },
-  {
-    "no": 2,
-    "name": "物理攻撃◎",
-    "requires": "物理攻撃○",
-    "cost": {
-      "muscle": 285,
-      "agility": 22,
-      "tech": 98,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 3,
-    "name": "魔法攻撃○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 30,
-      "intellect": 170,
-      "spirit": 70
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 4,
-    "name": "魔法攻撃◎",
-    "requires": "魔法攻撃○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 45,
-      "intellect": 255,
-      "spirit": 105
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 5,
-    "name": "物理防御○",
-    "requires": "",
-    "cost": {
-      "muscle": 90,
-      "agility": 150,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 35
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 6,
-    "name": "物理防御◎",
-    "requires": "物理防御○",
-    "cost": {
-      "muscle": 135,
-      "agility": 225,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 45
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 7,
-    "name": "魔法防御○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 150,
-      "tech": 0,
-      "intellect": 70,
-      "spirit": 55
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 8,
-    "name": "魔法防御◎",
-    "requires": "魔法防御○",
-    "cost": {
-      "muscle": 0,
-      "agility": 225,
-      "tech": 0,
-      "intellect": 105,
-      "spirit": 75
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 9,
-    "name": "体幹",
-    "requires": "",
-    "cost": {
-      "muscle": 230,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 60
-    },
-    "appraisal": 160,
-    "appraisalLabel": "160",
-    "note": ""
-  },
-  {
-    "no": 10,
-    "name": "魔力制御",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 230,
-      "spirit": 60
-    },
-    "appraisal": 70,
-    "appraisalLabel": "70",
-    "note": ""
-  },
-  {
-    "no": 11,
-    "name": "忍耐",
-    "requires": "",
-    "cost": {
-      "muscle": 170,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 120
-    },
-    "appraisal": null,
-    "appraisalLabel": "調査中",
-    "note": ""
-  },
-  {
-    "no": 12,
-    "name": "生存本能",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 110,
-      "tech": 0,
-      "intellect": 25,
-      "spirit": 170
-    },
-    "appraisal": null,
-    "appraisalLabel": "調査中",
-    "note": ""
-  },
-  {
-    "no": 13,
-    "name": "闘争本能",
-    "requires": "",
-    "cost": {
-      "muscle": 80,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 225
-    },
-    "appraisal": 135,
-    "appraisalLabel": "135",
-    "note": ""
-  },
-  {
-    "no": 14,
-    "name": "柔軟な体",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 110,
-      "tech": 140,
-      "intellect": 35,
-      "spirit": 0
-    },
-    "appraisal": 280,
-    "appraisalLabel": "280",
-    "note": ""
-  },
-  {
-    "no": 15,
-    "name": "頑丈な体",
-    "requires": "",
-    "cost": {
-      "muscle": 175,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 110
-    },
-    "appraisal": null,
-    "appraisalLabel": "調査中",
-    "note": ""
-  },
-  {
-    "no": 16,
-    "name": "無心の構え",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 60,
-      "tech": 30,
-      "intellect": 0,
-      "spirit": 195
-    },
-    "appraisal": 280,
-    "appraisalLabel": "280",
-    "note": ""
-  },
-  {
-    "no": 17,
-    "name": "護身の構え",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 110,
-      "tech": 105,
-      "intellect": 0,
-      "spirit": 70
-    },
-    "appraisal": null,
-    "appraisalLabel": "調査中",
-    "note": ""
-  },
-  {
-    "no": 18,
-    "name": "狙い撃ち",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 195,
-      "intellect": 0,
-      "spirit": 95
-    },
-    "appraisal": 60,
-    "appraisalLabel": "60",
-    "note": ""
-  },
-  {
-    "no": 19,
-    "name": "運任せ",
-    "requires": "",
-    "cost": {
-      "muscle": 150,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 99
-    },
-    "appraisal": 150,
-    "appraisalLabel": "150",
-    "note": ""
-  },
-  {
-    "no": 20,
-    "name": "●攻撃",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 180,
-      "intellect": 40,
-      "spirit": 60
-    },
-    "appraisal": 135,
-    "appraisalLabel": "135",
-    "note": ""
-  },
-  {
-    "no": 21,
-    "name": "火耐性",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 120,
-      "tech": 60,
-      "intellect": 0,
-      "spirit": 100
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 22,
-    "name": "風耐性",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 120,
-      "tech": 60,
-      "intellect": 0,
-      "spirit": 100
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 23,
-    "name": "水耐性",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 120,
-      "tech": 60,
-      "intellect": 0,
-      "spirit": 100
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 24,
-    "name": "無耐性",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 120,
-      "tech": 60,
-      "intellect": 0,
-      "spirit": 100
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 25,
-    "name": "通常攻撃○",
-    "requires": "",
-    "cost": {
-      "muscle": 95,
-      "agility": 75,
-      "tech": 90,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 156,
-    "appraisalLabel": "156",
-    "note": ""
-  },
-  {
-    "no": 26,
-    "name": "通常攻撃◎",
-    "requires": "通常攻撃○",
-    "cost": {
-      "muscle": 143,
-      "agility": 112,
-      "tech": 135,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 104,
-    "appraisalLabel": "104",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 27,
-    "name": "アクションスキル○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 90,
-      "tech": 170,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 144,
-    "appraisalLabel": "144",
-    "note": ""
-  },
-  {
-    "no": 28,
-    "name": "アクションスキル◎",
-    "requires": "アクションスキル○",
-    "cost": {
-      "muscle": 0,
-      "agility": 135,
-      "tech": 255,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 96,
-    "appraisalLabel": "96",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 29,
-    "name": "単体攻撃○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 60,
-      "intellect": 0,
-      "spirit": 200
-    },
-    "appraisal": 135,
-    "appraisalLabel": "135",
-    "note": ""
-  },
-  {
-    "no": 30,
-    "name": "単体攻撃◎",
-    "requires": "単体攻撃○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 90,
-      "intellect": 0,
-      "spirit": 300
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 31,
-    "name": "列攻撃○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 160,
-      "tech": 50,
-      "intellect": 50,
-      "spirit": 0
-    },
-    "appraisal": 99,
-    "appraisalLabel": "99",
-    "note": ""
-  },
-  {
-    "no": 32,
-    "name": "列攻撃◎",
-    "requires": "列攻撃○",
-    "cost": {
-      "muscle": 0,
-      "agility": 240,
-      "tech": 75,
-      "intellect": 75,
-      "spirit": 0
-    },
-    "appraisal": 66,
-    "appraisalLabel": "66",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 33,
-    "name": "追撃○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 130,
-      "tech": 130,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 39,
-    "appraisalLabel": "39",
-    "note": ""
-  },
-  {
-    "no": 34,
-    "name": "追撃◎",
-    "requires": "追撃○",
-    "cost": {
-      "muscle": 0,
-      "agility": 195,
-      "tech": 195,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 26,
-    "appraisalLabel": "26",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 35,
-    "name": "がむしゃら",
-    "requires": "",
-    "cost": {
-      "muscle": 177,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 33,
-      "spirit": 55
-    },
-    "appraisal": 35,
-    "appraisalLabel": "35",
-    "note": ""
-  },
-  {
-    "no": 36,
-    "name": "ケガしにくさ○",
-    "requires": "",
-    "cost": {
-      "muscle": 190,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 80
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 37,
-    "name": "ケガしにくさ◎",
-    "requires": "ケガしにくさ○",
-    "cost": {
-      "muscle": 285,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 120
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 38,
-    "name": "防御態勢",
-    "requires": "",
-    "cost": {
-      "muscle": 155,
-      "agility": 135,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 39,
-    "name": "備え",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 60,
-      "intellect": 90,
-      "spirit": 140
-    },
-    "appraisal": 100,
-    "appraisalLabel": "100",
-    "note": ""
-  },
-  {
-    "no": 40,
-    "name": "広い視野",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 170,
-      "tech": 0,
-      "intellect": 60,
-      "spirit": 60
-    },
-    "appraisal": 100,
-    "appraisalLabel": "100",
-    "note": ""
-  },
-  {
-    "no": 41,
-    "name": "見切り",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 65,
-      "tech": 95,
-      "intellect": 130,
-      "spirit": 0
-    },
-    "appraisal": 72,
-    "appraisalLabel": "72",
-    "note": ""
-  },
-  {
-    "no": 42,
-    "name": "危機察知",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 120,
-      "tech": 50,
-      "intellect": 115,
-      "spirit": 0
-    },
-    "appraisal": 132,
-    "appraisalLabel": "132",
-    "note": ""
-  },
-  {
-    "no": 43,
-    "name": "力学の理解",
-    "requires": "",
-    "cost": {
-      "muscle": 80,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 230,
-      "spirit": 0
-    },
-    "appraisal": 280,
-    "appraisalLabel": "280",
-    "note": ""
-  },
-  {
-    "no": 44,
-    "name": "魔法の理解",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 310,
-      "spirit": 0
-    },
-    "appraisal": 280,
-    "appraisalLabel": "280",
-    "note": ""
-  },
-  {
-    "no": 45,
-    "name": "免疫強化",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 70,
-      "tech": 0,
-      "intellect": 86,
-      "spirit": 104
-    },
-    "appraisal": 40,
-    "appraisalLabel": "40",
-    "note": ""
-  },
-  {
-    "no": 46,
-    "name": "意志",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 14,
-      "spirit": 246
-    },
-    "appraisal": 40,
-    "appraisalLabel": "40",
-    "note": ""
-  },
-  {
-    "no": 47,
-    "name": "ガッツ",
-    "requires": "",
-    "cost": {
-      "muscle": 14,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 246
-    },
-    "appraisal": 40,
-    "appraisalLabel": "40",
-    "note": ""
-  },
-  {
-    "no": 48,
-    "name": "対剣士○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 90,
-      "tech": 0,
-      "intellect": 170,
-      "spirit": 10
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 49,
-    "name": "対剣士◎",
-    "requires": "対剣士○",
-    "cost": {
-      "muscle": 0,
-      "agility": 135,
-      "tech": 0,
-      "intellect": 255,
-      "spirit": 15
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 50,
-    "name": "対魔闘士○",
-    "requires": "",
-    "cost": {
-      "muscle": 25,
-      "agility": 40,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 205
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 51,
-    "name": "対魔闘士◎",
-    "requires": "対魔闘士○",
-    "cost": {
-      "muscle": 37,
-      "agility": 60,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 308
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 52,
-    "name": "対重戦士○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 115,
-      "tech": 107,
-      "intellect": 0,
-      "spirit": 48
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 53,
-    "name": "対重戦士◎",
-    "requires": "対重戦士○",
-    "cost": {
-      "muscle": 0,
-      "agility": 173,
-      "tech": 160,
-      "intellect": 0,
-      "spirit": 72
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 54,
-    "name": "対弓使い○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 205,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 65
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 55,
-    "name": "対弓使い◎",
-    "requires": "対弓使い○",
-    "cost": {
-      "muscle": 0,
-      "agility": 308,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 97
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 56,
-    "name": "対魔法使い○",
-    "requires": "",
-    "cost": {
-      "muscle": 170,
-      "agility": 30,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 70
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 57,
-    "name": "対魔法使い◎",
-    "requires": "対魔法使い○",
-    "cost": {
-      "muscle": 255,
-      "agility": 45,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 105
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 58,
-    "name": "対僧侶○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 102,
-      "tech": 92,
-      "intellect": 76,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 59,
-    "name": "対僧侶◎",
-    "requires": "対僧侶○",
-    "cost": {
-      "muscle": 0,
-      "agility": 153,
-      "tech": 138,
-      "intellect": 114,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 60,
-    "name": "対ゴブリン○",
-    "requires": "",
-    "cost": {
-      "muscle": 95,
-      "agility": 0,
-      "tech": 80,
-      "intellect": 80,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 61,
-    "name": "対ゴブリン◎",
-    "requires": "対ゴブリン○",
-    "cost": {
-      "muscle": 143,
-      "agility": 0,
-      "tech": 120,
-      "intellect": 120,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 62,
-    "name": "対オーク○",
-    "requires": "",
-    "cost": {
-      "muscle": 220,
-      "agility": 35,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 63,
-    "name": "対オーク◎",
-    "requires": "対オーク○",
-    "cost": {
-      "muscle": 330,
-      "agility": 53,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 64,
-    "name": "対サイクロプス○",
-    "requires": "",
-    "cost": {
-      "muscle": 80,
-      "agility": 125,
-      "tech": 0,
-      "intellect": 50,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 65,
-    "name": "対サイクロプス◎",
-    "requires": "対サイクロプス○",
-    "cost": {
-      "muscle": 120,
-      "agility": 188,
-      "tech": 0,
-      "intellect": 75,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 66,
-    "name": "対ヌメリン○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 30,
-      "tech": 17,
-      "intellect": 208,
-      "spirit": 0
-    },
-    "appraisal": 9,
-    "appraisalLabel": "9",
-    "note": ""
-  },
-  {
-    "no": 67,
-    "name": "対ヌメリン◎",
-    "requires": "対ヌメリン○",
-    "cost": {
-      "muscle": 0,
-      "agility": 45,
-      "tech": 26,
-      "intellect": 312,
-      "spirit": 0
-    },
-    "appraisal": 4,
-    "appraisalLabel": "4",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 68,
-    "name": "対キラービー○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 160,
-      "tech": 20,
-      "intellect": 0,
-      "spirit": 75
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 69,
-    "name": "対キラービー◎",
-    "requires": "対キラービー○",
-    "cost": {
-      "muscle": 0,
-      "agility": 240,
-      "tech": 30,
-      "intellect": 0,
-      "spirit": 113
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 70,
-    "name": "対ピクシー○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 61,
-      "tech": 61,
-      "intellect": 0,
-      "spirit": 133
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 71,
-    "name": "対ピクシー◎",
-    "requires": "対ピクシー○",
-    "cost": {
-      "muscle": 0,
-      "agility": 92,
-      "tech": 92,
-      "intellect": 0,
-      "spirit": 199
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 72,
-    "name": "対ハーピー○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 140,
-      "tech": 70,
-      "intellect": 0,
-      "spirit": 45
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 73,
-    "name": "対ハーピー◎",
-    "requires": "対ハーピー○",
-    "cost": {
-      "muscle": 0,
-      "agility": 210,
-      "tech": 105,
-      "intellect": 0,
-      "spirit": 68
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 74,
-    "name": "対スケルトン○",
-    "requires": "",
-    "cost": {
-      "muscle": 110,
-      "agility": 10,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 135
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 75,
-    "name": "対スケルトン◎",
-    "requires": "対スケルトン○",
-    "cost": {
-      "muscle": 165,
-      "agility": 15,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 203
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 76,
-    "name": "対ラミア○",
-    "requires": "",
-    "cost": {
-      "muscle": 95,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 160
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 77,
-    "name": "対ラミア◎",
-    "requires": "対ラミア○",
-    "cost": {
-      "muscle": 143,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 0,
-      "spirit": 240
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 78,
-    "name": "対ウンディーネ○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 55,
-      "tech": 0,
-      "intellect": 120,
-      "spirit": 80
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 79,
-    "name": "対ウンディーネ◎",
-    "requires": "対ウンディーネ○",
-    "cost": {
-      "muscle": 0,
-      "agility": 83,
-      "tech": 0,
-      "intellect": 180,
-      "spirit": 120
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 80,
-    "name": "対フィッシュ○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 231,
-      "tech": 24,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 81,
-    "name": "対フィッシュ◎",
-    "requires": "対フィッシュ○",
-    "cost": {
-      "muscle": 0,
-      "agility": 347,
-      "tech": 36,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 82,
-    "name": "対妖狐○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 105,
-      "tech": 150,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 83,
-    "name": "対妖狐◎",
-    "requires": "対妖狐○",
-    "cost": {
-      "muscle": 0,
-      "agility": 158,
-      "tech": 225,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 84,
-    "name": "対ドラゴンタートル○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 45,
-      "tech": 0,
-      "intellect": 210,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 85,
-    "name": "対ドラゴンタートル◎",
-    "requires": "対ドラゴンタートル○",
-    "cost": {
-      "muscle": 0,
-      "agility": 68,
-      "tech": 0,
-      "intellect": 315,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 86,
-    "name": "対植物○",
-    "requires": "",
-    "cost": {
-      "muscle": 77,
-      "agility": 77,
-      "tech": 101,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 90,
-    "appraisalLabel": "90",
-    "note": ""
-  },
-  {
-    "no": 87,
-    "name": "対植物◎",
-    "requires": "対植物○",
-    "cost": {
-      "muscle": 116,
-      "agility": 116,
-      "tech": 151,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 45,
-    "appraisalLabel": "45",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 88,
-    "name": "回復効果○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 105,
-      "intellect": 150,
-      "spirit": 150
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 89,
-    "name": "回復効果◎",
-    "requires": "回復効果○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 70,
-      "intellect": 100,
-      "spirit": 100
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 90,
-    "name": "癒やしの心",
-    "requires": "",
-    "cost": {
-      "muscle": 120,
-      "agility": 0,
-      "tech": 50,
-      "intellect": 140,
-      "spirit": 0
-    },
-    "appraisal": null,
-    "appraisalLabel": "調査中",
-    "note": ""
-  },
-  {
-    "no": 91,
-    "name": "ヒーラー魂",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 100,
-      "tech": 50,
-      "intellect": 0,
-      "spirit": 99
-    },
-    "appraisal": -70,
-    "appraisalLabel": "-70",
-    "note": ""
-  },
-  {
-    "no": 92,
-    "name": "慈しみ",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 64,
-      "tech": 0,
-      "intellect": 88,
-      "spirit": 123
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 93,
-    "name": "集中力",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 53,
-      "intellect": 50,
-      "spirit": 172
-    },
-    "appraisal": 60,
-    "appraisalLabel": "60",
-    "note": ""
-  },
-  {
-    "no": 94,
-    "name": "協調性",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 102,
-      "intellect": 82,
-      "spirit": 91
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 95,
-    "name": "バランス感覚",
-    "requires": "",
-    "cost": {
-      "muscle": 102,
-      "agility": 112,
-      "tech": 61,
-      "intellect": 0,
-      "spirit": 0
-    },
-    "appraisal": 100,
-    "appraisalLabel": "100",
-    "note": ""
-  },
-  {
-    "no": 96,
-    "name": "お人よし",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 0,
-      "intellect": 83,
-      "spirit": 192
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 97,
-    "name": "立て直し",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 83,
-      "tech": 62,
-      "intellect": 0,
-      "spirit": 130
-    },
-    "appraisal": 66,
-    "appraisalLabel": "66",
-    "note": ""
-  },
-  {
-    "no": 98,
-    "name": "仲間思い",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 39,
-      "tech": 0,
-      "intellect": 72,
-      "spirit": 164
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 99,
-    "name": "冷静沈着",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 62,
-      "intellect": 33,
-      "spirit": 180
-    },
-    "appraisal": 140,
-    "appraisalLabel": "140",
-    "note": ""
-  },
-  {
-    "no": 100,
-    "name": "戦況分析",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 35,
-      "tech": 62,
-      "intellect": 178,
-      "spirit": 0
-    },
-    "appraisal": 100,
-    "appraisalLabel": "100",
-    "note": ""
-  },
-  {
-    "no": 101,
-    "name": "火回復",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 62,
-      "intellect": 120,
-      "spirit": 98
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 102,
-    "name": "風回復",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 62,
-      "intellect": 120,
-      "spirit": 98
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 103,
-    "name": "水回復",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 62,
-      "intellect": 120,
-      "spirit": 98
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 104,
-    "name": "通常回復○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 22,
-      "intellect": 119,
-      "spirit": 119
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 105,
-    "name": "通常回復◎",
-    "requires": "通常回復○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 34,
-      "intellect": 178,
-      "spirit": 178
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 106,
-    "name": "単体回復○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 48,
-      "tech": 0,
-      "intellect": 120,
-      "spirit": 92
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 107,
-    "name": "単体回復◎",
-    "requires": "単体回復○",
-    "cost": {
-      "muscle": 0,
-      "agility": 72,
-      "tech": 0,
-      "intellect": 180,
-      "spirit": 138
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 108,
-    "name": "列回復○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 68,
-      "intellect": 81,
-      "spirit": 111
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 109,
-    "name": "列回復◎",
-    "requires": "列回復○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 102,
-      "intellect": 122,
-      "spirit": 166
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 110,
-    "name": "剣士治療○",
-    "requires": "",
-    "cost": {
-      "muscle": 50,
-      "agility": 0,
-      "tech": 110,
-      "intellect": 110,
-      "spirit": 0
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 111,
-    "name": "剣士治療◎",
-    "requires": "剣士治療○",
-    "cost": {
-      "muscle": 75,
-      "agility": 0,
-      "tech": 165,
-      "intellect": 165,
-      "spirit": 0
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 112,
-    "name": "魔闘士治療○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 110,
-      "intellect": 110,
-      "spirit": 50
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 113,
-    "name": "魔闘士治療◎",
-    "requires": "魔闘士治療○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 165,
-      "intellect": 165,
-      "spirit": 75
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 114,
-    "name": "重戦士治療○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 50,
-      "tech": 110,
-      "intellect": 110,
-      "spirit": 0
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 115,
-    "name": "重戦士治療◎",
-    "requires": "重戦士治療○",
-    "cost": {
-      "muscle": 0,
-      "agility": 75,
-      "tech": 165,
-      "intellect": 165,
-      "spirit": 0
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 116,
-    "name": "弓使い治療○",
-    "requires": "",
-    "cost": {
-      "muscle": 50,
-      "agility": 0,
-      "tech": 110,
-      "intellect": 110,
-      "spirit": 0
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 117,
-    "name": "弓使い治療◎",
-    "requires": "弓使い治療○",
-    "cost": {
-      "muscle": 75,
-      "agility": 0,
-      "tech": 165,
-      "intellect": 165,
-      "spirit": 0
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 118,
-    "name": "魔法使い治療○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 110,
-      "intellect": 110,
-      "spirit": 50
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 119,
-    "name": "魔法使い治療◎",
-    "requires": "魔法使い治療○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 165,
-      "intellect": 165,
-      "spirit": 75
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  },
-  {
-    "no": 120,
-    "name": "僧侶治療○",
-    "requires": "",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 110,
-      "intellect": 110,
-      "spirit": 50
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": ""
-  },
-  {
-    "no": 121,
-    "name": "僧侶治療◎",
-    "requires": "僧侶治療○",
-    "cost": {
-      "muscle": 0,
-      "agility": 0,
-      "tech": 165,
-      "intellect": 165,
-      "spirit": 75
-    },
-    "appraisal": 0,
-    "appraisalLabel": "0",
-    "note": "◎は○取得後。コツは○/◎両方に適用"
-  }
-];
+window.PAWAADO_DATA = {
+  "academies": [
+    [
+      "カジナイトアカデミー",
+      "剣士",
+      90,
+      110,
+      60,
+      100,
+      75,
+      70
+    ],
+    [
+      "カジナイトアカデミー",
+      "弓使い",
+      80,
+      115,
+      60,
+      115,
+      65,
+      70
+    ],
+    [
+      "カジナイトアカデミー",
+      "魔闘士",
+      90,
+      70,
+      100,
+      100,
+      70,
+      75
+    ],
+    [
+      "タテレスキュアアカデミー",
+      "重戦士",
+      95,
+      55,
+      60,
+      55,
+      95,
+      90
+    ],
+    [
+      "タテレスキュアアカデミー",
+      "魔法使い",
+      75,
+      50,
+      100,
+      90,
+      60,
+      75
+    ],
+    [
+      "タテレスキュアアカデミー",
+      "僧侶",
+      90,
+      50,
+      95,
+      65,
+      85,
+      65
+    ],
+    [
+      "パワフルアカデミー",
+      "剣士",
+      95,
+      90,
+      50,
+      85,
+      70,
+      65
+    ],
+    [
+      "パワフルアカデミー",
+      "弓使い",
+      85,
+      95,
+      50,
+      100,
+      60,
+      65
+    ],
+    [
+      "パワフルアカデミー",
+      "魔法使い",
+      85,
+      50,
+      95,
+      95,
+      55,
+      75
+    ],
+    [
+      "パワフルアカデミー",
+      "魔闘士",
+      95,
+      50,
+      90,
+      85,
+      65,
+      70
+    ]
+  ],
+  "life": [
+    [
+      "1→10",
+      45,
+      5,
+      5,
+      0,
+      0,
+      1,
+      4
+    ],
+    [
+      "10→19",
+      45,
+      5,
+      10,
+      0,
+      0,
+      3,
+      9
+    ],
+    [
+      "19→20",
+      30,
+      30,
+      10,
+      0,
+      0,
+      3,
+      9
+    ],
+    [
+      "20→30",
+      50,
+      5,
+      10,
+      0,
+      0,
+      3,
+      9
+    ],
+    [
+      "30→39",
+      45,
+      5,
+      15,
+      0,
+      0,
+      4,
+      13
+    ],
+    [
+      "39→40",
+      141,
+      141,
+      15,
+      0,
+      0,
+      4,
+      13
+    ],
+    [
+      "40→49",
+      90,
+      10,
+      20,
+      0,
+      0,
+      6,
+      18
+    ],
+    [
+      "49→50",
+      84,
+      84,
+      20,
+      0,
+      0,
+      6,
+      18
+    ],
+    [
+      "50→59",
+      90,
+      10,
+      25,
+      0,
+      0,
+      7,
+      23
+    ],
+    [
+      "59→60",
+      115,
+      115,
+      25,
+      0,
+      0,
+      7,
+      23
+    ],
+    [
+      "60→69",
+      135,
+      15,
+      30,
+      0,
+      0,
+      8,
+      26
+    ],
+    [
+      "69→70",
+      125,
+      125,
+      30,
+      0,
+      0,
+      8,
+      26
+    ],
+    [
+      "70→79",
+      135,
+      15,
+      34,
+      0,
+      0,
+      10,
+      32
+    ],
+    [
+      "79→80",
+      230,
+      230,
+      34,
+      0,
+      0,
+      10,
+      32
+    ],
+    [
+      "80→89",
+      135,
+      15,
+      40,
+      0,
+      0,
+      12,
+      36
+    ],
+    [
+      "89→90",
+      380,
+      380,
+      40,
+      0,
+      0,
+      12,
+      36
+    ],
+    [
+      "90→94",
+      272,
+      68,
+      50,
+      0,
+      0,
+      14,
+      46
+    ],
+    [
+      "94→95",
+      76,
+      76,
+      50,
+      0,
+      0,
+      14,
+      46
+    ]
+  ],
+  "hp": [
+    [
+      1,
+      50
+    ],
+    [
+      2,
+      55
+    ],
+    [
+      3,
+      60
+    ],
+    [
+      4,
+      65
+    ],
+    [
+      5,
+      70
+    ],
+    [
+      6,
+      75
+    ],
+    [
+      7,
+      80
+    ],
+    [
+      8,
+      85
+    ],
+    [
+      9,
+      90
+    ],
+    [
+      10,
+      95
+    ],
+    [
+      11,
+      100
+    ],
+    [
+      12,
+      105
+    ],
+    [
+      13,
+      110
+    ],
+    [
+      14,
+      115
+    ],
+    [
+      15,
+      120
+    ],
+    [
+      16,
+      125
+    ],
+    [
+      17,
+      130
+    ],
+    [
+      18,
+      135
+    ],
+    [
+      19,
+      140
+    ],
+    [
+      20,
+      170
+    ],
+    [
+      21,
+      175
+    ],
+    [
+      22,
+      180
+    ],
+    [
+      23,
+      185
+    ],
+    [
+      24,
+      190
+    ],
+    [
+      25,
+      195
+    ],
+    [
+      26,
+      200
+    ],
+    [
+      27,
+      205
+    ],
+    [
+      28,
+      210
+    ],
+    [
+      29,
+      215
+    ],
+    [
+      30,
+      220
+    ],
+    [
+      31,
+      225
+    ],
+    [
+      32,
+      230
+    ],
+    [
+      33,
+      235
+    ],
+    [
+      34,
+      240
+    ],
+    [
+      35,
+      245
+    ],
+    [
+      36,
+      250
+    ],
+    [
+      37,
+      255
+    ],
+    [
+      38,
+      260
+    ],
+    [
+      39,
+      265
+    ],
+    [
+      40,
+      406
+    ],
+    [
+      41,
+      416
+    ],
+    [
+      42,
+      426
+    ],
+    [
+      43,
+      436
+    ],
+    [
+      44,
+      446
+    ],
+    [
+      45,
+      456
+    ],
+    [
+      46,
+      466
+    ],
+    [
+      47,
+      476
+    ],
+    [
+      48,
+      486
+    ],
+    [
+      49,
+      496
+    ],
+    [
+      50,
+      580
+    ],
+    [
+      51,
+      590
+    ],
+    [
+      52,
+      600
+    ],
+    [
+      53,
+      610
+    ],
+    [
+      54,
+      620
+    ],
+    [
+      55,
+      630
+    ],
+    [
+      56,
+      640
+    ],
+    [
+      57,
+      650
+    ],
+    [
+      58,
+      660
+    ],
+    [
+      59,
+      670
+    ],
+    [
+      60,
+      785
+    ],
+    [
+      61,
+      800
+    ],
+    [
+      62,
+      815
+    ],
+    [
+      63,
+      830
+    ],
+    [
+      64,
+      845
+    ],
+    [
+      65,
+      860
+    ],
+    [
+      66,
+      875
+    ],
+    [
+      67,
+      890
+    ],
+    [
+      68,
+      905
+    ],
+    [
+      69,
+      920
+    ],
+    [
+      70,
+      1045
+    ],
+    [
+      71,
+      1060
+    ],
+    [
+      72,
+      1075
+    ],
+    [
+      73,
+      1090
+    ],
+    [
+      74,
+      1105
+    ],
+    [
+      75,
+      1120
+    ],
+    [
+      76,
+      1135
+    ],
+    [
+      77,
+      1150
+    ],
+    [
+      78,
+      1165
+    ],
+    [
+      79,
+      1180
+    ],
+    [
+      80,
+      1410
+    ],
+    [
+      81,
+      1425
+    ],
+    [
+      82,
+      1440
+    ],
+    [
+      83,
+      1455
+    ],
+    [
+      84,
+      1470
+    ],
+    [
+      85,
+      1485
+    ],
+    [
+      86,
+      1500
+    ],
+    [
+      87,
+      1515
+    ],
+    [
+      88,
+      1530
+    ],
+    [
+      89,
+      1545
+    ],
+    [
+      90,
+      1925
+    ],
+    [
+      91,
+      1993
+    ],
+    [
+      92,
+      2061
+    ],
+    [
+      93,
+      2129
+    ],
+    [
+      94,
+      2197
+    ],
+    [
+      95,
+      2273
+    ]
+  ],
+  "special": [
+    [
+      1,
+      "物理攻撃○",
+      null,
+      190,
+      15,
+      65,
+      0,
+      0,
+      135,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      2,
+      "物理攻撃◎",
+      "物理攻撃○",
+      285,
+      22,
+      98,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      3,
+      "魔法攻撃○",
+      null,
+      0,
+      0,
+      30,
+      170,
+      70,
+      0,
+      135,
+      13,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      4,
+      "魔法攻撃◎",
+      "魔法攻撃○",
+      0,
+      0,
+      45,
+      255,
+      105,
+      0,
+      90,
+      9,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      5,
+      "物理防御○",
+      null,
+      90,
+      150,
+      0,
+      0,
+      35,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      6,
+      "物理防御◎",
+      "物理防御○",
+      135,
+      225,
+      0,
+      0,
+      45,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      7,
+      "魔法防御○",
+      null,
+      0,
+      150,
+      0,
+      70,
+      55,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      8,
+      "魔法防御◎",
+      "魔法防御○",
+      0,
+      225,
+      0,
+      105,
+      75,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      9,
+      "体幹",
+      null,
+      230,
+      0,
+      0,
+      0,
+      60,
+      160,
+      70,
+      70,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      10,
+      "魔力制御",
+      null,
+      0,
+      0,
+      0,
+      230,
+      60,
+      70,
+      160,
+      79,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      11,
+      "忍耐",
+      null,
+      170,
+      0,
+      0,
+      0,
+      120,
+      "HP依存",
+      "HP依存",
+      "HP依存",
+      0.03,
+      0,
+      0,
+      0,
+      "基礎HP×3%。小数第2位四捨五入"
+    ],
+    [
+      12,
+      "生存本能",
+      null,
+      0,
+      110,
+      0,
+      25,
+      170,
+      "HP依存",
+      "HP依存",
+      "HP依存",
+      0.05,
+      0,
+      0,
+      0,
+      "基礎HP×5%。小数第2位四捨五入"
+    ],
+    [
+      13,
+      "闘争本能",
+      null,
+      80,
+      0,
+      0,
+      0,
+      225,
+      135,
+      135,
+      13,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      14,
+      "柔軟な体",
+      null,
+      0,
+      110,
+      140,
+      35,
+      0,
+      280,
+      280,
+      280,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      15,
+      "頑丈な体",
+      null,
+      175,
+      0,
+      0,
+      0,
+      110,
+      "HP依存",
+      "HP依存",
+      "HP依存",
+      0.05,
+      0,
+      0,
+      0,
+      "基礎HP×5%。小数第2位四捨五入"
+    ],
+    [
+      16,
+      "無心の構え",
+      null,
+      0,
+      60,
+      30,
+      0,
+      195,
+      280,
+      280,
+      280,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      17,
+      "護身の構え",
+      null,
+      0,
+      110,
+      105,
+      0,
+      70,
+      "HP依存",
+      "HP依存",
+      "HP依存",
+      0.05,
+      0,
+      0,
+      0,
+      "基礎HP×5%。小数第2位四捨五入"
+    ],
+    [
+      18,
+      "狙い撃ち",
+      null,
+      0,
+      0,
+      195,
+      0,
+      95,
+      60,
+      60,
+      60,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      19,
+      "運任せ",
+      null,
+      150,
+      0,
+      0,
+      0,
+      99,
+      150,
+      150,
+      -255,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      20,
+      "〜攻撃",
+      null,
+      0,
+      0,
+      180,
+      40,
+      60,
+      135,
+      135,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      21,
+      "火耐性",
+      null,
+      0,
+      120,
+      60,
+      0,
+      100,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      22,
+      "風耐性",
+      null,
+      0,
+      120,
+      60,
+      0,
+      100,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      23,
+      "水耐性",
+      null,
+      0,
+      120,
+      60,
+      0,
+      100,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      24,
+      "無耐性",
+      null,
+      0,
+      120,
+      60,
+      0,
+      100,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      25,
+      "通常攻撃○",
+      null,
+      95,
+      75,
+      90,
+      0,
+      0,
+      156,
+      156,
+      156,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      26,
+      "通常攻撃◎",
+      "通常攻撃○",
+      143,
+      112,
+      135,
+      0,
+      0,
+      104,
+      104,
+      104,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      27,
+      "アクションスキル○",
+      null,
+      0,
+      90,
+      170,
+      0,
+      0,
+      144,
+      144,
+      168,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      28,
+      "アクションスキル◎",
+      "アクションスキル○",
+      0,
+      135,
+      255,
+      0,
+      0,
+      96,
+      96,
+      120,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      29,
+      "単体攻撃○",
+      null,
+      0,
+      0,
+      60,
+      0,
+      200,
+      135,
+      135,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      30,
+      "単体攻撃◎",
+      "単体攻撃○",
+      0,
+      0,
+      90,
+      0,
+      300,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      31,
+      "列攻撃○",
+      null,
+      0,
+      160,
+      50,
+      50,
+      0,
+      99,
+      99,
+      99,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      32,
+      "列攻撃◎",
+      "列攻撃○",
+      0,
+      240,
+      75,
+      75,
+      0,
+      66,
+      66,
+      66,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      33,
+      "追撃○",
+      null,
+      0,
+      130,
+      130,
+      0,
+      0,
+      39,
+      39,
+      39,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      34,
+      "追撃◎",
+      "追撃○",
+      0,
+      195,
+      195,
+      0,
+      0,
+      26,
+      26,
+      26,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      35,
+      "がむしゃら",
+      null,
+      177,
+      0,
+      0,
+      33,
+      55,
+      35,
+      35,
+      -249,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      36,
+      "ケガしにくさ○",
+      null,
+      190,
+      0,
+      0,
+      0,
+      80,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      37,
+      "ケガしにくさ◎",
+      "ケガしにくさ○",
+      285,
+      0,
+      0,
+      0,
+      120,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      38,
+      "防御態勢",
+      null,
+      155,
+      135,
+      0,
+      0,
+      0,
+      140,
+      140,
+      140,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      39,
+      "備え",
+      null,
+      0,
+      0,
+      60,
+      90,
+      140,
+      100,
+      100,
+      100,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      40,
+      "広い視野",
+      null,
+      0,
+      170,
+      0,
+      60,
+      60,
+      100,
+      100,
+      100,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      41,
+      "見切り",
+      null,
+      0,
+      65,
+      95,
+      130,
+      0,
+      72,
+      72,
+      72,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      42,
+      "危機察知",
+      null,
+      0,
+      120,
+      50,
+      115,
+      0,
+      132,
+      132,
+      132,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      43,
+      "力学の理解",
+      null,
+      80,
+      0,
+      0,
+      230,
+      0,
+      280,
+      280,
+      280,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      44,
+      "魔法の理解",
+      null,
+      0,
+      0,
+      0,
+      310,
+      0,
+      280,
+      280,
+      280,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      45,
+      "免疫強化",
+      null,
+      0,
+      70,
+      0,
+      86,
+      104,
+      40,
+      40,
+      40,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      46,
+      "意志",
+      null,
+      0,
+      0,
+      0,
+      14,
+      246,
+      40,
+      40,
+      40,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      47,
+      "ガッツ",
+      null,
+      14,
+      0,
+      0,
+      0,
+      246,
+      40,
+      40,
+      40,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      48,
+      "対剣士○",
+      null,
+      0,
+      90,
+      0,
+      170,
+      10,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      49,
+      "対剣士◎",
+      "対剣士○",
+      0,
+      135,
+      0,
+      255,
+      15,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      50,
+      "対魔闘士○",
+      null,
+      25,
+      40,
+      0,
+      0,
+      205,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      51,
+      "対魔闘士◎",
+      "対魔闘士○",
+      37,
+      60,
+      0,
+      0,
+      308,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      52,
+      "対重戦士○",
+      null,
+      0,
+      115,
+      107,
+      0,
+      48,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      53,
+      "対重戦士◎",
+      "対重戦士○",
+      0,
+      173,
+      160,
+      0,
+      72,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      54,
+      "対弓使い○",
+      null,
+      0,
+      205,
+      0,
+      0,
+      65,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      55,
+      "対弓使い◎",
+      "対弓使い○",
+      0,
+      308,
+      0,
+      0,
+      97,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      56,
+      "対魔法使い○",
+      null,
+      170,
+      30,
+      0,
+      0,
+      70,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      57,
+      "対魔法使い◎",
+      "対魔法使い○",
+      255,
+      45,
+      0,
+      0,
+      105,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      58,
+      "対僧侶○",
+      null,
+      0,
+      102,
+      92,
+      76,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      59,
+      "対僧侶◎",
+      "対僧侶○",
+      0,
+      153,
+      138,
+      114,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      60,
+      "対ゴブリン○",
+      null,
+      95,
+      0,
+      80,
+      80,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      61,
+      "対ゴブリン◎",
+      "対ゴブリン○",
+      143,
+      0,
+      120,
+      120,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      62,
+      "対オーク○",
+      null,
+      220,
+      35,
+      0,
+      0,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      63,
+      "対オーク◎",
+      "対オーク○",
+      330,
+      53,
+      0,
+      0,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      64,
+      "対サイクロプス○",
+      null,
+      80,
+      125,
+      0,
+      50,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      65,
+      "対サイクロプス◎",
+      "対サイクロプス○",
+      120,
+      188,
+      0,
+      75,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      66,
+      "対ヌメリン○",
+      null,
+      0,
+      30,
+      17,
+      208,
+      0,
+      9,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      67,
+      "対ヌメリン◎",
+      "対ヌメリン○",
+      0,
+      45,
+      26,
+      312,
+      0,
+      4,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      68,
+      "対キラービー○",
+      null,
+      0,
+      160,
+      20,
+      0,
+      75,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      69,
+      "対キラービー◎",
+      "対キラービー○",
+      0,
+      240,
+      30,
+      0,
+      113,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      70,
+      "対ピクシー○",
+      null,
+      0,
+      61,
+      61,
+      0,
+      133,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      71,
+      "対ピクシー◎",
+      "対ピクシー○",
+      0,
+      92,
+      92,
+      0,
+      199,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      72,
+      "対ハーピー○",
+      null,
+      0,
+      140,
+      70,
+      0,
+      45,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      73,
+      "対ハーピー◎",
+      "対ハーピー○",
+      0,
+      210,
+      105,
+      0,
+      68,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      74,
+      "対スケルトン○",
+      null,
+      110,
+      10,
+      0,
+      0,
+      135,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      75,
+      "対スケルトン◎",
+      "対スケルトン○",
+      165,
+      15,
+      0,
+      0,
+      203,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      76,
+      "対ラミア○",
+      null,
+      95,
+      0,
+      0,
+      0,
+      160,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      77,
+      "対ラミア◎",
+      "対ラミア○",
+      143,
+      0,
+      0,
+      0,
+      240,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      78,
+      "対ウンディーネ○",
+      null,
+      0,
+      55,
+      0,
+      120,
+      80,
+      90,
+      9,
+      9,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      79,
+      "対ウンディーネ◎",
+      "対ウンディーネ○",
+      0,
+      83,
+      0,
+      180,
+      120,
+      45,
+      4,
+      4,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      80,
+      "対フィッシュ○",
+      null,
+      0,
+      231,
+      24,
+      0,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      81,
+      "対フィッシュ◎",
+      "対フィッシュ○",
+      0,
+      347,
+      36,
+      0,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      82,
+      "対妖狐○",
+      null,
+      0,
+      105,
+      150,
+      0,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      83,
+      "対妖狐◎",
+      "対妖狐○",
+      0,
+      158,
+      225,
+      0,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      84,
+      "対ドラゴンタートル○",
+      null,
+      0,
+      45,
+      0,
+      210,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      85,
+      "対ドラゴンタートル◎",
+      "対ドラゴンタートル○",
+      0,
+      68,
+      0,
+      315,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      86,
+      "対植物○",
+      null,
+      77,
+      77,
+      101,
+      0,
+      0,
+      90,
+      90,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      87,
+      "対植物◎",
+      "対植物○",
+      116,
+      116,
+      151,
+      0,
+      0,
+      45,
+      45,
+      45,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      88,
+      "回復効果○",
+      null,
+      0,
+      0,
+      105,
+      150,
+      150,
+      0,
+      0,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      89,
+      "回復効果◎",
+      "回復効果○",
+      0,
+      0,
+      70,
+      100,
+      100,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      90,
+      "癒やしの心",
+      null,
+      120,
+      0,
+      50,
+      140,
+      0,
+      "HP依存",
+      "HP依存",
+      "HP依存",
+      0.01,
+      0,
+      0,
+      89,
+      "剣士等・魔法職は基礎HP×1%。僧侶は89+基礎HP×1%。小数第2位四捨五入"
+    ],
+    [
+      91,
+      "ヒーラー魂",
+      null,
+      0,
+      100,
+      50,
+      0,
+      99,
+      -70,
+      -70,
+      65,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      92,
+      "慈しみ",
+      null,
+      0,
+      64,
+      0,
+      88,
+      123,
+      0,
+      0,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      93,
+      "集中力",
+      null,
+      0,
+      0,
+      53,
+      50,
+      172,
+      60,
+      60,
+      150,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      94,
+      "協調性",
+      null,
+      0,
+      0,
+      102,
+      82,
+      91,
+      0,
+      0,
+      99,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      95,
+      "バランス感覚",
+      null,
+      102,
+      112,
+      61,
+      0,
+      0,
+      100,
+      100,
+      166,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      96,
+      "お人よし",
+      null,
+      0,
+      0,
+      0,
+      83,
+      192,
+      0,
+      0,
+      66,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      97,
+      "立て直し",
+      null,
+      0,
+      83,
+      62,
+      0,
+      130,
+      66,
+      66,
+      110,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      98,
+      "仲間思い",
+      null,
+      0,
+      39,
+      0,
+      72,
+      164,
+      0,
+      0,
+      106,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      99,
+      "冷静沈着",
+      null,
+      0,
+      0,
+      62,
+      33,
+      180,
+      140,
+      140,
+      166,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      100,
+      "戦況分析",
+      null,
+      0,
+      35,
+      62,
+      178,
+      0,
+      100,
+      100,
+      124,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      101,
+      "火回復",
+      null,
+      0,
+      0,
+      62,
+      120,
+      98,
+      0,
+      0,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      102,
+      "風回復",
+      null,
+      0,
+      0,
+      62,
+      120,
+      98,
+      0,
+      0,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      103,
+      "水回復",
+      null,
+      0,
+      0,
+      62,
+      120,
+      98,
+      0,
+      0,
+      135,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      104,
+      "通常回復○",
+      null,
+      0,
+      0,
+      22,
+      119,
+      119,
+      0,
+      0,
+      26,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      105,
+      "通常回復◎",
+      "通常回復○",
+      0,
+      0,
+      34,
+      178,
+      178,
+      0,
+      0,
+      26,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      106,
+      "単体回復○",
+      null,
+      0,
+      48,
+      0,
+      120,
+      92,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      107,
+      "単体回復◎",
+      "単体回復○",
+      0,
+      72,
+      0,
+      180,
+      138,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      108,
+      "列回復○",
+      null,
+      0,
+      0,
+      68,
+      81,
+      111,
+      0,
+      0,
+      66,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      109,
+      "列回復◎",
+      "列回復○",
+      0,
+      0,
+      102,
+      122,
+      166,
+      0,
+      0,
+      66,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      110,
+      "剣士治療○",
+      null,
+      50,
+      0,
+      110,
+      110,
+      0,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      111,
+      "剣士治療◎",
+      "剣士治療○",
+      75,
+      0,
+      165,
+      165,
+      0,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      112,
+      "魔闘士治療○",
+      null,
+      0,
+      0,
+      110,
+      110,
+      50,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      113,
+      "魔闘士治療◎",
+      "魔闘士治療○",
+      0,
+      0,
+      165,
+      165,
+      75,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      114,
+      "重戦士治療○",
+      null,
+      0,
+      50,
+      110,
+      110,
+      0,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      115,
+      "重戦士治療◎",
+      "重戦士治療○",
+      0,
+      75,
+      165,
+      165,
+      0,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      116,
+      "弓使い治療○",
+      null,
+      50,
+      0,
+      110,
+      110,
+      0,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      117,
+      "弓使い治療◎",
+      "弓使い治療○",
+      75,
+      0,
+      165,
+      165,
+      0,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      118,
+      "魔法使い治療○",
+      null,
+      0,
+      0,
+      110,
+      110,
+      50,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      119,
+      "魔法使い治療◎",
+      "魔法使い治療○",
+      0,
+      0,
+      165,
+      165,
+      75,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      120,
+      "僧侶治療○",
+      null,
+      0,
+      0,
+      110,
+      110,
+      50,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ],
+    [
+      121,
+      "僧侶治療◎",
+      "僧侶治療○",
+      0,
+      0,
+      165,
+      165,
+      75,
+      0,
+      0,
+      90,
+      0,
+      0,
+      0,
+      0,
+      null
+    ]
+  ],
+  "powerCost": [
+    [
+      "1→10",
+      6,
+      1,
+      3,
+      0,
+      0
+    ],
+    [
+      "10→20",
+      12,
+      2,
+      7,
+      0,
+      0
+    ],
+    [
+      "20→30",
+      12,
+      2,
+      7,
+      0,
+      0
+    ],
+    [
+      "30→40",
+      18,
+      3,
+      10,
+      0,
+      0
+    ],
+    [
+      "40→50",
+      24,
+      4,
+      14,
+      0,
+      0
+    ],
+    [
+      "50→60",
+      30,
+      5,
+      18,
+      0,
+      0
+    ],
+    [
+      "60→70",
+      36,
+      6,
+      20,
+      0,
+      0
+    ],
+    [
+      "70→80",
+      42,
+      7,
+      24,
+      0,
+      0
+    ],
+    [
+      "80→90",
+      48,
+      8,
+      28,
+      0,
+      0
+    ],
+    [
+      "90→99",
+      60,
+      10,
+      36,
+      0,
+      0
+    ],
+    [
+      "99→100",
+      72,
+      12,
+      43,
+      0,
+      0
+    ],
+    [
+      "100→115",
+      120,
+      20,
+      70,
+      0,
+      0
+    ]
+  ],
+  "powerPhysicalScore": [
+    [
+      "1→10",
+      69,
+      7.67
+    ],
+    [
+      "10→19",
+      68,
+      7.56
+    ],
+    [
+      "19→20",
+      87,
+      87
+    ],
+    [
+      "20→30",
+      76,
+      7.6
+    ],
+    [
+      "30→39",
+      69,
+      7.67
+    ],
+    [
+      "39→40",
+      139,
+      139
+    ],
+    [
+      "40→49",
+      104,
+      11.56
+    ],
+    [
+      "49→50",
+      139,
+      139
+    ],
+    [
+      "50→59",
+      141,
+      15.67
+    ],
+    [
+      "59→60",
+      219,
+      219
+    ],
+    [
+      "60→69",
+      209,
+      23.22
+    ],
+    [
+      "69→70",
+      267,
+      267
+    ],
+    [
+      "70→79",
+      208,
+      23.11
+    ],
+    [
+      "79→80",
+      391,
+      391
+    ],
+    [
+      "80→89",
+      209,
+      23.22
+    ],
+    [
+      "89→90",
+      546,
+      546
+    ],
+    [
+      "90→94",
+      372,
+      93
+    ],
+    [
+      "94→95",
+      116,
+      116
+    ],
+    [
+      "95→99",
+      371,
+      92.75
+    ],
+    [
+      "99→100",
+      174,
+      174
+    ],
+    [
+      "100→109",
+      1044,
+      116
+    ],
+    [
+      "109→110",
+      139,
+      139
+    ],
+    [
+      "110→115",
+      580,
+      116
+    ]
+  ],
+  "powerMagicScore": [
+    [
+      "1→10",
+      34,
+      3.78
+    ],
+    [
+      "10→20",
+      36,
+      3.6
+    ],
+    [
+      "20→30",
+      36,
+      3.6
+    ],
+    [
+      "30→39",
+      33,
+      3.67
+    ],
+    [
+      "39→40",
+      7,
+      7
+    ],
+    [
+      "40→49",
+      32,
+      3.56
+    ],
+    [
+      "49→50",
+      44,
+      44
+    ],
+    [
+      "50→59",
+      32,
+      3.56
+    ],
+    [
+      "59→60",
+      79,
+      79
+    ],
+    [
+      "60→69",
+      65,
+      7.22
+    ],
+    [
+      "69→70",
+      83,
+      83
+    ]
+  ],
+  "magicCost": [
+    [
+      "1→10",
+      0,
+      2,
+      0,
+      6,
+      2
+    ],
+    [
+      "10→20",
+      0,
+      5,
+      0,
+      12,
+      4
+    ],
+    [
+      "20→30",
+      0,
+      5,
+      0,
+      12,
+      4
+    ],
+    [
+      "30→40",
+      0,
+      7,
+      0,
+      18,
+      6
+    ],
+    [
+      "40→50",
+      0,
+      10,
+      0,
+      24,
+      8
+    ],
+    [
+      "50→60",
+      0,
+      13,
+      0,
+      30,
+      10
+    ],
+    [
+      "60→70",
+      0,
+      14,
+      0,
+      36,
+      12
+    ],
+    [
+      "70→80",
+      0,
+      17,
+      0,
+      42,
+      14
+    ],
+    [
+      "80→90",
+      0,
+      20,
+      0,
+      48,
+      16
+    ],
+    [
+      "90→99",
+      0,
+      26,
+      0,
+      60,
+      20
+    ],
+    [
+      "99→100",
+      0,
+      31,
+      0,
+      72,
+      24
+    ],
+    [
+      "100より上",
+      "未実装",
+      "未実装",
+      "未実装",
+      "未実装",
+      "未実装"
+    ]
+  ],
+  "magicMagicScore": [
+    [
+      "1→10",
+      69,
+      7.67
+    ],
+    [
+      "10→19",
+      68,
+      7.56
+    ],
+    [
+      "19→20",
+      87,
+      87
+    ],
+    [
+      "20→30",
+      76,
+      7.6
+    ],
+    [
+      "30→39",
+      69,
+      7.67
+    ],
+    [
+      "39→40",
+      139,
+      139
+    ],
+    [
+      "40→49",
+      104,
+      11.56
+    ],
+    [
+      "49→50",
+      139,
+      139
+    ],
+    [
+      "50→59",
+      141,
+      15.67
+    ],
+    [
+      "59→60",
+      219,
+      219
+    ],
+    [
+      "60→69",
+      209,
+      23.22
+    ],
+    [
+      "69→70",
+      267,
+      267
+    ],
+    [
+      "70→79",
+      208,
+      23.11
+    ],
+    [
+      "79→80",
+      391,
+      391
+    ],
+    [
+      "80→89",
+      209,
+      23.22
+    ],
+    [
+      "89→90",
+      546,
+      546
+    ],
+    [
+      "90→94",
+      372,
+      93
+    ],
+    [
+      "94→95",
+      116,
+      116
+    ],
+    [
+      "95→99",
+      371,
+      92.75
+    ],
+    [
+      "99→100",
+      174,
+      174
+    ]
+  ],
+  "magicPhysicalScore": [
+    [
+      "1→10",
+      34,
+      3.78
+    ],
+    [
+      "10→20",
+      36,
+      3.6
+    ],
+    [
+      "20→30",
+      36,
+      3.6
+    ],
+    [
+      "30→39",
+      33,
+      3.67
+    ],
+    [
+      "39→40",
+      7,
+      7
+    ],
+    [
+      "40→49",
+      32,
+      3.56
+    ],
+    [
+      "49→50",
+      44,
+      44
+    ],
+    [
+      "50→59",
+      32,
+      3.56
+    ],
+    [
+      "59→60",
+      79,
+      79
+    ],
+    [
+      "60→69",
+      65,
+      7.22
+    ],
+    [
+      "69→70",
+      83,
+      83
+    ]
+  ],
+  "dexCost": [
+    [
+      "1→10",
+      0,
+      3,
+      6,
+      1,
+      0
+    ],
+    [
+      "10→20",
+      0,
+      6,
+      12,
+      3,
+      0
+    ],
+    [
+      "20→30",
+      0,
+      6,
+      12,
+      3,
+      0
+    ],
+    [
+      "30→40",
+      0,
+      9,
+      18,
+      4,
+      0
+    ],
+    [
+      "40→50",
+      0,
+      12,
+      24,
+      6,
+      0
+    ],
+    [
+      "50→60",
+      0,
+      15,
+      30,
+      8,
+      0
+    ],
+    [
+      "60→70",
+      0,
+      18,
+      36,
+      8,
+      0
+    ],
+    [
+      "70→80",
+      0,
+      21,
+      42,
+      10,
+      0
+    ],
+    [
+      "80→90",
+      0,
+      24,
+      48,
+      12,
+      0
+    ],
+    [
+      "90→99",
+      0,
+      30,
+      60,
+      16,
+      0
+    ],
+    [
+      "99→100",
+      0,
+      36,
+      72,
+      19,
+      0
+    ],
+    [
+      "100→115",
+      0,
+      60,
+      120,
+      30,
+      0
+    ]
+  ],
+  "dexScore": [
+    [
+      "1→10",
+      54,
+      6
+    ],
+    [
+      "10→19",
+      54,
+      6
+    ],
+    [
+      "19→20",
+      46,
+      46
+    ],
+    [
+      "20→30",
+      60,
+      6
+    ],
+    [
+      "30→39",
+      54,
+      6
+    ],
+    [
+      "39→40",
+      114,
+      114
+    ],
+    [
+      "40→49",
+      92,
+      10.22
+    ],
+    [
+      "49→50",
+      68,
+      68
+    ],
+    [
+      "50→59",
+      128,
+      14.22
+    ],
+    [
+      "59→60",
+      118,
+      118
+    ],
+    [
+      "60→69",
+      216,
+      24
+    ],
+    [
+      "69→70",
+      116,
+      116
+    ],
+    [
+      "70→79",
+      216,
+      24
+    ],
+    [
+      "79→80",
+      166,
+      166
+    ],
+    [
+      "80→89",
+      288,
+      32
+    ],
+    [
+      "89→90",
+      240,
+      240
+    ],
+    [
+      "90→94",
+      248,
+      62
+    ],
+    [
+      "94→95",
+      80,
+      80
+    ],
+    [
+      "95→99",
+      256,
+      64
+    ],
+    [
+      "99→100",
+      110,
+      110
+    ],
+    [
+      "100→109",
+      864,
+      96
+    ],
+    [
+      "109→110",
+      108,
+      108
+    ],
+    [
+      "110→115",
+      480,
+      96
+    ]
+  ],
+  "staminaCost": [
+    [
+      "1→10",
+      1,
+      6,
+      3,
+      0,
+      0
+    ],
+    [
+      "10→20",
+      2,
+      11,
+      5,
+      0,
+      0
+    ],
+    [
+      "20→30",
+      2,
+      11,
+      5,
+      0,
+      0
+    ],
+    [
+      "30→40",
+      3,
+      16,
+      7,
+      0,
+      0
+    ],
+    [
+      "40→50",
+      4,
+      22,
+      10,
+      0,
+      0
+    ],
+    [
+      "50→60",
+      5,
+      28,
+      13,
+      0,
+      0
+    ],
+    [
+      "60→70",
+      6,
+      33,
+      15,
+      0,
+      0
+    ],
+    [
+      "70→80",
+      7,
+      39,
+      18,
+      0,
+      0
+    ],
+    [
+      "80→90",
+      8,
+      44,
+      20,
+      0,
+      0
+    ],
+    [
+      "90→95",
+      10,
+      56,
+      26,
+      0,
+      0
+    ],
+    [
+      "95より上",
+      "不明",
+      "不明",
+      "不明",
+      "不明",
+      "不明"
+    ]
+  ],
+  "staminaScore": [
+    [
+      "1→10",
+      50,
+      5.56
+    ],
+    [
+      "10→19",
+      50,
+      5.56
+    ],
+    [
+      "19→20",
+      78,
+      78
+    ],
+    [
+      "20→30",
+      56,
+      5.6
+    ],
+    [
+      "30→39",
+      50,
+      5.56
+    ],
+    [
+      "39→40",
+      121,
+      121
+    ],
+    [
+      "40→49",
+      83,
+      9.22
+    ],
+    [
+      "49→50",
+      88,
+      88
+    ],
+    [
+      "50→59",
+      83,
+      9.22
+    ],
+    [
+      "59→60",
+      160,
+      160
+    ],
+    [
+      "60→69",
+      115,
+      12.78
+    ],
+    [
+      "69→70",
+      200,
+      200
+    ],
+    [
+      "70→79",
+      116,
+      12.89
+    ],
+    [
+      "79→80",
+      275,
+      275
+    ],
+    [
+      "80→89",
+      115,
+      12.78
+    ],
+    [
+      "89→90",
+      384,
+      384
+    ],
+    [
+      "90→94",
+      238,
+      59.5
+    ],
+    [
+      "94→95",
+      74,
+      74
+    ],
+    [
+      "95より上",
+      "不明",
+      "不明"
+    ]
+  ],
+  "mentalCost": [
+    [
+      "1→10",
+      0,
+      0,
+      0,
+      3,
+      7
+    ],
+    [
+      "10→20",
+      0,
+      0,
+      0,
+      6,
+      12
+    ],
+    [
+      "20→30",
+      0,
+      0,
+      0,
+      6,
+      12
+    ],
+    [
+      "30→40",
+      0,
+      0,
+      0,
+      9,
+      18
+    ],
+    [
+      "40→50",
+      0,
+      0,
+      0,
+      12,
+      24
+    ],
+    [
+      "50→60",
+      0,
+      0,
+      0,
+      16,
+      30
+    ],
+    [
+      "60→70",
+      0,
+      0,
+      0,
+      19,
+      36
+    ],
+    [
+      "70→80",
+      0,
+      0,
+      0,
+      22,
+      42
+    ],
+    [
+      "80→90",
+      0,
+      0,
+      0,
+      24,
+      48
+    ],
+    [
+      "90より上",
+      "不明",
+      "不明",
+      "不明",
+      "不明",
+      "不明"
+    ]
+  ],
+  "mentalScore": [
+    [
+      "1→10",
+      50,
+      5.56
+    ],
+    [
+      "10→19",
+      50,
+      5.56
+    ],
+    [
+      "19→20",
+      78,
+      78
+    ],
+    [
+      "20→30",
+      56,
+      5.6
+    ],
+    [
+      "30→39",
+      50,
+      5.56
+    ],
+    [
+      "39→40",
+      121,
+      121
+    ],
+    [
+      "40→49",
+      83,
+      9.22
+    ],
+    [
+      "49→50",
+      88,
+      88
+    ],
+    [
+      "50→59",
+      83,
+      9.22
+    ],
+    [
+      "59→60",
+      160,
+      160
+    ],
+    [
+      "60→69",
+      115,
+      12.78
+    ],
+    [
+      "69→70",
+      200,
+      200
+    ],
+    [
+      "70→79",
+      116,
+      12.89
+    ],
+    [
+      "79→80",
+      275,
+      275
+    ],
+    [
+      "80→89",
+      115,
+      12.78
+    ],
+    [
+      "89→90",
+      384,
+      384
+    ],
+    [
+      "90より上",
+      "不明",
+      "不明"
+    ]
+  ],
+  "settings": [
+    [
+      "基本能力コツLv1",
+      "2%OFF"
+    ],
+    [
+      "基本能力コツLv2",
+      "4%OFF"
+    ],
+    [
+      "基本能力コツLv3",
+      "6%OFF"
+    ],
+    [
+      "基本能力コツLv4",
+      "8%OFF"
+    ],
+    [
+      "基本能力コツLv5",
+      "10%OFF"
+    ],
+    [
+      "特殊能力コツLv1",
+      "50%OFF"
+    ],
+    [
+      "特殊能力コツLv2",
+      "60%OFF"
+    ],
+    [
+      "特殊能力コツLv3",
+      "70%OFF"
+    ],
+    [
+      "特殊能力コツLv4",
+      "80%OFF"
+    ],
+    [
+      "特殊能力コツLv5",
+      "90%OFF"
+    ],
+    [
+      "注記1",
+      "小数点以下の査定が不明であることなどから、本ツールの結果が最大値とならない場合があります。また、必殺技、アクションスキル、超特殊能力は割愛しています。あらかじめご了承ください。"
+    ],
+    [
+      "注記2",
+      "〜攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。"
+    ],
+    [
+      "バージョン",
+      "v1.2 表示統一・文言修正版"
+    ]
+  ]
+};
