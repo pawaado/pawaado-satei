@@ -5,3 +5,35 @@
 /* v1.5.2 mark fix */
 .mark{font-family:Arial,"Helvetica Neue",sans-serif!important;font-size:.92em!important;line-height:1!important;display:inline-flex!important;width:1.15em;height:1.15em;align-items:center;justify-content:center;text-align:center;vertical-align:-.08em;transform:none!important;}
 .mark-circle,.mark-double{font-size:.92em!important;}
+
+/* v1.5.3: ○/◎をCSS描画にして同じサイズに固定 */
+.mark{
+  font-size:16px!important;
+  width:18px!important;
+  height:18px!important;
+  line-height:18px!important;
+  display:inline-block!important;
+  position:relative!important;
+  vertical-align:-3px!important;
+  color:transparent!important;
+  font-family:Arial,sans-serif!important;
+  transform:none!important;
+  flex:0 0 18px;
+}
+.mark::before{
+  content:"";
+  position:absolute;
+  left:2px; top:2px;
+  width:12px; height:12px;
+  border:2px solid currentColor;
+  border-radius:50%;
+  color:#111827;
+}
+.mark-double::after{
+  content:"";
+  position:absolute;
+  left:6px; top:6px;
+  width:4px; height:4px;
+  border:1.6px solid #111827;
+  border-radius:50%;
+}

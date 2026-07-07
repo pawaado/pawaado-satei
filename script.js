@@ -219,7 +219,7 @@ function resultTable(items,kind){
       return !(ui>=0 && chosenIdx.has(ui));
     });
   }
-  if(!filtered.length) return '<p>候補なし</p>';
+  if(!filtered.length) return '<p>追加なし</p>';
   const sorted=kind==='basic'?filtered.sort((a,b)=>a.idx-b.idx):filtered.sort((a,b)=>a.idx-b.idx);
   const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from}→${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
   return `<table class="result-table"><tbody>${rows}</tbody></table>`;
