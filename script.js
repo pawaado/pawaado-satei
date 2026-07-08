@@ -210,8 +210,9 @@ function addCost(a,b){return a.map((v,i)=>v+b[i]);}
 function leq(a,b){return a.every((v,i)=>v<=b[i]);}
 function key(c){return c.join(',');}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
+function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-  // Pareto支配だけで削る。limit超過時だけブラウザ停止回避のため弱い枝刈りを行う。
+  // Pareto支配で削る。limit超過時はスマホ停止回避のため上位から残す。
   const arr=[...states.values()].sort((a,b)=>b.score-a.score);
   const keep=[];
   outer: for(const st of arr){
@@ -329,38 +330,62 @@ function paretoMerge(map, state, limit){
   if(map.size>limit*1.6) return prune(map,limit);
   return map;
 }
-function optimizeSpecialsForLife(baseStates,exp,hp){
-  const groups=specialChoiceGroups(hp);
+function impossibleChoice(op,exp){return !leq(op.cost,exp);}
+function groupEfficiency(g){
+  const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
+  return best;
+}
+async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress){
+  // 取得不可候補を先に除外し、軽い/効率の良い候補から処理する。
+  let groups=specialChoiceGroups(hp)
+    .map(g=>({...g,opts:g.opts.filter(op=>!impossibleChoice(op,exp))}))
+    .filter(g=>g.opts.length>0)
+    .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
+  const STATE_LIMIT = Math.max(7000, Math.min(16000, 5000 + Math.floor(exp.reduce((a,b)=>a+b,0)*6)));
   let states=new Map();
-  baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},20000);});
+  baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},STATE_LIMIT);});
+  let processed=0;
   for(const group of groups){
     const snapshot=[...states.values()];
     let next=new Map(states);
+    let iter=0;
     for(const st of snapshot){
       for(const op of group.opts){
         const nc=addCost(st.cost,op.cost); if(!leq(nc,exp)) continue;
         const ns={cost:nc,score:st.score+op.score,items:st.items.concat(op.items),life:st.life};
-        next=paretoMerge(next,ns,20000);
+        next=paretoMerge(next,ns,STATE_LIMIT);
       }
+      // Safariで白画面化しにくいよう、一定回数ごとに制御を返す
+      if((++iter % 800)===0) await yieldToBrowser();
     }
-    states=prune(next,20000);
+    states=prune(next,STATE_LIMIT);
+    processed++;
+    if((processed % 3)===0){
+      onProgress?.('計算中');
+      await yieldToBrowser();
+    }
   }
   let best=null; for(const st of states.values()) if(better(st,best)) best=st; return best;
 }
 async function optimizeAsync(exp,onProgress){
-  await new Promise(r=>setTimeout(r,20));
+  await yieldToBrowser();
   onProgress?.('計算中');
-  const basicStates=[...buildBasicStates(exp).values()];
-  await new Promise(r=>setTimeout(r,20));
+  const basicMap=buildBasicStates(exp);
+  const basicStates=[...basicMap.values()];
+  await yieldToBrowser();
   const byLife=new Map();
   basicStates.forEach(st=>{const hp=currentHpForLife(st.life||Number(document.getElementById('basic_生命力').value||1)); (byLife.get(hp)??byLife.set(hp,[]).get(hp)).push(st);});
-  let best=null; let done=0; const total=byLife.size;
-  for(const [hp,states] of byLife.entries()){
+  // HPごとに基本状態もスリム化してから特殊能力探索へ渡す
+  let best=null; let done=0;
+  for(const [hp,statesRaw] of byLife.entries()){
     onProgress?.('計算中');
-    const cand=optimizeSpecialsForLife(states,exp,hp);
+    const baseMap=new Map();
+    statesRaw.forEach(st=>{const k=key(st.cost); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
+    const states=[...prune(baseMap,12000).values()];
+    const cand=await optimizeSpecialsForLife(states,exp,hp,onProgress);
     if(better(cand,best)) best=cand;
     done++;
-    if(done%2===0) await new Promise(r=>setTimeout(r,0));
+    await yieldToBrowser();
   }
   return best||{items:[],score:0,cost:[0,0,0,0,0]};
 }
