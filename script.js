@@ -34,24 +34,29 @@ academy.addEventListener('change',updateJobs);
 job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecials();});
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
-function renderExp(){document.getElementById('expInputs').innerHTML=expNames.map(n=>`<div class="exp-row"><label>${n}</label><input type="number" min="0" max="1000" id="exp_${n}" inputmode="numeric" autocomplete="off"></div>`).join('');}
+function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');}
+function renderExp(){document.getElementById('expInputs').innerHTML=expNames.map(n=>`<div class="exp-row"><label>${n}</label><input type="number" min="0" max="1000" id="exp_${n}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${safeId(n)}"></div></div>`).join('');}
+
 function renderBasic(){
   const wrap=document.getElementById('basicInputs');
   const lim=limits();
   const disabled=!hasAcademyJob();
   wrap.innerHTML=basicNames.map(n=>`
-    <div class="ability-row ${basicOwned[n]?'owned':''}" data-basic="${n}">
-      <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}" ${disabled?'disabled':''}>＋</button>
-      <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}" ${disabled?'disabled':''}><span class="ability-name-text">${n}</span></button>
-      <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'disabled':''}>
+    <div class="ability-block">
+      <div class="ability-row ${basicOwned[n]?'owned':''}" data-basic="${n}">
+        <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}" ${disabled?'disabled':''}>＋</button>
+        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}" ${disabled?'disabled':''}><span class="ability-name-text">${n}</span></button>
+        <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'disabled':''}>
+      </div>
+      <div class="inline-error" id="err_basic_${safeId(n)}"></div>
     </div>`).join('');
   basicNames.forEach(n=>applyBasicVisual(n));
 }
 function renderSkillName(name){
   const s=String(name);
   let rank=''; let base=s;
-  if(s.endsWith('○')){base=s.slice(0,-1);rank='<span class="rank rank-circle" aria-label="○"></span>';}
-  else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank rank-double" aria-label="◎"></span>';}
+  if(s.endsWith('○')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="○">○</span>';}
+  else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="◎">◎</span>';}
   return `<span class="skill-name-text">${base}${rank}</span>`;
 }
 function getSpecialState(i){const k=String(i); if(!specialState.has(k)) specialState.set(k,{hint:0,own:0}); return specialState.get(k);}
@@ -139,10 +144,43 @@ document.addEventListener('click',e=>{
   if(kind==='special-name'){toggleSpecial(Number(t.dataset.index)); return;}
 });
 
+
+function setInlineError(id,msg){const el=document.getElementById(id); if(el) el.textContent=msg||'';}
+function validateExpField(name){
+  const inp=document.getElementById('exp_'+name); if(!inp) return '';
+  const v=inp.value;
+  let msg='';
+  if(v!=='' && v!=null){
+    const num=Number(v);
+    if(!Number.isFinite(num) || num<0) msg='経験点は0以上の値を入力してください';
+    else if(num>1000) msg='経験点は1000以下の値を入力してください';
+  }
+  setInlineError('err_exp_'+safeId(name),msg);
+  inp.classList.toggle('input-error',!!msg);
+  return msg;
+}
+function validateBasicField(name){
+  const inp=document.getElementById('basic_'+name); if(!inp) return '';
+  const lim=limits()[name]; const v=inp.value;
+  let msg='';
+  if(v!=='' && v!=null){
+    const num=Number(v);
+    if(!Number.isFinite(num) || num<1) msg='基本能力は1以上の値を入力してください';
+    else if(lim!=null && num>lim) msg='入力した値は上限を超えています';
+  }
+  setInlineError('err_basic_'+safeId(name),msg);
+  inp.classList.toggle('input-error',!!msg);
+  return msg;
+}
+function validateAllInline(){expNames.forEach(validateExpField); basicNames.forEach(validateBasicField);}
+
 document.addEventListener('input',e=>{
   const inp=e.target;
-  if(!inp || !inp.id || !inp.id.startsWith('basic_')) return;
+  if(!inp || !inp.id) return;
+  if(inp.id.startsWith('exp_')){ validateExpField(inp.id.replace('exp_','')); return; }
+  if(!inp.id.startsWith('basic_')) return;
   const name=inp.id.replace('basic_','');
+  validateBasicField(name);
   const lim=limits()[name];
   if(lim!=null && inp.value!=='' && Number(inp.value)===lim){
     basicOwned[name]=true;
@@ -218,6 +256,7 @@ function basicOptions(name,exp){
   }
   return opts;
 }
+
 function buildBasicStates(exp){
   let states=new Map([[key([0,0,0,0,0]),{cost:[0,0,0,0,0],score:0,items:[],life:Number(document.getElementById('basic_生命力').value||1)}]]);
   basicNames.forEach(name=>{
@@ -229,7 +268,7 @@ function buildBasicStates(exp){
         const k=key(nc); if(better(ns,next.get(k))) next.set(k,ns);
       }
     }
-    states=prune(next,12000);
+    states=prune(next,18000);
   });
   return states;
 }
@@ -249,12 +288,11 @@ function itemForSpecialIndex(i,hp,includeLower=false){
 }
 function specialChoiceGroups(hp){
   const used=new Set(); const groups=[];
-  // ○/◎ペアは「なし・○・◎」の選択肢にまとめる
   D.special.forEach((s,i)=>{
     if(used.has(i)) return;
     const ui=upperIndex(i);
     const li=lowerIndex(i);
-    if(li>=0) return; // ◎側は下位側で処理
+    if(li>=0) return;
     if(ui>=0){
       used.add(i); used.add(ui);
       const opts=[];
@@ -267,7 +305,6 @@ function specialChoiceGroups(hp){
       if(opts.length) groups.push({kind:'pair',base:baseNameOfSkill(i),opts});
     }
   });
-  // 相互排他グループ
   mutualGroups.forEach(g=>{
     const opts=[];
     const already=g.some(n=>{const i=D.special.findIndex(x=>x[1]===n); return i>=0 && specialOwned(i);});
@@ -278,7 +315,6 @@ function specialChoiceGroups(hp){
     }
     if(opts.length) groups.push({kind:'mutual',opts});
   });
-  // 通常単独
   D.special.forEach((s,i)=>{
     if(used.has(i) || specialOwned(i)) return;
     if(isUpperSpecial(i)) return;
@@ -286,29 +322,45 @@ function specialChoiceGroups(hp){
   });
   return groups;
 }
-function addSpecialsForState(base,exp){
-  const hp=currentHpForLife(base.life||Number(document.getElementById('basic_生命力').value||1));
+function paretoMerge(map, state, limit){
+  const k=key(state.cost);
+  const old=map.get(k);
+  if(better(state,old)) map.set(k,state);
+  if(map.size>limit*1.6) return prune(map,limit);
+  return map;
+}
+function optimizeSpecialsForLife(baseStates,exp,hp){
   const groups=specialChoiceGroups(hp);
-  let states=new Map([[key(base.cost),{...base,items:base.items.slice()}]]);
+  let states=new Map();
+  baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},20000);});
   for(const group of groups){
-    const next=new Map(states);
-    for(const st of states.values()){
+    const snapshot=[...states.values()];
+    let next=new Map(states);
+    for(const st of snapshot){
       for(const op of group.opts){
         const nc=addCost(st.cost,op.cost); if(!leq(nc,exp)) continue;
         const ns={cost:nc,score:st.score+op.score,items:st.items.concat(op.items),life:st.life};
-        const k=key(nc); if(better(ns,next.get(k))) next.set(k,ns);
+        next=paretoMerge(next,ns,20000);
       }
     }
-    states=prune(next,12000);
+    states=prune(next,20000);
   }
-  let best=null; for(const st of states.values()) if(better(st,best)) best=st; return best||base;
+  let best=null; for(const st of states.values()) if(better(st,best)) best=st; return best;
 }
-function optimize(exp){
-  let best=null;
-  const basicStates=buildBasicStates(exp);
-  for(const st of basicStates.values()){
-    const candidate=addSpecialsForState(st,exp);
-    if(better(candidate,best)) best=candidate;
+async function optimizeAsync(exp,onProgress){
+  await new Promise(r=>setTimeout(r,20));
+  onProgress?.('計算中');
+  const basicStates=[...buildBasicStates(exp).values()];
+  await new Promise(r=>setTimeout(r,20));
+  const byLife=new Map();
+  basicStates.forEach(st=>{const hp=currentHpForLife(st.life||Number(document.getElementById('basic_生命力').value||1)); (byLife.get(hp)??byLife.set(hp,[]).get(hp)).push(st);});
+  let best=null; let done=0; const total=byLife.size;
+  for(const [hp,states] of byLife.entries()){
+    onProgress?.('計算中');
+    const cand=optimizeSpecialsForLife(states,exp,hp);
+    if(better(cand,best)) best=cand;
+    done++;
+    if(done%2===0) await new Promise(r=>setTimeout(r,0));
   }
   return best||{items:[],score:0,cost:[0,0,0,0,0]};
 }
@@ -346,27 +398,26 @@ function validateInputs(){
   });
   return errs;
 }
-function calc(){
+async function calc(){
+  validateAllInline();
   const result=document.getElementById('result');
   const errs=validateInputs();
   if(errs.length){result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`; return;}
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
   const btn=document.getElementById('calcBtn');
-  btn.disabled=true; btn.textContent='計算中…';
-  result.innerHTML='<p class="calculating">計算中…少し待ってな。</p>';
-  setTimeout(()=>{
-    try{
-      const best=optimize(exp);
-      const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
-      const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-      result.innerHTML=`<div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>${remainHtml}`;
-    }catch(err){
-      result.innerHTML='<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p></div>';
-      console.error(err);
-    }finally{
-      btn.disabled=false; btn.textContent='計算する';
-    }
-  },30);
+  btn.disabled=true; btn.textContent='計算中';
+  result.innerHTML='<p class="calculating">計算中</p>';
+  try{
+    const best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
+    const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
+    const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+    result.innerHTML=`<div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>${remainHtml}`;
+  }catch(err){
+    result.innerHTML='<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p></div>';
+    console.error(err);
+  }finally{
+    btn.disabled=false; btn.textContent='計算する';
+  }
 }
 function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
@@ -378,5 +429,5 @@ function resetAll(){
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-initAcademies(); renderExp(); renderBasic(); renderSpecials();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
