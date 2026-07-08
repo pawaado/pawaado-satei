@@ -212,10 +212,11 @@ function scoreForRange(scoreTable,range){const r=scoreTable.find(x=>x[0]===range
 function addCost(a,b){return a.map((v,i)=>v+b[i]);}
 function leq(a,b){return a.every((v,i)=>v<=b[i]);}
 function key(c){return c.join(',');}
+function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-  // Phase7: 速度優先。全件Pareto判定は重くなるため、上位候補に絞ってから支配判定する。
+  // Phase9: 速度と精度のバランス。生命力/HP差を潰さないキーで状態を保持する。
   const arr=[...states.values()].sort((a,b)=>{
     if(b.score!==a.score) return b.score-a.score;
     return a.cost.reduce((x,y)=>x+y,0)-b.cost.reduce((x,y)=>x+y,0);
@@ -233,7 +234,7 @@ function prune(states,limit=12000){
     keep.push(st);
     if(keep.length>=limit) break;
   }
-  const m=new Map(); keep.forEach(st=>m.set(key(st.cost),st)); return m;
+  const m=new Map(); keep.forEach(st=>m.set(stateKey(st),st)); return m;
 }
 function rowForValue(table,value){
   for(const r of table){
@@ -281,14 +282,15 @@ function basicOptions(name,exp){
 }
 
 function buildBasicStates(exp){
-  let states=new Map([[key([0,0,0,0,0]),{cost:[0,0,0,0,0],score:0,items:[],life:Number(document.getElementById('basic_生命力').value||1)}]]);
+  const initialLife=Number(document.getElementById('basic_生命力').value||1);
+  let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,{cost:[0,0,0,0,0],score:0,items:[],life:initialLife}]]);
   basicNames.forEach(name=>{
     const opts=basicOptions(name,exp); const next=new Map();
     for(const st of states.values()){
       for(const op of opts){
         const nc=addCost(st.cost,op.cost); if(!leq(nc,exp)) continue;
         const ns={cost:nc,score:st.score+op.score,items:st.items.concat(op.items),life: op.life!==null?op.life:st.life};
-        const k=key(nc); if(better(ns,next.get(k))) next.set(k,ns);
+        const k=stateKey(ns); if(better(ns,next.get(k))) next.set(k,ns);
       }
     }
     states=prune(next,3600);
@@ -346,7 +348,7 @@ function specialChoiceGroups(hp){
   return groups;
 }
 function paretoMerge(map, state, limit){
-  const k=key(state.cost);
+  const k=stateKey(state);
   const old=map.get(k);
   if(better(state,old)) map.set(k,state);
   if(map.size>limit*1.6) return prune(map,limit);
@@ -375,7 +377,7 @@ async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress,progress,pre
     .map(g=>({...g,opts:g.opts.filter(op=>!impossibleChoice(op,exp))}))
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
-  const STATE_LIMIT = Math.max(1000, Math.min(2600, 900 + Math.floor(exp.reduce((a,b)=>a+b,0)*0.65))); // Phase8: 速度優先の状態数制限
+  const STATE_LIMIT = Math.max(1200, Math.min(3600, 1100 + Math.floor(exp.reduce((a,b)=>a+b,0)*0.75))); // Phase9: 精度を上げつつ速度も維持
   let states=new Map();
   baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},STATE_LIMIT);});
   for(const group of groups){
@@ -415,8 +417,8 @@ async function optimizeAsync(exp,onProgress){
   let total=0;
   for(const [hp,statesRaw] of byLife.entries()){
     const baseMap=new Map();
-    statesRaw.forEach(st=>{const k=key(st.cost); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
-    const states=[...prune(baseMap,2400).values()];
+    statesRaw.forEach(st=>{const k=stateKey(st); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
+    const states=[...prune(baseMap,3200).values()];
     const groups=specialChoiceGroups(hp);
     const groupCount=groups.filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
     total+=groupCount;
@@ -439,7 +441,10 @@ function resultTable(items,kind){
     filtered=filtered.filter(x=>{const ui=upperIndex(x.idx); return !(ui>=0 && chosenIdx.has(ui));});
   }
   if(!filtered.length) return '<p>追加なし</p>';
-  const sorted=filtered.sort((a,b)=>a.idx-b.idx);
+  const sorted=filtered.sort((a,b)=>{
+    if(kind==='basic') return (a.idx??0)-(b.idx??0);
+    return (a.idx??0)-(b.idx??0);
+  });
   const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from}→${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
   return `<table class="result-table"><tbody>${rows}</tbody></table>`;
 }
@@ -482,7 +487,8 @@ async function calc(){
     const best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-    result.innerHTML=`<div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>${remainHtml}`;
+    const scoreText=(Math.round((best.score||0)*10)/10).toLocaleString('ja-JP');
+    result.innerHTML=`<div class="result-block score-block"><h3>参考査定</h3><p class="score-value">${scoreText}</p></div><div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>${remainHtml}`;
   }catch(err){
     result.innerHTML='<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p></div>';
     console.error(err);

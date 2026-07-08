@@ -11,3 +11,6 @@ select,input{width:100%;font-size:18px;border:1px solid var(--line);border-radiu
 
 body.is-calculating .card:not(:has(#result)){opacity:.72}
 body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-calculating select{pointer-events:none}
+
+.score-block{border-left:4px solid #2563eb;}
+.score-value{font-size:1.4rem;font-weight:800;margin:.25rem 0;}
