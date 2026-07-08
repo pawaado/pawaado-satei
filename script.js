@@ -215,15 +215,25 @@ function key(c){return c.join(',');}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-  // Pareto支配で削る。limit超過時はスマホ停止回避のため上位から残す。
-  const arr=[...states.values()].sort((a,b)=>b.score-a.score);
+  // Phase7: 速度優先。全件Pareto判定は重くなるため、上位候補に絞ってから支配判定する。
+  const arr=[...states.values()].sort((a,b)=>{
+    if(b.score!==a.score) return b.score-a.score;
+    return a.cost.reduce((x,y)=>x+y,0)-b.cost.reduce((x,y)=>x+y,0);
+  });
+  const preLimit = Math.min(arr.length, Math.max(limit*2, limit+800));
+  const src = arr.slice(0, preLimit);
   const keep=[];
-  outer: for(const st of arr){
-    for(const k of keep){ if(leq(k.cost,st.cost) && k.score>=st.score) continue outer; }
+  outer: for(const st of src){
+    // 支配判定対象も上位に絞ることで、スマホでの長時間停止を防ぐ。
+    const checkMax = Math.min(keep.length, 500);
+    for(let i=0;i<checkMax;i++){
+      const k=keep[i];
+      if(leq(k.cost,st.cost) && k.score>=st.score) continue outer;
+    }
     keep.push(st);
+    if(keep.length>=limit) break;
   }
-  const finalKeep = keep.length>limit ? keep.slice(0,limit) : keep;
-  const m=new Map(); finalKeep.forEach(st=>m.set(key(st.cost),st)); return m;
+  const m=new Map(); keep.forEach(st=>m.set(key(st.cost),st)); return m;
 }
 function rowForValue(table,value){
   for(const r of table){
@@ -347,16 +357,15 @@ function groupEfficiency(g){
   const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
   return best;
 }
-async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress){
+async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress,progress){
   // 取得不可候補を先に除外し、軽い/効率の良い候補から処理する。
   let groups=specialChoiceGroups(hp)
     .map(g=>({...g,opts:g.opts.filter(op=>!impossibleChoice(op,exp))}))
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
-  const STATE_LIMIT = Math.max(1800, Math.min(4200, 1400 + Math.floor(exp.reduce((a,b)=>a+b,0)*1.2))); // Phase5: 高速優先の状態数制限
+  const STATE_LIMIT = Math.max(1200, Math.min(3200, 1000 + Math.floor(exp.reduce((a,b)=>a+b,0)*0.85))); // Phase7: 速度優先の状態数制限
   let states=new Map();
   baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},STATE_LIMIT);});
-  let processed=0;
   for(const group of groups){
     const snapshot=[...states.values()];
     let next=new Map(states);
@@ -368,37 +377,47 @@ async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress){
         next=paretoMerge(next,ns,STATE_LIMIT);
       }
       // Safariで白画面化しにくいよう、一定回数ごとに制御を返す
-      if((++iter % 350)===0) await yieldToBrowser();
+      if((++iter % 300)===0) await yieldToBrowser();
     }
     states=prune(next,STATE_LIMIT);
-    processed++;
-    if((processed % 3)===0){
+    if(progress){
+      progress.done++;
+      const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
+      onProgress?.(`計算中 ${pct}%`);
+    }else{
       onProgress?.('計算中');
-      await yieldToBrowser();
     }
+    await yieldToBrowser();
   }
   let best=null; for(const st of states.values()) if(better(st,best)) best=st; return best;
 }
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
-  onProgress?.('計算中');
+  onProgress?.('計算中 0%');
   const basicMap=buildBasicStates(exp);
   const basicStates=[...basicMap.values()];
   await yieldToBrowser();
   const byLife=new Map();
   basicStates.forEach(st=>{const hp=currentHpForLife(st.life||Number(document.getElementById('basic_生命力').value||1)); (byLife.get(hp)??byLife.set(hp,[]).get(hp)).push(st);});
-  // HPごとに基本状態もスリム化してから特殊能力探索へ渡す
-  let best=null; let done=0;
+  // HPごとに処理量を概算し、進捗率を表示する。
+  const tasks=[];
+  let total=0;
   for(const [hp,statesRaw] of byLife.entries()){
-    onProgress?.('計算中');
     const baseMap=new Map();
     statesRaw.forEach(st=>{const k=key(st.cost); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
-    const states=[...prune(baseMap,3600).values()];
-    const cand=await optimizeSpecialsForLife(states,exp,hp,onProgress);
+    const states=[...prune(baseMap,2800).values()];
+    const groupCount=specialChoiceGroups(hp).filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
+    total+=groupCount;
+    tasks.push({hp,states,groupCount});
+  }
+  const progress={done:0,total:Math.max(1,total)};
+  let best=null;
+  for(const task of tasks){
+    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress);
     if(better(cand,best)) best=cand;
-    done++;
     await yieldToBrowser();
   }
+  onProgress?.('計算中 100%');
   return best||{items:[],score:0,cost:[0,0,0,0,0]};
 }
 function resultTable(items,kind){
