@@ -232,6 +232,14 @@ function rowForValue(table,value){
   }
   return null;
 }
+function basicCostVector(name,costRow,hint){
+  // 生命力テーブルだけ、査定列を含むため必要経験点は3列目以降。
+  // それ以外の基本能力は1列目以降が5種類の必要経験点。
+  const raw = name==='生命力' ? [costRow[3],costRow[4],costRow[5],costRow[6],costRow[7]] : [costRow[1],costRow[2],costRow[3],costRow[4],costRow[5]];
+  const nums = raw.map(x=>Number(x));
+  if(nums.some(x=>!Number.isFinite(x))) return null;
+  return nums.map(x=>costAfter(x,hint,true));
+}
 function basicOptions(name,exp){
   const lim=limits();
   const inp=document.getElementById('basic_'+name);
@@ -247,7 +255,8 @@ function basicOptions(name,exp){
     const costRow=rowForValue(t.cost,v);
     const scoreRow=rowForValue(t.score,v);
     if(!costRow || !scoreRow) break;
-    const step=[costRow[3],costRow[4],costRow[5],costRow[6],costRow[7]].map(x=>costAfter(Number(x||0),hint,true));
+    const step=basicCostVector(name,costRow,hint);
+    if(!step) break;
     c=addCost(c,step);
     sc += Number(scoreRow[2]||0);
     v += 1;
@@ -450,7 +459,9 @@ async function calc(){
     isCalculating=false;
     document.body.classList.remove('is-calculating');
     document.querySelectorAll('button,input,select').forEach(el=>{ el.disabled=false; });
-    renderBasic(); renderSpecials();
+    // 計算後も入力値・取得済状態は保持する。再描画で入力欄を空にしない。
+    basicNames.forEach(n=>applyBasicVisual(n));
+    D.special.forEach((_,i)=>applySkillVisual(i));
     btn.disabled=false; btn.textContent='計算する';
   }
 }
