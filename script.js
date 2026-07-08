@@ -371,39 +371,132 @@ function groupEfficiency(g){
   const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
   return best;
 }
-async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress,progress,preGroups=null){
-  // 取得不可候補を先に除外し、軽い/効率の良い候補から処理する。
-  let groups=(preGroups||specialChoiceGroups(hp))
-    .map(g=>({...g,opts:g.opts.filter(op=>!impossibleChoice(op,exp))}))
-    .filter(g=>g.opts.length>0)
-    .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
-  const STATE_LIMIT = Math.max(1200, Math.min(3600, 1100 + Math.floor(exp.reduce((a,b)=>a+b,0)*0.75))); // Phase9: 精度を上げつつ速度も維持
-  let states=new Map();
-  baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},STATE_LIMIT);});
-  for(const group of groups){
-    const snapshot=[...states.values()];
-    let next=new Map(states);
-    let iter=0;
-    for(const st of snapshot){
-      for(const op of group.opts){
-        const nc=addCost(st.cost,op.cost); if(!leq(nc,exp)) continue;
-        const ns={cost:nc,score:st.score+op.score,items:st.items.concat(op.items),life:st.life};
-        next=paretoMerge(next,ns,STATE_LIMIT);
-      }
-      // Safariで白画面化しにくいよう、一定回数ごとに制御を返す
-      if((++iter % 300)===0) await yieldToBrowser();
-    }
-    states=prune(next,STATE_LIMIT);
-    if(progress){
-      progress.done++;
-      onProgress?.(progressMessage(progress));
-    }else{
-      onProgress?.('計算中');
-    }
-    await yieldToBrowser();
+async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups = null) {
+
+  let groups = (preGroups || specialChoiceGroups(hp))
+
+    .map(g => ({
+
+      ...g,
+
+      opts: g.opts
+
+        .filter(op => !impossibleChoice(op, exp))
+
+        .sort((a, b) => {
+
+          const ea = a.score / (1 + a.cost.reduce((x, y) => x + y, 0));
+
+          const eb = b.score / (1 + b.cost.reduce((x, y) => x + y, 0));
+
+          return eb - ea;
+
+        })
+
+    }))
+
+    .filter(g => g.opts.length > 0)
+
+    .sort((a, b) => groupEfficiency(b) - groupEfficiency(a));
+
+  const totalExp = exp.reduce((a, b) => a + b, 0);
+
+  const STATE_LIMIT = Math.max(1000, Math.min(3000, 900 + Math.floor(totalExp * 0.65)));
+
+  const HARD_LIMIT = Math.floor(STATE_LIMIT * 1.35);
+
+  let states = new Map();
+
+  for (const base of baseStates) {
+
+    const st = { ...base, items: base.items.slice() };
+
+    const k = stateKey(st);
+
+    if (better(st, states.get(k))) states.set(k, st);
+
   }
-  let best=null; for(const st of states.values()) if(better(st,best)) best=st; return best;
+
+  states = prune(states, STATE_LIMIT);
+
+  for (const group of groups) {
+
+    const snapshot = [...states.values()].sort((a, b) => b.score - a.score);
+
+    const next = new Map(states);
+
+    let iter = 0;
+
+    for (const st of snapshot) {
+
+      for (const op of group.opts) {
+
+        const nc = addCost(st.cost, op.cost);
+
+        if (!leq(nc, exp)) continue;
+
+        const ns = {
+
+          cost: nc,
+
+          score: st.score + op.score,
+
+          items: st.items.concat(op.items),
+
+          life: st.life
+
+        };
+
+        const k = stateKey(ns);
+
+        if (better(ns, next.get(k))) next.set(k, ns);
+
+      }
+
+      if (next.size > HARD_LIMIT) {
+
+        const pruned = prune(next, STATE_LIMIT);
+
+        next.clear();
+
+        pruned.forEach((v, k) => next.set(k, v));
+
+      }
+
+      if ((++iter % 500) === 0) await yieldToBrowser();
+
+    }
+
+    states = prune(next, STATE_LIMIT);
+
+    if (progress) {
+
+      progress.done++;
+
+      onProgress?.(progressMessage(progress));
+
+    } else {
+
+      onProgress?.('計算中');
+
+    }
+
+    await yieldToBrowser();
+
+  }
+
+  let best = null;
+
+  for (const st of states.values()) {
+
+    if (better(st, best)) best = st;
+
+  }
+
+  return best;
+
 }
+
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
   onProgress?.('計算中 0%');
