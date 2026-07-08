@@ -291,7 +291,7 @@ function buildBasicStates(exp){
         const k=key(nc); if(better(ns,next.get(k))) next.set(k,ns);
       }
     }
-    states=prune(next,4500);
+    states=prune(next,3600);
   });
   return states;
 }
@@ -353,17 +353,29 @@ function paretoMerge(map, state, limit){
   return map;
 }
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
+
+function progressMessage(progress){
+  if(!progress) return '計算中';
+  const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
+  let suffix='';
+  const elapsed=(Date.now()-(progress.start||Date.now()))/1000;
+  if(pct>=5 && elapsed>1){
+    const remain=Math.max(1,Math.ceil(elapsed*(100-pct)/pct));
+    suffix=`（残り約${remain}秒）`;
+  }
+  return `計算中 ${pct}%${suffix}`;
+}
 function groupEfficiency(g){
   const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
   return best;
 }
-async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress,progress){
+async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress,progress,preGroups=null){
   // 取得不可候補を先に除外し、軽い/効率の良い候補から処理する。
-  let groups=specialChoiceGroups(hp)
+  let groups=(preGroups||specialChoiceGroups(hp))
     .map(g=>({...g,opts:g.opts.filter(op=>!impossibleChoice(op,exp))}))
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
-  const STATE_LIMIT = Math.max(1200, Math.min(3200, 1000 + Math.floor(exp.reduce((a,b)=>a+b,0)*0.85))); // Phase7: 速度優先の状態数制限
+  const STATE_LIMIT = Math.max(1000, Math.min(2600, 900 + Math.floor(exp.reduce((a,b)=>a+b,0)*0.65))); // Phase8: 速度優先の状態数制限
   let states=new Map();
   baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},STATE_LIMIT);});
   for(const group of groups){
@@ -382,8 +394,7 @@ async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress,progress){
     states=prune(next,STATE_LIMIT);
     if(progress){
       progress.done++;
-      const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
-      onProgress?.(`計算中 ${pct}%`);
+      onProgress?.(progressMessage(progress));
     }else{
       onProgress?.('計算中');
     }
@@ -405,15 +416,16 @@ async function optimizeAsync(exp,onProgress){
   for(const [hp,statesRaw] of byLife.entries()){
     const baseMap=new Map();
     statesRaw.forEach(st=>{const k=key(st.cost); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
-    const states=[...prune(baseMap,2800).values()];
-    const groupCount=specialChoiceGroups(hp).filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
+    const states=[...prune(baseMap,2400).values()];
+    const groups=specialChoiceGroups(hp);
+    const groupCount=groups.filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
     total+=groupCount;
-    tasks.push({hp,states,groupCount});
+    tasks.push({hp,states,groupCount,groups});
   }
-  const progress={done:0,total:Math.max(1,total)};
+  const progress={done:0,total:Math.max(1,total),start:Date.now()};
   let best=null;
   for(const task of tasks){
-    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress);
+    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
     if(better(cand,best)) best=cand;
     await yieldToBrowser();
   }
