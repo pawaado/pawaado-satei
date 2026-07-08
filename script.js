@@ -1,6 +1,5 @@
 (function(){
 const D=window.PAWAADO_DATA;
-const APP_VERSION='3.0 Phase4';
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const mutualGroups=[
@@ -18,6 +17,7 @@ const search=document.getElementById('skillSearch');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
+let isCalculating=false;
 
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
@@ -134,6 +134,7 @@ function toggleSpecial(i){setSpecialOwned(i,!(getSpecialState(i).own===1));}
 document.addEventListener('dblclick',e=>{if(e.target.closest('button')) e.preventDefault();},{passive:false});
 document.addEventListener('click',e=>{
   const t=e.target.closest('button'); if(!t)return;
+  if(isCalculating && t.id!=='calcBtn'){ e.preventDefault(); return; }
   const kind=t.dataset.kind;
   if(kind==='basic-hint'){const name=t.dataset.name; basicHints[name]=cycleHint(basicHints[name]); applyBasicVisual(name); return;}
   if(kind==='basic-name'){
@@ -176,6 +177,7 @@ function validateBasicField(name){
 function validateAllInline(){expNames.forEach(validateExpField); basicNames.forEach(validateBasicField);}
 
 document.addEventListener('input',e=>{
+  if(isCalculating) return;
   const inp=e.target;
   if(!inp || !inp.id) return;
   if(inp.id.startsWith('exp_')){ validateExpField(inp.id.replace('exp_','')); return; }
@@ -212,32 +214,16 @@ function leq(a,b){return a.every((v,i)=>v<=b[i]);}
 function key(c){return c.join(',');}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
-function totalCost(c){return c.reduce((a,b)=>a+b,0);}
-function prune(states,limit=5000){
-  // 旧版の完全Pareto判定はスマホで重かったため、
-  // 1) 同一コストの最良化 → 2) 粗いコスト帯の代表化 → 3) 上位保持
-  // で高速に状態数を圧縮する。
-  const bestExact=new Map();
-  for(const st of states.values()){
-    const k=key(st.cost);
-    if(better(st,bestExact.get(k))) bestExact.set(k,st);
+function prune(states,limit=12000){
+  // Pareto支配で削る。limit超過時はスマホ停止回避のため上位から残す。
+  const arr=[...states.values()].sort((a,b)=>b.score-a.score);
+  const keep=[];
+  outer: for(const st of arr){
+    for(const k of keep){ if(leq(k.cost,st.cost) && k.score>=st.score) continue outer; }
+    keep.push(st);
   }
-  const arr=[...bestExact.values()];
-  if(arr.length<=limit) return bestExact;
-
-  const bucket=Math.max(8, Math.ceil(arr.length/limit));
-  const bestBucket=new Map();
-  for(const st of arr){
-    const bk=st.cost.map(v=>Math.floor(v/bucket)).join(',');
-    const old=bestBucket.get(bk);
-    if(!old || st.score>old.score || (st.score===old.score && totalCost(st.cost)<totalCost(old.cost))) bestBucket.set(bk,st);
-  }
-  let kept=[...bestBucket.values()];
-  if(kept.length>limit){
-    kept.sort((a,b)=> (b.score-a.score) || (totalCost(a.cost)-totalCost(b.cost)));
-    kept=kept.slice(0,limit);
-  }
-  const m=new Map(); kept.forEach(st=>m.set(key(st.cost),st)); return m;
+  const finalKeep = keep.length>limit ? keep.slice(0,limit) : keep;
+  const m=new Map(); finalKeep.forEach(st=>m.set(key(st.cost),st)); return m;
 }
 function rowForValue(table,value){
   for(const r of table){
@@ -286,7 +272,7 @@ function buildBasicStates(exp){
         const k=key(nc); if(better(ns,next.get(k))) next.set(k,ns);
       }
     }
-    states=prune(next,5500);
+    states=prune(next,4500);
   });
   return states;
 }
@@ -344,7 +330,7 @@ function paretoMerge(map, state, limit){
   const k=key(state.cost);
   const old=map.get(k);
   if(better(state,old)) map.set(k,state);
-  if(map.size>limit*1.25) return prune(map,limit);
+  if(map.size>limit*1.6) return prune(map,limit);
   return map;
 }
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
@@ -358,7 +344,7 @@ async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress){
     .map(g=>({...g,opts:g.opts.filter(op=>!impossibleChoice(op,exp))}))
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
-  const STATE_LIMIT = Math.max(2500, Math.min(6000, 1800 + Math.floor(exp.reduce((a,b)=>a+b,0)*2)));
+  const STATE_LIMIT = Math.max(1800, Math.min(4200, 1400 + Math.floor(exp.reduce((a,b)=>a+b,0)*1.2))); // Phase5: 高速優先の状態数制限
   let states=new Map();
   baseStates.forEach(base=>{states=paretoMerge(states,{...base,items:base.items.slice()},STATE_LIMIT);});
   let processed=0;
@@ -373,11 +359,11 @@ async function optimizeSpecialsForLife(baseStates,exp,hp,onProgress){
         next=paretoMerge(next,ns,STATE_LIMIT);
       }
       // Safariで白画面化しにくいよう、一定回数ごとに制御を返す
-      if((++iter % 300)===0) await yieldToBrowser();
+      if((++iter % 350)===0) await yieldToBrowser();
     }
     states=prune(next,STATE_LIMIT);
     processed++;
-    if((processed % 2)===0){
+    if((processed % 3)===0){
       onProgress?.('計算中');
       await yieldToBrowser();
     }
@@ -398,7 +384,7 @@ async function optimizeAsync(exp,onProgress){
     onProgress?.('計算中');
     const baseMap=new Map();
     statesRaw.forEach(st=>{const k=key(st.cost); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
-    const states=[...prune(baseMap,3500).values()];
+    const states=[...prune(baseMap,3600).values()];
     const cand=await optimizeSpecialsForLife(states,exp,hp,onProgress);
     if(better(cand,best)) best=cand;
     done++;
@@ -447,6 +433,9 @@ async function calc(){
   if(errs.length){result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`; return;}
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
   const btn=document.getElementById('calcBtn');
+  isCalculating=true;
+  document.body.classList.add('is-calculating');
+  document.querySelectorAll('button,input,select').forEach(el=>{ if(el.id!=='calcBtn') el.disabled=true; });
   btn.disabled=true; btn.textContent='計算中';
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
@@ -458,6 +447,10 @@ async function calc(){
     result.innerHTML='<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p></div>';
     console.error(err);
   }finally{
+    isCalculating=false;
+    document.body.classList.remove('is-calculating');
+    document.querySelectorAll('button,input,select').forEach(el=>{ el.disabled=false; });
+    renderBasic(); renderSpecials();
     btn.disabled=false; btn.textContent='計算する';
   }
 }
@@ -471,6 +464,5 @@ function resetAll(){
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-const verEl=document.getElementById('versionText'); if(verEl) verEl.textContent='Version '+APP_VERSION;
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
