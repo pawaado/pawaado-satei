@@ -42,6 +42,18 @@ function specialItemsBits(items){
   return bits;
 }
 function bitsKey(bits){return (bits||EMPTY_BITS).toString(36);}
+function bitKeyOfState(st){
+  return st.bitKey ?? bitsKey(st.bits ?? EMPTY_BITS);
+}
+function lifeKeyOfState(st){
+  return st.life==null?'':Number(st.life).toString(36);
+}
+function pruneScopeKey(st){
+  if(st._pruneScopeKey) return st._pruneScopeKey;
+  const v=lifeKeyOfState(st)+'|'+bitKeyOfState(st);
+  st._pruneScopeKey=v;
+  return v;
+}
 const mutualMaskByIndex=[];
 function initSpecialBitMeta(){
   mutualGroups.forEach(g=>{
@@ -315,6 +327,10 @@ function prune(states,limit=12000){
       return a.totalCost-b.totalCost;
     });
 
+  function sameScope(a,b){
+    return pruneScopeKey(a)===pruneScopeKey(b);
+  }
+
   if(mode!=='high'){
     const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
     const src=arr.slice(0,preLimit);
@@ -324,7 +340,10 @@ function prune(states,limit=12000){
       const checkMax=Math.min(keep.length,320);
       for(let i=0;i<checkMax;i++){
         const k=keep[i];
-        if(leq(k.cost,st.cost) && k.score>=st.score) continue outer;
+
+        // 正確性優先：
+        // 生命力だけでなく、取得済み特殊能力bitも同じ状態だけを支配判定する。
+        if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score) continue outer;
       }
       keep.push(st);
       if(keep.length>=limit) break;
@@ -338,9 +357,9 @@ function prune(states,limit=12000){
     return m;
   }
 
-  // v6.0: 高精度用の本格枝刈り。
-  // 同じ生命力の中では「低コスト・高査定」の状態だけをスカイラインとして保持する。
-  // これは安全な支配判定なので、最適解候補を落としにくいまま重複状態を大きく削れる。
+  // 正確性優先版：
+  // 同じ「生命力 + 特殊能力bit」の中だけで、低コスト・高査定の状態を支配判定する。
+  // 生命力が同じでも取得済み特殊能力が違う状態は、今後の選択肢が違うため別物として残す。
   const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
   const src=arr.slice(0,preLimit);
   const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
@@ -349,14 +368,18 @@ function prune(states,limit=12000){
   const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
 
   const keep=[];
-  const skylineByLife=new Map();
+  const skylineByScope=new Map();
   const buckets=new Map();
 
-  function lifeKey(st){return st.life==null?'':Number(st.life).toString(36);}
   function bucketKey(st){
     const c=st.cost;
-    return Math.floor(c[0]/BUCKET_SIZE)+','+Math.floor(c[1]/BUCKET_SIZE)+','+Math.floor(c[2]/BUCKET_SIZE)+','+Math.floor(c[3]/BUCKET_SIZE)+','+Math.floor(c[4]/BUCKET_SIZE)+'|'+lifeKey(st);
+    return Math.floor(c[0]/BUCKET_SIZE)+','+
+      Math.floor(c[1]/BUCKET_SIZE)+','+
+      Math.floor(c[2]/BUCKET_SIZE)+','+
+      Math.floor(c[3]/BUCKET_SIZE)+','+
+      Math.floor(c[4]/BUCKET_SIZE)+'|'+pruneScopeKey(st);
   }
+
   function nearbyBucketKeys(st){
     const c=st.cost;
     const base=[
@@ -366,7 +389,7 @@ function prune(states,limit=12000){
       Math.floor(c[3]/BUCKET_SIZE),
       Math.floor(c[4]/BUCKET_SIZE)
     ];
-    const life=lifeKey(st);
+    const scope=pruneScopeKey(st);
     const keys=[];
     for(let mask=0;mask<32;mask++){
       const b0=base[0]-((mask&1)?1:0);
@@ -375,12 +398,13 @@ function prune(states,limit=12000){
       const b3=base[3]-((mask&8)?1:0);
       const b4=base[4]-((mask&16)?1:0);
       if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
-      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+life);
+      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+scope);
     }
     return keys;
   }
+
   function dominatedBySkyline(st){
-    const list=skylineByLife.get(lifeKey(st));
+    const list=skylineByScope.get(pruneScopeKey(st));
     if(!list) return false;
     const max=Math.min(list.length,EXACT_CHECK_LIMIT);
     for(let i=0;i<max;i++){
@@ -389,13 +413,12 @@ function prune(states,limit=12000){
     }
     return false;
   }
-  function addToSkyline(st){
-    const lk=lifeKey(st);
-    let list=skylineByLife.get(lk);
-    if(!list){list=[]; skylineByLife.set(lk,list);}
 
-    // 新状態に支配される古い状態を軽く取り除く。
-    // 全削除は重いので上限内だけで行い、速度と精度のバランスを取る。
+  function addToSkyline(st){
+    const scope=pruneScopeKey(st);
+    let list=skylineByScope.get(scope);
+    if(!list){list=[]; skylineByScope.set(scope,list);}
+
     const max=Math.min(list.length,EXACT_CHECK_LIMIT);
     for(let i=max-1;i>=0;i--){
       const k=list[i];
@@ -553,7 +576,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) continue;
-    states=prune(next,currentCalcMode()==='high'?6200:2200);
+    states=prune(next,6200);
     if(!states.size) break;
   }
 
@@ -673,19 +696,6 @@ function specialChoiceGroups(hp){
   });
   return groups;
 }
-
-function compareGroups(a,b){
-  const ae=groupEfficiency(a);
-  const be=groupEfficiency(b);
-  if(be!==ae) return be-ae;
-  const as=a.maxScore||0;
-  const bs=b.maxScore||0;
-  if(bs!==as) return bs-as;
-  const al=a.opts?.length||0;
-  const bl=b.opts?.length||0;
-  return al-bl;
-}
-
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
   if(specialGroupCache.has(k)) return specialGroupCache.get(k);
@@ -707,7 +717,10 @@ function specialChoiceGroupsCached(hp){
       return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(g=>g.opts.length>0)
-    .sort(compareGroups);
+    .sort((a,b)=>{
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
+    });
 
   specialGroupCache.set(k,groups);
   return groups;
@@ -717,6 +730,10 @@ function impossibleChoice(op,exp){return !leq(op.cost,exp);}
 function progressMessage(progress){
   if(!progress) return '計算中';
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
+  const d=progress.debug;
+  if(d){
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UBカット:${d.ubCut} 重複カット:${d.dupCut} prune:${d.prune||0}`;
+  }
   return `計算中 ${pct}%`;
 }
 function currentCalcMode(){
@@ -726,9 +743,21 @@ function calcModeLabel(){
   return '高精度';
 }
 function renderCalcMode(){
-  // 高精度一本化のため、計算モードUIは表示しない。
-}
+  const btn=document.getElementById('calcBtn');
+  if(!btn || document.getElementById('calcMode')) return;
 
+  const wrap=document.createElement('div');
+  wrap.className='calc-mode-wrap';
+  wrap.innerHTML=`
+    <label for="calcMode">計算モード</label>
+    <select id="calcMode">
+      <option value="high" selected>高精度（推奨）</option>
+      <option value="normal">高速β（検証用）</option>
+    </select>
+  `;
+
+  btn.parentNode.insertBefore(wrap,btn);
+}
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
@@ -742,15 +771,60 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(Boolean)
-    .sort(compareGroups);
+    .sort((a,b)=>{
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
+    });
 
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
+
+  // 知力余り対策：
+  // 単純な査定効率順だけでなく、取得後の残経験点バランスが極端に崩れにくい候補を少し優先する。
+  function balancePenalty(cost){
+    let p=0;
+    for(let i=0;i<5;i++){
+      const remain=exp[i]-cost[i];
+      p += remain*remain;
+    }
+    return p;
+  }
+
+  function balancePenaltyAfter(st,op){
+    let p=0;
+    for(let i=0;i<5;i++){
+      const remain=exp[i]-st.cost[i]-op.cost[i];
+      p += remain*remain;
+    }
+    return p;
+  }
+
+  function remainVectorKey(st){
+    return (exp[0]-st.cost[0])+','+
+      (exp[1]-st.cost[1])+','+
+      (exp[2]-st.cost[2])+','+
+      (exp[3]-st.cost[3])+','+
+      (exp[4]-st.cost[4]);
+  }
+
+  groups=groups.map((g,groupIndex)=>{
+    const opts=[...g.opts].sort((a,b)=>{
+      const bp=balancePenalty(a.cost)-balancePenalty(b.cost);
+      if(bp!==0) return bp;
+      if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
+      return b.score-a.score;
+    });
+    return {...g,opts,groupIndex,orderCache:new Map()};
+  });
+
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
   const STATE_LIMIT=mode==='high'
     ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.35:1.25));
+  // 高速化：
+  // 正確性優先の修正で候補が増えるため、途中pruneの発火を少し遅らせる。
+  // STATE_LIMIT自体は変えず、HARD_LIMITだけ広げてprune回数を減らす。
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.6:1.35));
 
   // ③ Upper Bound: 残りグループで取り得る最大査定を安全側に足し、
   // すでにベストへ届かない状態は早めにスキップする。
@@ -771,14 +845,20 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     );
   }
 
-  // v5.0: Upper Bound本格化。
-  // 1) 残り全グループの最大査定合計
-  // 2) 残経験点合計 × 残り最高効率
-  // の小さい方を安全側の上界として使う。
+  // Sprint: Upper Bound軽量化。
+  // 残経験点は配列ではなく合計値だけで扱い、同じ条件のUpper Boundはキャッシュする。
+  const upperBoundCache=new Map();
   function remainingScoreUpper(start,remainSum){
+    const cacheKey=start+'|'+remainSum;
+    if(upperBoundCache.has(cacheKey)) return upperBoundCache.get(cacheKey);
+
     const byGroup=suffixMax[start]||0;
-    const byEfficiency=remainSum*(suffixBestEff[start]||0);
-    return byGroup<byEfficiency ? byGroup : byEfficiency;
+
+    // 正確性優先：
+    // 経験点効率による上界は過小評価の恐れがあるため、今は使わない。
+    const v=byGroup;
+    upperBoundCache.set(cacheKey,v);
+    return v;
   }
 
   let states=new Map();
@@ -808,21 +888,39 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
     for(const st of snapshot){
       // この状態から残り全部を最高値で取っても届かないならスキップ。
-      if(st.score+suffixMax[gi]<=bestScore){
+      if(st.score+suffixMax[gi]<bestScore){
+        if(progress?.debug) progress.debug.ubCut++;
         iter++;
         if(iter%700===0) await yieldToBrowser();
         continue;
       }
 
       // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
-      const remainSum=remainingCostSum(st);
-      if(st.score+remainingScoreUpper(gi,remainSum)<=bestScore){
+      const remainSum=st._remainSum ?? (st._remainSum=remainingCostSum(st));
+      if(st.score+remainingScoreUpper(gi,remainSum)<bestScore){
+        if(progress?.debug) progress.debug.ubCut++;
         iter++;
         if(iter%700===0) await yieldToBrowser();
         continue;
       }
 
-      for(const op of group.opts){
+      let orderedOpts=group.opts;
+      if(group.opts.length>1){
+        const orderKey=remainVectorKey(st);
+        orderedOpts=group.orderCache.get(orderKey);
+        if(!orderedOpts){
+          orderedOpts=[...group.opts].sort((a,b)=>{
+            const bp=balancePenaltyAfter(st,a)-balancePenaltyAfter(st,b);
+            if(bp!==0) return bp;
+            if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
+            return b.score-a.score;
+          });
+          if(group.orderCache.size<500) group.orderCache.set(orderKey,orderedOpts);
+        }
+      }
+
+      for(const op of orderedOpts){
+        if(progress?.debug) progress.debug.candidate++;
         const opBits=op.bits ?? specialItemsBits(op.items);
         const stBits=st.bits ?? EMPTY_BITS;
         if((stBits & opBits)!==EMPTY_BITS) continue;
@@ -832,12 +930,12 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         if(!leq(nc,exp)) continue;
 
         const newScore=st.score+op.score;
+        const childRemainSum=remainSum-(op.costSum ?? costSum(op.cost));
+        if(newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
+          if(progress?.debug) progress.debug.ubCut++;
+          continue;
+        }
         if(newScore>bestScore) bestScore=newScore;
-
-        // v6.7 dev2: 子State生成前のUpper Bound枝刈り。
-        // この選択後の残経験点で、残り候補を最高効率で取っても現Bestを超えないなら生成しない。
-        const remainAfterSum=(exp[0]-nc[0])+(exp[1]-nc[1])+(exp[2]-nc[2])+(exp[3]-nc[3])+(exp[4]-nc[4]);
-        if(newScore+remainingScoreUpper(gi+1,remainAfterSum)<bestScore) continue;
 
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
@@ -845,12 +943,17 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitsKey(nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
-        if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
+        if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
+          if(progress?.debug) progress.debug.dupCut++;
+          continue;
+        }
 
+        if(progress?.debug) progress.debug.accept++;
         next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen,opBits));
       }
 
       if(next.size>HARD_LIMIT){
+        if(progress?.debug) progress.debug.prune++;
         const pruned=prune(next,STATE_LIMIT);
         next.clear();
         pruned.forEach((v,k)=>next.set(k,v));
@@ -920,7 +1023,7 @@ async function optimizeAsync(exp,onProgress){
       if(better(st,baseMap.get(k))) baseMap.set(k,st);
     });
 
-    const states=[...prune(baseMap,currentCalcMode()==="high"?6200:2200).values()];
+    const states=[...prune(baseMap,6200).values()];
     if(!states.length) continue;
 
     const groups=specialChoiceGroupsCached(hp);
@@ -935,7 +1038,7 @@ async function optimizeAsync(exp,onProgress){
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,total),start:Date.now()};
+  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
   let best=null;
 
   for(const task of tasks){
