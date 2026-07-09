@@ -17,6 +17,12 @@ const search=document.getElementById('skillSearch');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
+const specialNameIndex=new Map();
+const specialReqIndex=new Map();
+D.special.forEach((s,i)=>{
+  specialNameIndex.set(String(s[1]),i);
+  if(s[2]) specialReqIndex.set(String(s[2]),i);
+});
 let isCalculating=false;
 
 function opt(label,value){return new Option(label,value??label)}
@@ -62,8 +68,8 @@ function renderSkillName(name){
 }
 function getSpecialState(i){const k=String(i); if(!specialState.has(k)) specialState.set(k,{hint:0,own:0}); return specialState.get(k);}
 function isUpperSpecial(i){return String(D.special[i][1]).endsWith('◎');}
-function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return D.special.findIndex(x=>x[1]===req);}
-function upperIndex(i){const name=D.special[i]?.[1]; return D.special.findIndex(x=>x[2]===name);}
+function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return specialNameIndex.has(String(req))?specialNameIndex.get(String(req)):-1;}
+function upperIndex(i){const name=D.special[i]?.[1]; return specialReqIndex.has(String(name))?specialReqIndex.get(String(name)):-1;}
 function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIndex(i);}
 function specialOwned(i){return getSpecialState(i).own===1;}
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
@@ -117,7 +123,7 @@ function setSpecialOwned(i,on,chain=true){
   const st=getSpecialState(i); st.own=on?1:0;
   if(on){
     const group=inMutualGroup(D.special[i][1]);
-    if(group){group.forEach(n=>{const j=D.special.findIndex(x=>x[1]===n); if(j>=0 && j!==i){getSpecialState(j).own=0; applySkillVisual(j);}});}
+    if(group){group.forEach(n=>{const j=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(j>=0 && j!==i){getSpecialState(j).own=0; applySkillVisual(j);}});}
   }
   applySkillVisual(i);
   if(!chain){ renderSpecials(); return; }
@@ -412,19 +418,45 @@ function buildBasicStates(exp){
 
   return states;
 }
+const specialItemCache=new Map();
+function clearCalcCaches(){
+  specialItemCache.clear();
+}
 function itemForSpecialIndex(i,hp,includeLower=false){
   const s=D.special[i]; if(!s) return null;
-  const score=skillScore(s,hp); if(score<=0) return null;
-  const hint=specialHint(i); const costs=[s[3],s[4],s[5],s[6],s[7]].map(c=>costAfter(Number(c||0),hint,false));
-  let totalCost=costs.slice(); let totalScore=score; let items=[{type:'special',idx:i,name:s[1]}];
+  const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
+  if(specialItemCache.has(cacheKey)){
+    const cached=specialItemCache.get(cacheKey);
+    return cached?{...cached,cost:cached.cost.slice(),items:cached.items.slice()}:null;
+  }
+
+  const score=skillScore(s,hp);
+  if(score<=0){
+    specialItemCache.set(cacheKey,null);
+    return null;
+  }
+
+  const hint=specialHint(i);
+  const costs=[s[3],s[4],s[5],s[6],s[7]].map(c=>costAfter(Number(c||0),hint,false));
+  let totalCost=costs.slice();
+  let totalScore=score;
+  let items=[{type:'special',idx:i,name:s[1]}];
+
   if(includeLower){
     const li=lowerIndex(i);
     if(li>=0 && !specialOwned(li)){
       const lower=itemForSpecialIndex(li,hp,false);
-      if(lower){totalCost=addCost(totalCost,lower.cost); totalScore+=lower.score; items=lower.items.concat(items);}
+      if(lower){
+        totalCost=addCost(totalCost,lower.cost);
+        totalScore+=lower.score;
+        items=lower.items.concat(items);
+      }
     }
   }
-  return {type:'choice',cost:totalCost,score:totalScore,items,idx:i,name:s[1]};
+
+  const result={type:'choice',cost:totalCost,score:totalScore,items,idx:i,name:s[1]};
+  specialItemCache.set(cacheKey,{...result,cost:result.cost.slice(),items:result.items.slice()});
+  return result;
 }
 function specialChoiceGroups(hp){
   const used=new Set(); const groups=[];
@@ -447,11 +479,11 @@ function specialChoiceGroups(hp){
   });
   mutualGroups.forEach(g=>{
     const opts=[];
-    const already=g.some(n=>{const i=D.special.findIndex(x=>x[1]===n); return i>=0 && specialOwned(i);});
+    const already=g.some(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); return i>=0 && specialOwned(i);});
     if(!already){
-      g.forEach(n=>{const i=D.special.findIndex(x=>x[1]===n); if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
+      g.forEach(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
     }else{
-      g.forEach(n=>{const i=D.special.findIndex(x=>x[1]===n); if(i>=0) used.add(i);});
+      g.forEach(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(i>=0) used.add(i);});
     }
     if(opts.length) groups.push({kind:'mutual',opts});
   });
@@ -690,6 +722,7 @@ function validateInputs(){
   return errs;
 }
 async function calc(){
+  clearCalcCaches();
   validateAllInline();
   const result=document.getElementById('result');
   const errs=validateInputs();
@@ -707,23 +740,8 @@ async function calc(){
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-    const scoreText=(Math.round((best.score||0)*10)/10).toLocaleString('ja-JP');
+    const scoreText=Math.round(best.score||0).toLocaleString('ja-JP');
     result.innerHTML=`
-<div class="result-block score-block">
-  <h3>参考査定</h3>
-  <p class="score-value">${scoreText}</p>
-</div>
-
-<div class="result-block">
-  <h3>計算モード</h3>
-  <p>${calcModeLabel()}</p>
-</div>
-
-<div class="result-block">
-  <h3>計算時間</h3>
-  <p>${elapsed} 秒</p>
-</div>
-
 <div class="result-block">
   <h3>基本能力</h3>
   ${resultTable(best.items,'basic')}
@@ -734,7 +752,22 @@ async function calc(){
   ${resultTable(best.items,'special')}
 </div>
 
-${remainHtml}`;
+<div class="result-block score-block">
+  <h3>参考査定</h3>
+  <p class="score-value">${scoreText}</p>
+</div>
+
+${remainHtml}
+
+<div class="result-block">
+  <h3>計算時間</h3>
+  <p>${elapsed} 秒</p>
+</div>
+
+<div class="result-block">
+  <h3>計算モード</h3>
+  <p>${calcModeLabel()}</p>
+</div>`;
   }catch(err){
     const name=err?.name||'Error';
     const message=err?.message||'原因不明のエラーです';
