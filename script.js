@@ -25,6 +25,11 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 const EMPTY_ITEMS=[];
+const PROFILE={marks:new Map(),times:new Map()};
+function pStart(k){PROFILE.marks.set(k,performance.now());}
+function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
+function pReset(){PROFILE.marks.clear();PROFILE.times.clear();}
+function pReport(){return [...PROFILE.times.entries()].map(([k,v])=>`<tr><td>${k}</td><td>${v.toFixed(2)} ms</td></tr>`).join("");}
 
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
@@ -89,7 +94,9 @@ function renderSpecials(){
     return `<div class="skill-row ${Number(st.own)?'owned':''}" data-index="${i}">
       <button type="button" class="hint-btn" data-kind="special-hint" data-index="${i}">＋</button>
       <button type="button" class="name-btn" data-kind="special-name" data-index="${i}"><span>${renderSkillName(s[1])}</span></button>
-    </div>`;
+    </div>
+
+<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
   }).join('');
   specialList.innerHTML=html;
   D.special.forEach((_,i)=>applySkillVisual(i));
@@ -825,7 +832,9 @@ async function optimizeAsync(exp,onProgress){
 
   const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
 
+  pStart("基本能力生成");
   const basicMap=buildBasicStates(exp);
+  pEnd("基本能力生成");
   const basicStates=[...basicMap.values()];
 
   if(!basicStates.length){
@@ -873,7 +882,9 @@ async function optimizeAsync(exp,onProgress){
   let best=null;
 
   for(const task of tasks){
+    pStart("特殊能力探索");
     const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
+    pEnd("特殊能力探索");
 
     if(cand && better(cand,best)){
       best=cand;
@@ -924,6 +935,7 @@ function validateInputs(){
 }
 async function calc(){
   clearCalcCaches();
+  pReset();
   validateAllInline();
   const result=document.getElementById('result');
   const errs=validateInputs();
@@ -944,7 +956,9 @@ async function calc(){
     }else{
       best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
     }
+    pStart("結果復元");
     const bestItems=restoreItems(best);
+    pEnd("結果復元");
     best.items=bestItems;
     setCachedResult(cacheKey,best);
 
