@@ -1,3 +1,10 @@
+## Version 6.7 Dev2
+- compareGroups未定義を修正しました。
+- 計算モードUIと結果の計算モード表示を削除し、高精度一本化しました。
+- remainingCostSum()化でUpper Bound計算の配列生成を削減しました。
+- 子State生成前のUpper Bound枝刈りを追加しました。
+- script.js?v=672 に更新しました。
+
 ## Version 6.6 Bit Full
 - Version 6.5をベースに、特殊能力探索のbit演算化を強化しました。
 - BigInt bit maskで特殊能力の同一状態・重複・相互排他判定を行う処理を追加しました。

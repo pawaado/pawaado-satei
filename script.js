@@ -673,6 +673,19 @@ function specialChoiceGroups(hp){
   });
   return groups;
 }
+
+function compareGroups(a,b){
+  const ae=groupEfficiency(a);
+  const be=groupEfficiency(b);
+  if(be!==ae) return be-ae;
+  const as=a.maxScore||0;
+  const bs=b.maxScore||0;
+  if(bs!==as) return bs-as;
+  const al=a.opts?.length||0;
+  const bl=b.opts?.length||0;
+  return al-bl;
+}
+
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
   if(specialGroupCache.has(k)) return specialGroupCache.get(k);
@@ -694,10 +707,7 @@ function specialChoiceGroupsCached(hp){
       return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(g=>g.opts.length>0)
-    .sort((a,b)=>{
-      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
-      return b.maxScore-a.maxScore;
-    });
+    .sort(compareGroups);
 
   specialGroupCache.set(k,groups);
   return groups;
@@ -710,27 +720,15 @@ function progressMessage(progress){
   return `計算中 ${pct}%`;
 }
 function currentCalcMode(){
-  return document.getElementById('calcMode')?.value || 'high';
+  return 'high';
 }
 function calcModeLabel(){
-  return currentCalcMode()==='high' ? '高精度' : '高速β';
+  return '高精度';
 }
 function renderCalcMode(){
-  const btn=document.getElementById('calcBtn');
-  if(!btn || document.getElementById('calcMode')) return;
-
-  const wrap=document.createElement('div');
-  wrap.className='calc-mode-wrap';
-  wrap.innerHTML=`
-    <label for="calcMode">計算モード</label>
-    <select id="calcMode">
-      <option value="high" selected>高精度（推奨）</option>
-      <option value="normal">高速β（検証用）</option>
-    </select>
-  `;
-
-  btn.parentNode.insertBefore(wrap,btn);
+  // 高精度一本化のため、計算モードUIは表示しない。
 }
+
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
@@ -744,10 +742,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(Boolean)
-    .sort((a,b)=>{
-      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
-      return b.maxScore-a.maxScore;
-    });
+    .sort(compareGroups);
 
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
@@ -767,29 +762,23 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   function remainingCostSum(st){
-
-  return (
-
-    (exp[0]-st.cost[0])+
-
-    (exp[1]-st.cost[1])+
-
-    (exp[2]-st.cost[2])+
-
-    (exp[3]-st.cost[3])+
-
-    (exp[4]-st.cost[4])
-    ];
+    return (
+      (exp[0]-st.cost[0])+
+      (exp[1]-st.cost[1])+
+      (exp[2]-st.cost[2])+
+      (exp[3]-st.cost[3])+
+      (exp[4]-st.cost[4])
+    );
   }
 
   // v5.0: Upper Bound本格化。
   // 1) 残り全グループの最大査定合計
   // 2) 残経験点合計 × 残り最高効率
   // の小さい方を安全側の上界として使う。
-  function remainingScoreUpper(start,remain){
+  function remainingScoreUpper(start,remainSum){
     const byGroup=suffixMax[start]||0;
-    const byEfficiency=costSum(remain)*(suffixBestEff[start]||0);
-    return Math.min(byGroup,byEfficiency);
+    const byEfficiency=remainSum*(suffixBestEff[start]||0);
+    return byGroup<byEfficiency ? byGroup : byEfficiency;
   }
 
   let states=new Map();
@@ -826,8 +815,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
-      const remain=remainingCost(st);
-      if(st.score+remainingScoreUpper(gi,remain)<=bestScore){
+      const remainSum=remainingCostSum(st);
+      if(st.score+remainingScoreUpper(gi,remainSum)<=bestScore){
         iter++;
         if(iter%700===0) await yieldToBrowser();
         continue;
@@ -844,6 +833,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         const newScore=st.score+op.score;
         if(newScore>bestScore) bestScore=newScore;
+
+        // v6.7 dev2: 子State生成前のUpper Bound枝刈り。
+        // この選択後の残経験点で、残り候補を最高効率で取っても現Bestを超えないなら生成しない。
+        const remainAfterSum=(exp[0]-nc[0])+(exp[1]-nc[1])+(exp[2]-nc[2])+(exp[3]-nc[3])+(exp[4]-nc[4]);
+        if(newScore+remainingScoreUpper(gi+1,remainAfterSum)<bestScore) continue;
 
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
@@ -1055,11 +1049,7 @@ ${profileHtml}
   <h3>計算時間</h3>
   <p>${elapsed} 秒</p>
 </div>
-
-<div class="result-block">
-  <h3>計算モード</h3>
-  <p>${calcModeLabel()}</p>
-</div>`;
+`;
   }catch(err){
     const name=err?.name||'Error';
     const message=err?.message||'原因不明のエラーです';
@@ -1102,5 +1092,5 @@ function resetAll(){
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); renderCalcMode(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
