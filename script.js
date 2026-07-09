@@ -215,8 +215,8 @@ function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-  const mode=currentCalcMode();
-  const high=mode==='high';
+  // v3.5: 通常モードでも高精度寄りの枝刈りを使い、候補の取りこぼしを抑える。
+  const high=true;
   const arr=[...states.values()]
     .map(st=>({
       ...st,
@@ -391,7 +391,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) return;
-    states=prune(next,currentCalcMode()==="high"?5200:3600);
+    states=prune(next,5200);
   });
 
   return states;
@@ -498,10 +498,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   const totalExp=exp.reduce((a,b)=>a+b,0);
   const mode=currentCalcMode();
+  // v3.5: 通常モードも候補を多めに残す。高精度はさらに少しだけ余裕を持たせる。
   const STATE_LIMIT=mode==='high'
-    ? Math.max(2500,Math.min(7000,1800+Math.floor(totalExp*1.1)))
-    : Math.max(1300,Math.min(3600,900+Math.floor(totalExp*0.8)));
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.5:1.35));
+    ? Math.max(2800,Math.min(7600,2000+Math.floor(totalExp*1.15)))
+    : Math.max(2500,Math.min(7000,1800+Math.floor(totalExp*1.1)));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.55:1.5));
 
   let states=new Map();
 
