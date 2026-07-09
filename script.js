@@ -703,10 +703,45 @@ async function calc(){
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
     const best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
+    const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
     const scoreText=(Math.round((best.score||0)*10)/10).toLocaleString('ja-JP');
-    result.innerHTML=`<div class="result-block score-block"><h3>参考査定</h3><p class="score-value">${scoreText}</p></div><div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>${remainHtml}`;
+    result.innerHTML=`
+
+<div class="result-block score-block">
+
+  <h3>参考査定</h3>
+
+  <p class="score-value">${scoreText}</p>
+
+</div>
+
+<div class="result-block">
+
+  <h3>計算時間</h3>
+
+  <p>${elapsed} 秒</p>
+
+</div>
+
+<div class="result-block">
+
+  <h3>基本能力</h3>
+
+  ${resultTable(best.items,'basic')}
+
+</div>
+
+<div class="result-block">
+
+  <h3>特殊能力</h3>
+
+  ${resultTable(best.items,'special')}
+
+</div>
+
+${remainHtml}`;
   }catch(err){
     const name=err?.name||'Error';
 
