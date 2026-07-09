@@ -766,13 +766,19 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     suffixBestEff[i]=Math.max(suffixBestEff[i+1],groupEfficiency(groups[i]));
   }
 
-  function remainingCost(st){
-    return [
-      exp[0]-st.cost[0],
-      exp[1]-st.cost[1],
-      exp[2]-st.cost[2],
-      exp[3]-st.cost[3],
-      exp[4]-st.cost[4]
+  function remainingCostSum(st){
+
+  return (
+
+    (exp[0]-st.cost[0])+
+
+    (exp[1]-st.cost[1])+
+
+    (exp[2]-st.cost[2])+
+
+    (exp[3]-st.cost[3])+
+
+    (exp[4]-st.cost[4])
     ];
   }
 
