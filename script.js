@@ -735,9 +735,23 @@ async function calc(){
 }
 function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
+
+  academy.value='';
+
+  updateJobs();
+
   Object.keys(basicOwned).forEach(k=>basicOwned[k]=false);
+
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
-  specialState.clear(); search.value=''; renderBasic(); renderSpecials();
+
+  specialState.clear();
+
+  search.value='';
+
+  renderBasic();
+
+  renderSpecials();
+
   document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
 }
 document.getElementById('calcBtn').addEventListener('click',calc);
