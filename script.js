@@ -215,8 +215,7 @@ function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-  // v3.5: 通常モードでも高精度寄りの枝刈りを使い、候補の取りこぼしを抑える。
-  const high=true;
+  const mode=currentCalcMode();
   const arr=[...states.values()]
     .map(st=>({
       ...st,
@@ -227,20 +226,37 @@ function prune(states,limit=12000){
       return a.totalCost-b.totalCost;
     });
 
-  const preLimit=high
-    ? Math.min(arr.length,Math.max(limit*3,limit+1800))
-    : Math.min(arr.length,Math.max(Math.floor(limit*2.4),limit+1200));
+  if(mode!=='high'){
+    const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
+    const src=arr.slice(0,preLimit);
+    const keep=[];
+
+    outer: for(const st of src){
+      const checkMax=Math.min(keep.length,300);
+      for(let i=0;i<checkMax;i++){
+        const k=keep[i];
+        if(leq(k.cost,st.cost) && k.score>=st.score) continue outer;
+      }
+      keep.push(st);
+      if(keep.length>=limit) break;
+    }
+
+    const m=new Map();
+    keep.forEach(st=>{
+      const {totalCost,...clean}=st;
+      m.set(stateKey(clean),clean);
+    });
+    return m;
+  }
+
+  const preLimit=Math.min(arr.length,Math.max(limit*3,limit+1800));
   const src=arr.slice(0,preLimit);
   const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
-  const BUCKET_SIZE=high
-    ? (avgExp>1500?60:40)
-    : (avgExp>1500?65:45);
+  const BUCKET_SIZE=avgExp>1500?60:40;
 
   const keep=[];
   const buckets=new Map();
-  const BUCKET_KEEP_LIMIT=high
-    ? (avgExp>1500?180:120)
-    : (avgExp>1500?150:100);
+  const BUCKET_KEEP_LIMIT=avgExp>1500?180:120;
 
   function bucketKey(st){
     return st.cost.map(v=>Math.floor(v/BUCKET_SIZE)).join(',');
@@ -391,7 +407,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) return;
-    states=prune(next,5200);
+    states=prune(next,currentCalcMode()==="high"?5200:2200);
   });
 
   return states;
@@ -454,10 +470,10 @@ function progressMessage(progress){
   return `計算中 ${pct}%`;
 }
 function currentCalcMode(){
-  return document.getElementById('calcMode')?.value || 'normal';
+  return document.getElementById('calcMode')?.value || 'high';
 }
 function calcModeLabel(){
-  return currentCalcMode()==='high' ? '高精度' : '通常';
+  return currentCalcMode()==='high' ? '高精度' : '高速β';
 }
 function renderCalcMode(){
   const btn=document.getElementById('calcBtn');
@@ -468,8 +484,8 @@ function renderCalcMode(){
   wrap.innerHTML=`
     <label for="calcMode">計算モード</label>
     <select id="calcMode">
-      <option value="normal">通常（高速）</option>
-      <option value="high">高精度（検証用）</option>
+      <option value="high" selected>高精度（推奨）</option>
+      <option value="normal">高速β（検証用）</option>
     </select>
   `;
 
@@ -498,11 +514,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   const totalExp=exp.reduce((a,b)=>a+b,0);
   const mode=currentCalcMode();
-  // v3.5: 通常モードも候補を多めに残す。高精度はさらに少しだけ余裕を持たせる。
+  // v3.6: 推奨は高精度。高速βは参考用として軽めにする。
   const STATE_LIMIT=mode==='high'
-    ? Math.max(2800,Math.min(7600,2000+Math.floor(totalExp*1.15)))
-    : Math.max(2500,Math.min(7000,1800+Math.floor(totalExp*1.1)));
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.55:1.5));
+    ? Math.max(2500,Math.min(7000,1800+Math.floor(totalExp*1.1)))
+    : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.5:1.25));
 
   let states=new Map();
 
