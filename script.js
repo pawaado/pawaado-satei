@@ -419,8 +419,10 @@ function buildBasicStates(exp){
   return states;
 }
 const specialItemCache=new Map();
+const specialGroupCache=new Map();
 function clearCalcCaches(){
   specialItemCache.clear();
+  specialGroupCache.clear();
 }
 function itemForSpecialIndex(i,hp,includeLower=false){
   const s=D.special[i]; if(!s) return null;
@@ -494,6 +496,13 @@ function specialChoiceGroups(hp){
   });
   return groups;
 }
+function specialChoiceGroupsCached(hp){
+  const k=String(hp);
+  if(specialGroupCache.has(k)) return specialGroupCache.get(k);
+  const groups=specialChoiceGroupsCached(hp);
+  specialGroupCache.set(k,groups);
+  return groups;
+}
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
 
 function progressMessage(progress){
@@ -525,19 +534,20 @@ function renderCalcMode(){
 }
 function groupEfficiency(g){
   return g.opts.reduce((m,o)=>{
-    const costSum=o.cost.reduce((a,b)=>a+b,0);
+    const costSum=o.costSum??o.cost.reduce((a,b)=>a+b,0);
     return Math.max(m,o.score/(1+costSum));
   },0);
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
-  let groups=(preGroups||specialChoiceGroups(hp))
+  let groups=(preGroups||specialChoiceGroupsCached(hp))
     .map(g=>({
       ...g,
       opts:g.opts
         .filter(op=>!impossibleChoice(op,exp))
+        .map(op=>({...op,costSum:op.cost.reduce((x,y)=>x+y,0)}))
         .sort((a,b)=>{
-          const ea=a.score/(1+a.cost.reduce((x,y)=>x+y,0));
-          const eb=b.score/(1+b.cost.reduce((x,y)=>x+y,0));
+          const ea=a.score/(1+a.costSum);
+          const eb=b.score/(1+b.costSum);
           return eb-ea;
         })
     }))
@@ -656,7 +666,7 @@ async function optimizeAsync(exp,onProgress){
     const states=[...prune(baseMap,currentCalcMode()==="high"?5200:2200).values()];
     if(!states.length) continue;
 
-    const groups=specialChoiceGroups(hp);
+    const groups=specialChoiceGroupsCached(hp);
     const groupCount=groups.filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
 
     total+=groupCount;
@@ -753,7 +763,7 @@ async function calc(){
 </div>
 
 <div class="result-block score-block">
-  <h3>参考査定</h3>
+  <h3>査定(参考値)</h3>
   <p class="score-value">${scoreText}</p>
 </div>
 
