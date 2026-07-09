@@ -409,9 +409,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         .sort((a, b) => {
 
-          const ea = a.score / (1 + a.cost.reduce((x, y) => x + y, 0));
+           const ea = optionEfficiency(a, exp);
 
-          const eb = b.score / (1 + b.cost.reduce((x, y) => x + y, 0));
+           const eb = optionEfficiency(b, exp);
 
           return eb - ea;
 
