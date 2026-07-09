@@ -727,10 +727,17 @@ async function calc(){
     isCalculating=false;
     document.body.classList.remove('is-calculating');
     document.querySelectorAll('button,input,select').forEach(el=>{ el.disabled=false; });
-    // 計算後も入力値・取得済状態は保持する。再描画で入力欄を空にしない。
-    basicNames.forEach(n=>applyBasicVisual(n));
-    D.special.forEach((_,i)=>applySkillVisual(i));
-    btn.disabled=false; btn.textContent='計算する';
+    // 元の状態を復元
+
+updateJobs();
+
+basicNames.forEach(n=>applyBasicVisual(n));
+
+D.special.forEach((_,i)=>applySkillVisual(i));
+
+btn.disabled=false;
+
+btn.textContent='計算する';
   }
 }
 function resetAll(){
