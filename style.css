@@ -14,3 +14,5 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
 
 .score-block{border-left:4px solid #2563eb;}
 .score-value{font-size:1.4rem;font-weight:800;margin:.25rem 0;}
+.calc-mode-wrap{display:grid;gap:6px;margin-bottom:12px}
+.calc-mode-wrap label{font-weight:800;color:var(--muted)}

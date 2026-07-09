@@ -215,6 +215,7 @@ function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
+  const mode=currentCalcMode();
   const arr=[...states.values()]
     .map(st=>({
       ...st,
@@ -225,14 +226,37 @@ function prune(states,limit=12000){
       return a.totalCost-b.totalCost;
     });
 
-  const preLimit=Math.min(arr.length,Math.max(limit*2,limit+1000));
+  if(mode!=='high'){
+    const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
+    const src=arr.slice(0,preLimit);
+    const keep=[];
+
+    outer: for(const st of src){
+      const checkMax=Math.min(keep.length,300);
+      for(let i=0;i<checkMax;i++){
+        const k=keep[i];
+        if(leq(k.cost,st.cost) && k.score>=st.score) continue outer;
+      }
+      keep.push(st);
+      if(keep.length>=limit) break;
+    }
+
+    const m=new Map();
+    keep.forEach(st=>{
+      const {totalCost,...clean}=st;
+      m.set(stateKey(clean),clean);
+    });
+    return m;
+  }
+
+  const preLimit=Math.min(arr.length,Math.max(limit*3,limit+1800));
   const src=arr.slice(0,preLimit);
   const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
-  const BUCKET_SIZE=avgExp>1500?70:50;
+  const BUCKET_SIZE=avgExp>1500?60:40;
 
   const keep=[];
   const buckets=new Map();
-  const BUCKET_KEEP_LIMIT=avgExp>1500?120:80;
+  const BUCKET_KEEP_LIMIT=avgExp>1500?180:120;
 
   function bucketKey(st){
     return st.cost.map(v=>Math.floor(v/BUCKET_SIZE)).join(',');
@@ -383,7 +407,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) return;
-    states=prune(next,3600);
+    states=prune(next,currentCalcMode()==="high"?5200:2200);
   });
 
   return states;
@@ -445,6 +469,28 @@ function progressMessage(progress){
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
   return `計算中 ${pct}%`;
 }
+function currentCalcMode(){
+  return document.getElementById('calcMode')?.value || 'normal';
+}
+function calcModeLabel(){
+  return currentCalcMode()==='high' ? '高精度' : '通常';
+}
+function renderCalcMode(){
+  const btn=document.getElementById('calcBtn');
+  if(!btn || document.getElementById('calcMode')) return;
+
+  const wrap=document.createElement('div');
+  wrap.className='calc-mode-wrap';
+  wrap.innerHTML=`
+    <label for="calcMode">計算モード</label>
+    <select id="calcMode">
+      <option value="normal">通常（高速）</option>
+      <option value="high">高精度（検証用）</option>
+    </select>
+  `;
+
+  btn.parentNode.insertBefore(wrap,btn);
+}
 function groupEfficiency(g){
   return g.opts.reduce((m,o)=>{
     const costSum=o.cost.reduce((a,b)=>a+b,0);
@@ -467,8 +513,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
 
   const totalExp=exp.reduce((a,b)=>a+b,0);
-  const STATE_LIMIT=Math.max(1000,Math.min(3000,900+Math.floor(totalExp*0.65)));
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*1.35);
+  const mode=currentCalcMode();
+  const STATE_LIMIT=mode==='high'
+    ? Math.max(2500,Math.min(7000,1800+Math.floor(totalExp*1.1)))
+    : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.5:1.25));
 
   let states=new Map();
 
@@ -571,7 +620,7 @@ async function optimizeAsync(exp,onProgress){
       if(better(st,baseMap.get(k))) baseMap.set(k,st);
     });
 
-    const states=[...prune(baseMap,3200).values()];
+    const states=[...prune(baseMap,currentCalcMode()==="high"?5200:2200).values()];
     if(!states.length) continue;
 
     const groups=specialChoiceGroups(hp);
@@ -665,6 +714,11 @@ async function calc(){
 </div>
 
 <div class="result-block">
+  <h3>計算モード</h3>
+  <p>${calcModeLabel()}</p>
+</div>
+
+<div class="result-block">
   <h3>計算時間</h3>
   <p>${elapsed} 秒</p>
 </div>
@@ -721,5 +775,5 @@ function resetAll(){
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); renderCalcMode(); validateAllInline();
 })();
