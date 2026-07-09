@@ -215,108 +215,67 @@ function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-const arr=[...states.values()]
-
+  const arr=[...states.values()]
     .map(st=>({
-
       ...st,
-
       totalCost:st.cost.reduce((x,y)=>x+y,0)
-
     }))
-
     .sort((a,b)=>{
-
       if(b.score!==a.score) return b.score-a.score;
-
       return a.totalCost-b.totalCost;
-
     });
 
   const preLimit=Math.min(arr.length,Math.max(limit*2,limit+1000));
-
   const src=arr.slice(0,preLimit);
   const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
+  const BUCKET_SIZE=avgExp>1500?70:50;
 
-const BUCKET_SIZE=avgExp>1500?70:50;
+  const keep=[];
+  const buckets=new Map();
+  const BUCKET_KEEP_LIMIT=avgExp>1500?120:80;
 
-const keep=[];
-
-const buckets=new Map();
-
-const BUCKET_KEEP_LIMIT=avgExp>1500?120:80;
-  
   function bucketKey(st){
-
     return st.cost.map(v=>Math.floor(v/BUCKET_SIZE)).join(',');
-
   }
 
   function nearbyBucketKeys(st){
-
     const base=st.cost.map(v=>Math.floor(v/BUCKET_SIZE));
-
     const keys=[base.join(',')];
 
     for(let i=0;i<base.length;i++){
-    if(base[i]>0){
-
-    const lower=base.slice();
-
-    lower[i]--;
-
-    keys.push(lower.join(','));
-
-  }
-
-}
-
-// 2軸同時に近いバケットも比較対象にする
-
-for(let i=0;i<base.length;i++){
-
-  for(let j=i+1;j<base.length;j++){
-
-    if(base[i]>0 && base[j]>0){
-
-      const lower=base.slice();
-
-      lower[i]--;
-
-      lower[j]--;
-
-      keys.push(lower.join(','));
-
+      if(base[i]>0){
+        const lower=base.slice();
+        lower[i]--;
+        keys.push(lower.join(','));
+      }
     }
 
-  }
+    for(let i=0;i<base.length;i++){
+      for(let j=i+1;j<base.length;j++){
+        if(base[i]>0 && base[j]>0){
+          const lower=base.slice();
+          lower[i]--;
+          lower[j]--;
+          keys.push(lower.join(','));
+        }
+      }
+    }
 
-}
-
-  return [...new Set(keys)];
-
+    return [...new Set(keys)];
   }
 
   outer: for(const st of src){
-
     const keys=nearbyBucketKeys(st);
 
     for(const bk of keys){
-
       const list=buckets.get(bk);
-
       if(!list) continue;
 
       for(const k of list){
-
         if(leq(k.cost,st.cost) && k.score>=st.score){
-
           continue outer;
-
         }
-
       }
-
     }
 
     keep.push(st);
@@ -324,44 +283,31 @@ for(let i=0;i<base.length;i++){
     const bk=bucketKey(st);
     if(!buckets.has(bk)) buckets.set(bk,[]);
 
-const list=buckets.get(bk);
+    const list=buckets.get(bk);
 
-if(list.length<BUCKET_KEEP_LIMIT){
+    if(list.length<BUCKET_KEEP_LIMIT){
+      list.push(st);
+    }else{
+      const worst=list[list.length-1];
 
-  list.push(st);
+      if(st.score>worst.score || (st.score===worst.score && st.totalCost<worst.totalCost)){
+        list[list.length-1]=st;
+      }
+    }
 
-}else{
-
-  const worst=list[list.length-1];
-
-  if(st.score>worst.score || (st.score===worst.score && st.totalCost<worst.totalCost)){
-
-    list[list.length-1]=st;
-
-  }
-
-}
-
-list.sort((a,b)=>{
-
-  if(b.score!==a.score) return b.score-a.score;
-
-  return a.totalCost-b.totalCost;
-
-});
+    list.sort((a,b)=>{
+      if(b.score!==a.score) return b.score-a.score;
+      return a.totalCost-b.totalCost;
+    });
 
     if(keep.length>=limit) break;
-
   }
 
   const m=new Map();
 
   keep.forEach(st=>{
-
     const {totalCost,...clean}=st;
-
     m.set(stateKey(clean),clean);
-
   });
 
   return m;
@@ -413,47 +359,31 @@ function basicOptions(name,exp){
 
 function buildBasicStates(exp){
   const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
-
   let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,{cost:[0,0,0,0,0],score:0,items:[],life:initialLife}]]);
 
   basicNames.forEach(name=>{
-
     const opts=basicOptions(name,exp);
-
     const next=new Map();
 
     for(const st of states.values()){
-
       for(const op of opts){
-
         const nc=addCost(st.cost,op.cost);
-
         if(!leq(nc,exp)) continue;
 
         const ns={
-
           cost:nc,
-
           score:st.score+op.score,
-
           items:st.items.concat(op.items),
-
           life:op.life!==null?op.life:st.life
-
         };
 
         const k=stateKey(ns);
-
         if(better(ns,next.get(k))) next.set(k,ns);
-
       }
-
     }
 
     if(!next.size) return;
-
     states=prune(next,3600);
-
   });
 
   return states;
@@ -511,255 +441,166 @@ function specialChoiceGroups(hp){
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
 
 function progressMessage(progress){
-
   if(!progress) return '計算中';
-
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
-
   return `計算中 ${pct}%`;
 }
 function groupEfficiency(g){
-
   return g.opts.reduce((m,o)=>{
-
     const costSum=o.cost.reduce((a,b)=>a+b,0);
-
     return Math.max(m,o.score/(1+costSum));
-
   },0);
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
-
   let groups=(preGroups||specialChoiceGroups(hp))
-
     .map(g=>({
-
       ...g,
-
       opts:g.opts
-
         .filter(op=>!impossibleChoice(op,exp))
-
         .sort((a,b)=>{
-
           const ea=a.score/(1+a.cost.reduce((x,y)=>x+y,0));
-
           const eb=b.score/(1+b.cost.reduce((x,y)=>x+y,0));
-
           return eb-ea;
-
         })
-
     }))
-
     .filter(g=>g.opts.length>0)
-
     .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
 
   const totalExp=exp.reduce((a,b)=>a+b,0);
-
   const STATE_LIMIT=Math.max(1000,Math.min(3000,900+Math.floor(totalExp*0.65)));
-
   const HARD_LIMIT=Math.floor(STATE_LIMIT*1.35);
 
   let states=new Map();
 
   for(const base of baseStates){
-
     if(!base) continue;
-
     const st={...base,items:(base.items||[]).slice()};
-
     const k=stateKey(st);
-
     if(better(st,states.get(k))) states.set(k,st);
-
   }
 
   if(!states.size){
-
     return {items:[],score:0,cost:[0,0,0,0,0],life:null};
-
   }
 
   states=prune(states,STATE_LIMIT);
 
   for(const group of groups){
-
     const snapshot=[...states.values()];
-
     const next=new Map(states);
-
     let iter=0;
 
     for(const st of snapshot){
-
       for(const op of group.opts){
-
         const nc=addCost(st.cost,op.cost);
-
         if(!leq(nc,exp)) continue;
 
         const ns={
-
           cost:nc,
-
           score:st.score+op.score,
-
           items:st.items.concat(op.items),
-
           life:st.life
-
         };
 
         const k=stateKey(ns);
-
         if(better(ns,next.get(k))) next.set(k,ns);
-
       }
 
       if(next.size>HARD_LIMIT){
-
         const pruned=prune(next,STATE_LIMIT);
-
         next.clear();
-
         pruned.forEach((v,k)=>next.set(k,v));
-
       }
 
       iter++;
-
       if(iter%500===0) await yieldToBrowser();
-
     }
 
     states=prune(next,STATE_LIMIT);
 
     if(progress){
-
       progress.done++;
-
       onProgress?.(progressMessage(progress));
-
     }else{
-
       onProgress?.('計算中');
-
     }
 
     await yieldToBrowser();
-
   }
 
   let best=null;
 
   for(const st of states.values()){
-
     if(better(st,best)) best=st;
-
   }
 
   return best||{items:[],score:0,cost:[0,0,0,0,0],life:null};
-
 }
-
 async function optimizeAsync(exp,onProgress){
-
   await yieldToBrowser();
-
   onProgress?.('計算中 0%');
 
   const fallback={items:[],score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
 
   const basicMap=buildBasicStates(exp);
-
   const basicStates=[...basicMap.values()];
 
   if(!basicStates.length){
-
     onProgress?.('計算中 100%');
-
     return fallback;
-
   }
 
   await yieldToBrowser();
 
   const byLife=new Map();
-
   basicStates.forEach(st=>{
-
     const life=st.life||Number(document.getElementById('basic_生命力')?.value||1);
-
     const hp=currentHpForLife(life);
-
     if(!byLife.has(hp)) byLife.set(hp,[]);
-
     byLife.get(hp).push(st);
-
   });
 
   const tasks=[];
-
   let total=0;
 
   for(const [hp,statesRaw] of byLife.entries()){
-
     const baseMap=new Map();
 
     statesRaw.forEach(st=>{
-
       const k=stateKey(st);
-
       if(better(st,baseMap.get(k))) baseMap.set(k,st);
-
     });
 
     const states=[...prune(baseMap,3200).values()];
-
     if(!states.length) continue;
 
     const groups=specialChoiceGroups(hp);
-
     const groupCount=groups.filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
 
     total+=groupCount;
-
     tasks.push({hp,states,groupCount,groups});
-
   }
 
   if(!tasks.length){
-
     onProgress?.('計算中 100%');
-
     return fallback;
-
   }
 
   const progress={done:0,total:Math.max(1,total),start:Date.now()};
-
   let best=null;
 
   for(const task of tasks){
-
     const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
 
     if(cand && better(cand,best)){
-
       best=cand;
-
     }
 
     await yieldToBrowser();
-
   }
 
   onProgress?.('計算中 100%');
-
   return best||fallback;
-
 }
 function resultTable(items,kind){
   let filtered=items.filter(x=>x.type===kind);
@@ -804,6 +645,7 @@ async function calc(){
   const errs=validateInputs();
   if(errs.length){result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`; return;}
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
+  const startTime=performance.now();
   const btn=document.getElementById('calcBtn');
   isCalculating=true;
   document.body.classList.add('is-calculating');
@@ -817,90 +659,61 @@ async function calc(){
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
     const scoreText=(Math.round((best.score||0)*10)/10).toLocaleString('ja-JP');
     result.innerHTML=`
-
 <div class="result-block score-block">
-
   <h3>参考査定</h3>
-
   <p class="score-value">${scoreText}</p>
-
 </div>
 
 <div class="result-block">
-
   <h3>計算時間</h3>
-
   <p>${elapsed} 秒</p>
-
 </div>
 
 <div class="result-block">
-
   <h3>基本能力</h3>
-
   ${resultTable(best.items,'basic')}
-
 </div>
 
 <div class="result-block">
-
   <h3>特殊能力</h3>
-
   ${resultTable(best.items,'special')}
-
 </div>
 
 ${remainHtml}`;
   }catch(err){
     const name=err?.name||'Error';
+    const message=err?.message||'原因不明のエラーです';
 
-  const message=err?.message||'原因不明のエラーです';
+    result.innerHTML=`<div class="error-box">
+      <p>⚠️ 計算中にエラーが発生しました。</p>
+      <p>${name}</p>
+      <p>${message}</p>
+    </div>`;
 
-  result.innerHTML=`<div class="error-box">
-
-    <p>⚠️ 計算中にエラーが発生しました。</p>
-
-    <p>${name}</p>
-
-    <p>${message}</p>
-
-  </div>`;
-
-  console.error(err);
+    console.error(err);
   }finally{
     isCalculating=false;
     document.body.classList.remove('is-calculating');
     document.querySelectorAll('button,input,select').forEach(el=>{ el.disabled=false; });
-    // 元の状態を復元
-
-updateJobs();
-
-basicNames.forEach(n=>applyBasicVisual(n));
-
-D.special.forEach((_,i)=>applySkillVisual(i));
-
-btn.disabled=false;
-
-btn.textContent='計算する';
+    job.disabled=!academy.value;
+    basicNames.forEach(n=>applyBasicVisual(n));
+    D.special.forEach((_,i)=>applySkillVisual(i));
+    btn.disabled=false; btn.textContent='計算する';
   }
 }
 function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
   academy.value='';
-
   updateJobs();
 
   Object.keys(basicOwned).forEach(k=>basicOwned[k]=false);
-
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
 
   specialState.clear();
-
   search.value='';
 
   renderBasic();
-
   renderSpecials();
 
   document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
