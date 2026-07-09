@@ -327,9 +327,28 @@ for(let i=0;i<base.length;i++){
 const list=buckets.get(bk);
 
 if(list.length<BUCKET_KEEP_LIMIT){
+
   list.push(st);
 
+}else{
+
+  const worst=list[list.length-1];
+
+  if(st.score>worst.score || (st.score===worst.score && st.totalCost<worst.totalCost)){
+
+    list[list.length-1]=st;
+
+  }
+
 }
+
+list.sort((a,b)=>{
+
+  if(b.score!==a.score) return b.score-a.score;
+
+  return a.totalCost-b.totalCost;
+
+});
 
     if(keep.length>=limit) break;
 
