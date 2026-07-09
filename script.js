@@ -367,33 +367,11 @@ function progressMessage(progress){
   }
   return `計算中 ${pct}%${suffix}`;
 }
-function optionEfficiency(op, exp){
+function groupEfficiency(g){
 
-  const score = Number(op.score || 0);
+  const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
 
-  const totalCost = op.cost.reduce((a,b)=>a+b,0);
-
-  if(totalCost <= 0) return score;
-
-  let pressure = 0;
-
-  op.cost.forEach((c,i)=>{
-
-    if(c > 0){
-
-      pressure += c / Math.max(1, exp[i]);
-
-    }
-
-  });
-
-  return score / (1 + totalCost + pressure * 20);
-
-}
-
-function groupEfficiency(g, exp){
-
-  return g.opts.reduce((m,o)=>Math.max(m, optionEfficiency(o, exp)),0);
+  return best;
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups = null) {
 
@@ -409,9 +387,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         .sort((a, b) => {
 
-           const ea = optionEfficiency(a, exp);
+            const ea = a.score / (1 + a.cost.reduce((x, y) => x + y, 0));
 
-           const eb = optionEfficiency(b, exp);
+  const eb = b.score / (1 + b.cost.reduce((x, y) => x + y, 0));
 
           return eb - ea;
 
@@ -420,7 +398,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }))
 
     .filter(g => g.opts.length > 0)
-.sort((a, b) => groupEfficiency(b, exp) - groupEfficiency(a, exp));
+.sort((a, b) => groupEfficiency(b) - groupEfficiency(a));
 
   const totalExp = exp.reduce((a, b) => a + b, 0);
 
