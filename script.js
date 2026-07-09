@@ -477,7 +477,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   for(const group of groups){
 
-    const snapshot=[...states.values()].sort((a,b)=>b.score-a.score);
+    const snapshot=[...states.values()];
 
     const next=new Map(states);
 
