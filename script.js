@@ -392,15 +392,12 @@ function specialChoiceGroups(hp){
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
 
 function progressMessage(progress){
+
   if(!progress) return '計算中';
+
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
-  let suffix='';
-  const elapsed=(Date.now()-(progress.start||Date.now()))/1000;
-  if(pct>=5 && elapsed>1){
-    const remain=Math.max(1,Math.ceil(elapsed*(100-pct)/pct));
-    suffix=`（残り約${remain}秒）`;
-  }
-  return `計算中 ${pct}%${suffix}`;
+
+  return `計算中 ${pct}%`;
 }
 function groupEfficiency(g){
 
