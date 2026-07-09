@@ -392,9 +392,13 @@ function progressMessage(progress){
 }
 function groupEfficiency(g){
 
-  const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
+  return g.opts.reduce((m,o)=>{
 
-  return best;
+    const costSum=o.cost.reduce((a,b)=>a+b,0);
+
+    return Math.max(m,o.score/(1+costSum));
+
+  },0);
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
 
