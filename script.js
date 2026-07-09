@@ -215,47 +215,107 @@ function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
-  // Phase9: 速度と精度のバランス。生命力/HP差を潰さないキーで状態を保持する。
-  const arr=[...states.values()]
+const arr=[...states.values()]
 
-  .map(st=>({
+    .map(st=>({
 
-    ...st,
+      ...st,
 
-    totalCost:st.cost.reduce((x,y)=>x+y,0)
+      totalCost:st.cost.reduce((x,y)=>x+y,0)
 
-  }))
+    }))
 
-  .sort((a,b)=>{
+    .sort((a,b)=>{
 
-    if(b.score!==a.score) return b.score-a.score;
+      if(b.score!==a.score) return b.score-a.score;
 
-    return a.totalCost-b.totalCost;
-  });
-  const preLimit = Math.min(arr.length, Math.max(limit*2, limit+800));
-  const src = arr.slice(0, preLimit);
+      return a.totalCost-b.totalCost;
+
+    });
+
+  const preLimit=Math.min(arr.length,Math.max(limit*2,limit+1000));
+
+  const src=arr.slice(0,preLimit);
+
   const keep=[];
-  outer: for(const st of src){
-    // 支配判定対象も上位に絞ることで、スマホでの長時間停止を防ぐ。
-    const checkMax = Math.min(keep.length, 500);
-    for(let i=0;i<checkMax;i++){
-      const k=keep[i];
-      if(leq(k.cost,st.cost) && k.score>=st.score) continue outer;
-    }
-    keep.push(st);
-    if(keep.length>=limit) break;
+
+  const buckets=new Map();
+
+  function bucketKey(st){
+
+    return st.cost.map(v=>Math.floor(v/50)).join(',');
+
   }
+
+  function nearbyBucketKeys(st){
+
+    const base=st.cost.map(v=>Math.floor(v/50));
+
+    const keys=[base.join(',')];
+
+    for(let i=0;i<base.length;i++){
+
+      if(base[i]>0){
+
+        const lower=base.slice();
+
+        lower[i]--;
+
+        keys.push(lower.join(','));
+
+      }
+
+    }
+
+    return keys;
+
+  }
+
+  outer: for(const st of src){
+
+    const keys=nearbyBucketKeys(st);
+
+    for(const bk of keys){
+
+      const list=buckets.get(bk);
+
+      if(!list) continue;
+
+      for(const k of list){
+
+        if(leq(k.cost,st.cost) && k.score>=st.score){
+
+          continue outer;
+
+        }
+
+      }
+
+    }
+
+    keep.push(st);
+
+    const bk=bucketKey(st);
+
+    if(!buckets.has(bk)) buckets.set(bk,[]);
+
+    buckets.get(bk).push(st);
+
+    if(keep.length>=limit) break;
+
+  }
+
   const m=new Map();
 
-keep.forEach(st=>{
+  keep.forEach(st=>{
 
-  const {totalCost,...clean}=st;
+    const {totalCost,...clean}=st;
 
-  m.set(stateKey(clean),clean);
+    m.set(stateKey(clean),clean);
 
-});
+  });
 
-return m;
+  return m;
 }
 function rowForValue(table,value){
   for(const r of table){
