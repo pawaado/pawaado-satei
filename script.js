@@ -250,7 +250,7 @@ const arr=[...states.values()]
 
   function nearbyBucketKeys(st){
 
-    const base=st.cost.map(v=>Math.floor(v/50));
+    const base=st.cost.map(v=>Math.floor(v/BUCKET_SIZE));
 
     const keys=[base.join(',')];
 
