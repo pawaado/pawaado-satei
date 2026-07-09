@@ -396,110 +396,121 @@ function groupEfficiency(g){
 
   return best;
 }
-async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups = null) {
+async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
 
-  let groups = (preGroups || specialChoiceGroups(hp))
+  let groups=(preGroups||specialChoiceGroups(hp))
 
-    .map(g => ({
+    .map(g=>({
 
       ...g,
 
-      opts: g.opts
+      opts:g.opts
 
-        .filter(op => !impossibleChoice(op, exp))
+        .filter(op=>!impossibleChoice(op,exp))
 
-        .sort((a, b) => {
+        .sort((a,b)=>{
 
-            const ea = a.score / (1 + a.cost.reduce((x, y) => x + y, 0));
+          const ea=a.score/(1+a.cost.reduce((x,y)=>x+y,0));
 
-  const eb = b.score / (1 + b.cost.reduce((x, y) => x + y, 0));
+          const eb=b.score/(1+b.cost.reduce((x,y)=>x+y,0));
 
-          return eb - ea;
+          return eb-ea;
 
         })
 
     }))
 
-    .filter(g => g.opts.length > 0)
-.sort((a, b) => groupEfficiency(b) - groupEfficiency(a));
+    .filter(g=>g.opts.length>0)
 
-  const totalExp = exp.reduce((a, b) => a + b, 0);
+    .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
 
-  const STATE_LIMIT = Math.max(1000, Math.min(3000, 900 + Math.floor(totalExp * 0.65)));
+  const totalExp=exp.reduce((a,b)=>a+b,0);
 
-  const HARD_LIMIT = Math.floor(STATE_LIMIT * 1.35);
+  const STATE_LIMIT=Math.max(1000,Math.min(3000,900+Math.floor(totalExp*0.65)));
 
-  let states = new Map();
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*1.35);
 
-  for (const base of baseStates) {
+  let states=new Map();
 
-    const st = { ...base, items: base.items.slice() };
+  for(const base of baseStates){
 
-    const k = stateKey(st);
+    if(!base) continue;
 
-    if (better(st, states.get(k))) states.set(k, st);
+    const st={...base,items:(base.items||[]).slice()};
+
+    const k=stateKey(st);
+
+    if(better(st,states.get(k))) states.set(k,st);
 
   }
 
-  states = prune(states, STATE_LIMIT);
+  if(!states.size){
 
-  for (const group of groups) {
+    return {items:[],score:0,cost:[0,0,0,0,0],life:null};
 
-    const snapshot = [...states.values()].sort((a, b) => b.score - a.score);
+  }
 
-    const next = new Map(states);
+  states=prune(states,STATE_LIMIT);
 
-    let iter = 0;
+  for(const group of groups){
 
-    for (const st of snapshot) {
+    const snapshot=[...states.values()].sort((a,b)=>b.score-a.score);
 
-      for (const op of group.opts) {
+    const next=new Map(states);
 
-        const nc = addCost(st.cost, op.cost);
+    let iter=0;
 
-        if (!leq(nc, exp)) continue;
+    for(const st of snapshot){
 
-        const ns = {
+      for(const op of group.opts){
 
-          cost: nc,
+        const nc=addCost(st.cost,op.cost);
 
-          score: st.score + op.score,
+        if(!leq(nc,exp)) continue;
 
-          items: st.items.concat(op.items),
+        const ns={
 
-          life: st.life
+          cost:nc,
+
+          score:st.score+op.score,
+
+          items:st.items.concat(op.items),
+
+          life:st.life
 
         };
 
-        const k = stateKey(ns);
+        const k=stateKey(ns);
 
-        if (better(ns, next.get(k))) next.set(k, ns);
+        if(better(ns,next.get(k))) next.set(k,ns);
 
       }
 
-      if (next.size > HARD_LIMIT) {
+      if(next.size>HARD_LIMIT){
 
-        const pruned = prune(next, STATE_LIMIT);
+        const pruned=prune(next,STATE_LIMIT);
 
         next.clear();
 
-        pruned.forEach((v, k) => next.set(k, v));
+        pruned.forEach((v,k)=>next.set(k,v));
 
       }
 
-      if ((++iter % 500) === 0) await yieldToBrowser();
+      iter++;
+
+      if(iter%500===0) await yieldToBrowser();
 
     }
 
-    states = prune(next, STATE_LIMIT);
+    states=prune(next,STATE_LIMIT);
 
-    if (progress) {
+    if(progress){
 
       progress.done++;
 
       onProgress?.(progressMessage(progress));
 
-    } else {
+    }else{
 
       onProgress?.('計算中');
 
@@ -509,15 +520,15 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   }
 
-  let best = null;
+  let best=null;
 
-  for (const st of states.values()) {
+  for(const st of states.values()){
 
-    if (better(st, best)) best = st;
+    if(better(st,best)) best=st;
 
   }
 
-  return best;
+  return best||{items:[],score:0,cost:[0,0,0,0,0],life:null};
 
 }
 
