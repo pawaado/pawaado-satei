@@ -732,7 +732,7 @@ function progressMessage(progress){
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
   const d=progress.debug;
   if(d){
-    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UBカット:${d.ubCut} 重複カット:${d.dupCut} prune:${d.prune||0}`;
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0}`;
   }
   return `計算中 ${pct}%`;
 }
@@ -814,7 +814,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
       return b.score-a.score;
     });
-    return {...g,opts,groupIndex,orderCache:new Map()};
+    return {...g,opts};
   });
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
@@ -853,10 +853,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(upperBoundCache.has(cacheKey)) return upperBoundCache.get(cacheKey);
 
     const byGroup=suffixMax[start]||0;
+    const byEfficiency=remainSum*(suffixBestEff[start]||0)*1.15;
 
-    // 正確性優先：
-    // 経験点効率による上界は過小評価の恐れがあるため、今は使わない。
-    const v=byGroup;
+    // 速度優先：
+    // 効率上界を少し安全マージン付きで戻し、候補爆発を抑える。
+    const v=byGroup<byEfficiency ? byGroup : byEfficiency;
     upperBoundCache.set(cacheKey,v);
     return v;
   }
@@ -904,22 +905,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         continue;
       }
 
-      let orderedOpts=group.opts;
-      if(group.opts.length>1){
-        const orderKey=remainVectorKey(st);
-        orderedOpts=group.orderCache.get(orderKey);
-        if(!orderedOpts){
-          orderedOpts=[...group.opts].sort((a,b)=>{
-            const bp=balancePenaltyAfter(st,a)-balancePenaltyAfter(st,b);
-            if(bp!==0) return bp;
-            if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
-            return b.score-a.score;
-          });
-          if(group.orderCache.size<500) group.orderCache.set(orderKey,orderedOpts);
-        }
-      }
-
-      for(const op of orderedOpts){
+      for(const op of group.opts){
         if(progress?.debug) progress.debug.candidate++;
         const opBits=op.bits ?? specialItemsBits(op.items);
         const stBits=st.bits ?? EMPTY_BITS;
@@ -963,6 +949,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(iter%700===0) await yieldToBrowser();
     }
 
+    if(progress?.debug) progress.debug.prune++;
     states=prune(next,STATE_LIMIT);
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
@@ -1105,6 +1092,7 @@ async function calc(){
   const startTime=performance.now();
   const btn=document.getElementById('calcBtn');
   const cacheKey=calcCacheKey(exp);
+  let lastProgressMessage='';
   isCalculating=true;
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{ if(el.id!=='calcBtn') el.disabled=true; });
@@ -1114,8 +1102,13 @@ async function calc(){
     let best=getCachedResult(cacheKey);
     if(best){
       btn.textContent='計算中 100%';
+      lastProgressMessage='キャッシュ使用';
     }else{
-      best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
+      best=await optimizeAsync(exp,(msg)=>{
+        lastProgressMessage=msg;
+        btn.textContent=msg;
+        result.innerHTML=`<p class="calculating">${msg}</p>`;
+      });
     }
     pStart("結果復元");
     const bestItems=restoreItems(best);
@@ -1126,6 +1119,9 @@ async function calc(){
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+    const debugHtml=lastProgressMessage
+      ? `<div class="result-block"><h3>検証用ログ</h3><p>${lastProgressMessage}</p></div>`
+      : '';
     const profileHtml=`<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
     const scoreText=Math.round(best.score||0).toLocaleString('ja-JP');
     result.innerHTML=`
@@ -1145,6 +1141,8 @@ async function calc(){
 </div>
 
 ${remainHtml}
+
+${debugHtml}
 
 ${profileHtml}
 
