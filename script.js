@@ -236,12 +236,13 @@ const arr=[...states.values()]
   const preLimit=Math.min(arr.length,Math.max(limit*2,limit+1000));
 
   const src=arr.slice(0,preLimit);
-  const BUCKET_SIZE=50;
-
-  const keep=[];
-
-  const buckets=new Map();
   const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
+
+const BUCKET_SIZE=avgExp>1500?70:50;
+
+const keep=[];
+
+const buckets=new Map();
 
 const BUCKET_KEEP_LIMIT=avgExp>1500?120:80;
   
