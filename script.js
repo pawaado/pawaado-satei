@@ -420,8 +420,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }))
 
     .filter(g => g.opts.length > 0)
-
-    .sort((a, b) => groupEfficiency(b) - groupEfficiency(a));
+.sort((a, b) => groupEfficiency(b, exp) - groupEfficiency(a, exp));
 
   const totalExp = exp.reduce((a, b) => a + b, 0);
 
