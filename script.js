@@ -216,9 +216,21 @@ function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.ite
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
   // Phase9: 速度と精度のバランス。生命力/HP差を潰さないキーで状態を保持する。
-  const arr=[...states.values()].sort((a,b)=>{
+  const arr=[...states.values()]
+
+  .map(st=>({
+
+    ...st,
+
+    totalCost:st.cost.reduce((x,y)=>x+y,0)
+
+  }))
+
+  .sort((a,b)=>{
+
     if(b.score!==a.score) return b.score-a.score;
-    return a.cost.reduce((x,y)=>x+y,0)-b.cost.reduce((x,y)=>x+y,0);
+
+    return a.totalCost-b.totalCost;
   });
   const preLimit = Math.min(arr.length, Math.max(limit*2, limit+800));
   const src = arr.slice(0, preLimit);
