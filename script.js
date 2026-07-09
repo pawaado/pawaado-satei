@@ -25,20 +25,46 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 const EMPTY_ITEMS=[];
-// v6.5 Bit Core: 特殊能力取得状態をBigIntのbit maskで保持する。
-// 探索中の特殊能力セット比較・キャッシュキー生成の土台に使う。
-function bitOfSpecialIndex(i){return 1n << BigInt(i);}
-function bitMaskForItems(items){
-  let bits=0n;
+const EMPTY_BITS=0n;
+const specialBitCache=[];
+function specialBit(i){
+  if(specialBitCache[i]===undefined) specialBitCache[i]=(1n<<BigInt(i));
+  return specialBitCache[i];
+}
+function specialItemsBits(items){
+  let bits=EMPTY_BITS;
   if(!items||!items.length) return bits;
   for(const it of items){
-    if(it&&it.type==='special'&&Number.isFinite(Number(it.idx))){
-      bits |= bitOfSpecialIndex(Number(it.idx));
+    if(it && it.type==='special' && Number.isFinite(Number(it.idx))){
+      bits |= specialBit(Number(it.idx));
     }
   }
   return bits;
 }
-function bitKey(bits){return (bits||0n).toString(36);}
+function bitsKey(bits){return (bits||EMPTY_BITS).toString(36);}
+const mutualMaskByIndex=[];
+function initSpecialBitMeta(){
+  mutualGroups.forEach(g=>{
+    let mask=EMPTY_BITS;
+    g.forEach(n=>{
+      const i=specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1;
+      if(i>=0) mask|=specialBit(i);
+    });
+    g.forEach(n=>{
+      const i=specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1;
+      if(i>=0) mutualMaskByIndex[i]=mask & ~specialBit(i);
+    });
+  });
+}
+initSpecialBitMeta();
+function conflictBitsFor(bits){
+  let mask=EMPTY_BITS;
+  for(let i=0;i<D.special.length;i++){
+    const bit=specialBit(i);
+    if((bits & bit)!==EMPTY_BITS) mask |= (mutualMaskByIndex[i]||EMPTY_BITS);
+  }
+  return mask;
+}
 const PROFILE={marks:new Map(),times:new Map()};
 function pStart(k){PROFILE.marks.set(k,performance.now());}
 function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
@@ -240,21 +266,23 @@ function tableFor(name){
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
 function key(c){const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]); return n.toString(36);}
-function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitKey(st.bits||0n);}
+function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+(st.bitKey ?? bitsKey(st.bits ?? EMPTY_BITS));}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 function mergeItems(a,b){return !b.length?a:(!a.length?b:a.concat(b));}
 function itemLenOf(st){return st?.itemLen ?? (st?.items?.length || 0);}
 function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bits=null){
   const ch=(choice&&choice.length)?choice:EMPTY_ITEMS;
-  const prevBits=prev?.bits||0n;
-  const choiceBits=bits==null?bitMaskForItems(ch):bits;
+  const chBits=bits!=null ? bits : specialItemsBits(ch);
+  const prevBits=prev?.bits ?? EMPTY_BITS;
+  const nextBits=prevBits|chBits;
   return {
     cost,
     score,
     life,
     prev,
     choice:ch,
-    bits:prevBits|choiceBits,
+    bits:nextBits,
+    bitKey:bitsKey(nextBits),
     itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
   };
 }
@@ -492,7 +520,8 @@ function basicPlanEntry(name,exp){
 }
 function buildBasicStates(exp){
   const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
-  let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,makeState([0,0,0,0,0],0,initialLife,null,EMPTY_ITEMS,0)]]);
+  const init=makeState([0,0,0,0,0],0,initialLife,null,EMPTY_ITEMS,0,EMPTY_BITS);
+  let states=new Map([[stateKey(init),init]]);
 
   // v4.5: 基礎能力は固定順ではなく、査定効率が高い能力から探索する。
   // 表示順は resultTable 側でゲーム順に戻すので、結果表示には影響しない。
@@ -555,9 +584,10 @@ function cloneResult(st){
     cost:(st.cost||[0,0,0,0,0]).slice(),
     score:st.score||0,
     life:st.life??null,
-    bits:st.bits||0n,
     items:items.map(x=>({...x})),
-    itemLen:itemLenOf(st)
+    itemLen:itemLenOf(st),
+    bits:st.bits ?? specialItemsBits(items),
+    bitKey:st.bitKey ?? bitsKey(st.bits ?? specialItemsBits(items))
   };
 }
 function getCachedResult(cacheKey){
@@ -602,7 +632,8 @@ function itemForSpecialIndex(i,hp,includeLower=false){
     }
   }
 
-  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,idx:i,name:s[1],mask:bitMaskForItems(items),bitKey:bitKey(bitMaskForItems(items))};
+  const bits=specialItemsBits(items);
+  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,bits,bitKey:bitsKey(bits),conflictBits:conflictBitsFor(bits),idx:i,name:s[1]};
   specialItemCache.set(cacheKey,result);
   return result;
 }
@@ -652,15 +683,15 @@ function specialChoiceGroupsCached(hp){
     .map(g=>{
       const opts=g.opts.map(op=>{
         const cs=costSum(op.cost);
-        return {...op,costSum:cs,eff:op.score/(1+cs)};
+        const bits=op.bits ?? specialItemsBits(op.items);
+        return {...op,bits,bitKey:op.bitKey ?? bitsKey(bits),conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
       }).sort((a,b)=>{
         if(b.eff!==a.eff) return b.eff-a.eff;
         return b.score-a.score;
       });
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
-      const groupMask=opts.reduce((m,o)=>m|(o.mask||0n),0n);
-      return {...g,opts,maxScore,bestEfficiency,groupMask,bitKey:bitKey(groupMask)};
+      return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>{
@@ -710,8 +741,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(!opts.length) return null;
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+o.costSum)),0),0);
-      const groupMask=opts.reduce((m,o)=>m|(o.mask||0n),0n);
-      return {...g,opts,maxScore,bestEfficiency,groupMask,bitKey:bitKey(groupMask)};
+      return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(Boolean)
     .sort((a,b)=>{
@@ -766,7 +796,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   if(!states.size){
-    return {items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null};
+    return {items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
   }
 
   states=prune(states,STATE_LIMIT);
@@ -798,6 +828,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       for(const op of group.opts){
+        const opBits=op.bits ?? specialItemsBits(op.items);
+        const stBits=st.bits ?? EMPTY_BITS;
+        if((stBits & opBits)!==EMPTY_BITS) continue;
+        if((stBits & (op.conflictBits ?? EMPTY_BITS))!==EMPTY_BITS) continue;
+
         const nc=addCost(st.cost,op.cost);
         if(!leq(nc,exp)) continue;
 
@@ -806,13 +841,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
-        const nextBits=(st.bits||0n)|(op.mask||0n);
-        const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitKey(nextBits);
+        const nextBits=stBits | opBits;
+        const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitsKey(nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
 
-        next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen,op.mask||0n));
+        next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen,opBits));
       }
 
       if(next.size>HARD_LIMIT){
@@ -846,7 +881,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(better(st,best)) best=st;
   }
 
-  return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null};
+  return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
@@ -921,8 +956,9 @@ async function optimizeAsync(exp,onProgress){
 function resultTable(items,kind){
   let filtered=items.filter(x=>x.type===kind);
   if(kind==='special'){
-    const chosenIdx=new Set(filtered.map(x=>x.idx));
-    filtered=filtered.filter(x=>{const ui=upperIndex(x.idx); return !(ui>=0 && chosenIdx.has(ui));});
+    let chosenBits=EMPTY_BITS;
+    filtered.forEach(x=>{ if(Number.isFinite(Number(x.idx))) chosenBits|=specialBit(Number(x.idx)); });
+    filtered=filtered.filter(x=>{const ui=upperIndex(x.idx); return !(ui>=0 && (chosenBits & specialBit(ui))!==EMPTY_BITS);});
   }
   if(!filtered.length) return '<p>追加なし</p>';
   const sorted=filtered.sort((a,b)=>{
