@@ -29,7 +29,10 @@ const PROFILE={marks:new Map(),times:new Map()};
 function pStart(k){PROFILE.marks.set(k,performance.now());}
 function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
 function pReset(){PROFILE.marks.clear();PROFILE.times.clear();}
-function pReport(){return [...PROFILE.times.entries()].map(([k,v])=>`<tr><td>${k}</td><td>${v.toFixed(2)} ms</td></tr>`).join("");}
+function pReport(){
+  const rows=[...PROFILE.times.entries()].map(([k,v])=>`<tr><td>${k}</td><td>${(v/1000).toFixed(3)} 秒</td></tr>`);
+  return rows.length?rows.join(""):'<tr><td colspan="2">計測なし</td></tr>';
+}
 
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
@@ -94,9 +97,7 @@ function renderSpecials(){
     return `<div class="skill-row ${Number(st.own)?'owned':''}" data-index="${i}">
       <button type="button" class="hint-btn" data-kind="special-hint" data-index="${i}">＋</button>
       <button type="button" class="name-btn" data-kind="special-name" data-index="${i}"><span>${renderSkillName(s[1])}</span></button>
-    </div>
-
-<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
+    </div>`;
   }).join('');
   specialList.innerHTML=html;
   D.special.forEach((_,i)=>applySkillVisual(i));
@@ -965,6 +966,7 @@ async function calc(){
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+    const profileHtml=`<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
     const scoreText=Math.round(best.score||0).toLocaleString('ja-JP');
     result.innerHTML=`
 <div class="result-block">
@@ -983,6 +985,8 @@ async function calc(){
 </div>
 
 ${remainHtml}
+
+${profileHtml}
 
 <div class="result-block">
   <h3>計算時間</h3>
