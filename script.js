@@ -25,6 +25,20 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 const EMPTY_ITEMS=[];
+// v6.5 Bit Core: 特殊能力取得状態をBigIntのbit maskで保持する。
+// 探索中の特殊能力セット比較・キャッシュキー生成の土台に使う。
+function bitOfSpecialIndex(i){return 1n << BigInt(i);}
+function bitMaskForItems(items){
+  let bits=0n;
+  if(!items||!items.length) return bits;
+  for(const it of items){
+    if(it&&it.type==='special'&&Number.isFinite(Number(it.idx))){
+      bits |= bitOfSpecialIndex(Number(it.idx));
+    }
+  }
+  return bits;
+}
+function bitKey(bits){return (bits||0n).toString(36);}
 const PROFILE={marks:new Map(),times:new Map()};
 function pStart(k){PROFILE.marks.set(k,performance.now());}
 function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
@@ -226,18 +240,21 @@ function tableFor(name){
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
 function key(c){const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]); return n.toString(36);}
-function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36));}
+function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitKey(st.bits||0n);}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 function mergeItems(a,b){return !b.length?a:(!a.length?b:a.concat(b));}
 function itemLenOf(st){return st?.itemLen ?? (st?.items?.length || 0);}
-function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null){
+function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bits=null){
   const ch=(choice&&choice.length)?choice:EMPTY_ITEMS;
+  const prevBits=prev?.bits||0n;
+  const choiceBits=bits==null?bitMaskForItems(ch):bits;
   return {
     cost,
     score,
     life,
     prev,
     choice:ch,
+    bits:prevBits|choiceBits,
     itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
   };
 }
@@ -538,6 +555,7 @@ function cloneResult(st){
     cost:(st.cost||[0,0,0,0,0]).slice(),
     score:st.score||0,
     life:st.life??null,
+    bits:st.bits||0n,
     items:items.map(x=>({...x})),
     itemLen:itemLenOf(st)
   };
@@ -584,7 +602,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
     }
   }
 
-  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,idx:i,name:s[1]};
+  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,idx:i,name:s[1],mask:bitMaskForItems(items),bitKey:bitKey(bitMaskForItems(items))};
   specialItemCache.set(cacheKey,result);
   return result;
 }
@@ -641,7 +659,8 @@ function specialChoiceGroupsCached(hp){
       });
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
-      return {...g,opts,maxScore,bestEfficiency};
+      const groupMask=opts.reduce((m,o)=>m|(o.mask||0n),0n);
+      return {...g,opts,maxScore,bestEfficiency,groupMask,bitKey:bitKey(groupMask)};
     })
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>{
@@ -691,7 +710,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(!opts.length) return null;
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+o.costSum)),0),0);
-      return {...g,opts,maxScore,bestEfficiency};
+      const groupMask=opts.reduce((m,o)=>m|(o.mask||0n),0n);
+      return {...g,opts,maxScore,bestEfficiency,groupMask,bitKey:bitKey(groupMask)};
     })
     .filter(Boolean)
     .sort((a,b)=>{
@@ -786,12 +806,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
-        const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36));
+        const nextBits=(st.bits||0n)|(op.mask||0n);
+        const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitKey(nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
 
-        next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen));
+        next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen,op.mask||0n));
       }
 
       if(next.size>HARD_LIMIT){
