@@ -367,9 +367,33 @@ function progressMessage(progress){
   }
   return `計算中 ${pct}%${suffix}`;
 }
-function groupEfficiency(g){
-  const best=g.opts.reduce((m,o)=>Math.max(m,o.score/(1+o.cost.reduce((a,b)=>a+b,0))),0);
-  return best;
+function optionEfficiency(op, exp){
+
+  const score = Number(op.score || 0);
+
+  const totalCost = op.cost.reduce((a,b)=>a+b,0);
+
+  if(totalCost <= 0) return score;
+
+  let pressure = 0;
+
+  op.cost.forEach((c,i)=>{
+
+    if(c > 0){
+
+      pressure += c / Math.max(1, exp[i]);
+
+    }
+
+  });
+
+  return score / (1 + totalCost + pressure * 20);
+
+}
+
+function groupEfficiency(g, exp){
+
+  return g.opts.reduce((m,o)=>Math.max(m, optionEfficiency(o, exp)),0);
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups = null) {
 
