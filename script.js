@@ -241,7 +241,10 @@ const arr=[...states.values()]
   const keep=[];
 
   const buckets=new Map();
-  const BUCKET_KEEP_LIMIT=80;
+  const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
+
+const BUCKET_KEEP_LIMIT=avgExp>1500?120:80;
+  
   function bucketKey(st){
 
     return st.cost.map(v=>Math.floor(v/BUCKET_SIZE)).join(',');
