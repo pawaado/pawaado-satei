@@ -214,19 +214,17 @@ function tableFor(name){
   if(name==='耐久力') return {cost:D.staminaCost,score:D.staminaScore};
   if(name==='精神力') return {cost:D.mentalCost,score:D.mentalScore};
 }
-function addCost(a,b){return a.map((v,i)=>v+b[i]);}
-function leq(a,b){return a.every((v,i)=>v<=b[i]);}
-function key(c){return c.join(',');}
+function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
+function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
+function key(c){return c[0]+','+c[1]+','+c[2]+','+c[3]+','+c[4];}
 function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
+function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
   const mode=currentCalcMode();
   const arr=[...states.values()]
-    .map(st=>({
-      ...st,
-      totalCost:st.cost.reduce((x,y)=>x+y,0)
-    }))
+    .map(st=>{st.totalCost=costSum(st.cost); return st;})
     .sort((a,b)=>{
       if(b.score!==a.score) return b.score-a.score;
       return a.totalCost-b.totalCost;
@@ -249,8 +247,8 @@ function prune(states,limit=12000){
 
     const m=new Map();
     keep.forEach(st=>{
-      const {totalCost,...clean}=st;
-      m.set(stateKey(clean),clean);
+      delete st.totalCost;
+      m.set(stateKey(st),st);
     });
     return m;
   }
@@ -318,17 +316,19 @@ function prune(states,limit=12000){
     if(list.length<BUCKET_KEEP_LIMIT){
       list.push(st);
     }else{
-      const worst=list[list.length-1];
-
+      let worstIdx=0;
+      let worst=list[0];
+      for(let wi=1;wi<list.length;wi++){
+        const cand=list[wi];
+        if(cand.score<worst.score || (cand.score===worst.score && cand.totalCost>worst.totalCost)){
+          worst=cand;
+          worstIdx=wi;
+        }
+      }
       if(st.score>worst.score || (st.score===worst.score && st.totalCost<worst.totalCost)){
-        list[list.length-1]=st;
+        list[worstIdx]=st;
       }
     }
-
-    list.sort((a,b)=>{
-      if(b.score!==a.score) return b.score-a.score;
-      return a.totalCost-b.totalCost;
-    });
 
     if(keep.length>=limit) break;
   }
@@ -336,8 +336,8 @@ function prune(states,limit=12000){
   const m=new Map();
 
   keep.forEach(st=>{
-    const {totalCost,...clean}=st;
-    m.set(stateKey(clean),clean);
+    delete st.totalCost;
+    m.set(stateKey(st),st);
   });
 
   return m;
@@ -363,9 +363,9 @@ function basicOptions(name,exp){
   const cur=Number(inp?.value||1);
   const hint=Number(basicHints[name]||0);
   const max=lim[name];
-  if(basicOwned[name]) return [{cost:[0,0,0,0,0],score:0,items:[],life: name==='生命力'?max:null}];
+  if(basicOwned[name]) return [{cost:[0,0,0,0,0],score:0,items:[],life: name==='生命力'?max:null,costSum:0,eff:0}];
   const t=tableFor(name);
-  const opts=[{cost:[0,0,0,0,0],score:0,items:[],life:name==='生命力'?cur:null}];
+  const opts=[{cost:[0,0,0,0,0],score:0,items:[],life:name==='生命力'?cur:null,costSum:0,eff:0}];
   let c=[0,0,0,0,0], sc=0;
   let v=cur;
   while(max!=null && v<max){
@@ -377,26 +377,50 @@ function basicOptions(name,exp){
     c=addCost(c,step);
     sc += Number(scoreRow[2]||0);
     v += 1;
-    if(leq(c,exp)) opts.push({
-      cost:c.slice(),
-      score:sc,
-      items:[{type:'basic',name,from:cur,to:v,idx:basicNames.indexOf(name)}],
-      life:name==='生命力'?v:null
-    });
+    if(leq(c,exp)){
+      const cs=costSum(c);
+      opts.push({
+        cost:c.slice(),
+        score:sc,
+        items:[{type:'basic',name,from:cur,to:v,idx:basicNames.indexOf(name)}],
+        life:name==='生命力'?v:null,
+        costSum:cs,
+        eff:sc/(1+cs)
+      });
+    }
   }
   return opts;
 }
-
+function basicPlanEntry(name,exp){
+  const opts=basicOptions(name,exp);
+  let bestEff=0;
+  let bestScore=0;
+  for(const op of opts){
+    if(op.eff>bestEff) bestEff=op.eff;
+    if(op.score>bestScore) bestScore=op.score;
+  }
+  // 生命力はHP依存特殊能力に効くので、同効率なら少し早めに探索する。
+  const priority=bestEff+(name==='生命力'?0.0001:0);
+  return {name,opts,priority,bestScore};
+}
 function buildBasicStates(exp){
   const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
   let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,{cost:[0,0,0,0,0],score:0,items:[],life:initialLife}]]);
 
-  basicNames.forEach(name=>{
-    const opts=basicOptions(name,exp);
+  // v4.5: 基礎能力は固定順ではなく、査定効率が高い能力から探索する。
+  // 表示順は resultTable 側でゲーム順に戻すので、結果表示には影響しない。
+  const plan=basicNames
+    .map(name=>basicPlanEntry(name,exp))
+    .sort((a,b)=>{
+      if(b.priority!==a.priority) return b.priority-a.priority;
+      return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
+    });
+
+  for(const entry of plan){
     const next=new Map();
 
     for(const st of states.values()){
-      for(const op of opts){
+      for(const op of entry.opts){
         const nc=addCost(st.cost,op.cost);
         if(!leq(nc,exp)) continue;
 
@@ -412,9 +436,10 @@ function buildBasicStates(exp){
       }
     }
 
-    if(!next.size) return;
-    states=prune(next,currentCalcMode()==="high"?5200:2200);
-  });
+    if(!next.size) continue;
+    states=prune(next,currentCalcMode()==='high'?5200:2200);
+    if(!states.size) break;
+  }
 
   return states;
 }
@@ -428,8 +453,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
   const s=D.special[i]; if(!s) return null;
   const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
   if(specialItemCache.has(cacheKey)){
-    const cached=specialItemCache.get(cacheKey);
-    return cached?{...cached,cost:cached.cost.slice(),items:cached.items.slice()}:null;
+    return specialItemCache.get(cacheKey);
   }
 
   const score=skillScore(s,hp);
@@ -457,7 +481,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
   }
 
   const result={type:'choice',cost:totalCost,score:totalScore,items,idx:i,name:s[1]};
-  specialItemCache.set(cacheKey,{...result,cost:result.cost.slice(),items:result.items.slice()});
+  specialItemCache.set(cacheKey,result);
   return result;
 }
 function specialChoiceGroups(hp){
@@ -499,7 +523,28 @@ function specialChoiceGroups(hp){
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
   if(specialGroupCache.has(k)) return specialGroupCache.get(k);
-  const groups=specialChoiceGroupsCached(hp);
+
+  // v4.5: 特殊能力候補はHPごとに事前整形・事前ソートしてキャッシュする。
+  // 計算本体では原則ソートし直さず、フィルタだけ行う。
+  const groups=specialChoiceGroups(hp)
+    .map(g=>{
+      const opts=g.opts.map(op=>{
+        const cs=costSum(op.cost);
+        return {...op,costSum:cs,eff:op.score/(1+cs)};
+      }).sort((a,b)=>{
+        if(b.eff!==a.eff) return b.eff-a.eff;
+        return b.score-a.score;
+      });
+      const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
+      const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
+      return {...g,opts,maxScore,bestEfficiency};
+    })
+    .filter(g=>g.opts.length>0)
+    .sort((a,b)=>{
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
+    });
+
   specialGroupCache.set(k,groups);
   return groups;
 }
@@ -533,34 +578,37 @@ function renderCalcMode(){
   btn.parentNode.insertBefore(wrap,btn);
 }
 function groupEfficiency(g){
-  return g.opts.reduce((m,o)=>{
-    const costSum=o.costSum??o.cost.reduce((a,b)=>a+b,0);
-    return Math.max(m,o.score/(1+costSum));
-  },0);
+  return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
   let groups=(preGroups||specialChoiceGroupsCached(hp))
-    .map(g=>({
-      ...g,
-      opts:g.opts
-        .filter(op=>!impossibleChoice(op,exp))
-        .map(op=>({...op,costSum:op.cost.reduce((x,y)=>x+y,0)}))
-        .sort((a,b)=>{
-          const ea=a.score/(1+a.costSum);
-          const eb=b.score/(1+b.costSum);
-          return eb-ea;
-        })
-    }))
-    .filter(g=>g.opts.length>0)
-    .sort((a,b)=>groupEfficiency(b)-groupEfficiency(a));
+    .map(g=>{
+      const opts=g.opts.filter(op=>!impossibleChoice(op,exp));
+      if(!opts.length) return null;
+      const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
+      const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+o.costSum)),0),0);
+      return {...g,opts,maxScore,bestEfficiency};
+    })
+    .filter(Boolean)
+    .sort((a,b)=>{
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
+    });
 
-  const totalExp=exp.reduce((a,b)=>a+b,0);
+  const totalExp=costSum(exp);
   const mode=currentCalcMode();
-  // v3.6: 推奨は高精度。高速βは参考用として軽めにする。
+  // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
   const STATE_LIMIT=mode==='high'
-    ? Math.max(2500,Math.min(7000,1800+Math.floor(totalExp*1.1)))
+    ? Math.max(2200,Math.min(6200,1600+Math.floor(totalExp*0.95)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.5:1.25));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.35:1.25));
+
+  // ③ Upper Bound: 残りグループで取り得る最大査定を安全側に足し、
+  // すでにベストへ届かない状態は早めにスキップする。
+  const suffixMax=new Array(groups.length+1).fill(0);
+  for(let i=groups.length-1;i>=0;i--){
+    suffixMax[i]=suffixMax[i+1]+(groups[i].maxScore||0);
+  }
 
   let states=new Map();
 
@@ -576,13 +624,25 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   states=prune(states,STATE_LIMIT);
+  let bestScore=-Infinity;
+  for(const st of states.values()){
+    if(st.score>bestScore) bestScore=st.score;
+  }
 
-  for(const group of groups){
+  for(let gi=0;gi<groups.length;gi++){
+    const group=groups[gi];
     const snapshot=[...states.values()];
     const next=new Map(states);
     let iter=0;
 
     for(const st of snapshot){
+      // この状態から残り全部を最高値で取っても届かないならスキップ。
+      if(st.score+suffixMax[gi]<=bestScore){
+        iter++;
+        if(iter%700===0) await yieldToBrowser();
+        continue;
+      }
+
       for(const op of group.opts){
         const nc=addCost(st.cost,op.cost);
         if(!leq(nc,exp)) continue;
@@ -593,6 +653,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           items:st.items.concat(op.items),
           life:st.life
         };
+
+        if(ns.score>bestScore) bestScore=ns.score;
 
         const k=stateKey(ns);
         if(better(ns,next.get(k))) next.set(k,ns);
@@ -605,10 +667,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       iter++;
-      if(iter%500===0) await yieldToBrowser();
+      if(iter%700===0) await yieldToBrowser();
     }
 
     states=prune(next,STATE_LIMIT);
+    for(const st of states.values()){
+      if(st.score>bestScore) bestScore=st.score;
+    }
 
     if(progress){
       progress.done++;
