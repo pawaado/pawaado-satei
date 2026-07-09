@@ -241,7 +241,7 @@ const arr=[...states.values()]
   const keep=[];
 
   const buckets=new Map();
-
+  const BUCKET_KEEP_LIMIT=80;
   function bucketKey(st){
 
     return st.cost.map(v=>Math.floor(v/BUCKET_SIZE)).join(',');
