@@ -281,19 +281,50 @@ function basicOptions(name,exp){
 }
 
 function buildBasicStates(exp){
-  const initialLife=Number(document.getElementById('basic_生命力').value||1);
+  const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
+
   let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,{cost:[0,0,0,0,0],score:0,items:[],life:initialLife}]]);
+
   basicNames.forEach(name=>{
-    const opts=basicOptions(name,exp); const next=new Map();
+
+    const opts=basicOptions(name,exp);
+
+    const next=new Map();
+
     for(const st of states.values()){
+
       for(const op of opts){
-        const nc=addCost(st.cost,op.cost); if(!leq(nc,exp)) continue;
-        const ns={cost:nc,score:st.score+op.score,items:st.items.concat(op.items),life: op.life!==null?op.life:st.life};
-        const k=stateKey(ns); if(better(ns,next.get(k))) next.set(k,ns);
+
+        const nc=addCost(st.cost,op.cost);
+
+        if(!leq(nc,exp)) continue;
+
+        const ns={
+
+          cost:nc,
+
+          score:st.score+op.score,
+
+          items:st.items.concat(op.items),
+
+          life:op.life!==null?op.life:st.life
+
+        };
+
+        const k=stateKey(ns);
+
+        if(better(ns,next.get(k))) next.set(k,ns);
+
       }
+
     }
+
+    if(!next.size) return;
+
     states=prune(next,3600);
+
   });
+
   return states;
 }
 function itemForSpecialIndex(i,hp,includeLower=false){
