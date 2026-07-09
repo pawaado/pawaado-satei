@@ -610,6 +610,36 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     suffixMax[i]=suffixMax[i+1]+(groups[i].maxScore||0);
   }
 
+  // v4.6: 残経験点を見た上界も追加。
+  // 各グループから「今の残経験点で単独取得できる最大査定」を足す。
+  // 同じ経験点を複数回使う前提なので安全側の過大評価だが、suffixMaxよりかなり締まる。
+  const upperCache=new Map();
+  function remainingCost(st){
+    return [
+      exp[0]-st.cost[0],
+      exp[1]-st.cost[1],
+      exp[2]-st.cost[2],
+      exp[3]-st.cost[3],
+      exp[4]-st.cost[4]
+    ];
+  }
+  function affordableUpper(start,remain){
+    const ck=start+'|'+key(remain);
+    if(upperCache.has(ck)) return upperCache.get(ck);
+
+    let ub=0;
+    for(let i=start;i<groups.length;i++){
+      let best=0;
+      for(const op of groups[i].opts){
+        if(leq(op.cost,remain) && op.score>best) best=op.score;
+      }
+      ub+=best;
+    }
+
+    upperCache.set(ck,ub);
+    return ub;
+  }
+
   let states=new Map();
 
   for(const base of baseStates){
@@ -638,6 +668,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     for(const st of snapshot){
       // この状態から残り全部を最高値で取っても届かないならスキップ。
       if(st.score+suffixMax[gi]<=bestScore){
+        iter++;
+        if(iter%700===0) await yieldToBrowser();
+        continue;
+      }
+
+      // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
+      if(st.score+affordableUpper(gi,remainingCost(st))<=bestScore){
         iter++;
         if(iter%700===0) await yieldToBrowser();
         continue;
