@@ -318,10 +318,14 @@ for(let i=0;i<base.length;i++){
     keep.push(st);
 
     const bk=bucketKey(st);
-
     if(!buckets.has(bk)) buckets.set(bk,[]);
 
-    buckets.get(bk).push(st);
+const list=buckets.get(bk);
+
+if(list.length<BUCKET_KEEP_LIMIT){
+  list.push(st);
+
+}
 
     if(keep.length>=limit) break;
 
