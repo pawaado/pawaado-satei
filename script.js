@@ -499,34 +499,101 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 }
 
 async function optimizeAsync(exp,onProgress){
+
   await yieldToBrowser();
+
   onProgress?.('計算中 0%');
+
+  const fallback={items:[],score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
+
   const basicMap=buildBasicStates(exp);
+
   const basicStates=[...basicMap.values()];
+
+  if(!basicStates.length){
+
+    onProgress?.('計算中 100%');
+
+    return fallback;
+
+  }
+
   await yieldToBrowser();
+
   const byLife=new Map();
-  basicStates.forEach(st=>{const hp=currentHpForLife(st.life||Number(document.getElementById('basic_生命力').value||1)); (byLife.get(hp)??byLife.set(hp,[]).get(hp)).push(st);});
-  // HPごとに処理量を概算し、進捗率を表示する。
+
+  basicStates.forEach(st=>{
+
+    const life=st.life||Number(document.getElementById('basic_生命力')?.value||1);
+
+    const hp=currentHpForLife(life);
+
+    if(!byLife.has(hp)) byLife.set(hp,[]);
+
+    byLife.get(hp).push(st);
+
+  });
+
   const tasks=[];
+
   let total=0;
+
   for(const [hp,statesRaw] of byLife.entries()){
+
     const baseMap=new Map();
-    statesRaw.forEach(st=>{const k=stateKey(st); if(better(st,baseMap.get(k))) baseMap.set(k,st);});
+
+    statesRaw.forEach(st=>{
+
+      const k=stateKey(st);
+
+      if(better(st,baseMap.get(k))) baseMap.set(k,st);
+
+    });
+
     const states=[...prune(baseMap,3200).values()];
+
+    if(!states.length) continue;
+
     const groups=specialChoiceGroups(hp);
+
     const groupCount=groups.filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
+
     total+=groupCount;
+
     tasks.push({hp,states,groupCount,groups});
+
   }
+
+  if(!tasks.length){
+
+    onProgress?.('計算中 100%');
+
+    return fallback;
+
+  }
+
   const progress={done:0,total:Math.max(1,total),start:Date.now()};
+
   let best=null;
+
   for(const task of tasks){
+
     const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
-    if(better(cand,best)) best=cand;
+
+    if(cand && better(cand,best)){
+
+      best=cand;
+
+    }
+
     await yieldToBrowser();
+
   }
+
   onProgress?.('計算中 100%');
-  return best||{items:[],score:0,cost:[0,0,0,0,0]};
+
+  return best||fallback;
+
 }
 function resultTable(items,kind){
   let filtered=items.filter(x=>x.type===kind);
