@@ -245,7 +245,17 @@ function prune(states,limit=12000){
     keep.push(st);
     if(keep.length>=limit) break;
   }
-  const m=new Map(); keep.forEach(st=>m.set(stateKey(st),st)); return m;
+  const m=new Map();
+
+keep.forEach(st=>{
+
+  const {totalCost,...clean}=st;
+
+  m.set(stateKey(clean),clean);
+
+});
+
+return m;
 }
 function rowForValue(table,value){
   for(const r of table){
