@@ -24,6 +24,7 @@ D.special.forEach((s,i)=>{
   if(s[2]) specialReqIndex.set(String(s[2]),i);
 });
 let isCalculating=false;
+const EMPTY_ITEMS=[];
 
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
@@ -216,10 +217,41 @@ function tableFor(name){
 }
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
-function key(c){return c[0]+','+c[1]+','+c[2]+','+c[3]+','+c[4];}
-function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':st.life);}
+function key(c){const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]); return n.toString(36);}
+function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36));}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
-function better(a,b){return !b || a.score>b.score || (a.score===b.score && a.items.length<b.items.length);}
+function mergeItems(a,b){return !b.length?a:(!a.length?b:a.concat(b));}
+function itemLenOf(st){return st?.itemLen ?? (st?.items?.length || 0);}
+function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null){
+  const ch=(choice&&choice.length)?choice:EMPTY_ITEMS;
+  return {
+    cost,
+    score,
+    life,
+    prev,
+    choice:ch,
+    itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
+  };
+}
+function restoreItems(st){
+  if(!st) return [];
+  if(st.items) return st.items;
+
+  const chunks=[];
+  let cur=st;
+  while(cur){
+    if(cur.choice&&cur.choice.length) chunks.push(cur.choice);
+    cur=cur.prev;
+  }
+
+  const out=[];
+  for(let i=chunks.length-1;i>=0;i--){
+    out.push(...chunks[i]);
+  }
+  st.items=out;
+  return out;
+}
+function better(a,b){return !b || a.score>b.score || (a.score===b.score && itemLenOf(a)<itemLenOf(b));}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
   const mode=currentCalcMode();
@@ -236,7 +268,7 @@ function prune(states,limit=12000){
     const keep=[];
 
     outer: for(const st of src){
-      const checkMax=Math.min(keep.length,300);
+      const checkMax=Math.min(keep.length,320);
       for(let i=0;i<checkMax;i++){
         const k=keep[i];
         if(leq(k.cost,st.cost) && k.score>=st.score) continue outer;
@@ -253,65 +285,90 @@ function prune(states,limit=12000){
     return m;
   }
 
-  const preLimit=Math.min(arr.length,Math.max(limit*3,limit+1800));
+  // v6.0: 高精度用の本格枝刈り。
+  // 同じ生命力の中では「低コスト・高査定」の状態だけをスカイラインとして保持する。
+  // これは安全な支配判定なので、最適解候補を落としにくいまま重複状態を大きく削れる。
+  const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
   const src=arr.slice(0,preLimit);
   const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
-  const BUCKET_SIZE=avgExp>1500?60:40;
+  const EXACT_CHECK_LIMIT=avgExp>1500?1200:900;
+  const BUCKET_SIZE=avgExp>1500?70:45;
+  const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
 
   const keep=[];
+  const skylineByLife=new Map();
   const buckets=new Map();
-  const BUCKET_KEEP_LIMIT=avgExp>1500?180:120;
 
+  function lifeKey(st){return st.life==null?'':Number(st.life).toString(36);}
   function bucketKey(st){
-    return st.cost.map(v=>Math.floor(v/BUCKET_SIZE)).join(',');
+    const c=st.cost;
+    return Math.floor(c[0]/BUCKET_SIZE)+','+Math.floor(c[1]/BUCKET_SIZE)+','+Math.floor(c[2]/BUCKET_SIZE)+','+Math.floor(c[3]/BUCKET_SIZE)+','+Math.floor(c[4]/BUCKET_SIZE)+'|'+lifeKey(st);
   }
-
   function nearbyBucketKeys(st){
-    const base=st.cost.map(v=>Math.floor(v/BUCKET_SIZE));
-    const keys=[base.join(',')];
-
-    for(let i=0;i<base.length;i++){
-      if(base[i]>0){
-        const lower=base.slice();
-        lower[i]--;
-        keys.push(lower.join(','));
-      }
+    const c=st.cost;
+    const base=[
+      Math.floor(c[0]/BUCKET_SIZE),
+      Math.floor(c[1]/BUCKET_SIZE),
+      Math.floor(c[2]/BUCKET_SIZE),
+      Math.floor(c[3]/BUCKET_SIZE),
+      Math.floor(c[4]/BUCKET_SIZE)
+    ];
+    const life=lifeKey(st);
+    const keys=[];
+    for(let mask=0;mask<32;mask++){
+      const b0=base[0]-((mask&1)?1:0);
+      const b1=base[1]-((mask&2)?1:0);
+      const b2=base[2]-((mask&4)?1:0);
+      const b3=base[3]-((mask&8)?1:0);
+      const b4=base[4]-((mask&16)?1:0);
+      if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
+      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+life);
     }
-
-    for(let i=0;i<base.length;i++){
-      for(let j=i+1;j<base.length;j++){
-        if(base[i]>0 && base[j]>0){
-          const lower=base.slice();
-          lower[i]--;
-          lower[j]--;
-          keys.push(lower.join(','));
-        }
-      }
+    return keys;
+  }
+  function dominatedBySkyline(st){
+    const list=skylineByLife.get(lifeKey(st));
+    if(!list) return false;
+    const max=Math.min(list.length,EXACT_CHECK_LIMIT);
+    for(let i=0;i<max;i++){
+      const k=list[i];
+      if(k.score>=st.score && leq(k.cost,st.cost)) return true;
     }
+    return false;
+  }
+  function addToSkyline(st){
+    const lk=lifeKey(st);
+    let list=skylineByLife.get(lk);
+    if(!list){list=[]; skylineByLife.set(lk,list);}
 
-    return [...new Set(keys)];
+    // 新状態に支配される古い状態を軽く取り除く。
+    // 全削除は重いので上限内だけで行い、速度と精度のバランスを取る。
+    const max=Math.min(list.length,EXACT_CHECK_LIMIT);
+    for(let i=max-1;i>=0;i--){
+      const k=list[i];
+      if(st.score>=k.score && leq(st.cost,k.cost)) list.splice(i,1);
+    }
+    list.push(st);
   }
 
   outer: for(const st of src){
-    const keys=nearbyBucketKeys(st);
+    if(dominatedBySkyline(st)) continue;
 
+    const keys=nearbyBucketKeys(st);
     for(const bk of keys){
       const list=buckets.get(bk);
       if(!list) continue;
-
       for(const k of list){
-        if(leq(k.cost,st.cost) && k.score>=st.score){
-          continue outer;
-        }
+        if(k.score>=st.score && leq(k.cost,st.cost)) continue outer;
       }
     }
 
     keep.push(st);
+    addToSkyline(st);
 
     const bk=bucketKey(st);
-    if(!buckets.has(bk)) buckets.set(bk,[]);
-
-    const list=buckets.get(bk);
+    let list=buckets.get(bk);
+    if(!list){list=[]; buckets.set(bk,list);}
 
     if(list.length<BUCKET_KEEP_LIMIT){
       list.push(st);
@@ -334,18 +391,22 @@ function prune(states,limit=12000){
   }
 
   const m=new Map();
-
   keep.forEach(st=>{
     delete st.totalCost;
     m.set(stateKey(st),st);
   });
-
   return m;
 }
+const rangeRowCache=new WeakMap();
+function rowsForTable(table){
+  if(rangeRowCache.has(table)) return rangeRowCache.get(table);
+  const rows=table.map(r=>({row:r,range:parseRange(r[0])})).filter(x=>x.range);
+  rangeRowCache.set(table,rows);
+  return rows;
+}
 function rowForValue(table,value){
-  for(const r of table){
-    const rg=parseRange(r[0]);
-    if(rg && value>=rg.a && value<rg.b) return r;
+  for(const x of rowsForTable(table)){
+    if(value>=x.range.a && value<x.range.b) return x.row;
   }
   return null;
 }
@@ -363,9 +424,9 @@ function basicOptions(name,exp){
   const cur=Number(inp?.value||1);
   const hint=Number(basicHints[name]||0);
   const max=lim[name];
-  if(basicOwned[name]) return [{cost:[0,0,0,0,0],score:0,items:[],life: name==='生命力'?max:null,costSum:0,eff:0}];
+  if(basicOwned[name]) return [{cost:[0,0,0,0,0],score:0,items:EMPTY_ITEMS,itemLen:0,life: name==='生命力'?max:null,costSum:0,eff:0}];
   const t=tableFor(name);
-  const opts=[{cost:[0,0,0,0,0],score:0,items:[],life:name==='生命力'?cur:null,costSum:0,eff:0}];
+  const opts=[{cost:[0,0,0,0,0],score:0,items:EMPTY_ITEMS,itemLen:0,life:name==='生命力'?cur:null,costSum:0,eff:0}];
   let c=[0,0,0,0,0], sc=0;
   let v=cur;
   while(max!=null && v<max){
@@ -383,6 +444,7 @@ function basicOptions(name,exp){
         cost:c.slice(),
         score:sc,
         items:[{type:'basic',name,from:cur,to:v,idx:basicNames.indexOf(name)}],
+        itemLen:1,
         life:name==='生命力'?v:null,
         costSum:cs,
         eff:sc/(1+cs)
@@ -405,7 +467,7 @@ function basicPlanEntry(name,exp){
 }
 function buildBasicStates(exp){
   const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
-  let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,{cost:[0,0,0,0,0],score:0,items:[],life:initialLife}]]);
+  let states=new Map([[key([0,0,0,0,0])+'|'+initialLife,makeState([0,0,0,0,0],0,initialLife,null,EMPTY_ITEMS,0)]]);
 
   // v4.5: 基礎能力は固定順ではなく、査定効率が高い能力から探索する。
   // 表示順は resultTable 側でゲーム順に戻すので、結果表示には影響しない。
@@ -424,20 +486,20 @@ function buildBasicStates(exp){
         const nc=addCost(st.cost,op.cost);
         if(!leq(nc,exp)) continue;
 
-        const ns={
-          cost:nc,
-          score:st.score+op.score,
-          items:st.items.concat(op.items),
-          life:op.life!==null?op.life:st.life
-        };
+        const newScore=st.score+op.score;
+        const newLife=op.life!==null?op.life:st.life;
+        const k=key(nc)+'|'+(newLife==null?'':Number(newLife).toString(36));
+        const old=next.get(k);
+        const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
-        const k=stateKey(ns);
-        if(better(ns,next.get(k))) next.set(k,ns);
+        if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
+
+        next.set(k,makeState(nc,newScore,newLife,st,op.items,newItemLen));
       }
     }
 
     if(!next.size) continue;
-    states=prune(next,currentCalcMode()==='high'?5200:2200);
+    states=prune(next,currentCalcMode()==='high'?6200:2200);
     if(!states.size) break;
   }
 
@@ -445,9 +507,43 @@ function buildBasicStates(exp){
 }
 const specialItemCache=new Map();
 const specialGroupCache=new Map();
+const calcResultCache=new Map();
 function clearCalcCaches(){
   specialItemCache.clear();
   specialGroupCache.clear();
+}
+function calcCacheKey(exp){
+  const basicPart=basicNames.map(n=>{
+    const v=document.getElementById('basic_'+n)?.value||'';
+    return [n,v,basicOwned[n]?1:0,basicHints[n]||0].join(':');
+  }).join('|');
+  const specialPart=[...specialState.entries()]
+    .filter(([,st])=>Number(st.hint||0)>0 || Number(st.own||0)>0)
+    .sort((a,b)=>Number(a[0])-Number(b[0]))
+    .map(([i,st])=>i+':'+(st.hint||0)+':'+(st.own||0))
+    .join('|');
+  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart].join('||');
+}
+function cloneResult(st){
+  const items=restoreItems(st);
+  return {
+    cost:(st.cost||[0,0,0,0,0]).slice(),
+    score:st.score||0,
+    life:st.life??null,
+    items:items.map(x=>({...x})),
+    itemLen:itemLenOf(st)
+  };
+}
+function getCachedResult(cacheKey){
+  const hit=calcResultCache.get(cacheKey);
+  return hit?cloneResult(hit):null;
+}
+function setCachedResult(cacheKey,result){
+  if(calcResultCache.size>30){
+    const first=calcResultCache.keys().next().value;
+    calcResultCache.delete(first);
+  }
+  calcResultCache.set(cacheKey,cloneResult(result));
 }
 function itemForSpecialIndex(i,hp,includeLower=false){
   const s=D.special[i]; if(!s) return null;
@@ -480,7 +576,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
     }
   }
 
-  const result={type:'choice',cost:totalCost,score:totalScore,items,idx:i,name:s[1]};
+  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,idx:i,name:s[1]};
   specialItemCache.set(cacheKey,result);
   return result;
 }
@@ -599,21 +695,19 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   const mode=currentCalcMode();
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
   const STATE_LIMIT=mode==='high'
-    ? Math.max(2200,Math.min(6200,1600+Math.floor(totalExp*0.95)))
+    ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
   const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.35:1.25));
 
   // ③ Upper Bound: 残りグループで取り得る最大査定を安全側に足し、
   // すでにベストへ届かない状態は早めにスキップする。
   const suffixMax=new Array(groups.length+1).fill(0);
+  const suffixBestEff=new Array(groups.length+1).fill(0);
   for(let i=groups.length-1;i>=0;i--){
     suffixMax[i]=suffixMax[i+1]+(groups[i].maxScore||0);
+    suffixBestEff[i]=Math.max(suffixBestEff[i+1],groupEfficiency(groups[i]));
   }
 
-  // v4.6: 残経験点を見た上界も追加。
-  // 各グループから「今の残経験点で単独取得できる最大査定」を足す。
-  // 同じ経験点を複数回使う前提なので安全側の過大評価だが、suffixMaxよりかなり締まる。
-  const upperCache=new Map();
   function remainingCost(st){
     return [
       exp[0]-st.cost[0],
@@ -623,34 +717,28 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       exp[4]-st.cost[4]
     ];
   }
-  function affordableUpper(start,remain){
-    const ck=start+'|'+key(remain);
-    if(upperCache.has(ck)) return upperCache.get(ck);
 
-    let ub=0;
-    for(let i=start;i<groups.length;i++){
-      let best=0;
-      for(const op of groups[i].opts){
-        if(leq(op.cost,remain) && op.score>best) best=op.score;
-      }
-      ub+=best;
-    }
-
-    upperCache.set(ck,ub);
-    return ub;
+  // v5.0: Upper Bound本格化。
+  // 1) 残り全グループの最大査定合計
+  // 2) 残経験点合計 × 残り最高効率
+  // の小さい方を安全側の上界として使う。
+  function remainingScoreUpper(start,remain){
+    const byGroup=suffixMax[start]||0;
+    const byEfficiency=costSum(remain)*(suffixBestEff[start]||0);
+    return Math.min(byGroup,byEfficiency);
   }
 
   let states=new Map();
 
   for(const base of baseStates){
     if(!base) continue;
-    const st={...base,items:(base.items||[]).slice()};
+    const st=base;
     const k=stateKey(st);
     if(better(st,states.get(k))) states.set(k,st);
   }
 
   if(!states.size){
-    return {items:[],score:0,cost:[0,0,0,0,0],life:null};
+    return {items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null};
   }
 
   states=prune(states,STATE_LIMIT);
@@ -674,7 +762,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
-      if(st.score+affordableUpper(gi,remainingCost(st))<=bestScore){
+      const remain=remainingCost(st);
+      if(st.score+remainingScoreUpper(gi,remain)<=bestScore){
         iter++;
         if(iter%700===0) await yieldToBrowser();
         continue;
@@ -684,17 +773,17 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const nc=addCost(st.cost,op.cost);
         if(!leq(nc,exp)) continue;
 
-        const ns={
-          cost:nc,
-          score:st.score+op.score,
-          items:st.items.concat(op.items),
-          life:st.life
-        };
+        const newScore=st.score+op.score;
+        if(newScore>bestScore) bestScore=newScore;
 
-        if(ns.score>bestScore) bestScore=ns.score;
+        // v5.0: 同一状態は生成直後に統合する。
+        // items配列の結合は「採用される可能性がある状態」だけに限定する。
+        const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36));
+        const old=next.get(k);
+        const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
+        if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
 
-        const k=stateKey(ns);
-        if(better(ns,next.get(k))) next.set(k,ns);
+        next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen));
       }
 
       if(next.size>HARD_LIMIT){
@@ -728,13 +817,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(better(st,best)) best=st;
   }
 
-  return best||{items:[],score:0,cost:[0,0,0,0,0],life:null};
+  return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null};
 }
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
   onProgress?.('計算中 0%');
 
-  const fallback={items:[],score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
+  const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
 
   const basicMap=buildBasicStates(exp);
   const basicStates=[...basicMap.values()];
@@ -765,7 +854,7 @@ async function optimizeAsync(exp,onProgress){
       if(better(st,baseMap.get(k))) baseMap.set(k,st);
     });
 
-    const states=[...prune(baseMap,currentCalcMode()==="high"?5200:2200).values()];
+    const states=[...prune(baseMap,currentCalcMode()==="high"?6200:2200).values()];
     if(!states.length) continue;
 
     const groups=specialChoiceGroupsCached(hp);
@@ -842,13 +931,23 @@ async function calc(){
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
   const startTime=performance.now();
   const btn=document.getElementById('calcBtn');
+  const cacheKey=calcCacheKey(exp);
   isCalculating=true;
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{ if(el.id!=='calcBtn') el.disabled=true; });
   btn.disabled=true; btn.textContent='計算中';
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
-    const best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
+    let best=getCachedResult(cacheKey);
+    if(best){
+      btn.textContent='計算中 100%';
+    }else{
+      best=await optimizeAsync(exp,(msg)=>{btn.textContent=msg; result.innerHTML=`<p class="calculating">${msg}</p>`;});
+    }
+    const bestItems=restoreItems(best);
+    best.items=bestItems;
+    setCachedResult(cacheKey,best);
+
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
@@ -856,12 +955,12 @@ async function calc(){
     result.innerHTML=`
 <div class="result-block">
   <h3>基本能力</h3>
-  ${resultTable(best.items,'basic')}
+  ${resultTable(bestItems,'basic')}
 </div>
 
 <div class="result-block">
   <h3>特殊能力</h3>
-  ${resultTable(best.items,'special')}
+  ${resultTable(bestItems,'special')}
 </div>
 
 <div class="result-block score-block">
@@ -911,6 +1010,7 @@ function resetAll(){
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
 
   specialState.clear();
+  calcResultCache.clear();
   search.value='';
 
   renderBasic();
