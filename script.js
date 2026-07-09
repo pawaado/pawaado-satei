@@ -255,18 +255,39 @@ const arr=[...states.values()]
     const keys=[base.join(',')];
 
     for(let i=0;i<base.length;i++){
+    if(base[i]>0){
 
-      if(base[i]>0){
+    const lower=base.slice();
 
-        const lower=base.slice();
+    lower[i]--;
 
-        lower[i]--;
+    keys.push(lower.join(','));
 
-        keys.push(lower.join(','));
+  }
 
-      }
+}
+
+// 2軸同時に近いバケットも比較対象にする
+
+for(let i=0;i<base.length;i++){
+
+  for(let j=i+1;j<base.length;j++){
+
+    if(base[i]>0 && base[j]>0){
+
+      const lower=base.slice();
+
+      lower[i]--;
+
+      lower[j]--;
+
+      keys.push(lower.join(','));
 
     }
+
+  }
+
+}
 
     return keys;
 
