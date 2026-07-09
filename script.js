@@ -651,8 +651,21 @@ async function calc(){
     const scoreText=(Math.round((best.score||0)*10)/10).toLocaleString('ja-JP');
     result.innerHTML=`<div class="result-block score-block"><h3>参考査定</h3><p class="score-value">${scoreText}</p></div><div class="result-block"><h3>基本能力</h3>${resultTable(best.items,'basic')}</div><div class="result-block"><h3>特殊能力</h3>${resultTable(best.items,'special')}</div>${remainHtml}`;
   }catch(err){
-    result.innerHTML='<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p></div>';
-    console.error(err);
+    const name=err?.name||'Error';
+
+  const message=err?.message||'原因不明のエラーです';
+
+  result.innerHTML=`<div class="error-box">
+
+    <p>⚠️ 計算中にエラーが発生しました。</p>
+
+    <p>${name}</p>
+
+    <p>${message}</p>
+
+  </div>`;
+
+  console.error(err);
   }finally{
     isCalculating=false;
     document.body.classList.remove('is-calculating');
