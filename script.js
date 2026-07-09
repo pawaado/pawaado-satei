@@ -236,6 +236,7 @@ const arr=[...states.values()]
   const preLimit=Math.min(arr.length,Math.max(limit*2,limit+1000));
 
   const src=arr.slice(0,preLimit);
+  const BUCKET_SIZE=50;
 
   const keep=[];
 
