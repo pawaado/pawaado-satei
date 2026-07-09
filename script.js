@@ -208,7 +208,6 @@ function tableFor(name){
   if(name==='耐久力') return {cost:D.staminaCost,score:D.staminaScore};
   if(name==='精神力') return {cost:D.mentalCost,score:D.mentalScore};
 }
-function scoreForRange(scoreTable,range){const r=scoreTable.find(x=>x[0]===range); return r?Number(r[1]||0):0;}
 function addCost(a,b){return a.map((v,i)=>v+b[i]);}
 function leq(a,b){return a.every((v,i)=>v<=b[i]);}
 function key(c){return c.join(',');}
@@ -346,13 +345,6 @@ function specialChoiceGroups(hp){
     const it=itemForSpecialIndex(i,hp,false); if(it) groups.push({kind:'single',opts:[it]});
   });
   return groups;
-}
-function paretoMerge(map, state, limit){
-  const k=stateKey(state);
-  const old=map.get(k);
-  if(better(state,old)) map.set(k,state);
-  if(map.size>limit*1.6) return prune(map,limit);
-  return map;
 }
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
 
