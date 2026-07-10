@@ -1,5 +1,4 @@
 (function(){
-// Speed optimized v8: 通常経路の不要コピー削減・HPタスクのMap再利用
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
@@ -1602,50 +1601,14 @@ function renderCalcMode(){
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
-function optionHasTarget(op){
-  return !!op?.items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
-}
-function constrainSpecialGroups(groups,constraint){
-  // 通常計算では候補配列を複製しない。検証用制約を使う場合だけコピーする。
-  if(constraint==='normal') return {groups,targetGroupIndex:-1};
-
-  let out=groups.map(g=>({...g,opts:[...g.opts]}));
-  const isRequired=String(constraint).startsWith('required');
-  const keepNormalOrder=constraint==='requiredNormalOrder';
-
-  if(constraint==='forbidden'){
-    out=out
-      .map(g=>{
-        const opts=g.opts.filter(op=>!optionHasTarget(op));
-        if(!opts.length) return null;
-        const maxScore=opts.reduce((m,o)=>Math.max(m,o.score||0),0);
-        const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff ?? ((o.score||0)/(1+(o.costSum??costSum(o.cost))))),0);
-        return {...g,opts,maxScore,bestEfficiency};
-      })
-      .filter(Boolean);
-  }
-
-  if(isRequired){
-    const targetIndex=out.findIndex(g=>g.opts.some(optionHasTarget));
-    if(targetIndex<0) return {groups:[],targetGroupIndex:-1};
-    if(keepNormalOrder){
-      return {groups:out,targetGroupIndex:targetIndex};
-    }
-    const targetGroup=out[targetIndex];
-    out=[targetGroup,...out.slice(0,targetIndex),...out.slice(targetIndex+1)];
-    return {groups:out,targetGroupIndex:0};
-  }
-
-  return {groups:out,targetGroupIndex:-1};
-}
-async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null, targetConstraint='normal'){
+async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
   let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
 
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
 
   // 知力余り対策を含む最終候補順まで、HP + 経験点条件ごとにキャッシュする。
-  const orderedCacheKey=String(hp)+'|'+key(exp)+'|'+targetConstraint;
+  const orderedCacheKey=String(hp)+'|'+key(exp);
   const orderedCached=orderedSpecialGroupCache.get(orderedCacheKey);
   if(orderedCached){
     groups=orderedCached;
@@ -1671,25 +1634,10 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     orderedSpecialGroupCache.set(orderedCacheKey,groups);
   }
 
-  const isRequiredConstraint=targetConstraint.length>=8 && targetConstraint.slice(0,8)==='required';
-  const constrainedGroupInfo=constrainSpecialGroups(groups,targetConstraint);
-  groups=constrainedGroupInfo.groups;
-  const requiredTargetGroupIndex=constrainedGroupInfo.targetGroupIndex;
-
-  if(isRequiredConstraint && requiredTargetGroupIndex<0){
-    return null;
-  }
-
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
-  const baseStateLimit=(mode==='high'||mode==='fast')
+  const STATE_LIMIT=(mode==='high'||mode==='fast')
     ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
-  // 最終完全性検証：
-  // requiredNoUB はUpper Boundだけ無効、requiredFullはUpper Bound無効＋保持上限を大幅拡大する。
-  const disableUpperBound=targetConstraint==='requiredNoUB' || targetConstraint==='requiredFull';
-  const STATE_LIMIT=targetConstraint==='requiredFull'
-    ? Math.max(120000,Math.floor(baseStateLimit*30))
-    : baseStateLimit;
   // 高速化：
   // 正確性優先の修正で候補が増えるため、途中pruneの発火を少し遅らせる。
   // STATE_LIMIT自体は変えず、HARD_LIMITだけ広げてprune回数を減らす。
@@ -1700,7 +1648,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   // 高速βでのみ効率ベース近似上界を追加し、整数の残経験点は配列キャッシュで再利用する。
   const groupCount=groups.length;
   const suffixMax=new Float64Array(groupCount+1);
-  const useFastApproxUpper=!disableUpperBound && mode==='fast';
+  const useFastApproxUpper=mode==='fast';
   const suffixBestEff=useFastApproxUpper ? new Float64Array(groupCount+1) : null;
 
   for(let i=groupCount-1;i>=0;i--){
@@ -1773,15 +1721,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       // 高精度は安全なsuffixMaxを1回だけ判定。
       // 高速βのみ、より厳しい効率ベース近似上界も追加する。
-      if(!disableUpperBound){
-        const upper=useFastApproxUpper
-          ? fastRemainingScoreUpper(gi,remainSum)
-          : suffixMax[gi];
-        if(st.score+upper<bestScore){
-          iter++;
-          if(iter%yieldEvery===0) await yieldToBrowser();
-          continue;
-        }
+      const upper=useFastApproxUpper
+        ? fastRemainingScoreUpper(gi,remainSum)
+        : suffixMax[gi];
+      if(st.score+upper<bestScore){
+        iter++;
+        if(iter%yieldEvery===0) await yieldToBrowser();
+        continue;
       }
 
       const stBits=st.bits ?? EMPTY_BITS;
@@ -1823,12 +1769,10 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         const newScore=st.score+op.score;
         const childRemainSum=remainSum-op.costSum;
-        if(!disableUpperBound){
-          const childUpper=useFastApproxUpper
-            ? fastRemainingScoreUpper(gi+1,childRemainSum)
-            : suffixMax[gi+1];
-          if(newScore+childUpper<bestScore) continue;
-        }
+        const childUpper=useFastApproxUpper
+          ? fastRemainingScoreUpper(gi+1,childRemainSum)
+          : suffixMax[gi+1];
+        if(newScore+childUpper<bestScore) continue;
         if(newScore>bestScore) bestScore=newScore;
 
         // v5.0: 同一状態は生成直後に統合する。
@@ -1875,18 +1819,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       states=next;
     }
 
-    // 独立した「物理攻撃○必須」探索では、対象グループを最初に処理し、
-    // その直後に○を含まない状態を除外する。以降は全保持枠を○ありルートだけで使う。
-    if(isRequiredConstraint && gi===requiredTargetGroupIndex){
-      const requiredStates=new Map();
-      for(const st of states.values()){
-        if(stateHasTarget(st)) requiredStates.set(stateKey(st),st);
-      }
-      states=requiredStates;
-      if(!states.size) return null;
-      bestScore=-Infinity;
-      for(const st of states.values()) if(st.score>bestScore) bestScore=st.score;
-    }
 
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
@@ -1930,10 +1862,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
-async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
+async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
   onProgress?.('計算中 0%');
 
+  const mode=currentCalcMode();
   const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
 
   pStart("基本能力生成");
@@ -1971,13 +1904,13 @@ async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
 
     const prunedBase=baseMap.size>6200 ? prune(baseMap,6200) : baseMap;
     if(!prunedBase.size) continue;
+    const states=Array.from(prunedBase.values());
 
     const groups=specialChoiceGroupsForExpCached(hp,exp);
     const groupCount=groups.length || 1;
 
     total+=groupCount;
-    // optimizeSpecialsForLife はIterableを受け取れるため、配列へ複製せずMapをそのまま渡す。
-    tasks.push({hp,states:prunedBase,groupCount,groups});
+    tasks.push({hp,states,groupCount,groups});
   }
 
   if(!tasks.length){
@@ -1988,18 +1921,17 @@ async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
   const progress={done:0,total:Math.max(1,total),start:Date.now()};
   let best=null;
 
-  const highPrecisionMode=currentCalcMode()!=='fast';
   for(const task of tasks){
     throwIfCancelled();
     pStart("特殊能力探索");
-    const cand=await optimizeSpecialsForLife(task.states.values(),exp,task.hp,onProgress,progress,task.groups,targetConstraint);
+    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
     pEnd("特殊能力探索");
 
     if(cand && better(cand,best)){
       best=cand;
     }
 
-    if(highPrecisionMode) await yieldToBrowser();
+    if(mode!=='fast') await yieldToBrowser();
   }
 
   onProgress?.('計算中 100%');
@@ -2099,7 +2031,7 @@ async function calc(){
           lastProgressPaint=now;
           btn.textContent=msg;
         }
-      },'normal');
+      });
       setCachedResult(cacheKey,finalCandidate);
     }
 
