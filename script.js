@@ -57,9 +57,26 @@ function bitKeyOfState(st){
 function lifeKeyOfState(st){
   return st.life==null?'':Number(st.life).toString(36);
 }
+const scopeKeyCache=new Map();
+function scopeKeyFor(life,bits){
+  const lifePart=life==null?'':Number(life).toString(36);
+  let byBits=scopeKeyCache.get(lifePart);
+  if(!byBits){
+    byBits=new Map();
+    scopeKeyCache.set(lifePart,byBits);
+  }
+
+  const bitValue=bits??EMPTY_BITS;
+  const cached=byBits.get(bitValue);
+  if(cached!==undefined) return cached;
+
+  const value=lifePart+'|'+bitsKey(bitValue);
+  byBits.set(bitValue,value);
+  return value;
+}
 function pruneScopeKey(st){
   if(st._pruneScopeKey) return st._pruneScopeKey;
-  const v=lifeKeyOfState(st)+'|'+bitKeyOfState(st);
+  const v=scopeKeyFor(st.life,st.bits??EMPTY_BITS);
   st._pruneScopeKey=v;
   return v;
 }
@@ -290,7 +307,7 @@ function key(c){
   const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]);
   return String(n);
 }
-function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+(st.bitKey ?? bitsKey(st.bits ?? EMPTY_BITS));}
+function stateKey(st){return key(st.cost)+'|'+scopeKeyFor(st.life,st.bits??EMPTY_BITS);}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 function mergeItems(a,b){return !b.length?a:(!a.length?b:a.concat(b));}
 function itemLenOf(st){return st?.itemLen ?? (st?.items?.length || 0);}
@@ -307,6 +324,7 @@ function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bit
     choice:ch,
     bits:nextBits,
     bitKey:bitsKey(nextBits),
+    _pruneScopeKey:scopeKeyFor(life,nextBits),
     itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
   };
 }
@@ -603,7 +621,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) continue;
-    states=prune(next,6200);
+    states=next.size>6200 ? prune(next,6200) : next;
     if(!states.size) break;
   }
 
@@ -903,7 +921,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     return {items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
   }
 
-  states=prune(states,STATE_LIMIT);
+  if(states.size>STATE_LIMIT) states=prune(states,STATE_LIMIT);
   let bestScore=-Infinity;
   for(const st of states.values()){
     if(st.score>bestScore) bestScore=st.score;
@@ -934,7 +952,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       const stBits=st.bits ?? EMPTY_BITS;
-      const lifePart=st.life==null?'':Number(st.life).toString(36);
 
       for(const op of group.opts){
         if(progress?.debug) progress.debug.candidate++;
@@ -956,7 +973,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
         const nextBits=stBits | opBits;
-        const k=key(nc)+'|'+lifePart+'|'+bitsKey(nextBits);
+        const k=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
@@ -974,7 +991,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           progress.debug.prune++;
         }
         const pruned=prune(next,STATE_LIMIT);
-        if(progress?.debug) progress.debug.pruneAfter+=pruned.size;
         next.clear();
         pruned.forEach((v,k)=>next.set(k,v));
       }
@@ -1049,7 +1065,7 @@ async function optimizeAsync(exp,onProgress){
       if(better(st,baseMap.get(k))) baseMap.set(k,st);
     });
 
-    const states=[...prune(baseMap,6200).values()];
+    const states=[...(baseMap.size>6200 ? prune(baseMap,6200) : baseMap).values()];
     if(!states.length) continue;
 
     const groups=specialChoiceGroupsCached(hp);
