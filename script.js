@@ -1,4 +1,4 @@
-(function(){
+ (function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -437,15 +437,9 @@ function prune(states,limit=12000){
     let list=skylineByScope.get(scope);
     if(!list){list=[]; skylineByScope.set(scope,list);}
 
-    const max=Math.min(list.length,EXACT_CHECK_LIMIT);
-    for(let i=max-1;i>=0;i--){
-      const k=list[i];
-      PRUNE_STATS.comparisons++;
-      if(st.score>=k.score && leq(st.cost,k.cost)){
-        list.splice(i,1);
-        PRUNE_STATS.replacedRemoved++;
-      }
-    }
+    // arrは「査定の高い順、同査定なら総コストの低い順」で処理される。
+    // そのため、後から来た状態が既存状態を支配して追い出すケースは実質発生しない。
+    // ここで全件比較すると膨大な無駄になるため、登録だけ行う。
     list.push(st);
   }
 
