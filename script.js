@@ -307,11 +307,16 @@ function key(c){
   const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]);
   return String(n);
 }
-function stateKey(st){return key(st.cost)+'|'+scopeKeyFor(st.life,st.bits??EMPTY_BITS);}
+function stateKey(st){
+  if(st._stateKey!==undefined && st._stateKey!==null) return st._stateKey;
+  const value=key(st.cost)+'|'+scopeKeyFor(st.life,st.bits??EMPTY_BITS);
+  st._stateKey=value;
+  return value;
+}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 function mergeItems(a,b){return !b.length?a:(!a.length?b:a.concat(b));}
 function itemLenOf(st){return st?.itemLen ?? (st?.items?.length || 0);}
-function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bits=null){
+function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bits=null,stateKeyValue=null,usedCostValue=null){
   const ch=(choice&&choice.length)?choice:EMPTY_ITEMS;
   const chBits=bits!=null ? bits : specialItemsBits(ch);
   const prevBits=prev?.bits ?? EMPTY_BITS;
@@ -325,6 +330,8 @@ function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bit
     bits:nextBits,
     bitKey:bitsKey(nextBits),
     _pruneScopeKey:scopeKeyFor(life,nextBits),
+    _stateKey:stateKeyValue,
+    usedCost:usedCostValue ?? costSum(cost),
     itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
   };
 }
@@ -616,7 +623,7 @@ function buildBasicStates(exp){
 
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
 
-        next.set(k,makeState(nc,newScore,newLife,st,op.items,newItemLen));
+        next.set(k,makeState(nc,newScore,newLife,st,op.items,newItemLen,null,k));
       }
     }
 
@@ -657,7 +664,8 @@ function cloneResult(st){
     items:items.map(x=>({...x})),
     itemLen:itemLenOf(st),
     bits:st.bits ?? specialItemsBits(items),
-    bitKey:st.bitKey ?? bitsKey(st.bits ?? specialItemsBits(items))
+    bitKey:st.bitKey ?? bitsKey(st.bits ?? specialItemsBits(items)),
+    usedCost:st.usedCost ?? costSum(st.cost||[0,0,0,0,0])
   };
 }
 function getCachedResult(cacheKey){
@@ -882,13 +890,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   function remainingCostSum(st){
-    return (
-      (exp[0]-st.cost[0])+
-      (exp[1]-st.cost[1])+
-      (exp[2]-st.cost[2])+
-      (exp[3]-st.cost[3])+
-      (exp[4]-st.cost[4])
-    );
+    return totalExp-(st.usedCost ?? costSum(st.cost));
   }
 
   // Sprint: Upper Bound軽量化。
@@ -913,6 +915,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   for(const base of baseStates){
     if(!base) continue;
     const st=base;
+    if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
     const k=stateKey(st);
     if(better(st,states.get(k))) states.set(k,st);
   }
@@ -943,7 +946,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
-      const remainSum=st._remainSum ?? (st._remainSum=remainingCostSum(st));
+      const remainSum=st._remainSum;
       if(st.score+remainingScoreUpper(gi,remainSum)<bestScore){
         if(progress?.debug) progress.debug.ubCut++;
         iter++;
@@ -981,7 +984,19 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           continue;
         }
 
-        const newState=makeState(nc,newScore,st.life,st,op.items,newItemLen,opBits);
+        const opUsedCost=op.costSum ?? costSum(op.cost);
+        const newState=makeState(
+          nc,
+          newScore,
+          st.life,
+          st,
+          op.items,
+          newItemLen,
+          opBits,
+          k,
+          (st.usedCost ?? costSum(st.cost))+opUsedCost
+        );
+        newState._remainSum=childRemainSum;
         if(progress?.debug) progress.debug.accept++;
         next.set(k,newState);
       }
