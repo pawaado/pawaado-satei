@@ -286,7 +286,10 @@ function tableFor(name){
 }
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
-function key(c){const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]); return n.toString(36);}
+function key(c){
+  const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]);
+  return String(n);
+}
 function stateKey(st){return key(st.cost)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+(st.bitKey ?? bitsKey(st.bits ?? EMPTY_BITS));}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 function mergeItems(a,b){return !b.length?a:(!a.length?b:a.concat(b));}
@@ -1216,7 +1219,7 @@ function renderScriptVersion(){
 
   const badge=document.createElement('div');
   badge.id='scriptVersionBadge';
-  badge.textContent='Script Ver. speed-12a';
+  badge.textContent='Script Ver. speed-12b';
 
   badge.style.position='fixed';
   badge.style.right='10px';
