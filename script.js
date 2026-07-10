@@ -1,4 +1,4 @@
- (function(){
+(function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -732,7 +732,7 @@ function progressMessage(progress){
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
   const d=progress.debug;
   if(d){
-    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0}`;
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0} states:${d.pruneBefore||0}→${d.pruneAfter||0}`;
   }
   return `計算中 ${pct}%`;
 }
@@ -939,8 +939,12 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       if(next.size>HARD_LIMIT){
-        if(progress?.debug) progress.debug.prune++;
+        if(progress?.debug){
+          progress.debug.prune++;
+          progress.debug.pruneBefore+=next.size;
+        }
         const pruned=prune(next,STATE_LIMIT);
+        if(progress?.debug) progress.debug.pruneAfter+=pruned.size;
         next.clear();
         pruned.forEach((v,k)=>next.set(k,v));
       }
@@ -949,8 +953,12 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(iter%700===0) await yieldToBrowser();
     }
 
-    if(progress?.debug) progress.debug.prune++;
+    if(progress?.debug){
+      progress.debug.prune++;
+      progress.debug.pruneBefore+=next.size;
+    }
     states=prune(next,STATE_LIMIT);
+    if(progress?.debug) progress.debug.pruneAfter+=states.size;
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
     }
@@ -1025,7 +1033,7 @@ async function optimizeAsync(exp,onProgress){
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
+  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0,pruneBefore:0,pruneAfter:0}};
   let best=null;
 
   for(const task of tasks){
