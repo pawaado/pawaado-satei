@@ -1,4 +1,4 @@
-(function(){
+ (function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -912,7 +912,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(cached!==undefined) return cached;
 
     const byGroup=suffixMax[start]||0;
-    const ubMargin=mode==='fast' ? 1.05 : 1.15;
+    const ubMargin=mode==='fast' ? 1.00 : 1.15;
     const byEfficiency=remainSum*(suffixBestEff[start]||0)*ubMargin;
 
     // 速度優先：
@@ -944,6 +944,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   const debug=progress?.debug||null;
   const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
+  const yieldEvery=mode==='fast' ? 10000 : 2500;
 
   for(let gi=0;gi<groups.length;gi++){
     const group=groups[gi];
@@ -961,7 +962,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(st.score+suffixMax[gi]<bestScore){
         ubCutInc++;
         iter++;
-        if(iter%2500===0) await yieldToBrowser();
+        if(iter%yieldEvery===0) await yieldToBrowser();
         continue;
       }
 
@@ -970,7 +971,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(st.score+remainingScoreUpper(gi,remainSum)<bestScore){
         ubCutInc++;
         iter++;
-        if(iter%2500===0) await yieldToBrowser();
+        if(iter%yieldEvery===0) await yieldToBrowser();
         continue;
       }
 
@@ -1039,7 +1040,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       iter++;
-      if(iter%2500===0) await yieldToBrowser();
+      if(iter%yieldEvery===0) await yieldToBrowser();
     }
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
@@ -1068,7 +1069,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       onProgress?.('計算中');
     }
 
-    await yieldToBrowser();
+    if(mode!=='fast' || gi%4===3 || gi===groups.length-1){
+      await yieldToBrowser();
+    }
   }
 
   let best=null;
@@ -1143,7 +1146,7 @@ async function optimizeAsync(exp,onProgress){
       best=cand;
     }
 
-    await yieldToBrowser();
+    if(currentCalcMode()!=='fast') await yieldToBrowser();
   }
 
   onProgress?.('計算中 100%');
