@@ -367,7 +367,7 @@ function prune(states,limit=12000){
     return pruneScopeKey(a)===pruneScopeKey(b);
   }
 
-  if(mode!=='high'){
+  if(mode==='normal'){
     const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
     const src=arr.slice(0,preLimit);
     const keep=[];
@@ -821,10 +821,10 @@ function progressMessage(progress){
   return `計算中 ${pct}%`;
 }
 function currentCalcMode(){
-  return 'high';
+  return document.getElementById('calcMode')?.value || 'high';
 }
 function calcModeLabel(){
-  return '高精度';
+  return currentCalcMode()==='fast' ? '高速β' : '高精度';
 }
 function renderCalcMode(){
   const btn=document.getElementById('calcBtn');
@@ -836,11 +836,14 @@ function renderCalcMode(){
     <label for="calcMode">計算モード</label>
     <select id="calcMode">
       <option value="high" selected>高精度（推奨）</option>
-      <option value="normal">高速β（検証用）</option>
+      <option value="fast">高速β（検証用）</option>
     </select>
   `;
 
   btn.parentNode.insertBefore(wrap,btn);
+  wrap.querySelector('#calcMode')?.addEventListener('change',()=>{
+    calcResultCache.clear();
+  });
 }
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
@@ -879,13 +882,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
-  const STATE_LIMIT=mode==='high'
+  const STATE_LIMIT=(mode==='high'||mode==='fast')
     ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
   // 高速化：
   // 正確性優先の修正で候補が増えるため、途中pruneの発火を少し遅らせる。
   // STATE_LIMIT自体は変えず、HARD_LIMITだけ広げてprune回数を減らす。
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*(mode==='high'?1.6:1.35));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*((mode==='high'||mode==='fast')?1.6:1.35));
 
   // ③ Upper Bound: 残りグループで取り得る最大査定を安全側に足し、
   // すでにベストへ届かない状態は早めにスキップする。
@@ -909,7 +912,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(cached!==undefined) return cached;
 
     const byGroup=suffixMax[start]||0;
-    const byEfficiency=remainSum*(suffixBestEff[start]||0)*1.15;
+    const ubMargin=mode==='fast' ? 1.05 : 1.15;
+    const byEfficiency=remainSum*(suffixBestEff[start]||0)*ubMargin;
 
     // 速度優先：
     // 効率上界を少し安全マージン付きで戻し、候補爆発を抑える。
@@ -1299,5 +1303,5 @@ function resetAll(){
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); renderCalcMode(); validateAllInline();
 })();
