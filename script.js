@@ -728,10 +728,31 @@ function inspectChainNodes(st){
   return {nodes,cycle};
 }
 
-function compactChainText(info){
-  if(!info || !info.nodes || !info.nodes.length) return 'なし';
+function meaningfulChainNodes(info){
+  const nodes=info?.nodes||[];
+  if(!nodes.length) return [];
 
-  return info.nodes.map((node,i)=>{
+  const out=[nodes[0]];
+  for(let i=1;i<nodes.length;i++){
+    const prev=out[out.length-1];
+    const node=nodes[i];
+    const hasChoice=Array.isArray(node.choice)&&node.choice.length>0;
+    const scoreChanged=Number(node.score)!==Number(prev.score);
+    const costChanged=(node.cost||[]).some((v,j)=>Number(v)!==Number(prev.cost?.[j]||0));
+
+    // 基本能力探索から特殊能力探索へ渡す際に挟まる、
+    // score・cost・choiceがすべて同じ「開始状態」ノードは表示・診断から除外する。
+    if(!hasChoice && !scoreChanged && !costChanged) continue;
+    out.push(node);
+  }
+  return out;
+}
+
+function compactChainText(info){
+  const nodes=meaningfulChainNodes(info);
+  if(!nodes.length) return 'なし';
+
+  return nodes.map((node,i)=>{
     const added=node.choice.length?node.choice.join('・'):'開始状態';
     return `N${i}：${added} / score ${node.score.toFixed(2)} / cost ${node.cost.join(',')}`;
   }).join('<br>');
@@ -767,10 +788,11 @@ function compactCandidateRows(rows){
 }
 
 function buildSelectedChainDecision(chainInfo,preferredIndex=6){
-  const nodes=chainInfo?.nodes||[];
+  const nodes=meaningfulChainNodes(chainInfo);
   if(nodes.length<2) return null;
 
-  // N6が存在すればN6を、存在しなければ最終ノードを診断対象にする。
+  // 重複した「開始状態」ノードを除外した実質チェーン上でN6を診断する。
+  // これにより、表示上のN6と候補比較の親・採用項目が一致する。
   const nodeIndex=Math.min(Math.max(1,preferredIndex),nodes.length-1);
   const parent=nodes[nodeIndex-1];
   const selected=nodes[nodeIndex];
@@ -2493,14 +2515,15 @@ async function calc(){
 
     const trace=TARGET_DEBUG.finalCandidateTrace||{};
     const selectedChainText=compactChainText(trace.selectedChain);
-    const magicNodeIndex=trace.selectedChain?.nodes?.findIndex(node=>
+    const displayedChainNodes=meaningfulChainNodes(trace.selectedChain);
+    const magicNodeIndex=displayedChainNodes.findIndex(node=>
       node.choice.some(name=>String(name).startsWith('魔力 '))
-    ) ?? -1;
+    );
 
     const chainDiagnosis=(()=>{
       if(trace.selectedCycle) return '最終採用チェーンに循環あり';
       if(magicNodeIndex>=0){
-        const node=trace.selectedChain.nodes[magicNodeIndex];
+        const node=displayedChainNodes[magicNodeIndex];
         return `最終採用候補では魔力をN${magicNodeIndex}で追加（${node.choice.join('・')}）`;
       }
       return '最終採用候補に魔力上昇なし';
