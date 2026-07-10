@@ -1,4 +1,4 @@
- (function(){
+(function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -1467,14 +1467,12 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     });
 
     const routeProfile=targetRouteProfile(states);
-    if(routeProfile.target>0){
-      TARGET_DEBUG.routeGroupSnapshots.push({
-        gi,
-        groupKind:group.kind||'',
-        stateCount:states.size,
-        profile:routeProfile
-      });
-    }
+    TARGET_DEBUG.routeGroupSnapshots.push({
+      gi,
+      groupKind:group.kind||'',
+      stateCount:states.size,
+      profile:routeProfile
+    });
 
     if(debug){
       debug.candidate+=candidateInc;
@@ -1863,29 +1861,94 @@ async function calc(){
       .map((x,i)=>`P${i+1}:${x.targetBefore}→${x.targetAfter} / 全体${x.before}→${x.after}`)
       .join(' | ')||'なし';
 
-    const routeGroupText=TARGET_DEBUG.routeGroupSnapshots
-      .map(x=>`G${x.gi}(${x.groupKind||'-'}・全体${x.stateCount})：${compactRouteProfile(x.profile)}`)
-      .join('<br>')||'なし';
+    const routeRows=TARGET_DEBUG.routeGroupSnapshots||[];
+    const routeKeys=[
+      ['target','物理攻撃○付き'],
+      ['targetNoMagic','魔力なし'],
+      ['targetNoMagicDex60','魔力なし＋器用60'],
+      ['targetNoMagicLife52','魔力なし＋生命52'],
+      ['targetNoMagicDexOrLife','有力ルート']
+    ];
 
-    const routePruneText=TARGET_DEBUG.pruneEvents
-      .map((x,i)=>{
-        const b=x.routeBefore;
-        const a=x.routeAfter;
-        if(!b || b.target===0) return null;
+    function routeLifeSummary(key,label){
+      const first=routeRows.find(x=>Number(x.profile?.[key]||0)>0);
+      if(!first) return `${label}：一度も生成されず`;
 
-        const disappeared=[];
-        if(b.targetNoMagic>0 && a.targetNoMagic===0) disappeared.push('魔力なし消滅');
-        if(b.targetNoMagicDex60>0 && a.targetNoMagicDex60===0) disappeared.push('魔力なし＋器用60消滅');
-        if(b.targetNoMagicLife52>0 && a.targetNoMagicLife52===0) disappeared.push('魔力なし＋生命52消滅');
-        if(b.targetNoMagicDexOrLife>0 && a.targetNoMagicDexOrLife===0) disappeared.push('有力ルート消滅');
+      let firstZeroAfter=null;
+      let lastPositive=first;
+      let peakCount=0;
+      let bestScore=null;
 
-        return `P${i+1} 全体${x.before}→${x.after}`+
-          `<br>前：${compactRouteProfile(b)}`+
-          `<br>後：${compactRouteProfile(a)}`+
-          (disappeared.length?`<br>⚠ ${disappeared.join(' / ')}`:'');
-      })
-      .filter(Boolean)
-      .join('<br><br>')||'なし';
+      for(const x of routeRows){
+        const count=Number(x.profile?.[key]||0);
+        if(count>0){
+          lastPositive=x;
+          peakCount=Math.max(peakCount,count);
+          const scoreKey=key==='target'
+            ? 'bestTarget'
+            : key==='targetNoMagic'
+              ? 'bestNoMagic'
+              : 'bestNoMagicDexOrLife';
+          const score=x.profile?.[scoreKey];
+          if(score!=null && (bestScore==null || score>bestScore)) bestScore=score;
+        }else if(x.gi>first.gi && lastPositive && x.gi>lastPositive.gi && !firstZeroAfter){
+          firstZeroAfter=x;
+        }
+      }
+
+      const generated=`初生成 G${first.gi}(${first.groupKind||'-'})`;
+      const survived=firstZeroAfter
+        ? `初消滅 G${firstZeroAfter.gi}(${firstZeroAfter.groupKind||'-'})`
+        : `最終G${lastPositive.gi}まで生存`;
+      const best=bestScore==null?'なし':Number(bestScore).toFixed(2).replace(/\.00$/,'');
+      return `${label}：${generated} / ${survived} / 最大件数${peakCount} / 最高score ${best}`;
+    }
+
+    const routeGroupSummaryText=routeKeys
+      .map(([key,label])=>routeLifeSummary(key,label))
+      .join('<br>');
+
+    const pruneDisappearances=[];
+    TARGET_DEBUG.pruneEvents.forEach((x,i)=>{
+      const b=x.routeBefore;
+      const a=x.routeAfter;
+      if(!b || !a) return;
+
+      const lost=[];
+      if(b.target>0 && a.target===0) lost.push('物理攻撃○付き');
+      if(b.targetNoMagic>0 && a.targetNoMagic===0) lost.push('魔力なし');
+      if(b.targetNoMagicDex60>0 && a.targetNoMagicDex60===0) lost.push('魔力なし＋器用60');
+      if(b.targetNoMagicLife52>0 && a.targetNoMagicLife52===0) lost.push('魔力なし＋生命52');
+      if(b.targetNoMagicDexOrLife>0 && a.targetNoMagicDexOrLife===0) lost.push('有力ルート');
+
+      if(lost.length){
+        pruneDisappearances.push(
+          `P${i+1}（全体${x.before}→${x.after}）：${lost.join('・')}が消滅`
+        );
+      }
+    });
+
+    const routePruneSummaryText=pruneDisappearances.length
+      ? pruneDisappearances.join('<br>')
+      : '枝刈り直後に0件となった追跡ルートはなし';
+
+    const firstUseful=routeRows.find(x=>Number(x.profile?.targetNoMagicDexOrLife||0)>0);
+    const lastUseful=[...routeRows].reverse().find(x=>Number(x.profile?.targetNoMagicDexOrLife||0)>0);
+    const firstUsefulZero=firstUseful
+      ? routeRows.find(x=>x.gi>firstUseful.gi && Number(x.profile?.targetNoMagicDexOrLife||0)===0)
+      : null;
+
+    const routeCauseText=(()=>{
+      if(!firstUseful) return '有力ルート自体が生成されていないため、候補生成条件または状態統合を優先確認';
+      if(pruneDisappearances.some(s=>s.includes('有力ルート'))) return '有力ルートが枝刈りで消滅。prune順位・上限6200・状態評価を優先確認';
+      if(firstUsefulZero) return `有力ルートはG${firstUsefulZero.gi}のグループ処理後に消滅。競合・重複・状態統合を優先確認`;
+      return `有力ルートは最終G${lastUseful?.gi ?? firstUseful.gi}まで残存。最終比較または候補score算定を優先確認`;
+    })();
+
+    const lastUsefulScore=lastUseful?.profile?.bestNoMagicDexOrLife;
+    const routeFinalText=lastUseful
+      ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
+      : '最終到達なし';
 
     const bestWith=TARGET_DEBUG.bestWithTarget;
     const bestWithout=TARGET_DEBUG.bestWithoutTarget;
@@ -1989,12 +2052,10 @@ async function calc(){
         <tr><td>後付け前score</td><td>${bestAugBaseScoreText}</td></tr>
         <tr><td>後付け後score</td><td>${bestAugScoreText}</td></tr>
         <tr><td>後付け状態が探索内に存在</td><td>${bestAugExistsText}</td></tr>
-        <tr><td>後付け診断</td><td>${augmentSummaryText}</td></tr>
-        <tr><td>HPタスク別比較</td><td>${taskSummaryText}</td></tr>
-        <tr><td>有力ルート・グループ追跡</td><td>${routeGroupText}</td></tr>
-        <tr><td>有力ルート・枝刈り追跡</td><td>${routePruneText}</td></tr>
-        <tr><td>各グループ残存</td><td>${snapshotText}</td></tr>
-        <tr><td>prune前後</td><td>${pruneText}</td></tr>
+        <tr><td>有力ルート要約</td><td>${routeGroupSummaryText}</td></tr>
+        <tr><td>枝刈り消滅要約</td><td>${routePruneSummaryText}</td></tr>
+        <tr><td>原因候補</td><td>${routeCauseText}</td></tr>
+        <tr><td>有力ルート最終到達点</td><td>${routeFinalText}</td></tr>
         <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
         <tr><td>補足</td><td>${targetNotes}</td></tr>
       </tbody></table>
