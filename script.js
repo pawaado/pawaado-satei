@@ -1,4 +1,5 @@
 (function(){
+// Speed optimized v8: 通常経路の不要コピー削減・HPタスクのMap再利用
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
@@ -1605,6 +1606,9 @@ function optionHasTarget(op){
   return !!op?.items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
 }
 function constrainSpecialGroups(groups,constraint){
+  // 通常計算では候補配列を複製しない。検証用制約を使う場合だけコピーする。
+  if(constraint==='normal') return {groups,targetGroupIndex:-1};
+
   let out=groups.map(g=>({...g,opts:[...g.opts]}));
   const isRequired=String(constraint).startsWith('required');
   const keepNormalOrder=constraint==='requiredNormalOrder';
@@ -1967,13 +1971,13 @@ async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
 
     const prunedBase=baseMap.size>6200 ? prune(baseMap,6200) : baseMap;
     if(!prunedBase.size) continue;
-    const states=Array.from(prunedBase.values());
 
     const groups=specialChoiceGroupsForExpCached(hp,exp);
     const groupCount=groups.length || 1;
 
     total+=groupCount;
-    tasks.push({hp,states,groupCount,groups});
+    // optimizeSpecialsForLife はIterableを受け取れるため、配列へ複製せずMapをそのまま渡す。
+    tasks.push({hp,states:prunedBase,groupCount,groups});
   }
 
   if(!tasks.length){
@@ -1984,17 +1988,18 @@ async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
   const progress={done:0,total:Math.max(1,total),start:Date.now()};
   let best=null;
 
+  const highPrecisionMode=currentCalcMode()!=='fast';
   for(const task of tasks){
     throwIfCancelled();
     pStart("特殊能力探索");
-    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups,targetConstraint);
+    const cand=await optimizeSpecialsForLife(task.states.values(),exp,task.hp,onProgress,progress,task.groups,targetConstraint);
     pEnd("特殊能力探索");
 
     if(cand && better(cand,best)){
       best=cand;
     }
 
-    if(currentCalcMode()!=='fast') await yieldToBrowser();
+    if(highPrecisionMode) await yieldToBrowser();
   }
 
   onProgress?.('計算中 100%');
