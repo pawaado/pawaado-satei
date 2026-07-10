@@ -116,6 +116,7 @@ function conflictBitsFor(bits){
   return mask;
 }
 const TARGET_DEBUG_NAME='物理攻撃○';
+const ENABLE_INTERNAL_DIAGNOSTICS=false;
 const TARGET_DEBUG={
   reset(){
     this.index=-1;
@@ -1011,8 +1012,8 @@ function yieldToBrowser(){
 }
 function prune(states,limit=12000){
   const mode=currentCalcMode();
-  const targetBefore=countTargetStates(states);
-  const routeBefore=targetRouteProfile(states);
+  const targetBefore=ENABLE_INTERNAL_DIAGNOSTICS?countTargetStates(states):0;
+  const routeBefore=ENABLE_INTERNAL_DIAGNOSTICS?targetRouteProfile(states):null;
   const arr=[...states.values()]
     .map(st=>{st.totalCost=costSum(st.cost); return st;})
     .sort((a,b)=>{
@@ -1049,15 +1050,17 @@ function prune(states,limit=12000){
       delete st.totalCost;
       m.set(stateKey(st),st);
     });
-    TARGET_DEBUG.pruneEvents.push({
-      mode,
-      before:states.size,
-      after:m.size,
-      targetBefore,
-      targetAfter:countTargetStates(m),
-      routeBefore,
-      routeAfter:targetRouteProfile(m)
-    });
+    if(ENABLE_INTERNAL_DIAGNOSTICS){
+      TARGET_DEBUG.pruneEvents.push({
+        mode,
+        before:states.size,
+        after:m.size,
+        targetBefore,
+        targetAfter:countTargetStates(m),
+        routeBefore,
+        routeAfter:targetRouteProfile(m)
+      });
+    }
     return m;
   }
 
@@ -1188,15 +1191,17 @@ function prune(states,limit=12000){
     delete st.totalCost;
     m.set(stateKey(st),st);
   });
-  TARGET_DEBUG.pruneEvents.push({
-    mode,
-    before:states.size,
-    after:m.size,
-    targetBefore,
-    targetAfter:countTargetStates(m),
-    routeBefore,
-    routeAfter:targetRouteProfile(m)
-  });
+  if(ENABLE_INTERNAL_DIAGNOSTICS){
+    TARGET_DEBUG.pruneEvents.push({
+      mode,
+      before:states.size,
+      after:m.size,
+      targetBefore,
+      targetAfter:countTargetStates(m),
+      routeBefore,
+      routeAfter:targetRouteProfile(m)
+    });
+  }
   return m;
 }
 const rangeRowCache=new WeakMap();
@@ -1365,7 +1370,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
 
   const score=skillScore(s,hp);
   if(score<=0){
-    if(String(s[1])===TARGET_DEBUG_NAME){
+    if(ENABLE_INTERNAL_DIAGNOSTICS && String(s[1])===TARGET_DEBUG_NAME){
       TARGET_DEBUG.index=i;
       TARGET_DEBUG.hint=specialHint(i);
       TARGET_DEBUG.owned=specialOwned(i);
@@ -1381,7 +1386,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
   const rawCosts=[s[3],s[4],s[5],s[6],s[7]].map(c=>Number(c||0));
   const costs=rawCosts.map(c=>costAfter(c,hint,false));
 
-  if(String(s[1])===TARGET_DEBUG_NAME){
+  if(ENABLE_INTERNAL_DIAGNOSTICS && String(s[1])===TARGET_DEBUG_NAME){
     TARGET_DEBUG.index=i;
     TARGET_DEBUG.hint=hint;
     TARGET_DEBUG.owned=specialOwned(i);
@@ -1446,7 +1451,7 @@ function specialChoiceGroups(hp){
     if(isUpperSpecial(i)) return;
     const it=itemForSpecialIndex(i,hp,false); if(it) groups.push({kind:'single',opts:[it]});
   });
-  groups.forEach((g,gi)=>{
+  if(ENABLE_INTERNAL_DIAGNOSTICS) groups.forEach((g,gi)=>{
     if(g.opts.some(op=>op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME))){
       TARGET_DEBUG.grouped=true;
       TARGET_DEBUG.groupIndex=gi;
@@ -1454,6 +1459,14 @@ function specialChoiceGroups(hp){
     }
   });
   return groups;
+}
+function specialOptionIsHpDependent(op){
+  return !!op?.items?.some(it=>
+    it?.type==='special' && Number(D.special[Number(it.idx)]?.[11]||0)!==0
+  );
+}
+function specialGroupIsHpDependent(g){
+  return !!g?.opts?.length && g.opts.every(specialOptionIsHpDependent);
 }
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
@@ -1468,15 +1481,20 @@ function specialChoiceGroupsCached(hp){
         const bits=op.bits ?? specialItemsBits(op.items);
         return {...op,bits,conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
       }).sort((a,b)=>{
+        const ah=specialOptionIsHpDependent(a)?1:0;
+        const bh=specialOptionIsHpDependent(b)?1:0;
+        if(ah!==bh) return ah-bh;
         if(b.eff!==a.eff) return b.eff-a.eff;
         return b.score-a.score;
       });
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
-      return {...g,opts,maxScore,bestEfficiency};
+      const hpDependent=specialGroupIsHpDependent({opts});
+      return {...g,opts,maxScore,bestEfficiency,hpDependent};
     })
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>{
+      if(!!a.hpDependent!==!!b.hpDependent) return a.hpDependent?1:-1;
       if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
       return b.maxScore-a.maxScore;
     });
@@ -1503,10 +1521,12 @@ function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
         0
       );
 
-      return {...g,opts,maxScore,bestEfficiency};
+      const hpDependent=specialGroupIsHpDependent({opts});
+      return {...g,opts,maxScore,bestEfficiency,hpDependent};
     })
     .filter(Boolean)
     .sort((a,b)=>{
+      if(!!a.hpDependent!==!!b.hpDependent) return a.hpDependent?1:-1;
       if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
       return b.maxScore-a.maxScore;
     });
@@ -1757,14 +1777,17 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   const debug=progress?.debug||null;
   const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
-  const yieldEvery=mode==='fast' ? 2500 : 600;
+  const yieldEvery=mode==='fast' ? 4000 : 1400;
 
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
     const group=groups[gi];
 
-    const beforeTargetNoMagic=[...states.values()].filter(isTargetNoMagicState);
+    const beforeTargetNoMagic=ENABLE_INTERNAL_DIAGNOSTICS
+      ? [...states.values()].filter(isTargetNoMagicState)
+      : EMPTY_ITEMS;
     const diagnoseMutual=
+      ENABLE_INTERNAL_DIAGNOSTICS &&
       group.kind==='mutual' &&
       beforeTargetNoMagic.length>0 &&
       !TARGET_DEBUG.mutualTransition;
@@ -1826,7 +1849,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         if((candidateInc&127)===0){
           throwIfCancelled();
         }
-        const isTargetOp=op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME);
+        const isTargetOp=ENABLE_INTERNAL_DIAGNOSTICS && op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME);
         if(isTargetOp) TARGET_DEBUG.considered++;
         const opBits=op.bits;
         if((stBits & opBits)!==EMPTY_BITS){
@@ -1891,6 +1914,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         );
 
         if(
+          ENABLE_INTERNAL_DIAGNOSTICS &&
           addedMagicForDecision &&
           stateHasTarget(st) &&
           !TARGET_DEBUG.magicDecisionSnapshot
@@ -1929,7 +1953,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           });
         }
 
-        if(!TARGET_DEBUG.magicAcquisitionTrace){
+        if(ENABLE_INTERNAL_DIAGNOSTICS && !TARGET_DEBUG.magicAcquisitionTrace){
           const addedMagic=op.items.find(it=>
             it?.type==='basic' &&
             String(it.name||'')==='魔力' &&
@@ -2078,6 +2102,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }
 
     if(
+      ENABLE_INTERNAL_DIAGNOSTICS &&
       TARGET_DEBUG.magicDecisionSnapshot &&
       TARGET_DEBUG.magicDecisionSnapshot.gi===gi
     ){
@@ -2124,21 +2149,23 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(st.score>bestScore) bestScore=st.score;
     }
 
-    TARGET_DEBUG.groupSnapshots.push({
-      gi,
-      groupKind:group.kind||'',
-      stateCount:states.size,
-      targetCount:countTargetStates(states),
-      bestScore
-    });
+    if(ENABLE_INTERNAL_DIAGNOSTICS){
+      TARGET_DEBUG.groupSnapshots.push({
+        gi,
+        groupKind:group.kind||'',
+        stateCount:states.size,
+        targetCount:countTargetStates(states),
+        bestScore
+      });
 
-    const routeProfile=targetRouteProfile(states);
-    TARGET_DEBUG.routeGroupSnapshots.push({
-      gi,
-      groupKind:group.kind||'',
-      stateCount:states.size,
-      profile:routeProfile
-    });
+      const routeProfile=targetRouteProfile(states);
+      TARGET_DEBUG.routeGroupSnapshots.push({
+        gi,
+        groupKind:group.kind||'',
+        stateCount:states.size,
+        profile:routeProfile
+      });
+    }
 
     if(debug){
       debug.candidate+=candidateInc;
@@ -2501,22 +2528,28 @@ async function calc(){
   TARGET_DEBUG.reset();
   pReset();
   validateAllInline();
+
   const result=document.getElementById('result');
   const errs=validateInputs();
-  if(errs.length){result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`; return;}
+  if(errs.length){
+    result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`;
+    return;
+  }
+
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
   const startTime=performance.now();
   const btn=document.getElementById('calcBtn');
   const cancelBtn=ensureCancelButton();
   const cacheKey=calcCacheKey(exp);
-  let lastProgressMessage='';
-  let lastDetailedProgress='';
+
   cancelRequested=false;
   isCalculating=true;
+  activeTargetConstraint='normal';
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{
     if(el.id!=='calcBtn' && el.id!=='cancelCalcBtn') el.disabled=true;
   });
+
   btn.disabled=true;
   btn.textContent='計算中';
   cancelBtn.disabled=false;
@@ -2531,448 +2564,55 @@ async function calc(){
   cancelBtn.style.setProperty('box-shadow','0 3px 0 rgba(16,24,40,.22)','important');
   cancelBtn.style.setProperty('filter','none','important');
 
-  let cancelParent=cancelBtn.parentElement;
-  while(cancelParent && cancelParent!==document.body){
-    cancelParent.style.setProperty('pointer-events','auto','important');
-    cancelParent=cancelParent.parentElement;
-  }
-
   result.innerHTML='<p class="calculating">計算中</p>';
+
   try{
-    // 最終完全性検証：物理攻撃○必須探索を3条件で独立実行する。
-    // A: 現行、B: Upper Bound無効、C: Upper Bound無効＋保持上限を大幅拡大。
-    async function runRequiredVerification(constraint,label){
-      activeTargetConstraint=constraint;
-      clearCalcCaches();
-      TARGET_DEBUG.reset();
-      const raw=await optimizeAsync(exp,(msg)=>{
-        const shown=`${label}：${msg}`;
-        btn.textContent=shown;
-        result.innerHTML=`<p class="calculating">${shown}</p>`;
-      },constraint);
-      return (raw && stateHasTarget(raw)) ? cloneResult(raw) : null;
+    let finalCandidate=getCachedResult(cacheKey);
+
+    if(finalCandidate){
+      btn.textContent='計算中 100%';
+    }else{
+      finalCandidate=await optimizeAsync(exp,(msg)=>{
+        btn.textContent=msg;
+        result.innerHTML=`<p class="calculating">${msg}</p>`;
+      },'normal');
+      setCachedResult(cacheKey,finalCandidate);
     }
 
-    const independentRequired=await runRequiredVerification('required','○必須A（現行）');
-    const independentRequiredNoUB=await runRequiredVerification('requiredNoUB','○必須B（UB無効）');
-    const independentRequiredFull=await runRequiredVerification('requiredFull','○必須C（UB無効・保持大幅拡大）');
-
-    // 通常探索を最後に実行し、画面表示・チェーン診断は通常結果の情報だけで作る。
-    activeTargetConstraint='normal';
-    clearCalcCaches();
-    TARGET_DEBUG.reset();
-    let best=await optimizeAsync(exp,(msg)=>{
-      lastProgressMessage=msg;
-      if(msg.includes('候補:') || msg.includes('UB:') || msg.includes('prune:')){
-        lastDetailedProgress=msg;
-      }
-      const shown=`通常計算：${msg}`;
-      btn.textContent=shown;
-      result.innerHTML=`<p class="calculating">${shown}</p>`;
-    },'normal');
-
-    // 通常最適解が○なしなら、それ自体が「○禁止探索」の厳密な最高値になる。
-    // 理由：○禁止集合は通常探索の部分集合で、通常最高解がその部分集合に含まれるため。
-    const independentForbidden=(!stateHasTarget(best)) ? cloneResult(best) : null;
-    // 最終表示・診断・キャッシュ保存で参照する候補をここで固定する。
-    // 以降の通常結果表示では、○あり／なし比較用候補を直接参照しない。
-    const finalCandidate=best;
-
-    pStart("結果復元");
     const finalItems=restoreItems(finalCandidate);
-    pEnd("結果復元");
-
-    const finalTrace=TARGET_DEBUG.finalCandidateTrace||{};
-    const selectedRawNow=inspectStateChain(finalCandidate);
-    const withState=TARGET_DEBUG._bestWithState;
-    const withRawNow=inspectStateChain(withState);
-    const withRestoredNow=withState ? restoreItems(withState) : [];
-
-    finalTrace.selectedRestoredItems=finalItems.slice();
-    finalTrace.selectedRawItemsAfter=selectedRawNow.items;
-    finalTrace.selectedRestoredHasTarget=diagnosisHasTarget(finalItems);
-    finalTrace.selectedRestoredHasMagic=diagnosisHasMagicRaise(finalItems);
-    finalTrace.selectedRawRestoredSame=
-      JSON.stringify(itemNamesForDiagnosis(selectedRawNow.items))===
-      JSON.stringify(itemNamesForDiagnosis(finalItems));
-
-    finalTrace.withRawItemsAfter=withRawNow.items;
-    finalTrace.withRestoredItems=withRestoredNow.slice();
-    finalTrace.withRestoredHasTarget=diagnosisHasTarget(withRestoredNow);
-    finalTrace.withRestoredHasMagic=diagnosisHasMagicRaise(withRestoredNow);
-    finalTrace.withRawRestoredSame=
-      JSON.stringify(itemNamesForDiagnosis(withRawNow.items))===
-      JSON.stringify(itemNamesForDiagnosis(withRestoredNow));
-
-    TARGET_DEBUG.finalCandidateTrace=finalTrace;
-
-    finalCandidate.items=finalItems;
-    TARGET_DEBUG.selected=finalItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
-    TARGET_DEBUG.branchCandidateDiagnostics=buildBranchCandidateDiagnostics(finalCandidate,exp,5,8);
-    setCachedResult(cacheKey,finalCandidate);
-
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
+
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-    const rawCostText=TARGET_DEBUG.rawCost?TARGET_DEBUG.rawCost.join(','):'未生成';
-    const discountedCostText=TARGET_DEBUG.discountedCost?TARGET_DEBUG.discountedCost.join(','):'未生成';
-    const targetNotes=[...new Set(TARGET_DEBUG.notes)].slice(0,8).join(' / ')||'なし';
-    const snapshotText=TARGET_DEBUG.groupSnapshots
-      .map(x=>`G${x.gi}:${x.targetCount}/${x.stateCount}`)
-      .join(' → ')||'なし';
-    const pruneText=TARGET_DEBUG.pruneEvents
-      .map((x,i)=>`P${i+1}:${x.targetBefore}→${x.targetAfter} / 全体${x.before}→${x.after}`)
-      .join(' | ')||'なし';
-
-    const routeRows=TARGET_DEBUG.routeGroupSnapshots||[];
-    const routeKeys=[
-      ['target','物理攻撃○付き'],
-      ['targetNoMagic','魔力なし'],
-      ['targetNoMagicDex60','魔力なし＋器用60'],
-      ['targetNoMagicLife52','魔力なし＋生命52'],
-      ['targetNoMagicDexOrLife','有力ルート']
-    ];
-
-    function routeLifeSummary(key,label){
-      const first=routeRows.find(x=>Number(x.profile?.[key]||0)>0);
-      if(!first) return `${label}：一度も生成されず`;
-
-      let firstZeroAfter=null;
-      let lastPositive=first;
-      let peakCount=0;
-      let bestScore=null;
-
-      for(const x of routeRows){
-        const count=Number(x.profile?.[key]||0);
-        if(count>0){
-          lastPositive=x;
-          peakCount=Math.max(peakCount,count);
-          const scoreKey=key==='target'
-            ? 'bestTarget'
-            : key==='targetNoMagic'
-              ? 'bestNoMagic'
-              : 'bestNoMagicDexOrLife';
-          const score=x.profile?.[scoreKey];
-          if(score!=null && (bestScore==null || score>bestScore)) bestScore=score;
-        }else if(x.gi>first.gi && lastPositive && x.gi>lastPositive.gi && !firstZeroAfter){
-          firstZeroAfter=x;
-        }
-      }
-
-      const generated=`初生成 G${first.gi}(${first.groupKind||'-'})`;
-      const survived=firstZeroAfter
-        ? `初消滅 G${firstZeroAfter.gi}(${firstZeroAfter.groupKind||'-'})`
-        : `最終G${lastPositive.gi}まで生存`;
-      const best=bestScore==null?'なし':Number(bestScore).toFixed(2).replace(/\.00$/,'');
-      return `${label}：${generated} / ${survived} / 最大件数${peakCount} / 最高score ${best}`;
-    }
-
-    const routeGroupSummaryText=routeKeys
-      .map(([key,label])=>routeLifeSummary(key,label))
-      .join('<br>');
-
-    const pruneDisappearances=[];
-    TARGET_DEBUG.pruneEvents.forEach((x,i)=>{
-      const b=x.routeBefore;
-      const a=x.routeAfter;
-      if(!b || !a) return;
-
-      const lost=[];
-      if(b.target>0 && a.target===0) lost.push('物理攻撃○付き');
-      if(b.targetNoMagic>0 && a.targetNoMagic===0) lost.push('魔力なし');
-      if(b.targetNoMagicDex60>0 && a.targetNoMagicDex60===0) lost.push('魔力なし＋器用60');
-      if(b.targetNoMagicLife52>0 && a.targetNoMagicLife52===0) lost.push('魔力なし＋生命52');
-      if(b.targetNoMagicDexOrLife>0 && a.targetNoMagicDexOrLife===0) lost.push('有力ルート');
-
-      if(lost.length){
-        pruneDisappearances.push(
-          `P${i+1}（全体${x.before}→${x.after}）：${lost.join('・')}が消滅`
-        );
-      }
-    });
-
-    const routePruneSummaryText=pruneDisappearances.length
-      ? pruneDisappearances.join('<br>')
-      : '枝刈り直後に0件となった追跡ルートはなし';
-
-    const firstUseful=routeRows.find(x=>Number(x.profile?.targetNoMagicDexOrLife||0)>0);
-    const lastUseful=[...routeRows].reverse().find(x=>Number(x.profile?.targetNoMagicDexOrLife||0)>0);
-    const firstUsefulZero=firstUseful
-      ? routeRows.find(x=>x.gi>firstUseful.gi && Number(x.profile?.targetNoMagicDexOrLife||0)===0)
-      : null;
-
-    const routeCauseText=(()=>{
-      if(!firstUseful) return '有力ルート自体が生成されていないため、候補生成条件または状態統合を優先確認';
-      if(pruneDisappearances.some(s=>s.includes('有力ルート'))) return '有力ルートが枝刈りで消滅。prune順位・上限6200・状態評価を優先確認';
-      if(firstUsefulZero) return `有力ルートはG${firstUsefulZero.gi}のグループ処理後に消滅。競合・重複・状態統合を優先確認`;
-      return `有力ルートは最終G${lastUseful?.gi ?? firstUseful.gi}まで残存。最終比較または候補score算定を優先確認`;
-    })();
-
-    const lastUsefulScore=lastUseful?.profile?.bestNoMagicDexOrLife;
-    const routeFinalText=lastUseful
-      ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
-      : '最終到達なし';
-
-    const decision=TARGET_DEBUG.magicDecisionSnapshot;
-    const decisionBest=decision?.rows?.slice().sort((a,b)=>b.newScore-a.newScore)[0]||null;
-    const selectedDecision=decision?.rows?.find(r=>r.selected)||null;
-
-    const decisionDiagnosis=(()=>{
-      if(!decision) return '最終採用チェーンから比較対象を取得できず';
-      if(!selectedDecision) return '最終採用ノードの特定に失敗';
-      const nodeText=decision.chainNodeIndex==null?'対象ノード':`N${decision.chainNodeIndex}`;
-      return `${nodeText}で「${selectedDecision.label}」を採用。表示内容は最終採用チェーンと同一`;
-    })();
-
-    const decisionDiagnosisHtml=`<div class="result-block">
-      <h3>N6候補比較</h3>
-      <table class="result-table">
-        <tbody>
-          <tr><td>親状態</td><td colspan="6">score ${decision?decision.parentScore.toFixed(2):'なし'} / cost ${decision?decision.parentCost.join(','):'なし'} / ${decision?decision.parentItems.slice(0,8).join(' / '):'なし'}</td></tr>
-          <tr><td>判定</td><td colspan="6">${decisionDiagnosis}</td></tr>
-        </tbody>
-        <thead>
-          <tr><th>#</th><th>候補</th><th>score</th><th>増加</th><th>cost</th><th>効率</th><th>結果</th></tr>
-        </thead>
-        <tbody>
-          ${compactCandidateRows(decision?.rows||[])}
-        </tbody>
-      </table>
-    </div>`;
-
-    const trace=TARGET_DEBUG.finalCandidateTrace||{};
-    const selectedChainText=compactChainText(trace.selectedChain);
-    const displayedChainNodes=meaningfulChainNodes(trace.selectedChain);
-    const magicNodeIndex=displayedChainNodes.findIndex(node=>
-      node.choice.some(name=>String(name).startsWith('魔力 '))
-    );
-
-    const chainDiagnosis=(()=>{
-      if(trace.selectedCycle) return '最終採用チェーンに循環あり';
-      if(magicNodeIndex>=0){
-        const node=displayedChainNodes[magicNodeIndex];
-        return `最終採用候補では魔力をN${magicNodeIndex}で追加（${node.choice.join('・')}）`;
-      }
-      return '最終採用候補に魔力上昇なし';
-    })();
-
-    const magicDiagnosisHtml=`<div class="result-block">
-      <h3>最終候補チェーン</h3>
-      <table class="result-table"><tbody>
-        <tr><td>判定</td><td>${chainDiagnosis}</td></tr>
-        <tr><td>最終採用チェーン</td><td>${selectedChainText}</td></tr>
-      </tbody></table>
-    </div>`;
-
-    const f=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
-    const c=v=>Array.isArray(v)?v.join(','):'なし';
-
-    const finalDiagnosis=(()=>{
-      if(trace.selectedCycle){
-        return '最終採用候補のprevチェーンに循環あり';
-      }
-      if(trace.selectedRawRestoredSame===false){
-        return '最終採用候補の生チェーンと復元結果が不一致';
-      }
-      if(trace.selectedRestoredHasTarget!==trace.selectedRawHasTarget){
-        return '最終採用候補で物理攻撃○の有無が復元前後で不一致';
-      }
-      if(trace.selectedRestoredHasMagic!==trace.selectedRawHasMagic){
-        return '最終採用候補で魔力上昇の有無が復元前後で不一致';
-      }
-      return '最終採用候補・チェーン表示・復元結果は一致';
-    })();
-
-    const compactDiagnosisHtml=`<div class="result-block">
-      <h3>最終候補診断</h3>
-      <table class="result-table"><tbody>
-        <tr><td>最終採用</td><td>${trace.selectedIsWith?'物理攻撃○側':trace.selectedIsWithout?'物理攻撃○なし側':'別候補'} / score ${f(trace.selectedScore)} / cost ${c(trace.selectedCost)}</td></tr>
-        <tr><td>○側候補</td><td>score ${f(trace.withScore)} / cost ${c(trace.withCost)}</td></tr>
-        <tr><td>選択時の最終候補</td><td>物理攻撃○:${trace.selectedRawHasTarget?'あり':'なし'} / 魔力上昇:${trace.selectedRawHasMagic?'あり':'なし'} / itemsキャッシュ:${trace.selectedCachedBefore?'あり':'なし'}</td></tr>
-        <tr><td>復元後の最終候補</td><td>物理攻撃○:${trace.selectedRestoredHasTarget?'あり':'なし'} / 魔力上昇:${trace.selectedRestoredHasMagic?'あり':'なし'} / 生チェーンと一致:${trace.selectedRawRestoredSame?'はい':'いいえ'}</td></tr>
-        <tr><td>最終候補の能力</td><td>${shortDiagnosisItems(trace.selectedRestoredItems||trace.selectedRawItems)}</td></tr>
-        <tr><td>チェーン</td><td>ノード${trace.selectedNodes??'なし'} / 選択項目${trace.selectedChoices??'なし'} / 循環:${trace.selectedCycle?'あり':'なし'}</td></tr>
-        <tr><td>判定</td><td>${finalDiagnosis}</td></tr>
-      </tbody></table>
-    </div>`;
-
-    const requiredState=independentRequired;
-    const requiredNoUBState=independentRequiredNoUB;
-    const requiredFullState=independentRequiredFull;
-    const forbiddenState=independentForbidden;
-
-    function sameCandidateResult(a,b){
-      if(!a||!b) return false;
-      return Number(a.score)===Number(b.score) &&
-        JSON.stringify(a.cost||[])===JSON.stringify(b.cost||[]) &&
-        JSON.stringify(itemNamesForDiagnosis(restoreItems(a)))===JSON.stringify(itemNamesForDiagnosis(restoreItems(b)));
-    }
-    const requiredStable=
-      sameCandidateResult(requiredState,requiredNoUBState) &&
-      sameCandidateResult(requiredState,requiredFullState);
-    const bestWith=requiredState ? {
-      score:requiredState.score,
-      itemLen:itemLenOf(requiredState),
-      cost:(requiredState.cost||[]).slice()
-    } : null;
-    const bestWithout=forbiddenState ? {
-      score:forbiddenState.score,
-      itemLen:itemLenOf(forbiddenState),
-      cost:(forbiddenState.cost||[]).slice()
-    } : null;
-    const fmtScore=v=>Number.isFinite(Number(v))
-      ? Number(v).toFixed(2).replace(/\.00$/,'')
-      : 'なし';
-    const withScoreText=bestWith ? fmtScore(bestWith.score) : 'なし';
-    const withoutScoreText=bestWithout ? fmtScore(bestWithout.score) : 'なし';
-    const scoreDiff=(bestWith&&bestWithout) ? (bestWith.score-bestWithout.score) : null;
-    const scoreDiffText=scoreDiff==null ? '比較不可' : fmtScore(scoreDiff);
-
-    const independentDiff=compareDebugItems(requiredState,forbiddenState);
-    const withOnlyText=independentDiff.withOnly.length
-      ? independentDiff.withOnly.join(' / ')
-      : 'なし';
-    const withoutOnlyText=independentDiff.withoutOnly.length
-      ? independentDiff.withoutOnly.join(' / ')
-      : 'なし';
-    const withCostText=requiredState?.cost ? requiredState.cost.join(',') : 'なし';
-    const noUBScoreText=requiredNoUBState ? fmtScore(requiredNoUBState.score) : 'なし';
-    const noUBCostText=requiredNoUBState?.cost ? requiredNoUBState.cost.join(',') : 'なし';
-    const fullScoreText=requiredFullState ? fmtScore(requiredFullState.score) : 'なし';
-    const fullCostText=requiredFullState?.cost ? requiredFullState.cost.join(',') : 'なし';
-    const withoutCostText=forbiddenState?.cost ? forbiddenState.cost.join(',') : 'なし';
-
-    const finalDisplayLabels=itemNamesForDiagnosis(finalItems);
-    const traceDisplayLabels=itemNamesForDiagnosis(
-      trace.selectedRestoredItems||trace.selectedRawItems||[]
-    );
-    const finalDisplayMatchesTrace=
-      JSON.stringify(finalDisplayLabels)===JSON.stringify(traceDisplayLabels);
-
-    const constrainedExpected=(()=>{
-      if(requiredState && forbiddenState) return better(requiredState,forbiddenState)?requiredState:forbiddenState;
-      return requiredState||forbiddenState||null;
-    })();
-    const constrainedMatchesNormal=!!constrainedExpected &&
-      Number(constrainedExpected.score)===Number(finalCandidate.score) &&
-      stateHasTarget(constrainedExpected)===stateHasTarget(finalCandidate) &&
-      JSON.stringify(constrainedExpected.cost||[])===JSON.stringify(finalCandidate.cost||[]);
-
-    const targetCompareDiagnosis=(()=>{
-      if(!bestWith || !requiredNoUBState || !requiredFullState) return '○必須の最終完全性検証で候補を取得できない条件あり';
-      if(!requiredStable) return 'Upper Bound無効化または保持上限拡大で結果が変化。枝刈りの影響あり';
-      if(!bestWithout) return '○必須3条件は一致。通常結果が○ありのため○禁止値は今回未算出';
-      if(!constrainedMatchesNormal){
-        return '○必須3条件は一致したが、通常結果と制約比較が不一致。状態統合を要確認';
-      }
-      if(bestWith.score>bestWithout.score) return 'UB無効・保持大幅拡大でも同一結果。○あり側が高査定';
-      if(bestWith.score<bestWithout.score) return 'UB無効・保持大幅拡大でも同一結果。今回条件では○禁止側が高査定';
-      return 'UB無効・保持大幅拡大でも同一結果。○あり／なしは同査定';
-    })();
-
-
-    const branchCandidateHtml=(TARGET_DEBUG.branchCandidateDiagnostics||[]).map(d=>`<div class="result-block">
-      <h3>N${d.nodeIndex} 分岐候補診断</h3>
-      <table class="result-table">
-        <tbody>
-          <tr><td>親状態</td><td colspan="7">score ${fmtScore(d.parentScore)} / cost ${d.parentCost.join(',')}</td></tr>
-          <tr><td>採用</td><td colspan="7">${d.selectedLabel}</td></tr>
-          <tr><td>グループ</td><td colspan="7">G${d.groupIndex==null?'なし':d.groupIndex} / ${d.groupKind||'-'}${d.note?` / ${d.note}`:''}</td></tr>
-        </tbody>
-        <thead><tr><th>#</th><th>候補</th><th>score</th><th>増加</th><th>cost</th><th>効率</th><th>結果</th><th>理由</th></tr></thead>
-        <tbody>${compactBranchCandidateRows(d.rows)}</tbody>
-      </table>
-    </div>`).join('');
-
-    const targetCompareHtml=`<div class="result-block">
-      <h3>物理攻撃○ 独立制約探索</h3>
-      <table class="result-table"><tbody>
-        <tr><td>検証方式</td><td>○必須を「現行」「Upper Bound無効」「Upper Bound無効＋保持上限大幅拡大」の3条件で独立探索</td></tr>
-        <tr><td>通常結果</td><td>${stateHasTarget(finalCandidate)?'○あり':'○なし'} / score ${fmtScore(finalCandidate.score)} / cost ${finalCandidate.cost.join(',')}</td></tr>
-        <tr><td>○必須A・現行</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
-        <tr><td>○必須B・UB無効</td><td>score ${noUBScoreText} / cost ${noUBCostText}</td></tr>
-        <tr><td>○必須C・UB無効＋保持拡大</td><td>score ${fullScoreText} / cost ${fullCostText}</td></tr>
-        <tr><td>○必須結果の完全性</td><td>${requiredStable?'3条件で完全一致':'不一致'}</td></tr>
-        <tr><td>○禁止の最高</td><td>score ${withoutScoreText} / cost ${withoutCostText}</td></tr>
-        <tr><td>査定差（あり−なし）</td><td>${scoreDiffText}</td></tr>
-        <tr><td>○あり側だけ</td><td>${withOnlyText}</td></tr>
-        <tr><td>○なし側だけ</td><td>${withoutOnlyText}</td></tr>
-        <tr><td>通常結果との整合</td><td>${constrainedMatchesNormal?'一致':'不一致'}</td></tr>
-        <tr><td>判定</td><td>${targetCompareDiagnosis}</td></tr>
-      </tbody></table>
-    </div>`;
-
-    const displayReferenceHtml=`<div class="result-block">
-      <h3>最終表示参照チェック</h3>
-      <table class="result-table"><tbody>
-        <tr><td>表示元</td><td>finalCandidate / finalItems に統一</td></tr>
-        <tr><td>能力一覧と診断</td><td>${finalDisplayMatchesTrace?'一致':'不一致'}</td></tr>
-        <tr><td>能力数</td><td>${finalItems.length}</td></tr>
-      </tbody></table>
-    </div>`;
-
-    const finalDecisionReason=(()=>{
-      if(!bestWith && !bestWithout) return '最終候補なし';
-      if(bestWith && !bestWithout) return '物理攻撃○あり候補のみ';
-      if(!bestWith && bestWithout) return '物理攻撃○なし候補のみ';
-      if(bestWith.score>bestWithout.score) return '物理攻撃○ありのscoreが高い';
-      if(bestWith.score<bestWithout.score) return '物理攻撃○なしのscoreが高い';
-      if(bestWith.itemLen<bestWithout.itemLen) return '同scoreで、物理攻撃○ありのitem数が少ない';
-      if(bestWith.itemLen>bestWithout.itemLen) return '同scoreで、物理攻撃○なしのitem数が少ない';
-      return 'score・item数とも同じ（Map順で決定）';
-    })();
 
     result.innerHTML=`
 <div class="result-block">
   <h3>基本能力</h3>
   ${resultTable(finalItems,'basic')}
 </div>
-
 <div class="result-block">
   <h3>特殊能力</h3>
   ${resultTable(finalItems,'special')}
 </div>
 ${remainHtml}
-
-${decisionDiagnosisHtml}
-
-${magicDiagnosisHtml}
-
-${compactDiagnosisHtml}
-
-${targetCompareHtml}
-
-${branchCandidateHtml}
-
-${displayReferenceHtml}
-
 <div class="result-block">
   <h3>計算時間</h3>
   <p>${elapsed} 秒</p>
-</div>
-`;
+</div>`;
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
-      result.innerHTML=`<div class="result-block">
-        <p>計算をキャンセルしました。</p>
-        <p>条件を変更して、もう一度「計算する」を押してください。</p>
-      </div>`;
+      result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
     }else{
       const name=err?.name||'Error';
       const message=err?.message||'原因不明のエラーです';
-
-      result.innerHTML=`<div class="error-box">
-        <p>⚠️ 計算中にエラーが発生しました。</p>
-        <p>${name}</p>
-        <p>${message}</p>
-      </div>`;
-
+      result.innerHTML=`<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p><p>${name}</p><p>${message}</p></div>`;
       console.error(err);
     }
   }finally{
     isCalculating=false;
+    activeTargetConstraint='normal';
     document.body.classList.remove('is-calculating');
-    document.querySelectorAll('button,input,select').forEach(el=>{ el.disabled=false; });
+    document.querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;});
     job.disabled=!academy.value;
     basicNames.forEach(n=>applyBasicVisual(n));
     D.special.forEach((_,i)=>applySkillVisual(i));
@@ -2984,6 +2624,7 @@ ${displayReferenceHtml}
     cancelRequested=false;
   }
 }
+
 function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
