@@ -747,7 +747,7 @@ function progressMessage(progress){
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
   const d=progress.debug;
   if(d){
-    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0}`;
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} Early:${d.earlyCut||0} prune:${d.prune||0}`;
   }
   return `計算中 ${pct}%`;
 }
@@ -902,6 +902,76 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     const next=new Map(states);
     let iter=0;
 
+    // 状態生成時の安全なEarly Prune。
+    // 同じ life + bit の中で、既存状態が査定・5種コストの全てで優位な場合だけ除外する。
+    const EARLY_BUCKET_SIZE=60;
+    const earlyBuckets=new Map();
+
+    function earlyScopeKey(life,bits){
+      return (life==null?'':Number(life).toString(36))+'|'+bitsKey(bits ?? EMPTY_BITS);
+    }
+
+    function earlyBucketKey(cost,scope){
+      return Math.floor(cost[0]/EARLY_BUCKET_SIZE)+','+
+        Math.floor(cost[1]/EARLY_BUCKET_SIZE)+','+
+        Math.floor(cost[2]/EARLY_BUCKET_SIZE)+','+
+        Math.floor(cost[3]/EARLY_BUCKET_SIZE)+','+
+        Math.floor(cost[4]/EARLY_BUCKET_SIZE)+'|'+scope;
+    }
+
+    function earlyNearbyKeys(cost,scope){
+      const base=[
+        Math.floor(cost[0]/EARLY_BUCKET_SIZE),
+        Math.floor(cost[1]/EARLY_BUCKET_SIZE),
+        Math.floor(cost[2]/EARLY_BUCKET_SIZE),
+        Math.floor(cost[3]/EARLY_BUCKET_SIZE),
+        Math.floor(cost[4]/EARLY_BUCKET_SIZE)
+      ];
+      const keys=[];
+      for(let mask=0;mask<32;mask++){
+        const b0=base[0]-((mask&1)?1:0);
+        const b1=base[1]-((mask&2)?1:0);
+        const b2=base[2]-((mask&4)?1:0);
+        const b3=base[3]-((mask&8)?1:0);
+        const b4=base[4]-((mask&16)?1:0);
+        if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
+        keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+scope);
+      }
+      return keys;
+    }
+
+    function addEarlyState(st){
+      const scope=earlyScopeKey(st.life,st.bits ?? EMPTY_BITS);
+      const bk=earlyBucketKey(st.cost,scope);
+      let list=earlyBuckets.get(bk);
+      if(!list){list=[]; earlyBuckets.set(bk,list);}
+      list.push({
+        cost:st.cost,
+        score:st.score,
+        totalCost:costSum(st.cost)
+      });
+    }
+
+    function dominatedEarly(cost,score,life,bits){
+      const scope=earlyScopeKey(life,bits);
+      const total=costSum(cost);
+      const keys=earlyNearbyKeys(cost,scope);
+
+      for(const bk of keys){
+        const list=earlyBuckets.get(bk);
+        if(!list) continue;
+
+        for(const k of list){
+          if(k.score<score) continue;
+          if(k.totalCost>total) continue;
+          if(leq(k.cost,cost)) return true;
+        }
+      }
+      return false;
+    }
+
+    for(const st of next.values()) addEarlyState(st);
+
     for(const st of snapshot){
       // この状態から残り全部を最高値で取っても届かないならスキップ。
       if(st.score+suffixMax[gi]<bestScore){
@@ -949,8 +1019,15 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           continue;
         }
 
+        if(dominatedEarly(nc,newScore,st.life,nextBits)){
+          if(progress?.debug) progress.debug.earlyCut++;
+          continue;
+        }
+
+        const newState=makeState(nc,newScore,st.life,st,op.items,newItemLen,opBits);
         if(progress?.debug) progress.debug.accept++;
-        next.set(k,makeState(nc,newScore,st.life,st,op.items,newItemLen,opBits));
+        next.set(k,newState);
+        addEarlyState(newState);
       }
 
       if(next.size>HARD_LIMIT){
@@ -1045,7 +1122,7 @@ async function optimizeAsync(exp,onProgress){
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
+  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,earlyCut:0,prune:0}};
   let best=null;
 
   for(const task of tasks){
