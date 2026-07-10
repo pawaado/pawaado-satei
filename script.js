@@ -1,4 +1,5 @@
-(function(){
+ (function(){
+// Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -588,10 +589,10 @@ function tableFor(name){
 }
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
-function key(c){
-  const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]);
-  return String(n);
+function key5(c0,c1,c2,c3,c4){
+  return String(((((c0*1001+c1)*1001+c2)*1001+c3)*1001+c4));
 }
+function key(c){return key5(c[0],c[1],c[2],c[3],c[4]);}
 function stateKey(st){
   if(st._stateKey!==undefined && st._stateKey!==null) return st._stateKey;
   const value=key(st.cost)+'|'+scopeKeyFor(st.life,st.bits??EMPTY_BITS);
@@ -1015,10 +1016,9 @@ function prune(states,limit=12000){
   const targetBefore=ENABLE_INTERNAL_DIAGNOSTICS?countTargetStates(states):0;
   const routeBefore=ENABLE_INTERNAL_DIAGNOSTICS?targetRouteProfile(states):null;
   const arr=[...states.values()]
-    .map(st=>{st.totalCost=costSum(st.cost); return st;})
     .sort((a,b)=>{
       if(b.score!==a.score) return b.score-a.score;
-      return a.totalCost-b.totalCost;
+      return a.usedCost-b.usedCost;
     });
 
   function sameScope(a,b){
@@ -1047,7 +1047,6 @@ function prune(states,limit=12000){
 
     const m=new Map();
     keep.forEach(st=>{
-      delete st.totalCost;
       m.set(stateKey(st),st);
     });
     if(ENABLE_INTERNAL_DIAGNOSTICS){
@@ -1069,7 +1068,7 @@ function prune(states,limit=12000){
   // 生命力が同じでも取得済み特殊能力が違う状態は、今後の選択肢が違うため別物として残す。
   const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
   const src=arr.slice(0,preLimit);
-  const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
+  const avgExp=src.length?src.reduce((sum,st)=>sum+st.usedCost,0)/src.length:0;
   const EXACT_CHECK_LIMIT=avgExp>1500?1200:900;
   const BUCKET_SIZE=avgExp>1500?70:45;
   const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
@@ -1087,29 +1086,6 @@ function prune(states,limit=12000){
       Math.floor(c[4]/BUCKET_SIZE)+'|'+pruneScopeKey(st);
   }
 
-  function nearbyBucketKeys(st){
-    const c=st.cost;
-    const base=[
-      Math.floor(c[0]/BUCKET_SIZE),
-      Math.floor(c[1]/BUCKET_SIZE),
-      Math.floor(c[2]/BUCKET_SIZE),
-      Math.floor(c[3]/BUCKET_SIZE),
-      Math.floor(c[4]/BUCKET_SIZE)
-    ];
-    const scope=pruneScopeKey(st);
-    const keys=[];
-    for(let mask=0;mask<32;mask++){
-      const b0=base[0]-((mask&1)?1:0);
-      const b1=base[1]-((mask&2)?1:0);
-      const b2=base[2]-((mask&4)?1:0);
-      const b3=base[3]-((mask&8)?1:0);
-      const b4=base[4]-((mask&16)?1:0);
-      if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
-      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+scope);
-    }
-    return keys;
-  }
-
   function dominatedBySkyline(st){
     const list=skylineByScope.get(pruneScopeKey(st));
     if(!list) return false;
@@ -1120,7 +1096,7 @@ function prune(states,limit=12000){
       // 支配には「査定以上」かつ「総コスト以下」が最低条件。
       // 満たさない候補では5項目のコスト比較を行わない。
       if(k.score<st.score) break;
-      if(k.totalCost>st.totalCost) continue;
+      if(k.usedCost>st.usedCost) continue;
 
       if(leq(k.cost,st.cost)){
         return true;
@@ -1143,19 +1119,28 @@ function prune(states,limit=12000){
   outer: for(const st of src){
     if(dominatedBySkyline(st)) continue;
 
-    const keys=nearbyBucketKeys(st);
-    for(const bk of keys){
-      const list=buckets.get(bk);
+    const c=st.cost;
+    const b0=Math.floor(c[0]/BUCKET_SIZE);
+    const b1=Math.floor(c[1]/BUCKET_SIZE);
+    const b2=Math.floor(c[2]/BUCKET_SIZE);
+    const b3=Math.floor(c[3]/BUCKET_SIZE);
+    const b4=Math.floor(c[4]/BUCKET_SIZE);
+    const scope=pruneScopeKey(st);
+
+    for(let mask=0;mask<32;mask++){
+      const n0=b0-((mask&1)?1:0);
+      const n1=b1-((mask&2)?1:0);
+      const n2=b2-((mask&4)?1:0);
+      const n3=b3-((mask&8)?1:0);
+      const n4=b4-((mask&16)?1:0);
+      if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
+
+      const list=buckets.get(n0+','+n1+','+n2+','+n3+','+n4+'|'+scope);
       if(!list) continue;
       for(const k of list){
-
-        // bucket内でも、支配の最低条件を満たさない候補は即スキップ。
         if(k.score<st.score) continue;
-        if(k.totalCost>st.totalCost) continue;
-
-          if(leq(k.cost,st.cost)){
-            continue outer;
-        }
+        if(k.usedCost>st.usedCost) continue;
+        if(leq(k.cost,st.cost)) continue outer;
       }
     }
 
@@ -1173,12 +1158,12 @@ function prune(states,limit=12000){
       let worst=list[0];
       for(let wi=1;wi<list.length;wi++){
         const cand=list[wi];
-        if(cand.score<worst.score || (cand.score===worst.score && cand.totalCost>worst.totalCost)){
+        if(cand.score<worst.score || (cand.score===worst.score && cand.usedCost>worst.usedCost)){
           worst=cand;
           worstIdx=wi;
         }
       }
-      if(st.score>worst.score || (st.score===worst.score && st.totalCost<worst.totalCost)){
+      if(st.score>worst.score || (st.score===worst.score && st.usedCost<worst.usedCost)){
         list[worstIdx]=st;
       }
     }
@@ -1188,7 +1173,6 @@ function prune(states,limit=12000){
 
   const m=new Map();
   keep.forEach(st=>{
-    delete st.totalCost;
     m.set(stateKey(st),st);
   });
   if(ENABLE_INTERNAL_DIAGNOSTICS){
@@ -1776,7 +1760,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     throwIfCancelled();
     const group=groups[gi];
 
-    const next=new Map(states);
+    let next=new Map(states);
     let iter=0;
 
 
@@ -1846,7 +1830,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
         const nextBits=stBits | opBits;
-        const k=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
+        const k=key5(n0,n1,n2,n3,n4)+'|'+scopeKeyFor(st.life,nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
@@ -1863,7 +1847,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           newItemLen,
           opBits,
           k,
-          (st.usedCost ?? costSum(st.cost))+op.costSum
+          st.usedCost+op.costSum
         );
         newState._remainSum=childRemainSum;
         newState._groupIndex=gi;
@@ -1873,10 +1857,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       if(next.size>HARD_LIMIT){
 
-        const pruned=prune(next,STATE_LIMIT);
-
-        next.clear();
-        pruned.forEach((v,k)=>next.set(k,v));
+        next=prune(next,STATE_LIMIT);
       }
 
       iter++;
@@ -2096,7 +2077,7 @@ async function calc(){
   cancelBtn.style.setProperty('box-shadow','0 3px 0 rgba(16,24,40,.22)','important');
   cancelBtn.style.setProperty('filter','none','important');
 
-  result.innerHTML='<p class="calculating">計算中</p>';
+  result.innerHTML='';
 
   try{
     let finalCandidate=getCachedResult(cacheKey);
@@ -2110,7 +2091,6 @@ async function calc(){
         if(msg.includes('100%') || now-lastProgressPaint>=250){
           lastProgressPaint=now;
           btn.textContent=msg;
-          result.innerHTML=`<p class="calculating">${msg}</p>`;
         }
       },'normal');
       setCachedResult(cacheKey,finalCandidate);
