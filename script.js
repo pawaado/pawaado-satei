@@ -137,6 +137,7 @@ const TARGET_DEBUG={
     this.routeGroupSnapshots=[];
     this.pruneEvents=[];
     this.mutualTransition=null;
+    this.finalCandidateTrace=null;
     this.finalStatesWithTarget=0;
     this.bestWithTarget=null;
     this.bestWithoutTarget=null;
@@ -613,6 +614,77 @@ function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bit
     itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
   };
 }
+function inspectStateChain(st){
+  if(!st){
+    return {
+      items:[],
+      cycle:false,
+      nodeCount:0,
+      choiceCount:0,
+      cachedItems:false
+    };
+  }
+
+  const chunks=[];
+  const seen=new Set();
+  let cur=st;
+  let cycle=false;
+  let nodeCount=0;
+  let choiceCount=0;
+
+  while(cur){
+    if(seen.has(cur)){
+      cycle=true;
+      break;
+    }
+    seen.add(cur);
+    nodeCount++;
+
+    if(cur.choice&&cur.choice.length){
+      chunks.push(cur.choice);
+      choiceCount+=cur.choice.length;
+    }
+    cur=cur.prev;
+  }
+
+  const items=[];
+  for(let i=chunks.length-1;i>=0;i--){
+    items.push(...chunks[i]);
+  }
+
+  return {
+    items,
+    cycle,
+    nodeCount,
+    choiceCount,
+    cachedItems:Array.isArray(st.items)
+  };
+}
+
+function itemNamesForDiagnosis(items){
+  return (items||[])
+    .map(debugItemLabel)
+    .filter(Boolean);
+}
+
+function diagnosisHasTarget(items){
+  return (items||[]).some(it=>String(it?.name||'')===TARGET_DEBUG_NAME);
+}
+
+function diagnosisHasMagicRaise(items){
+  return (items||[]).some(it=>
+    it?.type==='basic' &&
+    String(it.name||'')==='魔力' &&
+    Number(it.to)>Number(it.from)
+  );
+}
+
+function shortDiagnosisItems(items,max=8){
+  const names=itemNamesForDiagnosis(items);
+  if(!names.length) return 'なし';
+  return names.slice(0,max).join(' / ')+(names.length>max?` / 他${names.length-max}件`:'');
+}
+
 function restoreItems(st){
   if(!st) return [];
   if(st.items) return st.items;
@@ -1818,6 +1890,44 @@ async function optimizeAsync(exp,onProgress){
   TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
   TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
 
+  const rawWithTrace=inspectStateChain(globalBestWithTarget);
+  const rawWithoutTrace=inspectStateChain(globalBestWithoutTarget);
+  const rawSelectedTrace=inspectStateChain(best);
+
+  TARGET_DEBUG.finalCandidateTrace={
+    selectedIsWith:!!best && best===globalBestWithTarget,
+    selectedIsWithout:!!best && best===globalBestWithoutTarget,
+    selectedScore:best?.score ?? null,
+    selectedCost:best?.cost ? best.cost.slice() : null,
+    selectedStateKey:best?stateKey(best):null,
+
+    withScore:globalBestWithTarget?.score ?? null,
+    withCost:globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null,
+    withStateKey:globalBestWithTarget?stateKey(globalBestWithTarget):null,
+    withRawItems:rawWithTrace.items,
+    withRawHasTarget:diagnosisHasTarget(rawWithTrace.items),
+    withRawHasMagic:diagnosisHasMagicRaise(rawWithTrace.items),
+    withCycle:rawWithTrace.cycle,
+    withNodes:rawWithTrace.nodeCount,
+    withChoices:rawWithTrace.choiceCount,
+    withCachedBefore:rawWithTrace.cachedItems,
+
+    withoutScore:globalBestWithoutTarget?.score ?? null,
+    withoutCost:globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null,
+    withoutStateKey:globalBestWithoutTarget?stateKey(globalBestWithoutTarget):null,
+    withoutRawItems:rawWithoutTrace.items,
+    withoutRawHasTarget:diagnosisHasTarget(rawWithoutTrace.items),
+    withoutRawHasMagic:diagnosisHasMagicRaise(rawWithoutTrace.items),
+
+    selectedRawItems:rawSelectedTrace.items,
+    selectedRawHasTarget:diagnosisHasTarget(rawSelectedTrace.items),
+    selectedRawHasMagic:diagnosisHasMagicRaise(rawSelectedTrace.items),
+    selectedCycle:rawSelectedTrace.cycle,
+    selectedNodes:rawSelectedTrace.nodeCount,
+    selectedChoices:rawSelectedTrace.choiceCount,
+    selectedCachedBefore:rawSelectedTrace.cachedItems
+  };
+
   const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
   TARGET_DEBUG.withOnlyItems=candidateDiff.withOnly;
   TARGET_DEBUG.withoutOnlyItems=candidateDiff.withoutOnly;
@@ -1953,6 +2063,31 @@ async function calc(){
     pStart("結果復元");
     const bestItems=restoreItems(best);
     pEnd("結果復元");
+
+    const finalTrace=TARGET_DEBUG.finalCandidateTrace||{};
+    const selectedRawNow=inspectStateChain(best);
+    const withState=TARGET_DEBUG._bestWithState;
+    const withRawNow=inspectStateChain(withState);
+    const withRestoredNow=withState ? restoreItems(withState) : [];
+
+    finalTrace.selectedRestoredItems=bestItems.slice();
+    finalTrace.selectedRawItemsAfter=selectedRawNow.items;
+    finalTrace.selectedRestoredHasTarget=diagnosisHasTarget(bestItems);
+    finalTrace.selectedRestoredHasMagic=diagnosisHasMagicRaise(bestItems);
+    finalTrace.selectedRawRestoredSame=
+      JSON.stringify(itemNamesForDiagnosis(selectedRawNow.items))===
+      JSON.stringify(itemNamesForDiagnosis(bestItems));
+
+    finalTrace.withRawItemsAfter=withRawNow.items;
+    finalTrace.withRestoredItems=withRestoredNow.slice();
+    finalTrace.withRestoredHasTarget=diagnosisHasTarget(withRestoredNow);
+    finalTrace.withRestoredHasMagic=diagnosisHasMagicRaise(withRestoredNow);
+    finalTrace.withRawRestoredSame=
+      JSON.stringify(itemNamesForDiagnosis(withRawNow.items))===
+      JSON.stringify(itemNamesForDiagnosis(withRestoredNow));
+
+    TARGET_DEBUG.finalCandidateTrace=finalTrace;
+
     best.items=bestItems;
     TARGET_DEBUG.selected=bestItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
     setCachedResult(cacheKey,best);
@@ -2059,39 +2194,42 @@ async function calc(){
       ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
       : '最終到達なし';
 
-    const mutualDiag=TARGET_DEBUG.mutualTransition;
-    const mutualCauseText=(()=>{
-      if(!mutualDiag) return '対象となるmutualグループ遷移を検出できず';
-      if(mutualDiag.overwritten>0){
-        return `状態キー統合で${mutualDiag.overwritten}件上書き（うち物理攻撃○付き魔力あり:${mutualDiag.overwrittenByTargetMagic}件）`;
+    const trace=TARGET_DEBUG.finalCandidateTrace||{};
+    const f=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
+    const c=v=>Array.isArray(v)?v.join(','):'なし';
+
+    const finalDiagnosis=(()=>{
+      if(trace.withCycle || trace.selectedCycle){
+        return 'prevチェーンに循環あり。親参照の破損が原因候補';
       }
-      if(mutualDiag.internalPruneLoss>0 || mutualDiag.finalPruneLoss>0){
-        return `枝刈りで元ルート消失（途中:${mutualDiag.internalPruneLoss}件、最終:${mutualDiag.finalPruneLoss}件）`;
+      if(trace.withRawHasMagic){
+        return '物理攻撃○側の最終候補は、選択時点ですでに魔力上昇を含む。候補評価・最終比較を確認';
       }
-      if(mutualDiag.beforeFinalPrune===0){
-        return 'グループ選択肢の展開中に消失。競合判定・重複判定・キー生成を確認';
+      if(!trace.withRawHasMagic && trace.withRestoredHasMagic){
+        return '選択時点では魔力なしだが、restoreItems後に魔力が混入。復元キャッシュまたはprev参照を確認';
       }
-      if(mutualDiag.afterNoMagic===0){
-        return '最終状態への移行時に消失。状態Mapの置換または分類条件を確認';
+      if(trace.withRawRestoredSame===false){
+        return '生のprevチェーンとrestoreItemsの内容が不一致。復元処理またはitemsキャッシュを確認';
       }
-      return '魔力なしルートは残存。以前の要約判定または分類ロジックを確認';
+      if(trace.withRawHasTarget===false){
+        return 'bestWithTargetとして保存された候補に物理攻撃○が存在しない。候補分類を確認';
+      }
+      if(trace.selectedIsWith===false && trace.withScore!=null){
+        return '物理攻撃○側候補は正常だが、全体の最終比較で別候補が採用されている';
+      }
+      return '候補選択・復元は整合。score算定または候補生成内容を確認';
     })();
 
-    const mutualExamplesText=mutualDiag?.overwrittenExamples?.length
-      ? mutualDiag.overwrittenExamples.join('<br>')
-      : 'なし';
-
     const compactDiagnosisHtml=`<div class="result-block">
-      <h3>原因究明要約</h3>
+      <h3>最終候補診断</h3>
       <table class="result-table"><tbody>
-        <tr><td>対象グループ</td><td>${mutualDiag?`G${mutualDiag.gi} ${mutualDiag.kind}（${mutualDiag.optionNames.join(' / ')}）`:'未検出'}</td></tr>
-        <tr><td>処理前</td><td>${mutualDiag?`全体${mutualDiag.beforeTotal} / 物理攻撃○＋魔力なし${mutualDiag.beforeNoMagic}件 / 最高${mutualDiag.beforeBest?Number(mutualDiag.beforeBest.score).toFixed(2):'なし'}`:'なし'}</td></tr>
-        <tr><td>最終prune直前</td><td>${mutualDiag?`${mutualDiag.beforeFinalPrune}件`:'なし'}</td></tr>
-        <tr><td>処理後</td><td>${mutualDiag?`全体${mutualDiag.afterTotal} / 物理攻撃○＋魔力なし${mutualDiag.afterNoMagic}件 / 最高${mutualDiag.afterBest?Number(mutualDiag.afterBest.score).toFixed(2):'なし'}`:'なし'}</td></tr>
-        <tr><td>キー上書き</td><td>${mutualDiag?`${mutualDiag.overwritten}件`:'なし'}</td></tr>
-        <tr><td>枝刈り消失</td><td>${mutualDiag?`途中${mutualDiag.internalPruneLoss}件 / 最終${mutualDiag.finalPruneLoss}件`:'なし'}</td></tr>
-        <tr><td>判定</td><td>${mutualCauseText}</td></tr>
-        <tr><td>上書き例</td><td>${mutualExamplesText}</td></tr>
+        <tr><td>最終採用</td><td>${trace.selectedIsWith?'物理攻撃○側':trace.selectedIsWithout?'物理攻撃○なし側':'別候補'} / score ${f(trace.selectedScore)} / cost ${c(trace.selectedCost)}</td></tr>
+        <tr><td>○側候補</td><td>score ${f(trace.withScore)} / cost ${c(trace.withCost)}</td></tr>
+        <tr><td>選択時の○側</td><td>物理攻撃○:${trace.withRawHasTarget?'あり':'なし'} / 魔力上昇:${trace.withRawHasMagic?'あり':'なし'} / itemsキャッシュ:${trace.withCachedBefore?'あり':'なし'}</td></tr>
+        <tr><td>復元後の○側</td><td>物理攻撃○:${trace.withRestoredHasTarget?'あり':'なし'} / 魔力上昇:${trace.withRestoredHasMagic?'あり':'なし'} / 生チェーンと一致:${trace.withRawRestoredSame?'はい':'いいえ'}</td></tr>
+        <tr><td>○側の能力</td><td>${shortDiagnosisItems(trace.withRestoredItems||trace.withRawItems)}</td></tr>
+        <tr><td>チェーン</td><td>ノード${trace.withNodes??'なし'} / 選択項目${trace.withChoices??'なし'} / 循環:${trace.withCycle?'あり':'なし'}</td></tr>
+        <tr><td>判定</td><td>${finalDiagnosis}</td></tr>
       </tbody></table>
     </div>`;
 
