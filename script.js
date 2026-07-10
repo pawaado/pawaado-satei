@@ -139,6 +139,7 @@ const TARGET_DEBUG={
     this.mutualTransition=null;
     this.finalCandidateTrace=null;
     this.magicAcquisitionTrace=null;
+    this.magicDecisionSnapshot=null;
     this.finalStatesWithTarget=0;
     this.bestWithTarget=null;
     this.bestWithoutTarget=null;
@@ -734,6 +735,35 @@ function compactChainText(info){
     const added=node.choice.length?node.choice.join('・'):'開始状態';
     return `N${i}：${added} / score ${node.score.toFixed(2)} / cost ${node.cost.join(',')}`;
   }).join('<br>');
+}
+
+function candidateCategory(op){
+  const names=(op.items||[]).map(traceItemLabel);
+  if(names.some(n=>n.startsWith('魔力 '))) return '魔力';
+  if(names.some(n=>n.startsWith('生命力 '))) return '生命力';
+  if(names.some(n=>n.startsWith('器用さ '))) return '器用さ';
+  if(names.some(n=>n.startsWith('パワー '))) return 'パワー';
+  if(names.some(n=>n.startsWith('耐久力 '))) return '耐久力';
+  if(names.some(n=>n.startsWith('精神力 '))) return '精神力';
+  if(names.some(n=>n===TARGET_DEBUG_NAME)) return TARGET_DEBUG_NAME;
+  if(names.length===0) return '何もしない';
+  return names.join('・');
+}
+
+function compactCandidateRows(rows){
+  if(!rows||!rows.length) return '<tr><td colspan="7">候補なし</td></tr>';
+
+  return rows.map((r,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${r.label}</td>
+      <td>${r.newScore.toFixed(2)}</td>
+      <td>${r.gain>=0?'+':''}${r.gain.toFixed(2)}</td>
+      <td>${r.cost.join(',')}</td>
+      <td>${r.efficiency==null?'なし':r.efficiency.toFixed(5)}</td>
+      <td>${r.selected?'採用':'不採用'}</td>
+    </tr>
+  `).join('');
 }
 
 function shortDiagnosisItems(items,max=8){
@@ -1592,6 +1622,51 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
+        const addedMagicForDecision=op.items.find(it=>
+          it?.type==='basic' &&
+          String(it.name||'')==='魔力' &&
+          Number(it.to)>Number(it.from)
+        );
+
+        if(
+          addedMagicForDecision &&
+          stateHasTarget(st) &&
+          !TARGET_DEBUG.magicDecisionSnapshot
+        ){
+          TARGET_DEBUG.magicDecisionSnapshot={
+            gi,
+            groupKind:group.kind||'',
+            parentKey:stateKey(st),
+            parentScore:Number(st.score),
+            parentCost:st.cost.slice(),
+            parentItems:restoreItems(st).map(traceItemLabel),
+            selectedKey:k,
+            selectedLabel:candidateCategory(op),
+            rows:[]
+          };
+        }
+
+        const activeDecision=TARGET_DEBUG.magicDecisionSnapshot;
+        if(
+          activeDecision &&
+          activeDecision.gi===gi &&
+          activeDecision.parentKey===stateKey(st)
+        ){
+          const label=candidateCategory(op);
+          const gain=Number(newScore)-Number(st.score);
+          const costArr=op.cost.slice();
+          const sum=op.costSum;
+          activeDecision.rows.push({
+            label,
+            newScore:Number(newScore),
+            gain,
+            cost:costArr,
+            costSum:sum,
+            efficiency:sum>0?gain/sum:null,
+            selected:k===activeDecision.selectedKey
+          });
+        }
+
         if(!TARGET_DEBUG.magicAcquisitionTrace){
           const addedMagic=op.items.find(it=>
             it?.type==='basic' &&
@@ -1723,6 +1798,42 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
     }else{
       states=next;
+    }
+
+    if(
+      TARGET_DEBUG.magicDecisionSnapshot &&
+      TARGET_DEBUG.magicDecisionSnapshot.gi===gi
+    ){
+      const snap=TARGET_DEBUG.magicDecisionSnapshot;
+
+      if(!snap.rows.some(r=>r.label==='何もしない')){
+        snap.rows.push({
+          label:'何もしない',
+          newScore:snap.parentScore,
+          gain:0,
+          cost:[0,0,0,0,0],
+          costSum:0,
+          efficiency:null,
+          selected:false
+        });
+      }
+
+      const priority=['魔力','生命力','器用さ','パワー','耐久力','精神力',TARGET_DEBUG_NAME,'何もしない'];
+      const seen=new Set();
+      snap.rows=snap.rows
+        .sort((a,b)=>{
+          const pa=priority.includes(a.label)?priority.indexOf(a.label):99;
+          const pb=priority.includes(b.label)?priority.indexOf(b.label):99;
+          if(pa!==pb) return pa-pb;
+          return b.newScore-a.newScore;
+        })
+        .filter(r=>{
+          const key=`${r.label}|${r.newScore}|${r.cost.join(',')}`;
+          if(seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0,12);
     }
 
     if(mutualDiag){
@@ -2296,6 +2407,41 @@ async function calc(){
       ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
       : '最終到達なし';
 
+    const decision=TARGET_DEBUG.magicDecisionSnapshot;
+    const decisionBest=decision?.rows?.slice().sort((a,b)=>b.newScore-a.newScore)[0]||null;
+    const selectedDecision=decision?.rows?.find(r=>r.selected)||null;
+
+    const decisionDiagnosis=(()=>{
+      if(!decision) return '比較対象を取得できず';
+      if(!selectedDecision) return '魔力候補を生成したが、採用候補の特定に失敗';
+      if(decisionBest && decisionBest.label!==selectedDecision.label){
+        return `局所最高は${decisionBest.label}だが、${selectedDecision.label}が追跡対象。状態統合後の採用条件を確認`;
+      }
+      if(selectedDecision.label==='魔力' && selectedDecision.efficiency!=null && selectedDecision.efficiency<0.3){
+        return '低効率の魔力候補が局所最高。基本能力候補のscoreまたは他候補の生成漏れを確認';
+      }
+      if(selectedDecision.label==='魔力'){
+        return '魔力候補がこの親状態からの局所最高。score計算と比較対象を確認';
+      }
+      return `${selectedDecision.label}が採用。魔力は最終チェーン内の別位置で追加された可能性`;
+    })();
+
+    const decisionDiagnosisHtml=`<div class="result-block">
+      <h3>N6候補比較</h3>
+      <table class="result-table">
+        <tbody>
+          <tr><td>親状態</td><td colspan="6">score ${decision?decision.parentScore.toFixed(2):'なし'} / cost ${decision?decision.parentCost.join(','):'なし'} / ${decision?decision.parentItems.slice(0,8).join(' / '):'なし'}</td></tr>
+          <tr><td>判定</td><td colspan="6">${decisionDiagnosis}</td></tr>
+        </tbody>
+        <thead>
+          <tr><th>#</th><th>候補</th><th>score</th><th>増加</th><th>cost</th><th>効率</th><th>結果</th></tr>
+        </thead>
+        <tbody>
+          ${compactCandidateRows(decision?.rows||[])}
+        </tbody>
+      </table>
+    </div>`;
+
     const trace=TARGET_DEBUG.finalCandidateTrace||{};
     const withChainText=compactChainText(trace.withChain);
     const magicNodeIndex=trace.withChain?.nodes?.findIndex(node=>
@@ -2434,6 +2580,8 @@ async function calc(){
   ${resultTable(bestItems,'special')}
 </div>
 ${remainHtml}
+
+${decisionDiagnosisHtml}
 
 ${magicDiagnosisHtml}
 
