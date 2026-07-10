@@ -787,8 +787,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     })
     .filter(Boolean)
     .sort((a,b)=>{
-      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
-      return b.maxScore-a.maxScore;
+      // bestScoreを早く引き上げ、Upper Boundを早期に効かせる。
+      if(b.maxScore!==a.maxScore) return b.maxScore-a.maxScore;
+      return b.bestEfficiency-a.bestEfficiency;
     });
 
   const totalExp=costSum(exp);
@@ -805,29 +806,14 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     return p;
   }
 
-  function balancePenaltyAfter(st,op){
-    let p=0;
-    for(let i=0;i<5;i++){
-      const remain=exp[i]-st.cost[i]-op.cost[i];
-      p += remain*remain;
-    }
-    return p;
-  }
-
-  function remainVectorKey(st){
-    return (exp[0]-st.cost[0])+','+
-      (exp[1]-st.cost[1])+','+
-      (exp[2]-st.cost[2])+','+
-      (exp[3]-st.cost[3])+','+
-      (exp[4]-st.cost[4]);
-  }
-
-  groups=groups.map((g,groupIndex)=>{
+  groups=groups.map(g=>{
     const opts=[...g.opts].sort((a,b)=>{
-      const bp=balancePenalty(a.cost)-balancePenalty(b.cost);
-      if(bp!==0) return bp;
+      // 高査定候補を先に試してbestScoreを早く更新する。
+      if(b.score!==a.score) return b.score-a.score;
       if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
-      return b.score-a.score;
+
+      // 査定・効率が同じ場合だけ残経験点バランスを使う。
+      return balancePenalty(a.cost)-balancePenalty(b.cost);
     });
     return {...g,opts};
   });
