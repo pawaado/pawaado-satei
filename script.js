@@ -1093,6 +1093,7 @@ async function calc(){
   const btn=document.getElementById('calcBtn');
   const cacheKey=calcCacheKey(exp);
   let lastProgressMessage='';
+  let lastDetailedProgress='';
   isCalculating=true;
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{ if(el.id!=='calcBtn') el.disabled=true; });
@@ -1103,9 +1104,13 @@ async function calc(){
     if(best){
       btn.textContent='計算中 100%';
       lastProgressMessage='キャッシュ使用';
+      lastDetailedProgress='キャッシュ使用';
     }else{
       best=await optimizeAsync(exp,(msg)=>{
         lastProgressMessage=msg;
+        if(msg.includes('候補:') || msg.includes('UB:') || msg.includes('prune:')){
+          lastDetailedProgress=msg;
+        }
         btn.textContent=msg;
         result.innerHTML=`<p class="calculating">${msg}</p>`;
       });
@@ -1119,7 +1124,7 @@ async function calc(){
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-    const debugHtml=`<div class="result-block"><h3>検証用ログ</h3><p>${lastProgressMessage || 'ログなし'}</p></div>`;
+    const debugHtml=`<div class="result-block"><h3>検証用ログ</h3><p>${lastDetailedProgress || lastProgressMessage || 'ログなし'}</p></div>`;
     const profileHtml=`<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
     const scoreText=Math.round(best.score||0).toLocaleString('ja-JP');
     result.innerHTML=`
