@@ -1057,38 +1057,52 @@ function yieldToBrowser(){
     throwIfCancelled();
   });
 }
+const PRUNE_NEIGHBOR_DELTAS=Array.from({length:32},(_,mask)=>[
+  (mask&1)?1:0,
+  (mask&2)?1:0,
+  (mask&4)?1:0,
+  (mask&8)?1:0,
+  (mask&16)?1:0
+]);
 function prune(states,limit=12000,mode=currentCalcMode()){
   const arr=Array.from(states.values());
   arr.sort((a,b)=>{
-    if(b.score!==a.score) return b.score-a.score;
-    return a.usedCost-b.usedCost;
+    const scoreDiff=b.score-a.score;
+    return scoreDiff!==0 ? scoreDiff : a.usedCost-b.usedCost;
   });
 
   if(mode==='normal'){
     const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
     const keep=[];
+    const keepScopes=[];
 
     outer: for(let si=0;si<preLimit;si++){
       const st=arr[si];
       const stScope=pruneScopeKey(st);
+      const stScore=st.score;
+      const sc=st.cost;
+      const sc0=sc[0],sc1=sc[1],sc2=sc[2],sc3=sc[3],sc4=sc[4];
       const checkMax=Math.min(keep.length,320);
+
       for(let i=0;i<checkMax;i++){
+        if(keepScopes[i]!==stScope) continue;
         const k=keep[i];
-        if(pruneScopeKey(k)===stScope && k.score>=st.score){
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
-        }
+        if(k.score<stScore) continue;
+        const kc=k.cost;
+        if(kc[0]<=sc0&&kc[1]<=sc1&&kc[2]<=sc2&&kc[3]<=sc3&&kc[4]<=sc4) continue outer;
       }
+
       keep.push(st);
+      keepScopes.push(stScope);
       if(keep.length>=limit) break;
     }
 
-    const m=new Map();
-    for(let i=0;i<keep.length;i++){
+    const result=new Map();
+    for(let i=0, len=keep.length;i<len;i++){
       const st=keep[i];
-      m.set(stateKey(st),st);
+      result.set(stateKey(st),st);
     }
-    return m;
+    return result;
   }
 
   const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
@@ -1101,8 +1115,8 @@ function prune(states,limit=12000,mode=currentCalcMode()){
   const BUCKET_BASE=32;
 
   const keep=[];
-  const skylineByScope=new Map();
-  const bucketsByScope=new Map();
+  // scopeごとのskylineとbucketを1つのMapにまとめ、同一scopeのMap検索を1回にする。
+  const scopeDataByScope=new Map();
 
   function bucketCode(b0,b1,b2,b3,b4){
     return ((((b0*BUCKET_BASE+b1)*BUCKET_BASE+b2)*BUCKET_BASE+b3)*BUCKET_BASE+b4);
@@ -1110,78 +1124,89 @@ function prune(states,limit=12000,mode=currentCalcMode()){
 
   outer: for(let si=0;si<preLimit;si++){
     const st=arr[si];
+    const stScore=st.score;
+    const stUsedCost=st.usedCost;
     const scope=pruneScopeKey(st);
-    const skyline=skylineByScope.get(scope);
+    let scopeData=scopeDataByScope.get(scope);
 
-    if(skyline){
-      const max=Math.min(skyline.length,EXACT_CHECK_LIMIT);
+    const sc=st.cost;
+    const sc0=sc[0],sc1=sc[1],sc2=sc[2],sc3=sc[3],sc4=sc[4];
+
+    if(scopeData){
+      const skyline=scopeData.skyline;
+      const max=skyline.length<EXACT_CHECK_LIMIT?skyline.length:EXACT_CHECK_LIMIT;
       for(let i=0;i<max;i++){
         const k=skyline[i];
-        if(k.score<st.score) break;
-        if(k.usedCost>st.usedCost) continue;
-        const kc=k.cost, sc=st.cost;
-        if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
+        if(k.score<stScore) break;
+        if(k.usedCost>stUsedCost) continue;
+        const kc=k.cost;
+        if(kc[0]<=sc0&&kc[1]<=sc1&&kc[2]<=sc2&&kc[3]<=sc3&&kc[4]<=sc4) continue outer;
       }
     }
 
-    const c=st.cost;
-    const b0=Math.floor(c[0]/BUCKET_SIZE);
-    const b1=Math.floor(c[1]/BUCKET_SIZE);
-    const b2=Math.floor(c[2]/BUCKET_SIZE);
-    const b3=Math.floor(c[3]/BUCKET_SIZE);
-    const b4=Math.floor(c[4]/BUCKET_SIZE);
-    const scopeBuckets=bucketsByScope.get(scope);
+    const b0=Math.floor(sc0/BUCKET_SIZE);
+    const b1=Math.floor(sc1/BUCKET_SIZE);
+    const b2=Math.floor(sc2/BUCKET_SIZE);
+    const b3=Math.floor(sc3/BUCKET_SIZE);
+    const b4=Math.floor(sc4/BUCKET_SIZE);
 
-    if(scopeBuckets){
+    if(scopeData){
+      const scopeBuckets=scopeData.buckets;
       for(let mask=0;mask<32;mask++){
-        const n0=b0-((mask&1)?1:0);
-        const n1=b1-((mask&2)?1:0);
-        const n2=b2-((mask&4)?1:0);
-        const n3=b3-((mask&8)?1:0);
-        const n4=b4-((mask&16)?1:0);
+        const d=PRUNE_NEIGHBOR_DELTAS[mask];
+        const n0=b0-d[0];
+        const n1=b1-d[1];
+        const n2=b2-d[2];
+        const n3=b3-d[3];
+        const n4=b4-d[4];
         if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
 
         const list=scopeBuckets.get(bucketCode(n0,n1,n2,n3,n4));
         if(!list) continue;
-        for(let i=0;i<list.length;i++){
+        for(let i=0, len=list.length;i<len;i++){
           const k=list[i];
-          if(k.score<st.score || k.usedCost>st.usedCost) continue;
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
+          if(k.score<stScore || k.usedCost>stUsedCost) continue;
+          const kc=k.cost;
+          if(kc[0]<=sc0&&kc[1]<=sc1&&kc[2]<=sc2&&kc[3]<=sc3&&kc[4]<=sc4) continue outer;
         }
       }
     }
 
     keep.push(st);
 
-    if(skyline) skyline.push(st);
-    else skylineByScope.set(scope,[st]);
-
-    let activeBuckets=scopeBuckets;
-    if(!activeBuckets){
-      activeBuckets=new Map();
-      bucketsByScope.set(scope,activeBuckets);
+    if(!scopeData){
+      scopeData={skyline:[],buckets:new Map()};
+      scopeDataByScope.set(scope,scopeData);
     }
+    scopeData.skyline.push(st);
+
     const code=bucketCode(b0,b1,b2,b3,b4);
-    let list=activeBuckets.get(code);
+    let list=scopeData.buckets.get(code);
     if(!list){
       list=[];
-      activeBuckets.set(code,list);
+      scopeData.buckets.set(code,list);
     }
 
-    if(list.length<BUCKET_KEEP_LIMIT){
+    const listLength=list.length;
+    if(listLength<BUCKET_KEEP_LIMIT){
       list.push(st);
     }else{
       let worstIdx=0;
       let worst=list[0];
-      for(let wi=1;wi<list.length;wi++){
+      let worstScore=worst.score;
+      let worstUsedCost=worst.usedCost;
+      for(let wi=1;wi<listLength;wi++){
         const cand=list[wi];
-        if(cand.score<worst.score || (cand.score===worst.score && cand.usedCost>worst.usedCost)){
+        const candScore=cand.score;
+        const candUsedCost=cand.usedCost;
+        if(candScore<worstScore || (candScore===worstScore && candUsedCost>worstUsedCost)){
           worst=cand;
           worstIdx=wi;
+          worstScore=candScore;
+          worstUsedCost=candUsedCost;
         }
       }
-      if(st.score>worst.score || (st.score===worst.score && st.usedCost<worst.usedCost)){
+      if(stScore>worstScore || (stScore===worstScore && stUsedCost<worstUsedCost)){
         list[worstIdx]=st;
       }
     }
@@ -1189,12 +1214,12 @@ function prune(states,limit=12000,mode=currentCalcMode()){
     if(keep.length>=limit) break;
   }
 
-  const m=new Map();
-  for(let i=0;i<keep.length;i++){
+  const result=new Map();
+  for(let i=0, len=keep.length;i<len;i++){
     const st=keep[i];
-    m.set(stateKey(st),st);
+    result.set(stateKey(st),st);
   }
-  return m;
+  return result;
 }
 const rangeRowCache=new WeakMap();
 const valueRowCache=new WeakMap();
