@@ -1,4 +1,4 @@
-(function(){
+ (function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -134,6 +134,7 @@ const TARGET_DEBUG={
     this.ubCut=0;
     this.selected=false;
     this.groupSnapshots=[];
+    this.routeGroupSnapshots=[];
     this.pruneEvents=[];
     this.finalStatesWithTarget=0;
     this.bestWithTarget=null;
@@ -170,6 +171,75 @@ function stateHasTarget(st){
   const items=st.items||st.choice;
   return !!items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
 }
+function targetRouteProfile(iterable){
+  const values=iterable instanceof Map ? iterable.values() : iterable;
+  const out={
+    target:0,
+    targetNoMagic:0,
+    targetDex60:0,
+    targetLife52:0,
+    targetNoMagicDex60:0,
+    targetNoMagicLife52:0,
+    targetNoMagicDexOrLife:0,
+    bestTarget:null,
+    bestNoMagic:null,
+    bestNoMagicDexOrLife:null
+  };
+
+  for(const st of values){
+    if(!stateHasTarget(st)) continue;
+
+    out.target++;
+    if(out.bestTarget==null || st.score>out.bestTarget) out.bestTarget=st.score;
+
+    const items=restoreItems(st);
+    let magicRaised=false;
+    let dex60=false;
+
+    for(const it of items){
+      if(it?.type!=='basic') continue;
+      if(String(it.name)==='魔力' && Number(it.to)>Number(it.from)) magicRaised=true;
+      if(String(it.name)==='器用さ' && Number(it.to)>=60) dex60=true;
+    }
+
+    const life52=Number(st.life)>=52;
+
+    if(!magicRaised){
+      out.targetNoMagic++;
+      if(out.bestNoMagic==null || st.score>out.bestNoMagic) out.bestNoMagic=st.score;
+    }
+    if(dex60) out.targetDex60++;
+    if(life52) out.targetLife52++;
+
+    if(!magicRaised && dex60) out.targetNoMagicDex60++;
+    if(!magicRaised && life52) out.targetNoMagicLife52++;
+
+    if(!magicRaised && (dex60 || life52)){
+      out.targetNoMagicDexOrLife++;
+      if(out.bestNoMagicDexOrLife==null || st.score>out.bestNoMagicDexOrLife){
+        out.bestNoMagicDexOrLife=st.score;
+      }
+    }
+  }
+
+  return out;
+}
+
+function compactRouteProfile(p){
+  if(!p) return 'なし';
+  const fmt=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
+  return [
+    `○:${p.target}`,
+    `魔力なし:${p.targetNoMagic}`,
+    `器用60:${p.targetDex60}`,
+    `生命52:${p.targetLife52}`,
+    `魔力なし＋器用/生命:${p.targetNoMagicDexOrLife}`,
+    `最高:${fmt(p.bestTarget)}`,
+    `魔力なし最高:${fmt(p.bestNoMagic)}`,
+    `有力ルート最高:${fmt(p.bestNoMagicDexOrLife)}`
+  ].join(' / ');
+}
+
 function debugItemKey(it){
   if(!it) return '';
   if(it.type==='special') return `special:${it.idx}`;
@@ -551,6 +621,7 @@ function yieldToBrowser(){
 function prune(states,limit=12000){
   const mode=currentCalcMode();
   const targetBefore=countTargetStates(states);
+  const routeBefore=targetRouteProfile(states);
   const arr=[...states.values()]
     .map(st=>{st.totalCost=costSum(st.cost); return st;})
     .sort((a,b)=>{
@@ -592,7 +663,9 @@ function prune(states,limit=12000){
       before:states.size,
       after:m.size,
       targetBefore,
-      targetAfter:countTargetStates(m)
+      targetAfter:countTargetStates(m),
+      routeBefore,
+      routeAfter:targetRouteProfile(m)
     });
     return m;
   }
@@ -729,7 +802,9 @@ function prune(states,limit=12000){
     before:states.size,
     after:m.size,
     targetBefore,
-    targetAfter:countTargetStates(m)
+    targetAfter:countTargetStates(m),
+    routeBefore,
+    routeAfter:targetRouteProfile(m)
   });
   return m;
 }
@@ -1072,6 +1147,8 @@ function ensureCancelButton(){
   cancelBtn.type='button';
   cancelBtn.className='secondary';
   cancelBtn.textContent='キャンセル';
+  cancelBtn.setAttribute('aria-label','計算をキャンセル');
+  cancelBtn.setAttribute('aria-disabled','false');
   cancelBtn.style.display='none';
   cancelBtn.style.setProperty('pointer-events','auto','important');
   cancelBtn.style.setProperty('opacity','1','important');
@@ -1079,6 +1156,12 @@ function ensureCancelButton(){
   cancelBtn.style.setProperty('z-index','2147483647','important');
   cancelBtn.style.setProperty('touch-action','manipulation','important');
   cancelBtn.style.setProperty('-webkit-tap-highlight-color','rgba(0,0,0,0)','important');
+  cancelBtn.style.setProperty('background','#344054','important');
+  cancelBtn.style.setProperty('color','#ffffff','important');
+  cancelBtn.style.setProperty('border','2px solid #1d2939','important');
+  cancelBtn.style.setProperty('box-shadow','0 3px 0 rgba(16,24,40,.22)','important');
+  cancelBtn.style.setProperty('filter','none','important');
+  cancelBtn.style.setProperty('font-weight','700','important');
 
   calcBtn.insertAdjacentElement('afterend',cancelBtn);
 
@@ -1090,7 +1173,12 @@ function ensureCancelButton(){
 
     cancelRequested=true;
     cancelBtn.disabled=false;
+    cancelBtn.setAttribute('aria-disabled','false');
     cancelBtn.textContent='キャンセル中…';
+    cancelBtn.style.setProperty('background','#1d2939','important');
+    cancelBtn.style.setProperty('color','#ffffff','important');
+    cancelBtn.style.setProperty('opacity','1','important');
+    cancelBtn.style.setProperty('filter','none','important');
   };
 
   cancelBtn.addEventListener('pointerdown',requestCancel,{passive:false});
@@ -1377,6 +1465,16 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       targetCount:countTargetStates(states),
       bestScore
     });
+
+    const routeProfile=targetRouteProfile(states);
+    if(routeProfile.target>0){
+      TARGET_DEBUG.routeGroupSnapshots.push({
+        gi,
+        groupKind:group.kind||'',
+        stateCount:states.size,
+        profile:routeProfile
+      });
+    }
 
     if(debug){
       debug.candidate+=candidateInc;
@@ -1716,6 +1814,11 @@ async function calc(){
   cancelBtn.style.setProperty('pointer-events','auto','important');
   cancelBtn.style.setProperty('opacity','1','important');
   cancelBtn.style.setProperty('z-index','2147483647','important');
+  cancelBtn.style.setProperty('background','#344054','important');
+  cancelBtn.style.setProperty('color','#ffffff','important');
+  cancelBtn.style.setProperty('border','2px solid #1d2939','important');
+  cancelBtn.style.setProperty('box-shadow','0 3px 0 rgba(16,24,40,.22)','important');
+  cancelBtn.style.setProperty('filter','none','important');
 
   let cancelParent=cancelBtn.parentElement;
   while(cancelParent && cancelParent!==document.body){
@@ -1759,6 +1862,30 @@ async function calc(){
     const pruneText=TARGET_DEBUG.pruneEvents
       .map((x,i)=>`P${i+1}:${x.targetBefore}→${x.targetAfter} / 全体${x.before}→${x.after}`)
       .join(' | ')||'なし';
+
+    const routeGroupText=TARGET_DEBUG.routeGroupSnapshots
+      .map(x=>`G${x.gi}(${x.groupKind||'-'}・全体${x.stateCount})：${compactRouteProfile(x.profile)}`)
+      .join('<br>')||'なし';
+
+    const routePruneText=TARGET_DEBUG.pruneEvents
+      .map((x,i)=>{
+        const b=x.routeBefore;
+        const a=x.routeAfter;
+        if(!b || b.target===0) return null;
+
+        const disappeared=[];
+        if(b.targetNoMagic>0 && a.targetNoMagic===0) disappeared.push('魔力なし消滅');
+        if(b.targetNoMagicDex60>0 && a.targetNoMagicDex60===0) disappeared.push('魔力なし＋器用60消滅');
+        if(b.targetNoMagicLife52>0 && a.targetNoMagicLife52===0) disappeared.push('魔力なし＋生命52消滅');
+        if(b.targetNoMagicDexOrLife>0 && a.targetNoMagicDexOrLife===0) disappeared.push('有力ルート消滅');
+
+        return `P${i+1} 全体${x.before}→${x.after}`+
+          `<br>前：${compactRouteProfile(b)}`+
+          `<br>後：${compactRouteProfile(a)}`+
+          (disappeared.length?`<br>⚠ ${disappeared.join(' / ')}`:'');
+      })
+      .filter(Boolean)
+      .join('<br><br>')||'なし';
 
     const bestWith=TARGET_DEBUG.bestWithTarget;
     const bestWithout=TARGET_DEBUG.bestWithoutTarget;
@@ -1864,6 +1991,8 @@ async function calc(){
         <tr><td>後付け状態が探索内に存在</td><td>${bestAugExistsText}</td></tr>
         <tr><td>後付け診断</td><td>${augmentSummaryText}</td></tr>
         <tr><td>HPタスク別比較</td><td>${taskSummaryText}</td></tr>
+        <tr><td>有力ルート・グループ追跡</td><td>${routeGroupText}</td></tr>
+        <tr><td>有力ルート・枝刈り追跡</td><td>${routePruneText}</td></tr>
         <tr><td>各グループ残存</td><td>${snapshotText}</td></tr>
         <tr><td>prune前後</td><td>${pruneText}</td></tr>
         <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
