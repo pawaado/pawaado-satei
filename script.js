@@ -318,16 +318,6 @@ function restoreItems(st){
 }
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && itemLenOf(a)<itemLenOf(b));}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
-const PRUNE_STATS={
-  dominatedRemoved:0,
-  replacedRemoved:0,
-  comparisons:0
-};
-function resetPruneStats(){
-  PRUNE_STATS.dominatedRemoved=0;
-  PRUNE_STATS.replacedRemoved=0;
-  PRUNE_STATS.comparisons=0;
-}
 function prune(states,limit=12000){
   const mode=currentCalcMode();
   const arr=[...states.values()]
@@ -353,10 +343,8 @@ function prune(states,limit=12000){
 
         // 正確性優先：
         // 生命力だけでなく、取得済み特殊能力bitも同じ状態だけを支配判定する。
-        PRUNE_STATS.comparisons++;
-        if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score){
-          PRUNE_STATS.dominatedRemoved++;
-          continue outer;
+          if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score){
+            continue outer;
         }
       }
       keep.push(st);
@@ -385,47 +373,36 @@ function prune(states,limit=12000){
   const skylineByScope=new Map();
   const buckets=new Map();
 
-  function bucketCacheFor(st){
-    const cacheKey=String(BUCKET_SIZE);
-    let all=st._bucketCache;
-    if(!all){
-      all=Object.create(null);
-      st._bucketCache=all;
-    }
-    if(all[cacheKey]) return all[cacheKey];
-
-    const c=st.cost;
-    const b0=Math.floor(c[0]/BUCKET_SIZE);
-    const b1=Math.floor(c[1]/BUCKET_SIZE);
-    const b2=Math.floor(c[2]/BUCKET_SIZE);
-    const b3=Math.floor(c[3]/BUCKET_SIZE);
-    const b4=Math.floor(c[4]/BUCKET_SIZE);
-    const scope=pruneScopeKey(st);
-
-    const key=b0+','+b1+','+b2+','+b3+','+b4+'|'+scope;
-    const nearby=[];
-
-    for(let mask=0;mask<32;mask++){
-      const n0=b0-((mask&1)?1:0);
-      const n1=b1-((mask&2)?1:0);
-      const n2=b2-((mask&4)?1:0);
-      const n3=b3-((mask&8)?1:0);
-      const n4=b4-((mask&16)?1:0);
-      if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
-      nearby.push(n0+','+n1+','+n2+','+n3+','+n4+'|'+scope);
-    }
-
-    const cached={key,nearby};
-    all[cacheKey]=cached;
-    return cached;
-  }
-
   function bucketKey(st){
-    return bucketCacheFor(st).key;
+    const c=st.cost;
+    return Math.floor(c[0]/BUCKET_SIZE)+','+
+      Math.floor(c[1]/BUCKET_SIZE)+','+
+      Math.floor(c[2]/BUCKET_SIZE)+','+
+      Math.floor(c[3]/BUCKET_SIZE)+','+
+      Math.floor(c[4]/BUCKET_SIZE)+'|'+pruneScopeKey(st);
   }
 
   function nearbyBucketKeys(st){
-    return bucketCacheFor(st).nearby;
+    const c=st.cost;
+    const base=[
+      Math.floor(c[0]/BUCKET_SIZE),
+      Math.floor(c[1]/BUCKET_SIZE),
+      Math.floor(c[2]/BUCKET_SIZE),
+      Math.floor(c[3]/BUCKET_SIZE),
+      Math.floor(c[4]/BUCKET_SIZE)
+    ];
+    const scope=pruneScopeKey(st);
+    const keys=[];
+    for(let mask=0;mask<32;mask++){
+      const b0=base[0]-((mask&1)?1:0);
+      const b1=base[1]-((mask&2)?1:0);
+      const b2=base[2]-((mask&4)?1:0);
+      const b3=base[3]-((mask&8)?1:0);
+      const b4=base[4]-((mask&16)?1:0);
+      if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
+      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+scope);
+    }
+    return keys;
   }
 
   function dominatedBySkyline(st){
@@ -440,9 +417,7 @@ function prune(states,limit=12000){
       if(k.score<st.score) break;
       if(k.totalCost>st.totalCost) continue;
 
-      PRUNE_STATS.comparisons++;
       if(leq(k.cost,st.cost)){
-        PRUNE_STATS.dominatedRemoved++;
         return true;
       }
     }
@@ -473,10 +448,8 @@ function prune(states,limit=12000){
         if(k.score<st.score) continue;
         if(k.totalCost>st.totalCost) continue;
 
-        PRUNE_STATS.comparisons++;
-        if(leq(k.cost,st.cost)){
-          PRUNE_STATS.dominatedRemoved++;
-          continue outer;
+          if(leq(k.cost,st.cost)){
+            continue outer;
         }
       }
     }
@@ -774,7 +747,7 @@ function progressMessage(progress){
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
   const d=progress.debug;
   if(d){
-    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0} states:${d.pruneBefore||0}→${d.pruneAfter||0} scopes:${d.scopeCount||0} 支配除外:${PRUNE_STATS.dominatedRemoved} 置換除外:${PRUNE_STATS.replacedRemoved} 比較:${PRUNE_STATS.comparisons}`;
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0}`;
   }
   return `計算中 ${pct}%`;
 }
@@ -983,8 +956,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(next.size>HARD_LIMIT){
         if(progress?.debug){
           progress.debug.prune++;
-          progress.debug.pruneBefore+=next.size;
-          progress.debug.scopeCount+=new Set([...next.values()].map(pruneScopeKey)).size;
         }
         const pruned=prune(next,STATE_LIMIT);
         if(progress?.debug) progress.debug.pruneAfter+=pruned.size;
@@ -998,11 +969,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
     if(progress?.debug){
       progress.debug.prune++;
-      progress.debug.pruneBefore+=next.size;
-      progress.debug.scopeCount+=new Set([...next.values()].map(pruneScopeKey)).size;
     }
     states=prune(next,STATE_LIMIT);
-    if(progress?.debug) progress.debug.pruneAfter+=states.size;
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
     }
@@ -1026,7 +994,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 async function optimizeAsync(exp,onProgress){
-  resetPruneStats();
   await yieldToBrowser();
   onProgress?.('計算中 0%');
 
@@ -1078,7 +1045,7 @@ async function optimizeAsync(exp,onProgress){
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0,pruneBefore:0,pruneAfter:0,scopeCount:0}};
+  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
   let best=null;
 
   for(const task of tasks){
