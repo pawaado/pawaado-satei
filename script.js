@@ -1,4 +1,4 @@
- (function(){
+(function(){
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
@@ -1013,32 +1013,24 @@ function yieldToBrowser(){
 }
 function prune(states,limit=12000){
   const mode=currentCalcMode();
-  const targetBefore=ENABLE_INTERNAL_DIAGNOSTICS?countTargetStates(states):0;
-  const routeBefore=ENABLE_INTERNAL_DIAGNOSTICS?targetRouteProfile(states):null;
-  const arr=[...states.values()]
-    .sort((a,b)=>{
-      if(b.score!==a.score) return b.score-a.score;
-      return a.usedCost-b.usedCost;
-    });
-
-  function sameScope(a,b){
-    return pruneScopeKey(a)===pruneScopeKey(b);
-  }
+  const arr=Array.from(states.values());
+  arr.sort((a,b)=>{
+    if(b.score!==a.score) return b.score-a.score;
+    return a.usedCost-b.usedCost;
+  });
 
   if(mode==='normal'){
     const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
-    const src=arr.slice(0,preLimit);
     const keep=[];
 
-    outer: for(const st of src){
+    outer: for(let si=0;si<preLimit;si++){
+      const st=arr[si];
+      const stScope=pruneScopeKey(st);
       const checkMax=Math.min(keep.length,320);
       for(let i=0;i<checkMax;i++){
         const k=keep[i];
-
-        // 正確性優先：
-        // 生命力だけでなく、取得済み特殊能力bitも同じ状態だけを支配判定する。
-          if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score){
-            continue outer;
+        if(pruneScopeKey(k)===stScope && leq(k.cost,st.cost) && k.score>=st.score){
+          continue outer;
         }
       }
       keep.push(st);
@@ -1046,78 +1038,44 @@ function prune(states,limit=12000){
     }
 
     const m=new Map();
-    keep.forEach(st=>{
+    for(let i=0;i<keep.length;i++){
+      const st=keep[i];
       m.set(stateKey(st),st);
-    });
-    if(ENABLE_INTERNAL_DIAGNOSTICS){
-      TARGET_DEBUG.pruneEvents.push({
-        mode,
-        before:states.size,
-        after:m.size,
-        targetBefore,
-        targetAfter:countTargetStates(m),
-        routeBefore,
-        routeAfter:targetRouteProfile(m)
-      });
     }
     return m;
   }
 
-  // 正確性優先版：
-  // 同じ「生命力 + 特殊能力bit」の中だけで、低コスト・高査定の状態を支配判定する。
-  // 生命力が同じでも取得済み特殊能力が違う状態は、今後の選択肢が違うため別物として残す。
   const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
-  const src=arr.slice(0,preLimit);
-  const avgExp=src.length?src.reduce((sum,st)=>sum+st.usedCost,0)/src.length:0;
+  let usedTotal=0;
+  for(let i=0;i<preLimit;i++) usedTotal+=arr[i].usedCost;
+  const avgExp=preLimit?usedTotal/preLimit:0;
   const EXACT_CHECK_LIMIT=avgExp>1500?1200:900;
   const BUCKET_SIZE=avgExp>1500?70:45;
   const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
+  const BUCKET_BASE=32;
 
   const keep=[];
   const skylineByScope=new Map();
-  const buckets=new Map();
+  const bucketsByScope=new Map();
 
-  function bucketKey(st){
-    const c=st.cost;
-    return Math.floor(c[0]/BUCKET_SIZE)+','+
-      Math.floor(c[1]/BUCKET_SIZE)+','+
-      Math.floor(c[2]/BUCKET_SIZE)+','+
-      Math.floor(c[3]/BUCKET_SIZE)+','+
-      Math.floor(c[4]/BUCKET_SIZE)+'|'+pruneScopeKey(st);
+  function bucketCode(b0,b1,b2,b3,b4){
+    return ((((b0*BUCKET_BASE+b1)*BUCKET_BASE+b2)*BUCKET_BASE+b3)*BUCKET_BASE+b4);
   }
 
-  function dominatedBySkyline(st){
-    const list=skylineByScope.get(pruneScopeKey(st));
-    if(!list) return false;
-    const max=Math.min(list.length,EXACT_CHECK_LIMIT);
-    for(let i=0;i<max;i++){
-      const k=list[i];
+  outer: for(let si=0;si<preLimit;si++){
+    const st=arr[si];
+    const scope=pruneScopeKey(st);
+    const skyline=skylineByScope.get(scope);
 
-      // 支配には「査定以上」かつ「総コスト以下」が最低条件。
-      // 満たさない候補では5項目のコスト比較を行わない。
-      if(k.score<st.score) break;
-      if(k.usedCost>st.usedCost) continue;
-
-      if(leq(k.cost,st.cost)){
-        return true;
+    if(skyline){
+      const max=Math.min(skyline.length,EXACT_CHECK_LIMIT);
+      for(let i=0;i<max;i++){
+        const k=skyline[i];
+        if(k.score<st.score) break;
+        if(k.usedCost>st.usedCost) continue;
+        if(leq(k.cost,st.cost)) continue outer;
       }
     }
-    return false;
-  }
-
-  function addToSkyline(st){
-    const scope=pruneScopeKey(st);
-    let list=skylineByScope.get(scope);
-    if(!list){list=[]; skylineByScope.set(scope,list);}
-
-    // arrは「査定の高い順、同査定なら総コストの低い順」で処理される。
-    // そのため、後から来た状態が既存状態を支配して追い出すケースは実質発生しない。
-    // ここで全件比較すると膨大な無駄になるため、登録だけ行う。
-    list.push(st);
-  }
-
-  outer: for(const st of src){
-    if(dominatedBySkyline(st)) continue;
 
     const c=st.cost;
     const b0=Math.floor(c[0]/BUCKET_SIZE);
@@ -1125,31 +1083,43 @@ function prune(states,limit=12000){
     const b2=Math.floor(c[2]/BUCKET_SIZE);
     const b3=Math.floor(c[3]/BUCKET_SIZE);
     const b4=Math.floor(c[4]/BUCKET_SIZE);
-    const scope=pruneScopeKey(st);
+    const scopeBuckets=bucketsByScope.get(scope);
 
-    for(let mask=0;mask<32;mask++){
-      const n0=b0-((mask&1)?1:0);
-      const n1=b1-((mask&2)?1:0);
-      const n2=b2-((mask&4)?1:0);
-      const n3=b3-((mask&8)?1:0);
-      const n4=b4-((mask&16)?1:0);
-      if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
+    if(scopeBuckets){
+      for(let mask=0;mask<32;mask++){
+        const n0=b0-((mask&1)?1:0);
+        const n1=b1-((mask&2)?1:0);
+        const n2=b2-((mask&4)?1:0);
+        const n3=b3-((mask&8)?1:0);
+        const n4=b4-((mask&16)?1:0);
+        if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
 
-      const list=buckets.get(n0+','+n1+','+n2+','+n3+','+n4+'|'+scope);
-      if(!list) continue;
-      for(const k of list){
-        if(k.score<st.score) continue;
-        if(k.usedCost>st.usedCost) continue;
-        if(leq(k.cost,st.cost)) continue outer;
+        const list=scopeBuckets.get(bucketCode(n0,n1,n2,n3,n4));
+        if(!list) continue;
+        for(let i=0;i<list.length;i++){
+          const k=list[i];
+          if(k.score<st.score || k.usedCost>st.usedCost) continue;
+          if(leq(k.cost,st.cost)) continue outer;
+        }
       }
     }
 
     keep.push(st);
-    addToSkyline(st);
 
-    const bk=bucketKey(st);
-    let list=buckets.get(bk);
-    if(!list){list=[]; buckets.set(bk,list);}
+    if(skyline) skyline.push(st);
+    else skylineByScope.set(scope,[st]);
+
+    let activeBuckets=scopeBuckets;
+    if(!activeBuckets){
+      activeBuckets=new Map();
+      bucketsByScope.set(scope,activeBuckets);
+    }
+    const code=bucketCode(b0,b1,b2,b3,b4);
+    let list=activeBuckets.get(code);
+    if(!list){
+      list=[];
+      activeBuckets.set(code,list);
+    }
 
     if(list.length<BUCKET_KEEP_LIMIT){
       list.push(st);
@@ -1172,19 +1142,9 @@ function prune(states,limit=12000){
   }
 
   const m=new Map();
-  keep.forEach(st=>{
+  for(let i=0;i<keep.length;i++){
+    const st=keep[i];
     m.set(stateKey(st),st);
-  });
-  if(ENABLE_INTERNAL_DIAGNOSTICS){
-    TARGET_DEBUG.pruneEvents.push({
-      mode,
-      before:states.size,
-      after:m.size,
-      targetBefore,
-      targetAfter:countTargetStates(m),
-      routeBefore,
-      routeAfter:targetRouteProfile(m)
-    });
   }
   return m;
 }
@@ -1282,7 +1242,7 @@ function buildBasicStates(exp){
         const newLife=op.life!==null?op.life:st.life;
         const k=key(nc)+'|'+(newLife==null?'':Number(newLife).toString(36));
         const old=next.get(k);
-        const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
+        const newItemLen=stItemLen+(op.itemLen ?? op.items.length);
 
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
 
@@ -1759,10 +1719,10 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
     const group=groups[gi];
+    const groupOpts=group.opts;
 
     let next=new Map(states);
     let iter=0;
-
 
     for(const st of states.values()){
       if((iter&255)===0) throwIfCancelled();
@@ -1783,7 +1743,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       const stBits=st.bits ?? EMPTY_BITS;
 
-      for(const op of group.opts){
+      const stItemLen=itemLenOf(st);
+      for(let oi=0;oi<groupOpts.length;oi++){
+        const op=groupOpts[oi];
         if((iter&127)===0) throwIfCancelled();
         const opBits=op.bits;
         if((stBits & opBits)!==EMPTY_BITS){
@@ -1816,7 +1778,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           continue;
         }
 
-        const nc=[n0,n1,n2,n3,n4];
         const newScore=st.score+op.score;
         const childRemainSum=remainSum-op.costSum;
         if(!disableUpperBound){
@@ -1838,6 +1799,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           continue;
         }
 
+        const nc=[n0,n1,n2,n3,n4];
         const newState=makeState(
           nc,
           newScore,
@@ -1850,8 +1812,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           st.usedCost+op.costSum
         );
         newState._remainSum=childRemainSum;
-        newState._groupIndex=gi;
-        newState._groupKind=group.kind||'';
         next.set(k,newState);
       }
 
@@ -1915,7 +1875,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       onProgress?.('計算中');
     }
 
-    if(gi%2===1 || gi===groups.length-1){
+    if((gi&1)===1 || gi===groupCount-1){
       await yieldToBrowser();
     }
   }
