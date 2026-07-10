@@ -385,36 +385,47 @@ function prune(states,limit=12000){
   const skylineByScope=new Map();
   const buckets=new Map();
 
-  function bucketKey(st){
+  function bucketCacheFor(st){
+    const cacheKey=String(BUCKET_SIZE);
+    let all=st._bucketCache;
+    if(!all){
+      all=Object.create(null);
+      st._bucketCache=all;
+    }
+    if(all[cacheKey]) return all[cacheKey];
+
     const c=st.cost;
-    return Math.floor(c[0]/BUCKET_SIZE)+','+
-      Math.floor(c[1]/BUCKET_SIZE)+','+
-      Math.floor(c[2]/BUCKET_SIZE)+','+
-      Math.floor(c[3]/BUCKET_SIZE)+','+
-      Math.floor(c[4]/BUCKET_SIZE)+'|'+pruneScopeKey(st);
+    const b0=Math.floor(c[0]/BUCKET_SIZE);
+    const b1=Math.floor(c[1]/BUCKET_SIZE);
+    const b2=Math.floor(c[2]/BUCKET_SIZE);
+    const b3=Math.floor(c[3]/BUCKET_SIZE);
+    const b4=Math.floor(c[4]/BUCKET_SIZE);
+    const scope=pruneScopeKey(st);
+
+    const key=b0+','+b1+','+b2+','+b3+','+b4+'|'+scope;
+    const nearby=[];
+
+    for(let mask=0;mask<32;mask++){
+      const n0=b0-((mask&1)?1:0);
+      const n1=b1-((mask&2)?1:0);
+      const n2=b2-((mask&4)?1:0);
+      const n3=b3-((mask&8)?1:0);
+      const n4=b4-((mask&16)?1:0);
+      if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
+      nearby.push(n0+','+n1+','+n2+','+n3+','+n4+'|'+scope);
+    }
+
+    const cached={key,nearby};
+    all[cacheKey]=cached;
+    return cached;
+  }
+
+  function bucketKey(st){
+    return bucketCacheFor(st).key;
   }
 
   function nearbyBucketKeys(st){
-    const c=st.cost;
-    const base=[
-      Math.floor(c[0]/BUCKET_SIZE),
-      Math.floor(c[1]/BUCKET_SIZE),
-      Math.floor(c[2]/BUCKET_SIZE),
-      Math.floor(c[3]/BUCKET_SIZE),
-      Math.floor(c[4]/BUCKET_SIZE)
-    ];
-    const scope=pruneScopeKey(st);
-    const keys=[];
-    for(let mask=0;mask<32;mask++){
-      const b0=base[0]-((mask&1)?1:0);
-      const b1=base[1]-((mask&2)?1:0);
-      const b2=base[2]-((mask&4)?1:0);
-      const b3=base[3]-((mask&8)?1:0);
-      const b4=base[4]-((mask&16)?1:0);
-      if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
-      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+scope);
-    }
-    return keys;
+    return bucketCacheFor(st).nearby;
   }
 
   function dominatedBySkyline(st){
