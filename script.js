@@ -1,4 +1,4 @@
-(function(){
+ (function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -161,6 +161,7 @@ const TARGET_DEBUG={
     this.costDiff=null;
     this.withLife=null;
     this.withoutLife=null;
+    this.branchCandidateDiagnostics=[];
     this.notes=[];
   }
 };
@@ -718,7 +719,10 @@ function inspectChainNodes(st){
       cost:Array.isArray(cur.cost)?cur.cost.slice():[],
       choice:Array.isArray(cur.choice)?cur.choice.map(traceItemLabel):[],
       life:cur.life,
-      key:stateKey(cur)
+      key:stateKey(cur),
+      groupIndex:Number.isInteger(cur._groupIndex)?cur._groupIndex:null,
+      groupKind:cur._groupKind||'',
+      stateRef:cur
     });
 
     cur=cur.prev;
@@ -837,6 +841,141 @@ function buildSelectedChainDecision(chainInfo,preferredIndex=6){
       }
     ]
   };
+}
+
+
+function branchChoiceSignature(items){
+  return (items||[]).map(it=>{
+    if(it?.type==='special') return `special:${Number(it.idx)}`;
+    if(it?.type==='basic') return `basic:${it.name}:${it.from}:${it.to}`;
+    return traceItemLabel(it);
+  }).sort().join('|');
+}
+
+function buildBranchCandidateDiagnostics(finalState,exp,startIndex=5,endIndex=8){
+  const raw=inspectChainNodes(finalState);
+  const nodes=meaningfulChainNodes(raw);
+  const results=[];
+
+  for(let nodeIndex=Math.max(1,startIndex);nodeIndex<=Math.min(endIndex,nodes.length-1);nodeIndex++){
+    const selectedNode=nodes[nodeIndex];
+    const parentNode=nodes[nodeIndex-1];
+    const parent=parentNode.stateRef;
+    const groupIndex=selectedNode.groupIndex;
+
+    if(!parent || !Number.isInteger(groupIndex)){
+      results.push({
+        nodeIndex,
+        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
+        groupIndex:null,
+        groupKind:selectedNode.groupKind||'',
+        parentScore:Number(parentNode.score),
+        parentCost:(parentNode.cost||[]).slice(),
+        rows:[],
+        note:'グループ情報なし（基本能力ノードまたは旧キャッシュ）'
+      });
+      continue;
+    }
+
+    const hp=currentHpForLife(parent.life);
+    const cacheKey=String(hp)+'|'+key(exp);
+    const groups=orderedSpecialGroupCache.get(cacheKey) || specialChoiceGroupsForExpCached(hp,exp);
+    const group=groups[groupIndex];
+
+    if(!group){
+      results.push({
+        nodeIndex,
+        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
+        groupIndex,
+        groupKind:selectedNode.groupKind||'',
+        parentScore:Number(parent.score),
+        parentCost:(parent.cost||[]).slice(),
+        rows:[],
+        note:'対象グループを復元できず'
+      });
+      continue;
+    }
+
+    const parentBits=parent.bits??EMPTY_BITS;
+    const selectedSignature=branchChoiceSignature(selectedNode.stateRef?.choice||[]);
+    const rows=[];
+
+    for(const op of group.opts){
+      const opBits=op.bits??specialItemsBits(op.items);
+      let result='候補';
+      let reason='';
+      if((parentBits&opBits)!==EMPTY_BITS){
+        result='除外'; reason='取得済み重複';
+      }else if((parentBits&(op.conflictBits??conflictBitsFor(opBits)))!==EMPTY_BITS){
+        result='除外'; reason='相互排他';
+      }
+
+      const newCost=addCost(parent.cost,op.cost);
+      if(result!=='除外' && !leq(newCost,exp)){
+        result='除外'; reason='経験点不足';
+      }
+
+      const sig=branchChoiceSignature(op.items);
+      const selected=sig===selectedSignature;
+      if(selected && result!=='除外') result='採用';
+
+      rows.push({
+        label:(op.items||[]).map(traceItemLabel).join('・')||'不明',
+        score:Number(parent.score)+Number(op.score),
+        gain:Number(op.score),
+        cost:(op.cost||[]).slice(),
+        efficiency:(op.costSum??costSum(op.cost))>0 ? Number(op.score)/(op.costSum??costSum(op.cost)) : null,
+        result,
+        reason,
+        selected
+      });
+    }
+
+    rows.push({
+      label:'何もしない',
+      score:Number(parent.score),
+      gain:0,
+      cost:[0,0,0,0,0],
+      efficiency:null,
+      result:selectedSignature===''?'採用':'不採用',
+      reason:'',
+      selected:selectedSignature===''
+    });
+
+    rows.sort((a,b)=>{
+      if(a.selected!==b.selected) return a.selected?-1:1;
+      if(a.result==='除外' && b.result!=='除外') return 1;
+      if(a.result!=='除外' && b.result==='除外') return -1;
+      return b.score-a.score;
+    });
+
+    results.push({
+      nodeIndex,
+      selectedLabel:selectedNode.choice?.join('・')||'何もしない',
+      groupIndex,
+      groupKind:group.kind||selectedNode.groupKind||'',
+      parentScore:Number(parent.score),
+      parentCost:(parent.cost||[]).slice(),
+      rows,
+      note:''
+    });
+  }
+
+  return results;
+}
+
+function compactBranchCandidateRows(rows){
+  if(!rows?.length) return '<tr><td colspan="8">候補情報なし</td></tr>';
+  return rows.map((r,i)=>`<tr>
+    <td>${i+1}</td>
+    <td>${r.label}</td>
+    <td>${r.score.toFixed(2)}</td>
+    <td>${r.gain>=0?'+':''}${r.gain.toFixed(2)}</td>
+    <td>${r.cost.join(',')}</td>
+    <td>${r.efficiency==null?'なし':r.efficiency.toFixed(5)}</td>
+    <td>${r.result}</td>
+    <td>${r.reason||'-'}</td>
+  </tr>`).join('');
 }
 
 function shortDiagnosisItems(items,max=8){
@@ -1823,6 +1962,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           (st.usedCost ?? costSum(st.cost))+op.costSum
         );
         newState._remainSum=childRemainSum;
+        newState._groupIndex=gi;
+        newState._groupKind=group.kind||'';
         acceptInc++;
         next.set(k,newState);
       }
@@ -2337,7 +2478,8 @@ async function calc(){
 
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
-    let best=getCachedResult(cacheKey);
+    // 分岐診断ではprevチェーンとグループ番号が必要なため、結果キャッシュは使用しない。
+    let best=null;
     if(best){
       btn.textContent='計算中 100%';
       lastProgressMessage='キャッシュ使用';
@@ -2386,6 +2528,7 @@ async function calc(){
 
     finalCandidate.items=finalItems;
     TARGET_DEBUG.selected=finalItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
+    TARGET_DEBUG.branchCandidateDiagnostics=buildBranchCandidateDiagnostics(finalCandidate,exp,5,8);
     setCachedResult(cacheKey,finalCandidate);
 
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
@@ -2654,6 +2797,20 @@ async function calc(){
       return '○必須側と○禁止側が同査定。item数またはMap順で決定';
     })();
 
+
+    const branchCandidateHtml=(TARGET_DEBUG.branchCandidateDiagnostics||[]).map(d=>`<div class="result-block">
+      <h3>N${d.nodeIndex} 分岐候補診断</h3>
+      <table class="result-table">
+        <tbody>
+          <tr><td>親状態</td><td colspan="7">score ${fmtScore(d.parentScore)} / cost ${d.parentCost.join(',')}</td></tr>
+          <tr><td>採用</td><td colspan="7">${d.selectedLabel}</td></tr>
+          <tr><td>グループ</td><td colspan="7">G${d.groupIndex==null?'なし':d.groupIndex} / ${d.groupKind||'-'}${d.note?` / ${d.note}`:''}</td></tr>
+        </tbody>
+        <thead><tr><th>#</th><th>候補</th><th>score</th><th>増加</th><th>cost</th><th>効率</th><th>結果</th><th>理由</th></tr></thead>
+        <tbody>${compactBranchCandidateRows(d.rows)}</tbody>
+      </table>
+    </div>`).join('');
+
     const targetCompareHtml=`<div class="result-block">
       <h3>物理攻撃○ 強制比較</h3>
       <table class="result-table"><tbody>
@@ -2707,6 +2864,8 @@ ${magicDiagnosisHtml}
 ${compactDiagnosisHtml}
 
 ${targetCompareHtml}
+
+${branchCandidateHtml}
 
 ${displayReferenceHtml}
 
