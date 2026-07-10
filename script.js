@@ -699,6 +699,43 @@ function topScoreRank(states, score){
   return {rank,total:values.length};
 }
 
+function inspectChainNodes(st){
+  const nodes=[];
+  const seen=new Set();
+  let cur=st;
+  let cycle=false;
+
+  while(cur){
+    if(seen.has(cur)){
+      cycle=true;
+      break;
+    }
+    seen.add(cur);
+
+    nodes.push({
+      score:Number(cur.score),
+      cost:Array.isArray(cur.cost)?cur.cost.slice():[],
+      choice:Array.isArray(cur.choice)?cur.choice.map(traceItemLabel):[],
+      life:cur.life,
+      key:stateKey(cur)
+    });
+
+    cur=cur.prev;
+  }
+
+  nodes.reverse();
+  return {nodes,cycle};
+}
+
+function compactChainText(info){
+  if(!info || !info.nodes || !info.nodes.length) return 'なし';
+
+  return info.nodes.map((node,i)=>{
+    const added=node.choice.length?node.choice.join('・'):'開始状態';
+    return `N${i}：${added} / score ${node.score.toFixed(2)} / cost ${node.cost.join(',')}`;
+  }).join('<br>');
+}
+
 function shortDiagnosisItems(items,max=8){
   const names=itemNamesForDiagnosis(items);
   if(!names.length) return 'なし';
@@ -1954,6 +1991,9 @@ async function optimizeAsync(exp,onProgress){
   const rawWithoutTrace=inspectStateChain(globalBestWithoutTarget);
   const rawSelectedTrace=inspectStateChain(best);
 
+  const withChainTrace=inspectChainNodes(globalBestWithTarget);
+  const selectedChainTrace=inspectChainNodes(best);
+
   TARGET_DEBUG.finalCandidateTrace={
     selectedIsWith:!!best && best===globalBestWithTarget,
     selectedIsWithout:!!best && best===globalBestWithoutTarget,
@@ -1971,6 +2011,7 @@ async function optimizeAsync(exp,onProgress){
     withNodes:rawWithTrace.nodeCount,
     withChoices:rawWithTrace.choiceCount,
     withCachedBefore:rawWithTrace.cachedItems,
+    withChain:withChainTrace,
 
     withoutScore:globalBestWithoutTarget?.score ?? null,
     withoutCost:globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null,
@@ -1985,7 +2026,8 @@ async function optimizeAsync(exp,onProgress){
     selectedCycle:rawSelectedTrace.cycle,
     selectedNodes:rawSelectedTrace.nodeCount,
     selectedChoices:rawSelectedTrace.choiceCount,
-    selectedCachedBefore:rawSelectedTrace.cachedItems
+    selectedCachedBefore:rawSelectedTrace.cachedItems,
+    selectedChain:selectedChainTrace
   };
 
   const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
@@ -2254,22 +2296,31 @@ async function calc(){
       ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
       : '最終到達なし';
 
-    const magicTrace=TARGET_DEBUG.magicAcquisitionTrace;
+    const trace=TARGET_DEBUG.finalCandidateTrace||{};
+    const withChainText=compactChainText(trace.withChain);
+    const magicNodeIndex=trace.withChain?.nodes?.findIndex(node=>
+      node.choice.some(name=>String(name).startsWith('魔力 '))
+    ) ?? -1;
+
+    const chainDiagnosis=(()=>{
+      if(magicNodeIndex>=0){
+        const node=trace.withChain.nodes[magicNodeIndex];
+        return `魔力はN${magicNodeIndex}で追加（${node.choice.join('・')}）`;
+      }
+      if(trace.withRawHasMagic){
+        return '最終チェーンには魔力上昇があるが、各ノードchoiceからは未検出。choice保持または親参照を確認';
+      }
+      return '最終チェーンに魔力上昇なし';
+    })();
+
     const magicDiagnosisHtml=`<div class="result-block">
-      <h3>魔力取得診断</h3>
+      <h3>最終候補チェーン</h3>
       <table class="result-table"><tbody>
-        <tr><td>取得位置</td><td>${magicTrace?`G${magicTrace.gi} ${magicTrace.groupKind}`:'未検出'}</td></tr>
-        <tr><td>追加項目</td><td>${magicTrace?magicTrace.addedItem:'未検出'}</td></tr>
-        <tr><td>score変化</td><td>${magicTrace?`${magicTrace.parentScore.toFixed(2)} → ${magicTrace.newScore.toFixed(2)}（+${magicTrace.scoreGain.toFixed(2)}）`:'なし'}</td></tr>
-        <tr><td>追加cost</td><td>${magicTrace?`${magicTrace.addedCost.join(',')}（合計${magicTrace.addedCostSum}）`:'なし'}</td></tr>
-        <tr><td>効率</td><td>${magicTrace&&magicTrace.efficiency!=null?magicTrace.efficiency.toFixed(5):'なし'}</td></tr>
-        <tr><td>生成時順位</td><td>${magicTrace?`${magicTrace.rank}位 / ${magicTrace.rankTotal}候補`:'なし'}</td></tr>
-        <tr><td>取得前</td><td>${magicTrace?magicTrace.parentItems.slice(0,8).join(' / ')||'なし':'なし'}</td></tr>
-        <tr><td>取得後</td><td>${magicTrace?magicTrace.newItems.slice(0,9).join(' / ')||'なし':'なし'}</td></tr>
+        <tr><td>判定</td><td>${chainDiagnosis}</td></tr>
+        <tr><td>○側チェーン</td><td>${withChainText}</td></tr>
       </tbody></table>
     </div>`;
 
-    const trace=TARGET_DEBUG.finalCandidateTrace||{};
     const f=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
     const c=v=>Array.isArray(v)?v.join(','):'なし';
 
