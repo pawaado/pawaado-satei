@@ -1,4 +1,4 @@
-(function(){
+ (function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -24,6 +24,17 @@ D.special.forEach((s,i)=>{
   if(s[2]) specialReqIndex.set(String(s[2]),i);
 });
 let isCalculating=false;
+let cancelRequested=false;
+
+class CalculationCancelledError extends Error{
+  constructor(){
+    super('計算がキャンセルされました');
+    this.name='CalculationCancelledError';
+  }
+}
+function throwIfCancelled(){
+  if(cancelRequested) throw new CalculationCancelledError();
+}
 const EMPTY_ITEMS=[];
 const EMPTY_BITS=0n;
 const specialBitCache=[];
@@ -135,6 +146,13 @@ const TARGET_DEBUG={
     this.taskSummaries=[];
     this.augmentChecks=[];
     this.bestAugmentable=null;
+    this.withOnlyItems=[];
+    this.withoutOnlyItems=[];
+    this.withCost=null;
+    this.withoutCost=null;
+    this.costDiff=null;
+    this.withLife=null;
+    this.withoutLife=null;
     this.notes=[];
   }
 };
@@ -149,6 +167,38 @@ function stateHasTarget(st){
   const items=st.items||st.choice;
   return !!items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
 }
+function debugItemKey(it){
+  if(!it) return '';
+  if(it.type==='special') return `special:${it.idx}`;
+  if(it.type==='basic') return `basic:${it.name}:${it.from}:${it.to}`;
+  return JSON.stringify(it);
+}
+function debugItemLabel(it){
+  if(!it) return '不明';
+  if(it.type==='special') return String(it.name||`特殊能力#${it.idx}`);
+  if(it.type==='basic') return `${it.name} ${it.from}→${it.to}`;
+  return String(it.name||it.type||'不明');
+}
+function compareDebugItems(withState,withoutState){
+  const withItems=withState ? restoreItems(withState) : [];
+  const withoutItems=withoutState ? restoreItems(withoutState) : [];
+
+  const withMap=new Map(withItems.map(it=>[debugItemKey(it),it]));
+  const withoutMap=new Map(withoutItems.map(it=>[debugItemKey(it),it]));
+
+  const withOnly=[];
+  const withoutOnly=[];
+
+  for(const [k,it] of withMap){
+    if(!withoutMap.has(k)) withOnly.push(debugItemLabel(it));
+  }
+  for(const [k,it] of withoutMap){
+    if(!withMap.has(k)) withoutOnly.push(debugItemLabel(it));
+  }
+
+  return {withOnly,withoutOnly};
+}
+
 function countTargetStates(mapOrIterable){
   let n=0;
   const values=mapOrIterable instanceof Map ? mapOrIterable.values() : mapOrIterable;
@@ -407,7 +457,11 @@ function restoreItems(st){
   return out;
 }
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && itemLenOf(a)<itemLenOf(b));}
-function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
+function yieldToBrowser(){
+  return new Promise(r=>setTimeout(r,0)).then(()=>{
+    throwIfCancelled();
+  });
+}
 function prune(states,limit=12000){
   const mode=currentCalcMode();
   const targetBefore=countTargetStates(states);
@@ -922,6 +976,30 @@ function currentCalcMode(){
 function calcModeLabel(){
   return currentCalcMode()==='fast' ? '高速β' : '高精度';
 }
+function ensureCancelButton(){
+  let cancelBtn=document.getElementById('cancelCalcBtn');
+  if(cancelBtn) return cancelBtn;
+
+  const calcBtn=document.getElementById('calcBtn');
+  cancelBtn=document.createElement('button');
+  cancelBtn.id='cancelCalcBtn';
+  cancelBtn.type='button';
+  cancelBtn.className='secondary';
+  cancelBtn.textContent='キャンセル';
+  cancelBtn.style.display='none';
+
+  calcBtn.insertAdjacentElement('afterend',cancelBtn);
+
+  cancelBtn.addEventListener('click',()=>{
+    if(!isCalculating || cancelRequested) return;
+    cancelRequested=true;
+    cancelBtn.disabled=true;
+    cancelBtn.textContent='キャンセル中';
+  });
+
+  return cancelBtn;
+}
+
 function renderCalcMode(){
   const btn=document.getElementById('calcBtn');
   if(!btn || document.getElementById('calcMode')) return;
@@ -1054,6 +1132,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   const yieldEvery=mode==='fast' ? 10000 : 2500;
 
   for(let gi=0;gi<groups.length;gi++){
+    throwIfCancelled();
     const group=groups[gi];
     const next=new Map(states);
     let iter=0;
@@ -1065,6 +1144,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
 
     for(const st of states.values()){
+      if((iter&255)===0) throwIfCancelled();
       // この状態から残り全部を最高値で取っても届かないならスキップ。
       if(st.score+suffixMax[gi]<bestScore){
         ubCutInc++;
@@ -1382,6 +1462,7 @@ async function optimizeAsync(exp,onProgress){
   TARGET_DEBUG.taskSummaries=[];
 
   for(const task of tasks){
+    throwIfCancelled();
     pStart("特殊能力探索");
     const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
     pEnd("特殊能力探索");
@@ -1428,6 +1509,19 @@ async function optimizeAsync(exp,onProgress){
   TARGET_DEBUG.selectedScore=best?.score ?? null;
   TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
   TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
+
+  const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
+  TARGET_DEBUG.withOnlyItems=candidateDiff.withOnly;
+  TARGET_DEBUG.withoutOnlyItems=candidateDiff.withoutOnly;
+  TARGET_DEBUG.withCost=globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null;
+  TARGET_DEBUG.withoutCost=globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null;
+  TARGET_DEBUG.costDiff=(
+    TARGET_DEBUG.withCost && TARGET_DEBUG.withoutCost
+      ? TARGET_DEBUG.withCost.map((v,i)=>v-TARGET_DEBUG.withoutCost[i])
+      : null
+  );
+  TARGET_DEBUG.withLife=globalBestWithTarget?.life ?? null;
+  TARGET_DEBUG.withoutLife=globalBestWithoutTarget?.life ?? null;
 
   onProgress?.('計算中 100%');
   return best||fallback;
@@ -1481,13 +1575,21 @@ async function calc(){
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
   const startTime=performance.now();
   const btn=document.getElementById('calcBtn');
+  const cancelBtn=ensureCancelButton();
   const cacheKey=calcCacheKey(exp);
   let lastProgressMessage='';
   let lastDetailedProgress='';
+  cancelRequested=false;
   isCalculating=true;
   document.body.classList.add('is-calculating');
-  document.querySelectorAll('button,input,select').forEach(el=>{ if(el.id!=='calcBtn') el.disabled=true; });
-  btn.disabled=true; btn.textContent='計算中';
+  document.querySelectorAll('button,input,select').forEach(el=>{
+    if(el.id!=='calcBtn' && el.id!=='cancelCalcBtn') el.disabled=true;
+  });
+  btn.disabled=true;
+  btn.textContent='計算中';
+  cancelBtn.disabled=false;
+  cancelBtn.textContent='キャンセル';
+  cancelBtn.style.display='';
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
     let best=getCachedResult(cacheKey);
@@ -1550,6 +1652,22 @@ async function calc(){
     const bestAugExistsText=bestAug ? (bestAug.exists?'あり':'なし') : '比較不可';
     const bestAugHpText=bestAug ? String(bestAug.hp) : 'なし';
 
+    const withOnlyText=TARGET_DEBUG.withOnlyItems.length
+      ? TARGET_DEBUG.withOnlyItems.join(' / ')
+      : 'なし';
+    const withoutOnlyText=TARGET_DEBUG.withoutOnlyItems.length
+      ? TARGET_DEBUG.withoutOnlyItems.join(' / ')
+      : 'なし';
+    const withCostText=TARGET_DEBUG.withCost
+      ? TARGET_DEBUG.withCost.join(',')
+      : 'なし';
+    const withoutCostText=TARGET_DEBUG.withoutCost
+      ? TARGET_DEBUG.withoutCost.join(',')
+      : 'なし';
+    const costDiffText=TARGET_DEBUG.costDiff
+      ? TARGET_DEBUG.costDiff.map((v,i)=>`${expNames[i]}:${v>=0?'+':''}${v}`).join(' / ')
+      : '比較不可';
+
     const finalDecisionReason=(()=>{
       if(!bestWith && !bestWithout) return '最終候補なし';
       if(bestWith && !bestWithout) return '物理攻撃○あり候補のみ';
@@ -1585,6 +1703,13 @@ async function calc(){
         <tr><td>採用候補item数</td><td>${TARGET_DEBUG.selectedItemLen ?? 'なし'}</td></tr>
         <tr><td>採用候補に物理攻撃○</td><td>${TARGET_DEBUG.selectedHasTarget?'あり':'なし'}</td></tr>
         <tr><td>最終比較の判定</td><td>${finalDecisionReason}</td></tr>
+        <tr><td>○あり候補だけの能力</td><td>${withOnlyText}</td></tr>
+        <tr><td>○なし候補だけの能力</td><td>${withoutOnlyText}</td></tr>
+        <tr><td>○あり候補の消費経験点</td><td>${withCostText}</td></tr>
+        <tr><td>○なし候補の消費経験点</td><td>${withoutCostText}</td></tr>
+        <tr><td>消費経験点差（あり−なし）</td><td>${costDiffText}</td></tr>
+        <tr><td>○あり候補の生命力</td><td>${TARGET_DEBUG.withLife ?? 'なし'}</td></tr>
+        <tr><td>○なし候補の生命力</td><td>${TARGET_DEBUG.withoutLife ?? 'なし'}</td></tr>
         <tr><td>後付け可能な最高HP</td><td>${bestAugHpText}</td></tr>
         <tr><td>後付け前score</td><td>${bestAugBaseScoreText}</td></tr>
         <tr><td>後付け後score</td><td>${bestAugScoreText}</td></tr>
@@ -1621,16 +1746,23 @@ ${profileHtml}
 </div>
 `;
   }catch(err){
-    const name=err?.name||'Error';
-    const message=err?.message||'原因不明のエラーです';
+    if(err?.name==='CalculationCancelledError'){
+      result.innerHTML=`<div class="result-block">
+        <p>計算をキャンセルしました。</p>
+        <p>条件を変更して、もう一度「計算する」を押してください。</p>
+      </div>`;
+    }else{
+      const name=err?.name||'Error';
+      const message=err?.message||'原因不明のエラーです';
 
-    result.innerHTML=`<div class="error-box">
-      <p>⚠️ 計算中にエラーが発生しました。</p>
-      <p>${name}</p>
-      <p>${message}</p>
-    </div>`;
+      result.innerHTML=`<div class="error-box">
+        <p>⚠️ 計算中にエラーが発生しました。</p>
+        <p>${name}</p>
+        <p>${message}</p>
+      </div>`;
 
-    console.error(err);
+      console.error(err);
+    }
   }finally{
     isCalculating=false;
     document.body.classList.remove('is-calculating');
@@ -1638,7 +1770,12 @@ ${profileHtml}
     job.disabled=!academy.value;
     basicNames.forEach(n=>applyBasicVisual(n));
     D.special.forEach((_,i)=>applySkillVisual(i));
-    btn.disabled=false; btn.textContent='計算する';
+    btn.disabled=false;
+    btn.textContent='計算する';
+    cancelBtn.disabled=false;
+    cancelBtn.textContent='キャンセル';
+    cancelBtn.style.display='none';
+    cancelRequested=false;
   }
 }
 function resetAll(){
@@ -1663,5 +1800,6 @@ function resetAll(){
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
+ensureCancelButton();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); renderCalcMode(); validateAllInline();
 })();
