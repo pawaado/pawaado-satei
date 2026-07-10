@@ -122,10 +122,31 @@ const TARGET_DEBUG={
     this.duplicateCut=0;
     this.ubCut=0;
     this.selected=false;
+    this.groupSnapshots=[];
+    this.pruneEvents=[];
+    this.finalStatesWithTarget=0;
     this.notes=[];
   }
 };
 TARGET_DEBUG.reset();
+function stateHasTarget(st){
+  if(!st) return false;
+  const idx=TARGET_DEBUG.index;
+  if(idx>=0){
+    const bit=specialBit(idx);
+    if(((st.bits??EMPTY_BITS)&bit)!==EMPTY_BITS) return true;
+  }
+  const items=st.items||st.choice;
+  return !!items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
+}
+function countTargetStates(mapOrIterable){
+  let n=0;
+  const values=mapOrIterable instanceof Map ? mapOrIterable.values() : mapOrIterable;
+  for(const st of values){
+    if(stateHasTarget(st)) n++;
+  }
+  return n;
+}
 const PROFILE={marks:new Map(),times:new Map()};
 function pStart(k){PROFILE.marks.set(k,performance.now());}
 function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
@@ -379,6 +400,7 @@ function better(a,b){return !b || a.score>b.score || (a.score===b.score && itemL
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
 function prune(states,limit=12000){
   const mode=currentCalcMode();
+  const targetBefore=countTargetStates(states);
   const arr=[...states.values()]
     .map(st=>{st.totalCost=costSum(st.cost); return st;})
     .sort((a,b)=>{
@@ -414,6 +436,13 @@ function prune(states,limit=12000){
     keep.forEach(st=>{
       delete st.totalCost;
       m.set(stateKey(st),st);
+    });
+    TARGET_DEBUG.pruneEvents.push({
+      mode,
+      before:states.size,
+      after:m.size,
+      targetBefore,
+      targetAfter:countTargetStates(m)
     });
     return m;
   }
@@ -544,6 +573,13 @@ function prune(states,limit=12000){
   keep.forEach(st=>{
     delete st.totalCost;
     m.set(stateKey(st),st);
+  });
+  TARGET_DEBUG.pruneEvents.push({
+    mode,
+    before:states.size,
+    after:m.size,
+    targetBefore,
+    targetAfter:countTargetStates(m)
   });
   return m;
 }
@@ -1132,6 +1168,14 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(st.score>bestScore) bestScore=st.score;
     }
 
+    TARGET_DEBUG.groupSnapshots.push({
+      gi,
+      groupKind:group.kind||'',
+      stateCount:states.size,
+      targetCount:countTargetStates(states),
+      bestScore
+    });
+
     if(debug){
       debug.candidate+=candidateInc;
       debug.accept+=acceptInc;
@@ -1153,6 +1197,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   let best=null;
+  TARGET_DEBUG.finalStatesWithTarget=countTargetStates(states);
 
   for(const st of states.values()){
     if(better(st,best)) best=st;
@@ -1316,6 +1361,13 @@ async function calc(){
     const rawCostText=TARGET_DEBUG.rawCost?TARGET_DEBUG.rawCost.join(','):'未生成';
     const discountedCostText=TARGET_DEBUG.discountedCost?TARGET_DEBUG.discountedCost.join(','):'未生成';
     const targetNotes=[...new Set(TARGET_DEBUG.notes)].slice(0,8).join(' / ')||'なし';
+    const snapshotText=TARGET_DEBUG.groupSnapshots
+      .map(x=>`G${x.gi}:${x.targetCount}/${x.stateCount}`)
+      .join(' → ')||'なし';
+    const pruneText=TARGET_DEBUG.pruneEvents
+      .map((x,i)=>`P${i+1}:${x.targetBefore}→${x.targetAfter} / 全体${x.before}→${x.after}`)
+      .join(' | ')||'なし';
+
     const targetDebugHtml=`<div class="result-block"><h3>物理攻撃○ 診断</h3>
       <table class="result-table"><tbody>
         <tr><td>index</td><td>${TARGET_DEBUG.index}</td></tr>
@@ -1330,13 +1382,15 @@ async function calc(){
         <tr><td>競合カット</td><td>${TARGET_DEBUG.conflictCut}</td></tr>
         <tr><td>重複カット</td><td>${TARGET_DEBUG.duplicateCut}</td></tr>
         <tr><td>UBカット</td><td>${TARGET_DEBUG.ubCut}</td></tr>
+        <tr><td>最終状態内の保持数</td><td>${TARGET_DEBUG.finalStatesWithTarget}</td></tr>
+        <tr><td>各グループ残存</td><td>${snapshotText}</td></tr>
+        <tr><td>prune前後</td><td>${pruneText}</td></tr>
         <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
         <tr><td>補足</td><td>${targetNotes}</td></tr>
       </tbody></table>
     </div>`;
     const debugHtml=`<div class="result-block"><h3>検証用ログ</h3><p>${lastDetailedProgress || lastProgressMessage || 'ログなし'}</p></div>${targetDebugHtml}`;
     const profileHtml=`<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
-    const scoreText=Math.round(best.score||0).toLocaleString('ja-JP');
     result.innerHTML=`
 <div class="result-block">
   <h3>基本能力</h3>
@@ -1347,12 +1401,6 @@ async function calc(){
   <h3>特殊能力</h3>
   ${resultTable(bestItems,'special')}
 </div>
-
-<div class="result-block score-block">
-  <h3>査定(参考値)</h3>
-  <p class="score-value">${scoreText}</p>
-</div>
-
 ${remainHtml}
 
 ${debugHtml}
