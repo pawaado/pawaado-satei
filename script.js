@@ -130,6 +130,11 @@ const TARGET_DEBUG={
     this.selectedScore=null;
     this.selectedItemLen=null;
     this.selectedHasTarget=false;
+    this._bestWithState=null;
+    this._bestWithoutState=null;
+    this.taskSummaries=[];
+    this.augmentChecks=[];
+    this.bestAugmentable=null;
     this.notes=[];
   }
 };
@@ -942,6 +947,15 @@ function groupEfficiency(g){
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
   let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
 
+  const targetOp=(()=>{
+    for(const g of groups){
+      for(const op of g.opts){
+        if(op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME)) return op;
+      }
+    }
+    return null;
+  })();
+
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
 
@@ -1206,6 +1220,77 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   let bestWithTarget=null;
   let bestWithoutTarget=null;
+  let bestAugmentable=null;
+  let augmentableCount=0;
+  let augmentableStateAlreadyExists=0;
+
+  if(targetOp){
+    const targetBits=targetOp.bits??specialItemsBits(targetOp.items);
+    const targetConflict=targetOp.conflictBits??EMPTY_BITS;
+    const targetCost=targetOp.cost;
+
+    for(const st of states.values()){
+      if(stateHasTarget(st)) continue;
+
+      const stBits=st.bits??EMPTY_BITS;
+      if((stBits&targetBits)!==EMPTY_BITS) continue;
+      if((stBits&targetConflict)!==EMPTY_BITS) continue;
+
+      const nc=addCost(st.cost,targetCost);
+      if(!leq(nc,exp)) continue;
+
+      augmentableCount++;
+      const hypotheticalScore=st.score+targetOp.score;
+      const hypotheticalItemLen=itemLenOf(st)+(targetOp.itemLen??targetOp.items.length);
+      const nextBits=stBits|targetBits;
+      const expectedKey=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
+      const exists=states.has(expectedKey);
+      if(exists) augmentableStateAlreadyExists++;
+
+      const cand={
+        baseScore:st.score,
+        hypotheticalScore,
+        baseItemLen:itemLenOf(st),
+        hypotheticalItemLen,
+        baseCost:(st.cost||[]).slice(),
+        newCost:nc.slice(),
+        exists
+      };
+
+      if(
+        !bestAugmentable ||
+        hypotheticalScore>bestAugmentable.hypotheticalScore ||
+        (
+          hypotheticalScore===bestAugmentable.hypotheticalScore &&
+          hypotheticalItemLen<bestAugmentable.hypotheticalItemLen
+        )
+      ){
+        bestAugmentable=cand;
+      }
+    }
+  }
+
+  TARGET_DEBUG.augmentChecks.push({
+    hp,
+    targetOpFound:!!targetOp,
+    augmentableCount,
+    augmentableStateAlreadyExists,
+    bestAugmentable
+  });
+
+  if(
+    bestAugmentable &&
+    (
+      !TARGET_DEBUG.bestAugmentable ||
+      bestAugmentable.hypotheticalScore>TARGET_DEBUG.bestAugmentable.hypotheticalScore ||
+      (
+        bestAugmentable.hypotheticalScore===TARGET_DEBUG.bestAugmentable.hypotheticalScore &&
+        bestAugmentable.hypotheticalItemLen<TARGET_DEBUG.bestAugmentable.hypotheticalItemLen
+      )
+    )
+  ){
+    TARGET_DEBUG.bestAugmentable={hp,...bestAugmentable};
+  }
 
   for(const st of states.values()){
     if(stateHasTarget(st)){
@@ -1216,6 +1301,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
     if(better(st,best)) best=st;
   }
+
+  TARGET_DEBUG._bestWithState=bestWithTarget;
+  TARGET_DEBUG._bestWithoutState=bestWithoutTarget;
 
   TARGET_DEBUG.bestWithTarget=bestWithTarget ? {
     score:bestWithTarget.score,
@@ -1289,11 +1377,32 @@ async function optimizeAsync(exp,onProgress){
 
   const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
   let best=null;
+  let globalBestWithTarget=null;
+  let globalBestWithoutTarget=null;
+  TARGET_DEBUG.taskSummaries=[];
 
   for(const task of tasks){
     pStart("特殊能力探索");
     const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
     pEnd("特殊能力探索");
+
+    const taskBestWith=TARGET_DEBUG._bestWithState;
+    const taskBestWithout=TARGET_DEBUG._bestWithoutState;
+
+    if(taskBestWith && better(taskBestWith,globalBestWithTarget)){
+      globalBestWithTarget=taskBestWith;
+    }
+    if(taskBestWithout && better(taskBestWithout,globalBestWithoutTarget)){
+      globalBestWithoutTarget=taskBestWithout;
+    }
+
+    TARGET_DEBUG.taskSummaries.push({
+      hp:task.hp,
+      selectedScore:cand?.score ?? null,
+      selectedHasTarget:!!cand && stateHasTarget(cand),
+      bestWithScore:taskBestWith?.score ?? null,
+      bestWithoutScore:taskBestWithout?.score ?? null
+    });
 
     if(cand && better(cand,best)){
       best=cand;
@@ -1301,6 +1410,24 @@ async function optimizeAsync(exp,onProgress){
 
     if(currentCalcMode()!=='fast') await yieldToBrowser();
   }
+
+  // 診断表示は、各HPタスク内ではなく全タスク横断の最終比較へ統一する。
+  TARGET_DEBUG._bestWithState=globalBestWithTarget;
+  TARGET_DEBUG._bestWithoutState=globalBestWithoutTarget;
+  TARGET_DEBUG.bestWithTarget=globalBestWithTarget ? {
+    score:globalBestWithTarget.score,
+    itemLen:itemLenOf(globalBestWithTarget),
+    cost:(globalBestWithTarget.cost||[]).slice()
+  } : null;
+  TARGET_DEBUG.bestWithoutTarget=globalBestWithoutTarget ? {
+    score:globalBestWithoutTarget.score,
+    itemLen:itemLenOf(globalBestWithoutTarget),
+    cost:(globalBestWithoutTarget.cost||[]).slice()
+  } : null;
+  TARGET_DEBUG.finalStatesWithTarget=globalBestWithTarget ? 1 : 0;
+  TARGET_DEBUG.selectedScore=best?.score ?? null;
+  TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
+  TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
 
   onProgress?.('計算中 100%');
   return best||fallback;
@@ -1406,6 +1533,23 @@ async function calc(){
     const withoutItemLenText=bestWithout ? String(bestWithout.itemLen) : 'なし';
     const scoreDiff=(bestWith&&bestWithout) ? (bestWith.score-bestWithout.score) : null;
     const scoreDiffText=scoreDiff==null ? '比較不可' : String(scoreDiff);
+    const taskSummaryText=TARGET_DEBUG.taskSummaries
+      .map((x,i)=>`T${i+1}(HP${x.hp}):採用${x.selectedScore ?? 'なし'}${x.selectedHasTarget?'[○あり]':'[○なし]'} / あり${x.bestWithScore ?? 'なし'} / なし${x.bestWithoutScore ?? 'なし'}`)
+      .join(' | ')||'なし';
+
+    const augmentSummaryText=TARGET_DEBUG.augmentChecks
+      .map((x,i)=>{
+        const best=x.bestAugmentable;
+        return `A${i+1}(HP${x.hp}):候補${x.targetOpFound?'あり':'なし'} / 後付け可能${x.augmentableCount} / 生成済${x.augmentableStateAlreadyExists} / 最高${best?best.hypotheticalScore:'なし'}${best&&best.exists?'[生成済]':'[未生成]'}`;
+      })
+      .join(' | ')||'なし';
+
+    const bestAug=TARGET_DEBUG.bestAugmentable;
+    const bestAugScoreText=bestAug ? String(bestAug.hypotheticalScore) : 'なし';
+    const bestAugBaseScoreText=bestAug ? String(bestAug.baseScore) : 'なし';
+    const bestAugExistsText=bestAug ? (bestAug.exists?'あり':'なし') : '比較不可';
+    const bestAugHpText=bestAug ? String(bestAug.hp) : 'なし';
+
     const finalDecisionReason=(()=>{
       if(!bestWith && !bestWithout) return '最終候補なし';
       if(bestWith && !bestWithout) return '物理攻撃○あり候補のみ';
@@ -1441,6 +1585,12 @@ async function calc(){
         <tr><td>採用候補item数</td><td>${TARGET_DEBUG.selectedItemLen ?? 'なし'}</td></tr>
         <tr><td>採用候補に物理攻撃○</td><td>${TARGET_DEBUG.selectedHasTarget?'あり':'なし'}</td></tr>
         <tr><td>最終比較の判定</td><td>${finalDecisionReason}</td></tr>
+        <tr><td>後付け可能な最高HP</td><td>${bestAugHpText}</td></tr>
+        <tr><td>後付け前score</td><td>${bestAugBaseScoreText}</td></tr>
+        <tr><td>後付け後score</td><td>${bestAugScoreText}</td></tr>
+        <tr><td>後付け状態が探索内に存在</td><td>${bestAugExistsText}</td></tr>
+        <tr><td>後付け診断</td><td>${augmentSummaryText}</td></tr>
+        <tr><td>HPタスク別比較</td><td>${taskSummaryText}</td></tr>
         <tr><td>各グループ残存</td><td>${snapshotText}</td></tr>
         <tr><td>prune前後</td><td>${pruneText}</td></tr>
         <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
