@@ -1,4 +1,4 @@
- (function(){
+(function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -25,6 +25,7 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 let cancelRequested=false;
+let activeTargetConstraint='normal';
 
 class CalculationCancelledError extends Error{
   constructor(){
@@ -1602,7 +1603,35 @@ function renderCalcMode(){
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
-async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
+function optionHasTarget(op){
+  return !!op?.items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
+}
+function constrainSpecialGroups(groups,constraint){
+  let out=groups.map(g=>({...g,opts:[...g.opts]}));
+
+  if(constraint==='forbidden'){
+    out=out
+      .map(g=>{
+        const opts=g.opts.filter(op=>!optionHasTarget(op));
+        if(!opts.length) return null;
+        const maxScore=opts.reduce((m,o)=>Math.max(m,o.score||0),0);
+        const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff ?? ((o.score||0)/(1+(o.costSum??costSum(o.cost))))),0);
+        return {...g,opts,maxScore,bestEfficiency};
+      })
+      .filter(Boolean);
+  }
+
+  if(constraint==='required'){
+    const targetIndex=out.findIndex(g=>g.opts.some(optionHasTarget));
+    if(targetIndex<0) return {groups:[],targetGroupIndex:-1};
+    const targetGroup=out[targetIndex];
+    out=[targetGroup,...out.slice(0,targetIndex),...out.slice(targetIndex+1)];
+    return {groups:out,targetGroupIndex:0};
+  }
+
+  return {groups:out,targetGroupIndex:-1};
+}
+async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null, targetConstraint='normal'){
   let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
 
   const targetOp=(()=>{
@@ -1618,7 +1647,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   const mode=currentCalcMode();
 
   // 知力余り対策を含む最終候補順まで、HP + 経験点条件ごとにキャッシュする。
-  const orderedCacheKey=String(hp)+'|'+key(exp);
+  const orderedCacheKey=String(hp)+'|'+key(exp)+'|'+targetConstraint;
   const orderedCached=orderedSpecialGroupCache.get(orderedCacheKey);
   if(orderedCached){
     groups=orderedCached;
@@ -1642,6 +1671,14 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     });
 
     orderedSpecialGroupCache.set(orderedCacheKey,groups);
+  }
+
+  const constrainedGroupInfo=constrainSpecialGroups(groups,targetConstraint);
+  groups=constrainedGroupInfo.groups;
+  const requiredTargetGroupIndex=constrainedGroupInfo.targetGroupIndex;
+
+  if(targetConstraint==='required' && requiredTargetGroupIndex<0){
+    return null;
   }
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
@@ -2016,6 +2053,19 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       states=next;
     }
 
+    // 独立した「物理攻撃○必須」探索では、対象グループを最初に処理し、
+    // その直後に○を含まない状態を除外する。以降は全保持枠を○ありルートだけで使う。
+    if(targetConstraint==='required' && gi===requiredTargetGroupIndex){
+      const requiredStates=new Map();
+      for(const st of states.values()){
+        if(stateHasTarget(st)) requiredStates.set(stateKey(st),st);
+      }
+      states=requiredStates;
+      if(!states.size) return null;
+      bestScore=-Infinity;
+      for(const st of states.values()) if(st.score>bestScore) bestScore=st.score;
+    }
+
     if(
       TARGET_DEBUG.magicDecisionSnapshot &&
       TARGET_DEBUG.magicDecisionSnapshot.gi===gi
@@ -2207,7 +2257,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
-async function optimizeAsync(exp,onProgress){
+async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
   await yieldToBrowser();
   onProgress?.('計算中 0%');
 
@@ -2268,7 +2318,7 @@ async function optimizeAsync(exp,onProgress){
   for(const task of tasks){
     throwIfCancelled();
     pStart("特殊能力探索");
-    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
+    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups,targetConstraint);
     pEnd("特殊能力探索");
 
     const taskBestWith=TARGET_DEBUG._bestWithState;
@@ -2478,22 +2528,38 @@ async function calc(){
 
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
-    // 分岐診断ではprevチェーンとグループ番号が必要なため、結果キャッシュは使用しない。
-    let best=null;
-    if(best){
-      btn.textContent='計算中 100%';
-      lastProgressMessage='キャッシュ使用';
-      lastDetailedProgress='キャッシュ使用';
-    }else{
-      best=await optimizeAsync(exp,(msg)=>{
-        lastProgressMessage=msg;
-        if(msg.includes('候補:') || msg.includes('UB:') || msg.includes('prune:')){
-          lastDetailedProgress=msg;
-        }
-        btn.textContent=msg;
-        result.innerHTML=`<p class="calculating">${msg}</p>`;
-      });
-    }
+    // まず物理攻撃○必須を完全に独立した探索として実行する。
+    // 対象グループを最初に処理した直後、○なし状態を全除外するため、
+    // 以降のprune保持枠はすべて○ありルート専用になる。
+    activeTargetConstraint='required';
+    clearCalcCaches();
+    TARGET_DEBUG.reset();
+    const requiredCandidateRaw=await optimizeAsync(exp,(msg)=>{
+      const shown=`○必須検証：${msg}`;
+      btn.textContent=shown;
+      result.innerHTML=`<p class="calculating">${shown}</p>`;
+    },'required');
+    const independentRequired=(requiredCandidateRaw && stateHasTarget(requiredCandidateRaw))
+      ? cloneResult(requiredCandidateRaw)
+      : null;
+
+    // 通常探索を最後に実行し、画面表示・チェーン診断は通常結果の情報だけで作る。
+    activeTargetConstraint='normal';
+    clearCalcCaches();
+    TARGET_DEBUG.reset();
+    let best=await optimizeAsync(exp,(msg)=>{
+      lastProgressMessage=msg;
+      if(msg.includes('候補:') || msg.includes('UB:') || msg.includes('prune:')){
+        lastDetailedProgress=msg;
+      }
+      const shown=`通常計算：${msg}`;
+      btn.textContent=shown;
+      result.innerHTML=`<p class="calculating">${shown}</p>`;
+    },'normal');
+
+    // 通常最適解が○なしなら、それ自体が「○禁止探索」の厳密な最高値になる。
+    // 理由：○禁止集合は通常探索の部分集合で、通常最高解がその部分集合に含まれるため。
+    const independentForbidden=(!stateHasTarget(best)) ? cloneResult(best) : null;
     // 最終表示・診断・キャッシュ保存で参照する候補をここで固定する。
     // 以降の通常結果表示では、○あり／なし比較用候補を直接参照しない。
     const finalCandidate=best;
@@ -2716,58 +2782,35 @@ async function calc(){
       </tbody></table>
     </div>`;
 
-    const bestWith=TARGET_DEBUG.bestWithTarget;
-    const bestWithout=TARGET_DEBUG.bestWithoutTarget;
+    const requiredState=independentRequired;
+    const forbiddenState=independentForbidden;
+    const bestWith=requiredState ? {
+      score:requiredState.score,
+      itemLen:itemLenOf(requiredState),
+      cost:(requiredState.cost||[]).slice()
+    } : null;
+    const bestWithout=forbiddenState ? {
+      score:forbiddenState.score,
+      itemLen:itemLenOf(forbiddenState),
+      cost:(forbiddenState.cost||[]).slice()
+    } : null;
     const fmtScore=v=>Number.isFinite(Number(v))
       ? Number(v).toFixed(2).replace(/\.00$/,'')
       : 'なし';
     const withScoreText=bestWith ? fmtScore(bestWith.score) : 'なし';
     const withoutScoreText=bestWithout ? fmtScore(bestWithout.score) : 'なし';
-    const withItemLenText=bestWith ? String(bestWith.itemLen) : 'なし';
-    const withoutItemLenText=bestWithout ? String(bestWithout.itemLen) : 'なし';
     const scoreDiff=(bestWith&&bestWithout) ? (bestWith.score-bestWithout.score) : null;
     const scoreDiffText=scoreDiff==null ? '比較不可' : fmtScore(scoreDiff);
-    const taskSummaryText=TARGET_DEBUG.taskSummaries
-      .map((x,i)=>`T${i+1}(HP${x.hp}):採用${x.selectedScore ?? 'なし'}${x.selectedHasTarget?'[○あり]':'[○なし]'} / あり${x.bestWithScore ?? 'なし'} / なし${x.bestWithoutScore ?? 'なし'}`)
-      .join(' | ')||'なし';
 
-    const augmentSummaryText=TARGET_DEBUG.augmentChecks
-      .map((x,i)=>{
-        const best=x.bestAugmentable;
-        return `A${i+1}(HP${x.hp}):候補${x.targetOpFound?'あり':'なし'} / 後付け可能${x.augmentableCount} / 生成済${x.augmentableStateAlreadyExists} / 最高${best?best.hypotheticalScore:'なし'}${best&&best.exists?'[生成済]':'[未生成]'}`;
-      })
-      .join(' | ')||'なし';
-
-    const bestAug=TARGET_DEBUG.bestAugmentable;
-    const bestAugScoreText=bestAug ? String(bestAug.hypotheticalScore) : 'なし';
-    const bestAugBaseScoreText=bestAug ? String(bestAug.baseScore) : 'なし';
-    const bestAugExistsText=bestAug ? (bestAug.exists?'あり':'なし') : '比較不可';
-    const bestAugHpText=bestAug ? String(bestAug.hp) : 'なし';
-
-    const withOnlyText=TARGET_DEBUG.withOnlyItems.length
-      ? TARGET_DEBUG.withOnlyItems.join(' / ')
+    const independentDiff=compareDebugItems(requiredState,forbiddenState);
+    const withOnlyText=independentDiff.withOnly.length
+      ? independentDiff.withOnly.join(' / ')
       : 'なし';
-    const withoutOnlyText=TARGET_DEBUG.withoutOnlyItems.length
-      ? TARGET_DEBUG.withoutOnlyItems.join(' / ')
+    const withoutOnlyText=independentDiff.withoutOnly.length
+      ? independentDiff.withoutOnly.join(' / ')
       : 'なし';
-    const withOnlyDetailText=TARGET_DEBUG.withOnlyDetails.length
-      ? TARGET_DEBUG.withOnlyDetails.join('<br>')
-      : 'なし';
-    const withoutOnlyDetailText=TARGET_DEBUG.withoutOnlyDetails.length
-      ? TARGET_DEBUG.withoutOnlyDetails.join('<br>')
-      : 'なし';
-    const suspiciousBasicText=TARGET_DEBUG.suspiciousBasicWarnings.length
-      ? TARGET_DEBUG.suspiciousBasicWarnings.join(' / ')
-      : 'なし';
-    const withCostText=TARGET_DEBUG.withCost
-      ? TARGET_DEBUG.withCost.join(',')
-      : 'なし';
-    const withoutCostText=TARGET_DEBUG.withoutCost
-      ? TARGET_DEBUG.withoutCost.join(',')
-      : 'なし';
-    const costDiffText=TARGET_DEBUG.costDiff
-      ? TARGET_DEBUG.costDiff.map((v,i)=>`${expNames[i]}:${v>=0?'+':''}${v}`).join(' / ')
-      : '比較不可';
+    const withCostText=requiredState?.cost ? requiredState.cost.join(',') : 'なし';
+    const withoutCostText=forbiddenState?.cost ? forbiddenState.cost.join(',') : 'なし';
 
     const finalDisplayLabels=itemNamesForDiagnosis(finalItems);
     const traceDisplayLabels=itemNamesForDiagnosis(
@@ -2777,10 +2820,8 @@ async function calc(){
       JSON.stringify(finalDisplayLabels)===JSON.stringify(traceDisplayLabels);
 
     const constrainedExpected=(()=>{
-      const withState=TARGET_DEBUG._bestWithState;
-      const withoutState=TARGET_DEBUG._bestWithoutState;
-      if(withState && withoutState) return better(withState,withoutState)?withState:withoutState;
-      return withState||withoutState||null;
+      if(requiredState && forbiddenState) return better(requiredState,forbiddenState)?requiredState:forbiddenState;
+      return requiredState||forbiddenState||null;
     })();
     const constrainedMatchesNormal=!!constrainedExpected &&
       Number(constrainedExpected.score)===Number(finalCandidate.score) &&
@@ -2788,12 +2829,13 @@ async function calc(){
       JSON.stringify(constrainedExpected.cost||[])===JSON.stringify(finalCandidate.cost||[]);
 
     const targetCompareDiagnosis=(()=>{
-      if(!bestWith || !bestWithout) return '○必須／○禁止のどちらかの候補を取得できず';
+      if(!bestWith) return '○必須の独立探索で候補を取得できず';
+      if(!bestWithout) return '通常結果が○ありのため、○禁止の独立値は今回未算出';
       if(!constrainedMatchesNormal){
-        return '通常結果と○必須／○禁止比較が不一致。探索途中の枝刈り・状態統合を要確認';
+        return '通常結果と独立制約探索が不一致。探索途中の枝刈り・状態統合を要確認';
       }
       if(bestWith.score>bestWithout.score) return '○必須側が高査定。通常結果も○ありなら整合';
-      if(bestWith.score<bestWithout.score) return '○禁止側が高査定。高効率でも経験点配分全体では○なしが上';
+      if(bestWith.score<bestWithout.score) return '○必須ルートを専用保持枠で探索しても○禁止側が高査定。今回の条件では○なしが上';
       return '○必須側と○禁止側が同査定。item数またはMap順で決定';
     })();
 
@@ -2812,10 +2854,11 @@ async function calc(){
     </div>`).join('');
 
     const targetCompareHtml=`<div class="result-block">
-      <h3>物理攻撃○ 強制比較</h3>
+      <h3>物理攻撃○ 独立制約探索</h3>
       <table class="result-table"><tbody>
+        <tr><td>検証方式</td><td>○必須は対象グループ処理後に○なし状態を全除外し、専用保持枠で独立探索</td></tr>
         <tr><td>通常結果</td><td>${stateHasTarget(finalCandidate)?'○あり':'○なし'} / score ${fmtScore(finalCandidate.score)} / cost ${finalCandidate.cost.join(',')}</td></tr>
-        <tr><td>○必須の最高</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
+        <tr><td>○必須・独立探索</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
         <tr><td>○禁止の最高</td><td>score ${withoutScoreText} / cost ${withoutCostText}</td></tr>
         <tr><td>査定差（あり−なし）</td><td>${scoreDiffText}</td></tr>
         <tr><td>○あり側だけ</td><td>${withOnlyText}</td></tr>
