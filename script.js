@@ -766,6 +766,57 @@ function compactCandidateRows(rows){
   `).join('');
 }
 
+function buildSelectedChainDecision(chainInfo,preferredIndex=6){
+  const nodes=chainInfo?.nodes||[];
+  if(nodes.length<2) return null;
+
+  // N6が存在すればN6を、存在しなければ最終ノードを診断対象にする。
+  const nodeIndex=Math.min(Math.max(1,preferredIndex),nodes.length-1);
+  const parent=nodes[nodeIndex-1];
+  const selected=nodes[nodeIndex];
+  const added=selected.choice||[];
+  const gain=Number(selected.score)-Number(parent.score);
+  const deltaCost=selected.cost.map((v,i)=>Number(v)-Number(parent.cost[i]||0));
+  const deltaSum=costSum(deltaCost);
+
+  const parentItems=[];
+  for(let i=1;i<nodeIndex;i++){
+    parentItems.push(...(nodes[i].choice||[]));
+  }
+
+  return {
+    gi:null,
+    chainNodeIndex:nodeIndex,
+    groupKind:'final-selected-chain',
+    parentKey:parent.key,
+    parentScore:Number(parent.score),
+    parentCost:parent.cost.slice(),
+    parentItems,
+    selectedKey:selected.key,
+    selectedLabel:added.length?added.join('・'):'何もしない',
+    rows:[
+      {
+        label:added.length?added.join('・'):'何もしない',
+        newScore:Number(selected.score),
+        gain,
+        cost:deltaCost,
+        costSum:deltaSum,
+        efficiency:deltaSum>0?gain/deltaSum:null,
+        selected:true
+      },
+      {
+        label:'何もしない',
+        newScore:Number(parent.score),
+        gain:0,
+        cost:[0,0,0,0,0],
+        costSum:0,
+        efficiency:null,
+        selected:added.length===0
+      }
+    ]
+  };
+}
+
 function shortDiagnosisItems(items,max=8){
   const names=itemNamesForDiagnosis(items);
   if(!names.length) return 'なし';
@@ -1105,6 +1156,8 @@ function clearCalcCaches(){
   specialGroupCache.clear();
   filteredSpecialGroupCache.clear();
   orderedSpecialGroupCache.clear();
+  // 診断版ではprevチェーンが必要なため、itemsだけの結果キャッシュを再利用しない。
+  calcResultCache.clear();
 }
 function calcCacheKey(exp){
   const basicPart=basicNames.map(n=>{
@@ -2141,6 +2194,10 @@ async function optimizeAsync(exp,onProgress){
     selectedChain:selectedChainTrace
   };
 
+  // 診断は途中で最初に見つけた候補ではなく、実際に最終採用されたチェーンから作り直す。
+  // これによりN6候補比較と最終候補チェーンの参照先を統一する。
+  TARGET_DEBUG.magicDecisionSnapshot=buildSelectedChainDecision(selectedChainTrace,6);
+
   const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
   TARGET_DEBUG.withOnlyItems=candidateDiff.withOnly;
   TARGET_DEBUG.withoutOnlyItems=candidateDiff.withoutOnly;
@@ -2412,18 +2469,10 @@ async function calc(){
     const selectedDecision=decision?.rows?.find(r=>r.selected)||null;
 
     const decisionDiagnosis=(()=>{
-      if(!decision) return '比較対象を取得できず';
-      if(!selectedDecision) return '魔力候補を生成したが、採用候補の特定に失敗';
-      if(decisionBest && decisionBest.label!==selectedDecision.label){
-        return `局所最高は${decisionBest.label}だが、${selectedDecision.label}が追跡対象。状態統合後の採用条件を確認`;
-      }
-      if(selectedDecision.label==='魔力' && selectedDecision.efficiency!=null && selectedDecision.efficiency<0.3){
-        return '低効率の魔力候補が局所最高。基本能力候補のscoreまたは他候補の生成漏れを確認';
-      }
-      if(selectedDecision.label==='魔力'){
-        return '魔力候補がこの親状態からの局所最高。score計算と比較対象を確認';
-      }
-      return `${selectedDecision.label}が採用。魔力は最終チェーン内の別位置で追加された可能性`;
+      if(!decision) return '最終採用チェーンから比較対象を取得できず';
+      if(!selectedDecision) return '最終採用ノードの特定に失敗';
+      const nodeText=decision.chainNodeIndex==null?'対象ノード':`N${decision.chainNodeIndex}`;
+      return `${nodeText}で「${selectedDecision.label}」を採用。表示内容は最終採用チェーンと同一`;
     })();
 
     const decisionDiagnosisHtml=`<div class="result-block">
@@ -2443,27 +2492,25 @@ async function calc(){
     </div>`;
 
     const trace=TARGET_DEBUG.finalCandidateTrace||{};
-    const withChainText=compactChainText(trace.withChain);
-    const magicNodeIndex=trace.withChain?.nodes?.findIndex(node=>
+    const selectedChainText=compactChainText(trace.selectedChain);
+    const magicNodeIndex=trace.selectedChain?.nodes?.findIndex(node=>
       node.choice.some(name=>String(name).startsWith('魔力 '))
     ) ?? -1;
 
     const chainDiagnosis=(()=>{
+      if(trace.selectedCycle) return '最終採用チェーンに循環あり';
       if(magicNodeIndex>=0){
-        const node=trace.withChain.nodes[magicNodeIndex];
-        return `魔力はN${magicNodeIndex}で追加（${node.choice.join('・')}）`;
+        const node=trace.selectedChain.nodes[magicNodeIndex];
+        return `最終採用候補では魔力をN${magicNodeIndex}で追加（${node.choice.join('・')}）`;
       }
-      if(trace.withRawHasMagic){
-        return '最終チェーンには魔力上昇があるが、各ノードchoiceからは未検出。choice保持または親参照を確認';
-      }
-      return '最終チェーンに魔力上昇なし';
+      return '最終採用候補に魔力上昇なし';
     })();
 
     const magicDiagnosisHtml=`<div class="result-block">
       <h3>最終候補チェーン</h3>
       <table class="result-table"><tbody>
         <tr><td>判定</td><td>${chainDiagnosis}</td></tr>
-        <tr><td>○側チェーン</td><td>${withChainText}</td></tr>
+        <tr><td>最終採用チェーン</td><td>${selectedChainText}</td></tr>
       </tbody></table>
     </div>`;
 
@@ -2471,25 +2518,19 @@ async function calc(){
     const c=v=>Array.isArray(v)?v.join(','):'なし';
 
     const finalDiagnosis=(()=>{
-      if(trace.withCycle || trace.selectedCycle){
-        return 'prevチェーンに循環あり。親参照の破損が原因候補';
+      if(trace.selectedCycle){
+        return '最終採用候補のprevチェーンに循環あり';
       }
-      if(trace.withRawHasMagic){
-        return '物理攻撃○側の最終候補は、選択時点ですでに魔力上昇を含む。候補評価・最終比較を確認';
+      if(trace.selectedRawRestoredSame===false){
+        return '最終採用候補の生チェーンと復元結果が不一致';
       }
-      if(!trace.withRawHasMagic && trace.withRestoredHasMagic){
-        return '選択時点では魔力なしだが、restoreItems後に魔力が混入。復元キャッシュまたはprev参照を確認';
+      if(trace.selectedRestoredHasTarget!==trace.selectedRawHasTarget){
+        return '最終採用候補で物理攻撃○の有無が復元前後で不一致';
       }
-      if(trace.withRawRestoredSame===false){
-        return '生のprevチェーンとrestoreItemsの内容が不一致。復元処理またはitemsキャッシュを確認';
+      if(trace.selectedRestoredHasMagic!==trace.selectedRawHasMagic){
+        return '最終採用候補で魔力上昇の有無が復元前後で不一致';
       }
-      if(trace.withRawHasTarget===false){
-        return 'bestWithTargetとして保存された候補に物理攻撃○が存在しない。候補分類を確認';
-      }
-      if(trace.selectedIsWith===false && trace.withScore!=null){
-        return '物理攻撃○側候補は正常だが、全体の最終比較で別候補が採用されている';
-      }
-      return '候補選択・復元は整合。score算定または候補生成内容を確認';
+      return '最終採用候補・チェーン表示・復元結果は一致';
     })();
 
     const compactDiagnosisHtml=`<div class="result-block">
@@ -2497,10 +2538,10 @@ async function calc(){
       <table class="result-table"><tbody>
         <tr><td>最終採用</td><td>${trace.selectedIsWith?'物理攻撃○側':trace.selectedIsWithout?'物理攻撃○なし側':'別候補'} / score ${f(trace.selectedScore)} / cost ${c(trace.selectedCost)}</td></tr>
         <tr><td>○側候補</td><td>score ${f(trace.withScore)} / cost ${c(trace.withCost)}</td></tr>
-        <tr><td>選択時の○側</td><td>物理攻撃○:${trace.withRawHasTarget?'あり':'なし'} / 魔力上昇:${trace.withRawHasMagic?'あり':'なし'} / itemsキャッシュ:${trace.withCachedBefore?'あり':'なし'}</td></tr>
-        <tr><td>復元後の○側</td><td>物理攻撃○:${trace.withRestoredHasTarget?'あり':'なし'} / 魔力上昇:${trace.withRestoredHasMagic?'あり':'なし'} / 生チェーンと一致:${trace.withRawRestoredSame?'はい':'いいえ'}</td></tr>
-        <tr><td>○側の能力</td><td>${shortDiagnosisItems(trace.withRestoredItems||trace.withRawItems)}</td></tr>
-        <tr><td>チェーン</td><td>ノード${trace.withNodes??'なし'} / 選択項目${trace.withChoices??'なし'} / 循環:${trace.withCycle?'あり':'なし'}</td></tr>
+        <tr><td>選択時の最終候補</td><td>物理攻撃○:${trace.selectedRawHasTarget?'あり':'なし'} / 魔力上昇:${trace.selectedRawHasMagic?'あり':'なし'} / itemsキャッシュ:${trace.selectedCachedBefore?'あり':'なし'}</td></tr>
+        <tr><td>復元後の最終候補</td><td>物理攻撃○:${trace.selectedRestoredHasTarget?'あり':'なし'} / 魔力上昇:${trace.selectedRestoredHasMagic?'あり':'なし'} / 生チェーンと一致:${trace.selectedRawRestoredSame?'はい':'いいえ'}</td></tr>
+        <tr><td>最終候補の能力</td><td>${shortDiagnosisItems(trace.selectedRestoredItems||trace.selectedRawItems)}</td></tr>
+        <tr><td>チェーン</td><td>ノード${trace.selectedNodes??'なし'} / 選択項目${trace.selectedChoices??'なし'} / 循環:${trace.selectedCycle?'あり':'なし'}</td></tr>
         <tr><td>判定</td><td>${finalDiagnosis}</td></tr>
       </tbody></table>
     </div>`;
