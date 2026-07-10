@@ -136,6 +136,7 @@ const TARGET_DEBUG={
     this.groupSnapshots=[];
     this.routeGroupSnapshots=[];
     this.pruneEvents=[];
+    this.mutualTransition=null;
     this.finalStatesWithTarget=0;
     this.bestWithTarget=null;
     this.bestWithoutTarget=null;
@@ -223,6 +224,24 @@ function targetRouteProfile(iterable){
   }
 
   return out;
+}
+
+function isTargetNoMagicState(st){
+  if(!stateHasTarget(st)) return false;
+  const items=restoreItems(st);
+  return !items.some(it=>
+    it?.type==='basic' &&
+    String(it.name)==='魔力' &&
+    Number(it.to)>Number(it.from)
+  );
+}
+
+function briefState(st){
+  if(!st) return 'なし';
+  const items=restoreItems(st)
+    .map(debugItemLabel)
+    .filter(Boolean);
+  return `score:${Number(st.score).toFixed(2)} / cost:${st.cost.join(',')} / ${items.join('・')}`;
 }
 
 function compactRouteProfile(p){
@@ -1322,6 +1341,35 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
     const group=groups[gi];
+
+    const beforeTargetNoMagic=[...states.values()].filter(isTargetNoMagicState);
+    const diagnoseMutual=
+      group.kind==='mutual' &&
+      beforeTargetNoMagic.length>0 &&
+      !TARGET_DEBUG.mutualTransition;
+
+    const trackedNoMagicKeys=diagnoseMutual
+      ? new Set(beforeTargetNoMagic.map(stateKey))
+      : null;
+
+    const mutualDiag=diagnoseMutual ? {
+      gi,
+      kind:group.kind||'',
+      optionNames:group.opts.map(op=>op.items.map(it=>String(it.name)).join('+')),
+      beforeTotal:states.size,
+      beforeNoMagic:beforeTargetNoMagic.length,
+      beforeBest:beforeTargetNoMagic.reduce((m,s)=>!m||s.score>m.score?s:m,null),
+      overwritten:0,
+      overwrittenByTargetMagic:0,
+      overwrittenExamples:[],
+      internalPruneLoss:0,
+      finalPruneLoss:0,
+      beforeFinalPrune:0,
+      afterTotal:0,
+      afterNoMagic:0,
+      afterBest:null
+    } : null;
+
     const next=new Map(states);
     let iter=0;
     let candidateInc=0;
@@ -1414,6 +1462,30 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const k=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
+
+        if(mutualDiag && old && trackedNoMagicKeys.has(k) && isTargetNoMagicState(old)){
+          const generatedPreview=makeState(
+            nc,
+            newScore,
+            st.life,
+            st,
+            op.items,
+            newItemLen,
+            opBits,
+            k,
+            (st.usedCost ?? costSum(st.cost))+op.costSum
+          );
+          if(!isTargetNoMagicState(generatedPreview)){
+            mutualDiag.overwritten++;
+            if(stateHasTarget(generatedPreview)) mutualDiag.overwrittenByTargetMagic++;
+            if(mutualDiag.overwrittenExamples.length<2){
+              mutualDiag.overwrittenExamples.push(
+                `旧[${briefState(old)}] → 新[${briefState(generatedPreview)}]`
+              );
+            }
+          }
+        }
+
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
           dupCutInc++;
           if(isTargetOp) TARGET_DEBUG.duplicateCut++;
@@ -1438,7 +1510,20 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       if(next.size>HARD_LIMIT){
         pruneInc++;
+
+        let beforeTracked=0;
+        if(mutualDiag){
+          for(const k of trackedNoMagicKeys) if(next.has(k)) beforeTracked++;
+        }
+
         const pruned=prune(next,STATE_LIMIT);
+
+        if(mutualDiag){
+          let afterTracked=0;
+          for(const k of trackedNoMagicKeys) if(pruned.has(k)) afterTracked++;
+          mutualDiag.internalPruneLoss += Math.max(0,beforeTracked-afterTracked);
+        }
+
         next.clear();
         pruned.forEach((v,k)=>next.set(k,v));
       }
@@ -1448,11 +1533,35 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
+    if(mutualDiag){
+      mutualDiag.beforeFinalPrune=[...next.values()].filter(isTargetNoMagicState).length;
+    }
+
     if(next.size>STATE_LIMIT){
       pruneInc++;
+
+      let beforeTracked=0;
+      if(mutualDiag){
+        for(const k of trackedNoMagicKeys) if(next.has(k)) beforeTracked++;
+      }
+
       states=prune(next,STATE_LIMIT);
+
+      if(mutualDiag){
+        let afterTracked=0;
+        for(const k of trackedNoMagicKeys) if(states.has(k)) afterTracked++;
+        mutualDiag.finalPruneLoss=Math.max(0,beforeTracked-afterTracked);
+      }
     }else{
       states=next;
+    }
+
+    if(mutualDiag){
+      const afterNoMagicStates=[...states.values()].filter(isTargetNoMagicState);
+      mutualDiag.afterTotal=states.size;
+      mutualDiag.afterNoMagic=afterNoMagicStates.length;
+      mutualDiag.afterBest=afterNoMagicStates.reduce((m,s)=>!m||s.score>m.score?s:m,null);
+      TARGET_DEBUG.mutualTransition=mutualDiag;
     }
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
@@ -1950,6 +2059,42 @@ async function calc(){
       ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
       : '最終到達なし';
 
+    const mutualDiag=TARGET_DEBUG.mutualTransition;
+    const mutualCauseText=(()=>{
+      if(!mutualDiag) return '対象となるmutualグループ遷移を検出できず';
+      if(mutualDiag.overwritten>0){
+        return `状態キー統合で${mutualDiag.overwritten}件上書き（うち物理攻撃○付き魔力あり:${mutualDiag.overwrittenByTargetMagic}件）`;
+      }
+      if(mutualDiag.internalPruneLoss>0 || mutualDiag.finalPruneLoss>0){
+        return `枝刈りで元ルート消失（途中:${mutualDiag.internalPruneLoss}件、最終:${mutualDiag.finalPruneLoss}件）`;
+      }
+      if(mutualDiag.beforeFinalPrune===0){
+        return 'グループ選択肢の展開中に消失。競合判定・重複判定・キー生成を確認';
+      }
+      if(mutualDiag.afterNoMagic===0){
+        return '最終状態への移行時に消失。状態Mapの置換または分類条件を確認';
+      }
+      return '魔力なしルートは残存。以前の要約判定または分類ロジックを確認';
+    })();
+
+    const mutualExamplesText=mutualDiag?.overwrittenExamples?.length
+      ? mutualDiag.overwrittenExamples.join('<br>')
+      : 'なし';
+
+    const compactDiagnosisHtml=`<div class="result-block">
+      <h3>原因究明要約</h3>
+      <table class="result-table"><tbody>
+        <tr><td>対象グループ</td><td>${mutualDiag?`G${mutualDiag.gi} ${mutualDiag.kind}（${mutualDiag.optionNames.join(' / ')}）`:'未検出'}</td></tr>
+        <tr><td>処理前</td><td>${mutualDiag?`全体${mutualDiag.beforeTotal} / 物理攻撃○＋魔力なし${mutualDiag.beforeNoMagic}件 / 最高${mutualDiag.beforeBest?Number(mutualDiag.beforeBest.score).toFixed(2):'なし'}`:'なし'}</td></tr>
+        <tr><td>最終prune直前</td><td>${mutualDiag?`${mutualDiag.beforeFinalPrune}件`:'なし'}</td></tr>
+        <tr><td>処理後</td><td>${mutualDiag?`全体${mutualDiag.afterTotal} / 物理攻撃○＋魔力なし${mutualDiag.afterNoMagic}件 / 最高${mutualDiag.afterBest?Number(mutualDiag.afterBest.score).toFixed(2):'なし'}`:'なし'}</td></tr>
+        <tr><td>キー上書き</td><td>${mutualDiag?`${mutualDiag.overwritten}件`:'なし'}</td></tr>
+        <tr><td>枝刈り消失</td><td>${mutualDiag?`途中${mutualDiag.internalPruneLoss}件 / 最終${mutualDiag.finalPruneLoss}件`:'なし'}</td></tr>
+        <tr><td>判定</td><td>${mutualCauseText}</td></tr>
+        <tr><td>上書き例</td><td>${mutualExamplesText}</td></tr>
+      </tbody></table>
+    </div>`;
+
     const bestWith=TARGET_DEBUG.bestWithTarget;
     const bestWithout=TARGET_DEBUG.bestWithoutTarget;
     const fmtScore=v=>Number.isFinite(Number(v))
@@ -2014,54 +2159,6 @@ async function calc(){
       return 'score・item数とも同じ（Map順で決定）';
     })();
 
-    const targetDebugHtml=`<div class="result-block"><h3>物理攻撃○ 診断</h3>
-      <table class="result-table"><tbody>
-        <tr><td>index</td><td>${TARGET_DEBUG.index}</td></tr>
-        <tr><td>コツLv</td><td>${TARGET_DEBUG.hint}</td></tr>
-        <tr><td>候補生成</td><td>${TARGET_DEBUG.generated?'あり':'なし'}</td></tr>
-        <tr><td>査定</td><td>${TARGET_DEBUG.score ?? '不明'}</td></tr>
-        <tr><td>元コスト</td><td>${rawCostText}</td></tr>
-        <tr><td>割引後コスト</td><td>${discountedCostText}</td></tr>
-        <tr><td>グループ登録</td><td>${TARGET_DEBUG.grouped?'あり':'なし'} ${TARGET_DEBUG.groupKind}</td></tr>
-        <tr><td>検討回数</td><td>${TARGET_DEBUG.considered}</td></tr>
-        <tr><td>取得可能回数</td><td>${TARGET_DEBUG.feasible}</td></tr>
-        <tr><td>競合カット</td><td>${TARGET_DEBUG.conflictCut}</td></tr>
-        <tr><td>重複カット</td><td>${TARGET_DEBUG.duplicateCut}</td></tr>
-        <tr><td>UBカット</td><td>${TARGET_DEBUG.ubCut}</td></tr>
-        <tr><td>最終状態内の保持数</td><td>${TARGET_DEBUG.finalStatesWithTarget}</td></tr>
-        <tr><td>あり候補の最高score</td><td>${withScoreText}</td></tr>
-        <tr><td>なし候補の最高score</td><td>${withoutScoreText}</td></tr>
-        <tr><td>score差（あり−なし）</td><td>${scoreDiffText}</td></tr>
-        <tr><td>あり候補item数</td><td>${withItemLenText}</td></tr>
-        <tr><td>なし候補item数</td><td>${withoutItemLenText}</td></tr>
-        <tr><td>採用候補score</td><td>${TARGET_DEBUG.selectedScore ?? 'なし'}</td></tr>
-        <tr><td>採用候補item数</td><td>${TARGET_DEBUG.selectedItemLen ?? 'なし'}</td></tr>
-        <tr><td>採用候補に物理攻撃○</td><td>${TARGET_DEBUG.selectedHasTarget?'あり':'なし'}</td></tr>
-        <tr><td>最終比較の判定</td><td>${finalDecisionReason}</td></tr>
-        <tr><td>○あり候補だけの能力</td><td>${withOnlyText}</td></tr>
-        <tr><td>○なし候補だけの能力</td><td>${withoutOnlyText}</td></tr>
-        <tr><td>不自然な基本能力警告</td><td>${suspiciousBasicText}</td></tr>
-        <tr><td>○あり側・能力別詳細</td><td>${withOnlyDetailText}</td></tr>
-        <tr><td>○なし側・能力別詳細</td><td>${withoutOnlyDetailText}</td></tr>
-        <tr><td>○あり候補の消費経験点</td><td>${withCostText}</td></tr>
-        <tr><td>○なし候補の消費経験点</td><td>${withoutCostText}</td></tr>
-        <tr><td>消費経験点差（あり−なし）</td><td>${costDiffText}</td></tr>
-        <tr><td>○あり候補の生命力</td><td>${TARGET_DEBUG.withLife ?? 'なし'}</td></tr>
-        <tr><td>○なし候補の生命力</td><td>${TARGET_DEBUG.withoutLife ?? 'なし'}</td></tr>
-        <tr><td>後付け可能な最高HP</td><td>${bestAugHpText}</td></tr>
-        <tr><td>後付け前score</td><td>${bestAugBaseScoreText}</td></tr>
-        <tr><td>後付け後score</td><td>${bestAugScoreText}</td></tr>
-        <tr><td>後付け状態が探索内に存在</td><td>${bestAugExistsText}</td></tr>
-        <tr><td>有力ルート要約</td><td>${routeGroupSummaryText}</td></tr>
-        <tr><td>枝刈り消滅要約</td><td>${routePruneSummaryText}</td></tr>
-        <tr><td>原因候補</td><td>${routeCauseText}</td></tr>
-        <tr><td>有力ルート最終到達点</td><td>${routeFinalText}</td></tr>
-        <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
-        <tr><td>補足</td><td>${targetNotes}</td></tr>
-      </tbody></table>
-    </div>`;
-    const debugHtml=`<div class="result-block"><h3>検証用ログ</h3><p>${lastDetailedProgress || lastProgressMessage || 'ログなし'}</p></div>${targetDebugHtml}`;
-    const profileHtml=`<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
     result.innerHTML=`
 <div class="result-block">
   <h3>基本能力</h3>
@@ -2074,9 +2171,7 @@ async function calc(){
 </div>
 ${remainHtml}
 
-${debugHtml}
-
-${profileHtml}
+${compactDiagnosisHtml}
 
 <div class="result-block">
   <h3>計算時間</h3>
