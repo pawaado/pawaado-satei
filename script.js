@@ -399,6 +399,17 @@ function pReport(){
   return rows.length?rows.join(""):'<tr><td colspan="2">計測なし</td></tr>';
 }
 
+function removeTemporaryVersionDisplay(){
+  const nodes=document.querySelectorAll('body *');
+  for(const el of nodes){
+    if(el.children.length) continue;
+    const text=(el.textContent||'').trim();
+    if(/^Version\s+\d/i.test(text)){
+      el.remove();
+      break;
+    }
+  }
+}
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
 function hasAcademyJob(){return !!academy.value && !!job.value;}
@@ -533,7 +544,9 @@ document.addEventListener('click',e=>{
 
 function setInlineError(id,msg){const el=document.getElementById(id); if(el) el.textContent=msg||'';}
 function showAcademyJobRequired(name){
-  const msg='アカデミー、ジョブを入力してください';
+  const msg=!academy.value
+    ? 'アカデミー、ジョブを選択してください'
+    : 'ジョブを選択してください';
   setInlineError('err_basic_'+safeId(name),msg);
   const inp=document.getElementById('basic_'+name);
   if(inp) inp.classList.add('input-error');
@@ -1237,7 +1250,11 @@ function basicOptions(name,exp){
     if(!costRow || !scoreRow) break;
     const step=basicCostVector(name,costRow,hint);
     if(!step) break;
-    c=addCost(c,step);
+    c[0]+=step[0];
+    c[1]+=step[1];
+    c[2]+=step[2];
+    c[3]+=step[3];
+    c[4]+=step[4];
     sc += Number(scoreRow[2]||0);
     v += 1;
     if(leq(c,exp)){
@@ -1629,14 +1646,15 @@ function renderCalcMode(){
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
-async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
-  let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
+async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null, modeValue=null, totalExpValue=null, expKeyValue=null){
+  // optimizeAsyncで準備済みの値はそのまま受け取り、同じ計算・キャッシュ参照を繰り返さない。
+  let groups=preGroups || specialChoiceGroupsForExpCached(hp,exp);
 
-  const totalExp=costSum(exp);
-  const mode=currentCalcMode();
+  const totalExp=totalExpValue ?? costSum(exp);
+  const mode=modeValue || currentCalcMode();
 
   // 知力余り対策を含む最終候補順まで、HP + 経験点条件ごとにキャッシュする。
-  const orderedCacheKey=String(hp)+'|'+key(exp);
+  const orderedCacheKey=String(hp)+'|'+(expKeyValue || key(exp));
   const orderedCached=orderedSpecialGroupCache.get(orderedCacheKey);
   if(orderedCached){
     groups=orderedCached;
@@ -1712,14 +1730,24 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     return value;
   }
 
-  let states=new Map();
+  let states;
 
-  for(const base of baseStates){
-    if(!base) continue;
-    const st=base;
-    if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
-    const k=stateKey(st);
-    if(better(st,states.get(k))) states.set(k,st);
+  // optimizeAsync から Map を受け取った場合は、そのまま初期状態集合として利用する。
+  // 通常の iterable の場合だけ重複統合用 Map を生成する。
+  if(baseStates instanceof Map){
+    states=baseStates;
+    for(const st of states.values()){
+      if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
+    }
+  }else{
+    states=new Map();
+    for(const base of baseStates){
+      if(!base) continue;
+      const st=base;
+      if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
+      const k=stateKey(st);
+      if(better(st,states.get(k))) states.set(k,st);
+    }
   }
 
   if(!states.size){
@@ -1850,11 +1878,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }
 
 
-    for(const st of states.values()){
-      if(st.score>bestScore) bestScore=st.score;
-    }
-
-
+    // bestScore は候補生成時に更新済み。prune は新しい高得点状態を作らないため、
+    // グループごとの全状態再走査は不要。
     if(progress){
       progress.done++;
       if(onProgress) onProgress(progressMessage(progress));
@@ -1876,77 +1901,83 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 }
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
-  onProgress?.('計算中 0%');
+  if(onProgress) onProgress('計算中 0%');
 
   const mode=currentCalcMode();
-  const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
+  const totalExp=costSum(exp);
+  const expKeyValue=key(exp);
+  const defaultLife=Number(document.getElementById('basic_生命力')?.value||1);
+  const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:defaultLife};
 
   pStart("基本能力生成");
   const basicMap=buildBasicStates(exp);
   pEnd("基本能力生成");
 
   if(!basicMap.size){
-    onProgress?.('計算中 100%');
+    if(onProgress) onProgress('計算中 100%');
     return fallback;
   }
 
   await yieldToBrowser();
 
-  const byLife=new Map();
-  const defaultLife=Number(document.getElementById('basic_生命力')?.value||1);
-  for(const st of basicMap.values()){
+  // basicMapはstateKeyで一意。entriesの既存キーをそのまま再利用し、
+  // HP別グループ化でstateKey再生成・better判定を行わない。
+  const byHp=new Map();
+  for(const [stateKeyValue,st] of basicMap){
     const life=st.life||defaultLife;
     const hp=currentHpForLife(life);
-    let list=byLife.get(hp);
-    if(!list){list=[];byLife.set(hp,list);}
-    list.push(st);
+    let hpStates=byHp.get(hp);
+    if(!hpStates){
+      hpStates=new Map();
+      byHp.set(hp,hpStates);
+    }
+    hpStates.set(stateKeyValue,st);
   }
 
-  const tasks=[];
-  let total=0;
-
-  for(const [hp,statesRaw] of byLife.entries()){
-    const baseMap=new Map();
-
-    for(let i=0;i<statesRaw.length;i++){
-      const st=statesRaw[i];
-      const k=stateKey(st);
-      if(better(st,baseMap.get(k))) baseMap.set(k,st);
-    }
-
-    const prunedBase=baseMap.size>6200 ? prune(baseMap,6200) : baseMap;
-    if(!prunedBase.size) continue;
-    const states=Array.from(prunedBase.values());
+  // 進捗率の総数を先に確定する必要があるため、HP単位の準備情報だけ保持する。
+  // 小オブジェクトを増やさず、固定長配列 [hp, states, groups] を使う。
+  const prepared=[];
+  let totalGroups=0;
+  for(const [hp,baseMap] of byHp){
+    const states=baseMap.size>6200 ? prune(baseMap,6200,mode) : baseMap;
+    if(!states.size) continue;
 
     const groups=specialChoiceGroupsForExpCached(hp,exp);
-    const groupCount=groups.length || 1;
-
-    total+=groupCount;
-    tasks.push({hp,states,groupCount,groups});
+    totalGroups+=groups.length || 1;
+    prepared.push([hp,states,groups]);
   }
 
-  if(!tasks.length){
-    onProgress?.('計算中 100%');
+  // 以後byHpは不要。大きいMapへの参照を早めに外してGC対象にしやすくする。
+  byHp.clear();
+
+  if(!prepared.length){
+    if(onProgress) onProgress('計算中 100%');
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,total),start:Date.now()};
+  const progress={done:0,total:Math.max(1,totalGroups),start:Date.now()};
   let best=null;
 
-  for(const task of tasks){
+  // プロファイル計測もタスクごとではなく特殊能力探索全体で1回だけ行う。
+  pStart("特殊能力探索");
+  for(let ti=0,taskLen=prepared.length;ti<taskLen;ti++){
     throwIfCancelled();
-    pStart("特殊能力探索");
-    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
-    pEnd("特殊能力探索");
+    const task=prepared[ti];
+    const cand=await optimizeSpecialsForLife(
+      task[1],exp,task[0],onProgress,progress,task[2],mode,totalExp,expKeyValue
+    );
 
-    if(cand && better(cand,best)){
-      best=cand;
+    if(cand && better(cand,best)) best=cand;
+
+    // optimizeSpecialsForLife内ですでに定期yieldしているため、
+    // HPタスク間の追加yieldは複数タスク時だけ間引いて行う。
+    if(mode!=='fast' && ti+1<taskLen && (ti&1)===1){
+      await yieldToBrowser();
     }
-
-    if(mode!=='fast') await yieldToBrowser();
   }
+  pEnd("特殊能力探索");
 
-  onProgress?.('計算中 100%');
+  if(onProgress) onProgress('計算中 100%');
   return best||fallback;
 }
 function resultTable(items,kind){
@@ -2116,5 +2147,6 @@ document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
+removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); renderCalcMode(); validateAllInline();
 })();
