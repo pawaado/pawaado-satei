@@ -2352,23 +2352,27 @@ async function calc(){
         result.innerHTML=`<p class="calculating">${msg}</p>`;
       });
     }
+    // 最終表示・診断・キャッシュ保存で参照する候補をここで固定する。
+    // 以降の通常結果表示では、○あり／なし比較用候補を直接参照しない。
+    const finalCandidate=best;
+
     pStart("結果復元");
-    const bestItems=restoreItems(best);
+    const finalItems=restoreItems(finalCandidate);
     pEnd("結果復元");
 
     const finalTrace=TARGET_DEBUG.finalCandidateTrace||{};
-    const selectedRawNow=inspectStateChain(best);
+    const selectedRawNow=inspectStateChain(finalCandidate);
     const withState=TARGET_DEBUG._bestWithState;
     const withRawNow=inspectStateChain(withState);
     const withRestoredNow=withState ? restoreItems(withState) : [];
 
-    finalTrace.selectedRestoredItems=bestItems.slice();
+    finalTrace.selectedRestoredItems=finalItems.slice();
     finalTrace.selectedRawItemsAfter=selectedRawNow.items;
-    finalTrace.selectedRestoredHasTarget=diagnosisHasTarget(bestItems);
-    finalTrace.selectedRestoredHasMagic=diagnosisHasMagicRaise(bestItems);
+    finalTrace.selectedRestoredHasTarget=diagnosisHasTarget(finalItems);
+    finalTrace.selectedRestoredHasMagic=diagnosisHasMagicRaise(finalItems);
     finalTrace.selectedRawRestoredSame=
       JSON.stringify(itemNamesForDiagnosis(selectedRawNow.items))===
-      JSON.stringify(itemNamesForDiagnosis(bestItems));
+      JSON.stringify(itemNamesForDiagnosis(finalItems));
 
     finalTrace.withRawItemsAfter=withRawNow.items;
     finalTrace.withRestoredItems=withRestoredNow.slice();
@@ -2380,12 +2384,12 @@ async function calc(){
 
     TARGET_DEBUG.finalCandidateTrace=finalTrace;
 
-    best.items=bestItems;
-    TARGET_DEBUG.selected=bestItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
-    setCachedResult(cacheKey,best);
+    finalCandidate.items=finalItems;
+    TARGET_DEBUG.selected=finalItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
+    setCachedResult(cacheKey,finalCandidate);
 
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
-    const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
+    const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
     const rawCostText=TARGET_DEBUG.rawCost?TARGET_DEBUG.rawCost.join(','):'未生成';
     const discountedCostText=TARGET_DEBUG.discountedCost?TARGET_DEBUG.discountedCost.join(','):'未生成';
@@ -2622,6 +2626,57 @@ async function calc(){
       ? TARGET_DEBUG.costDiff.map((v,i)=>`${expNames[i]}:${v>=0?'+':''}${v}`).join(' / ')
       : '比較不可';
 
+    const finalDisplayLabels=itemNamesForDiagnosis(finalItems);
+    const traceDisplayLabels=itemNamesForDiagnosis(
+      trace.selectedRestoredItems||trace.selectedRawItems||[]
+    );
+    const finalDisplayMatchesTrace=
+      JSON.stringify(finalDisplayLabels)===JSON.stringify(traceDisplayLabels);
+
+    const constrainedExpected=(()=>{
+      const withState=TARGET_DEBUG._bestWithState;
+      const withoutState=TARGET_DEBUG._bestWithoutState;
+      if(withState && withoutState) return better(withState,withoutState)?withState:withoutState;
+      return withState||withoutState||null;
+    })();
+    const constrainedMatchesNormal=!!constrainedExpected &&
+      Number(constrainedExpected.score)===Number(finalCandidate.score) &&
+      stateHasTarget(constrainedExpected)===stateHasTarget(finalCandidate) &&
+      JSON.stringify(constrainedExpected.cost||[])===JSON.stringify(finalCandidate.cost||[]);
+
+    const targetCompareDiagnosis=(()=>{
+      if(!bestWith || !bestWithout) return '○必須／○禁止のどちらかの候補を取得できず';
+      if(!constrainedMatchesNormal){
+        return '通常結果と○必須／○禁止比較が不一致。探索途中の枝刈り・状態統合を要確認';
+      }
+      if(bestWith.score>bestWithout.score) return '○必須側が高査定。通常結果も○ありなら整合';
+      if(bestWith.score<bestWithout.score) return '○禁止側が高査定。高効率でも経験点配分全体では○なしが上';
+      return '○必須側と○禁止側が同査定。item数またはMap順で決定';
+    })();
+
+    const targetCompareHtml=`<div class="result-block">
+      <h3>物理攻撃○ 強制比較</h3>
+      <table class="result-table"><tbody>
+        <tr><td>通常結果</td><td>${stateHasTarget(finalCandidate)?'○あり':'○なし'} / score ${fmtScore(finalCandidate.score)} / cost ${finalCandidate.cost.join(',')}</td></tr>
+        <tr><td>○必須の最高</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
+        <tr><td>○禁止の最高</td><td>score ${withoutScoreText} / cost ${withoutCostText}</td></tr>
+        <tr><td>査定差（あり−なし）</td><td>${scoreDiffText}</td></tr>
+        <tr><td>○あり側だけ</td><td>${withOnlyText}</td></tr>
+        <tr><td>○なし側だけ</td><td>${withoutOnlyText}</td></tr>
+        <tr><td>通常結果との整合</td><td>${constrainedMatchesNormal?'一致':'不一致'}</td></tr>
+        <tr><td>判定</td><td>${targetCompareDiagnosis}</td></tr>
+      </tbody></table>
+    </div>`;
+
+    const displayReferenceHtml=`<div class="result-block">
+      <h3>最終表示参照チェック</h3>
+      <table class="result-table"><tbody>
+        <tr><td>表示元</td><td>finalCandidate / finalItems に統一</td></tr>
+        <tr><td>能力一覧と診断</td><td>${finalDisplayMatchesTrace?'一致':'不一致'}</td></tr>
+        <tr><td>能力数</td><td>${finalItems.length}</td></tr>
+      </tbody></table>
+    </div>`;
+
     const finalDecisionReason=(()=>{
       if(!bestWith && !bestWithout) return '最終候補なし';
       if(bestWith && !bestWithout) return '物理攻撃○あり候補のみ';
@@ -2636,12 +2691,12 @@ async function calc(){
     result.innerHTML=`
 <div class="result-block">
   <h3>基本能力</h3>
-  ${resultTable(bestItems,'basic')}
+  ${resultTable(finalItems,'basic')}
 </div>
 
 <div class="result-block">
   <h3>特殊能力</h3>
-  ${resultTable(bestItems,'special')}
+  ${resultTable(finalItems,'special')}
 </div>
 ${remainHtml}
 
@@ -2650,6 +2705,10 @@ ${decisionDiagnosisHtml}
 ${magicDiagnosisHtml}
 
 ${compactDiagnosisHtml}
+
+${targetCompareHtml}
+
+${displayReferenceHtml}
 
 <div class="result-block">
   <h3>計算時間</h3>
