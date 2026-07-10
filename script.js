@@ -1234,6 +1234,7 @@ function buildBasicStates(exp){
     const next=new Map();
 
     for(const st of states.values()){
+      const stItemLen=itemLenOf(st);
       for(const op of entry.opts){
         const nc=addCost(st.cost,op.cost);
         if(!leq(nc,exp)) continue;
