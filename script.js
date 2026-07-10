@@ -895,10 +895,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   // Sprint: Upper Bound軽量化。
   // 残経験点は配列ではなく合計値だけで扱い、同じ条件のUpper Boundはキャッシュする。
-  const upperBoundCache=new Map();
+  const upperBoundCaches=Array.from({length:groups.length+1},()=>new Map());
   function remainingScoreUpper(start,remainSum){
-    const cacheKey=start+'|'+remainSum;
-    if(upperBoundCache.has(cacheKey)) return upperBoundCache.get(cacheKey);
+    const cache=upperBoundCaches[start];
+    const cached=cache.get(remainSum);
+    if(cached!==undefined) return cached;
 
     const byGroup=suffixMax[start]||0;
     const byEfficiency=remainSum*(suffixBestEff[start]||0)*1.15;
@@ -906,7 +907,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     // 速度優先：
     // 効率上界を少し安全マージン付きで戻し、候補爆発を抑える。
     const v=byGroup<byEfficiency ? byGroup : byEfficiency;
-    upperBoundCache.set(cacheKey,v);
+    cache.set(remainSum,v);
     return v;
   }
 
@@ -930,16 +931,24 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(st.score>bestScore) bestScore=st.score;
   }
 
+  const debug=progress?.debug||null;
+  const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
+
   for(let gi=0;gi<groups.length;gi++){
     const group=groups[gi];
     const next=new Map(states);
     let iter=0;
+    let candidateInc=0;
+    let acceptInc=0;
+    let ubCutInc=0;
+    let dupCutInc=0;
+    let pruneInc=0;
 
 
     for(const st of states.values()){
       // この状態から残り全部を最高値で取っても届かないならスキップ。
       if(st.score+suffixMax[gi]<bestScore){
-        if(progress?.debug) progress.debug.ubCut++;
+        ubCutInc++;
         iter++;
         if(iter%2500===0) await yieldToBrowser();
         continue;
@@ -948,7 +957,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
       const remainSum=st._remainSum;
       if(st.score+remainingScoreUpper(gi,remainSum)<bestScore){
-        if(progress?.debug) progress.debug.ubCut++;
+        ubCutInc++;
         iter++;
         if(iter%2500===0) await yieldToBrowser();
         continue;
@@ -957,18 +966,29 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       const stBits=st.bits ?? EMPTY_BITS;
 
       for(const op of group.opts){
-        if(progress?.debug) progress.debug.candidate++;
-        const opBits=op.bits ?? specialItemsBits(op.items);
+        candidateInc++;
+        const opBits=op.bits;
         if((stBits & opBits)!==EMPTY_BITS) continue;
-        if((stBits & (op.conflictBits ?? EMPTY_BITS))!==EMPTY_BITS) continue;
+        if((stBits & op.conflictBits)!==EMPTY_BITS) continue;
 
-        const nc=addCost(st.cost,op.cost);
-        if(!leq(nc,exp)) continue;
+        const c=st.cost;
+        const oc=op.cost;
+        const n0=c[0]+oc[0];
+        if(n0>exp0) continue;
+        const n1=c[1]+oc[1];
+        if(n1>exp1) continue;
+        const n2=c[2]+oc[2];
+        if(n2>exp2) continue;
+        const n3=c[3]+oc[3];
+        if(n3>exp3) continue;
+        const n4=c[4]+oc[4];
+        if(n4>exp4) continue;
 
+        const nc=[n0,n1,n2,n3,n4];
         const newScore=st.score+op.score;
-        const childRemainSum=remainSum-(op.costSum ?? costSum(op.cost));
+        const childRemainSum=remainSum-op.costSum;
         if(newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
-          if(progress?.debug) progress.debug.ubCut++;
+          ubCutInc++;
           continue;
         }
         if(newScore>bestScore) bestScore=newScore;
@@ -980,11 +1000,10 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
-          if(progress?.debug) progress.debug.dupCut++;
+          dupCutInc++;
           continue;
         }
 
-        const opUsedCost=op.costSum ?? costSum(op.cost);
         const newState=makeState(
           nc,
           newScore,
@@ -994,17 +1013,15 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
           newItemLen,
           opBits,
           k,
-          (st.usedCost ?? costSum(st.cost))+opUsedCost
+          (st.usedCost ?? costSum(st.cost))+op.costSum
         );
         newState._remainSum=childRemainSum;
-        if(progress?.debug) progress.debug.accept++;
+        acceptInc++;
         next.set(k,newState);
       }
 
       if(next.size>HARD_LIMIT){
-        if(progress?.debug){
-          progress.debug.prune++;
-        }
+        pruneInc++;
         const pruned=prune(next,STATE_LIMIT);
         next.clear();
         pruned.forEach((v,k)=>next.set(k,v));
@@ -1016,13 +1033,21 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
     if(next.size>STATE_LIMIT){
-      if(progress?.debug) progress.debug.prune++;
+      pruneInc++;
       states=prune(next,STATE_LIMIT);
     }else{
       states=next;
     }
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
+    }
+
+    if(debug){
+      debug.candidate+=candidateInc;
+      debug.accept+=acceptInc;
+      debug.ubCut+=ubCutInc;
+      debug.dupCut+=dupCutInc;
+      debug.prune+=pruneInc;
     }
 
     if(progress){
