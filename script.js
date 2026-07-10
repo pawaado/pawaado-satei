@@ -1608,6 +1608,8 @@ function optionHasTarget(op){
 }
 function constrainSpecialGroups(groups,constraint){
   let out=groups.map(g=>({...g,opts:[...g.opts]}));
+  const isRequired=String(constraint).startsWith('required');
+  const keepNormalOrder=constraint==='requiredNormalOrder';
 
   if(constraint==='forbidden'){
     out=out
@@ -1621,9 +1623,12 @@ function constrainSpecialGroups(groups,constraint){
       .filter(Boolean);
   }
 
-  if(constraint==='required'){
+  if(isRequired){
     const targetIndex=out.findIndex(g=>g.opts.some(optionHasTarget));
     if(targetIndex<0) return {groups:[],targetGroupIndex:-1};
+    if(keepNormalOrder){
+      return {groups:out,targetGroupIndex:targetIndex};
+    }
     const targetGroup=out[targetIndex];
     out=[targetGroup,...out.slice(0,targetIndex),...out.slice(targetIndex+1)];
     return {groups:out,targetGroupIndex:0};
@@ -1677,14 +1682,18 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   groups=constrainedGroupInfo.groups;
   const requiredTargetGroupIndex=constrainedGroupInfo.targetGroupIndex;
 
-  if(targetConstraint==='required' && requiredTargetGroupIndex<0){
+  if(String(targetConstraint).startsWith('required') && requiredTargetGroupIndex<0){
     return null;
   }
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
-  const STATE_LIMIT=(mode==='high'||mode==='fast')
+  const baseStateLimit=(mode==='high'||mode==='fast')
     ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
+  // 最終安定性検証：○必須の保持数拡大型では、通常の2.5倍を確保する。
+  const STATE_LIMIT=targetConstraint==='requiredWide'
+    ? Math.floor(baseStateLimit*2.5)
+    : baseStateLimit;
   // 高速化：
   // 正確性優先の修正で候補が増えるため、途中pruneの発火を少し遅らせる。
   // STATE_LIMIT自体は変えず、HARD_LIMITだけ広げてprune回数を減らす。
@@ -2055,7 +2064,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
     // 独立した「物理攻撃○必須」探索では、対象グループを最初に処理し、
     // その直後に○を含まない状態を除外する。以降は全保持枠を○ありルートだけで使う。
-    if(targetConstraint==='required' && gi===requiredTargetGroupIndex){
+    if(String(targetConstraint).startsWith('required') && gi===requiredTargetGroupIndex){
       const requiredStates=new Map();
       for(const st of states.values()){
         if(stateHasTarget(st)) requiredStates.set(stateKey(st),st);
@@ -2528,20 +2537,23 @@ async function calc(){
 
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
-    // まず物理攻撃○必須を完全に独立した探索として実行する。
-    // 対象グループを最初に処理した直後、○なし状態を全除外するため、
-    // 以降のprune保持枠はすべて○ありルート専用になる。
-    activeTargetConstraint='required';
-    clearCalcCaches();
-    TARGET_DEBUG.reset();
-    const requiredCandidateRaw=await optimizeAsync(exp,(msg)=>{
-      const shown=`○必須検証：${msg}`;
-      btn.textContent=shown;
-      result.innerHTML=`<p class="calculating">${shown}</p>`;
-    },'required');
-    const independentRequired=(requiredCandidateRaw && stateHasTarget(requiredCandidateRaw))
-      ? cloneResult(requiredCandidateRaw)
-      : null;
+    // 最終安定性検証：物理攻撃○必須探索を3条件で独立実行する。
+    // A: 現行の専用保持枠、B: 保持上限2.5倍、C: 通常グループ順のまま○ありを保護。
+    async function runRequiredVerification(constraint,label){
+      activeTargetConstraint=constraint;
+      clearCalcCaches();
+      TARGET_DEBUG.reset();
+      const raw=await optimizeAsync(exp,(msg)=>{
+        const shown=`${label}：${msg}`;
+        btn.textContent=shown;
+        result.innerHTML=`<p class="calculating">${shown}</p>`;
+      },constraint);
+      return (raw && stateHasTarget(raw)) ? cloneResult(raw) : null;
+    }
+
+    const independentRequired=await runRequiredVerification('required','○必須A（現行）');
+    const independentRequiredWide=await runRequiredVerification('requiredWide','○必須B（保持拡大）');
+    const independentRequiredNormalOrder=await runRequiredVerification('requiredNormalOrder','○必須C（通常順序）');
 
     // 通常探索を最後に実行し、画面表示・チェーン診断は通常結果の情報だけで作る。
     activeTargetConstraint='normal';
@@ -2783,7 +2795,19 @@ async function calc(){
     </div>`;
 
     const requiredState=independentRequired;
+    const requiredWideState=independentRequiredWide;
+    const requiredNormalOrderState=independentRequiredNormalOrder;
     const forbiddenState=independentForbidden;
+
+    function sameCandidateResult(a,b){
+      if(!a||!b) return false;
+      return Number(a.score)===Number(b.score) &&
+        JSON.stringify(a.cost||[])===JSON.stringify(b.cost||[]) &&
+        JSON.stringify(itemNamesForDiagnosis(restoreItems(a)))===JSON.stringify(itemNamesForDiagnosis(restoreItems(b)));
+    }
+    const requiredStable=
+      sameCandidateResult(requiredState,requiredWideState) &&
+      sameCandidateResult(requiredState,requiredNormalOrderState);
     const bestWith=requiredState ? {
       score:requiredState.score,
       itemLen:itemLenOf(requiredState),
@@ -2810,6 +2834,10 @@ async function calc(){
       ? independentDiff.withoutOnly.join(' / ')
       : 'なし';
     const withCostText=requiredState?.cost ? requiredState.cost.join(',') : 'なし';
+    const wideScoreText=requiredWideState ? fmtScore(requiredWideState.score) : 'なし';
+    const wideCostText=requiredWideState?.cost ? requiredWideState.cost.join(',') : 'なし';
+    const normalOrderScoreText=requiredNormalOrderState ? fmtScore(requiredNormalOrderState.score) : 'なし';
+    const normalOrderCostText=requiredNormalOrderState?.cost ? requiredNormalOrderState.cost.join(',') : 'なし';
     const withoutCostText=forbiddenState?.cost ? forbiddenState.cost.join(',') : 'なし';
 
     const finalDisplayLabels=itemNamesForDiagnosis(finalItems);
@@ -2829,14 +2857,15 @@ async function calc(){
       JSON.stringify(constrainedExpected.cost||[])===JSON.stringify(finalCandidate.cost||[]);
 
     const targetCompareDiagnosis=(()=>{
-      if(!bestWith) return '○必須の独立探索で候補を取得できず';
-      if(!bestWithout) return '通常結果が○ありのため、○禁止の独立値は今回未算出';
+      if(!bestWith || !requiredWideState || !requiredNormalOrderState) return '○必須の安定性検証で候補を取得できない条件あり';
+      if(!requiredStable) return '○必須結果が保持上限または処理順で変化。枝刈り・順序依存が残っている';
+      if(!bestWithout) return '○必須3条件は一致。通常結果が○ありのため○禁止値は今回未算出';
       if(!constrainedMatchesNormal){
-        return '通常結果と独立制約探索が不一致。探索途中の枝刈り・状態統合を要確認';
+        return '○必須3条件は一致したが、通常結果と制約比較が不一致。状態統合を要確認';
       }
-      if(bestWith.score>bestWithout.score) return '○必須側が高査定。通常結果も○ありなら整合';
-      if(bestWith.score<bestWithout.score) return '○必須ルートを専用保持枠で探索しても○禁止側が高査定。今回の条件では○なしが上';
-      return '○必須側と○禁止側が同査定。item数またはMap順で決定';
+      if(bestWith.score>bestWithout.score) return '○必須3条件が同一結果で安定し、○あり側が高査定';
+      if(bestWith.score<bestWithout.score) return '○必須3条件が同一結果で安定。保持上限・処理順を変えても○禁止側が高査定';
+      return '○必須3条件が同一結果で安定し、○あり／なしは同査定';
     })();
 
 
@@ -2856,9 +2885,12 @@ async function calc(){
     const targetCompareHtml=`<div class="result-block">
       <h3>物理攻撃○ 独立制約探索</h3>
       <table class="result-table"><tbody>
-        <tr><td>検証方式</td><td>○必須は対象グループ処理後に○なし状態を全除外し、専用保持枠で独立探索</td></tr>
+        <tr><td>検証方式</td><td>○必須を「現行保持枠」「保持上限2.5倍」「通常グループ順」の3条件で独立探索</td></tr>
         <tr><td>通常結果</td><td>${stateHasTarget(finalCandidate)?'○あり':'○なし'} / score ${fmtScore(finalCandidate.score)} / cost ${finalCandidate.cost.join(',')}</td></tr>
-        <tr><td>○必須・独立探索</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
+        <tr><td>○必須A・現行</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
+        <tr><td>○必須B・保持拡大</td><td>score ${wideScoreText} / cost ${wideCostText}</td></tr>
+        <tr><td>○必須C・通常順序</td><td>score ${normalOrderScoreText} / cost ${normalOrderCostText}</td></tr>
+        <tr><td>○必須結果の安定性</td><td>${requiredStable?'3条件で完全一致':'不一致'}</td></tr>
         <tr><td>○禁止の最高</td><td>score ${withoutScoreText} / cost ${withoutCostText}</td></tr>
         <tr><td>査定差（あり−なし）</td><td>${scoreDiffText}</td></tr>
         <tr><td>○あり側だけ</td><td>${withOnlyText}</td></tr>
