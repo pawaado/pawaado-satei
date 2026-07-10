@@ -41,7 +41,16 @@ function specialItemsBits(items){
   }
   return bits;
 }
-function bitsKey(bits){return (bits||EMPTY_BITS).toString(36);}
+const bitsKeyCache=new Map([[EMPTY_BITS,'0']]);
+function bitsKey(bits){
+  const value=bits||EMPTY_BITS;
+  const cached=bitsKeyCache.get(value);
+  if(cached!==undefined) return cached;
+
+  const converted=value.toString(36);
+  bitsKeyCache.set(value,converted);
+  return converted;
+}
 function bitKeyOfState(st){
   return st.bitKey ?? bitsKey(st.bits ?? EMPTY_BITS);
 }
@@ -1201,8 +1210,31 @@ function resetAll(){
 
   document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
 }
+function renderScriptVersion(){
+  const old=document.getElementById('scriptVersionBadge');
+  if(old) old.remove();
+
+  const badge=document.createElement('div');
+  badge.id='scriptVersionBadge';
+  badge.textContent='Script Ver. speed-12a';
+
+  badge.style.position='fixed';
+  badge.style.right='10px';
+  badge.style.bottom='10px';
+  badge.style.zIndex='99999';
+  badge.style.padding='6px 10px';
+  badge.style.borderRadius='8px';
+  badge.style.background='rgba(0,0,0,0.75)';
+  badge.style.color='#fff';
+  badge.style.fontSize='12px';
+  badge.style.fontWeight='700';
+  badge.style.fontFamily='sans-serif';
+  badge.style.pointerEvents='none';
+
+  document.body.appendChild(badge);
+}
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline(); renderScriptVersion();
 })();
