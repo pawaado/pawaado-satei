@@ -138,6 +138,7 @@ const TARGET_DEBUG={
     this.pruneEvents=[];
     this.mutualTransition=null;
     this.finalCandidateTrace=null;
+    this.magicAcquisitionTrace=null;
     this.finalStatesWithTarget=0;
     this.bestWithTarget=null;
     this.bestWithoutTarget=null;
@@ -677,6 +678,25 @@ function diagnosisHasMagicRaise(items){
     String(it.name||'')==='魔力' &&
     Number(it.to)>Number(it.from)
   );
+}
+
+function traceItemLabel(it){
+  if(!it) return '不明';
+  if(it.type==='basic') return `${it.name} ${it.from}→${it.to}`;
+  return String(it.name||'不明');
+}
+
+function topScoreRank(states, score){
+  const values=[...states.values()]
+    .map(s=>Number(s.score))
+    .filter(Number.isFinite)
+    .sort((a,b)=>b-a);
+  let rank=1;
+  for(const v of values){
+    if(v>score) rank++;
+    else break;
+  }
+  return {rank,total:values.length};
 }
 
 function shortDiagnosisItems(items,max=8){
@@ -1535,6 +1555,46 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
+        if(!TARGET_DEBUG.magicAcquisitionTrace){
+          const addedMagic=op.items.find(it=>
+            it?.type==='basic' &&
+            String(it.name||'')==='魔力' &&
+            Number(it.to)>Number(it.from)
+          );
+          if(addedMagic && stateHasTarget(st)){
+            const preview=makeState(
+              nc,
+              newScore,
+              st.life,
+              st,
+              op.items,
+              newItemLen,
+              opBits,
+              k,
+              (st.usedCost ?? costSum(st.cost))+op.costSum
+            );
+            const rankInfo=topScoreRank(next,newScore);
+            TARGET_DEBUG.magicAcquisitionTrace={
+              gi,
+              groupKind:group.kind||'',
+              parentScore:Number(st.score),
+              newScore:Number(newScore),
+              scoreGain:Number(newScore)-Number(st.score),
+              addedItem:traceItemLabel(addedMagic),
+              addedCost:op.cost.slice(),
+              addedCostSum:op.costSum,
+              efficiency:op.costSum>0?(Number(newScore)-Number(st.score))/op.costSum:null,
+              rank:rankInfo.rank,
+              rankTotal:rankInfo.total,
+              parentItems:restoreItems(st).map(traceItemLabel),
+              newItems:restoreItems(preview).map(traceItemLabel),
+              stateKey:k,
+              parentHasTarget:stateHasTarget(st),
+              parentHasMagic:diagnosisHasMagicRaise(restoreItems(st))
+            };
+          }
+        }
+
         if(mutualDiag && old && trackedNoMagicKeys.has(k) && isTargetNoMagicState(old)){
           const generatedPreview=makeState(
             nc,
@@ -2194,6 +2254,21 @@ async function calc(){
       ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
       : '最終到達なし';
 
+    const magicTrace=TARGET_DEBUG.magicAcquisitionTrace;
+    const magicDiagnosisHtml=`<div class="result-block">
+      <h3>魔力取得診断</h3>
+      <table class="result-table"><tbody>
+        <tr><td>取得位置</td><td>${magicTrace?`G${magicTrace.gi} ${magicTrace.groupKind}`:'未検出'}</td></tr>
+        <tr><td>追加項目</td><td>${magicTrace?magicTrace.addedItem:'未検出'}</td></tr>
+        <tr><td>score変化</td><td>${magicTrace?`${magicTrace.parentScore.toFixed(2)} → ${magicTrace.newScore.toFixed(2)}（+${magicTrace.scoreGain.toFixed(2)}）`:'なし'}</td></tr>
+        <tr><td>追加cost</td><td>${magicTrace?`${magicTrace.addedCost.join(',')}（合計${magicTrace.addedCostSum}）`:'なし'}</td></tr>
+        <tr><td>効率</td><td>${magicTrace&&magicTrace.efficiency!=null?magicTrace.efficiency.toFixed(5):'なし'}</td></tr>
+        <tr><td>生成時順位</td><td>${magicTrace?`${magicTrace.rank}位 / ${magicTrace.rankTotal}候補`:'なし'}</td></tr>
+        <tr><td>取得前</td><td>${magicTrace?magicTrace.parentItems.slice(0,8).join(' / ')||'なし':'なし'}</td></tr>
+        <tr><td>取得後</td><td>${magicTrace?magicTrace.newItems.slice(0,9).join(' / ')||'なし':'なし'}</td></tr>
+      </tbody></table>
+    </div>`;
+
     const trace=TARGET_DEBUG.finalCandidateTrace||{};
     const f=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
     const c=v=>Array.isArray(v)?v.join(','):'なし';
@@ -2308,6 +2383,8 @@ async function calc(){
   ${resultTable(bestItems,'special')}
 </div>
 ${remainHtml}
+
+${magicDiagnosisHtml}
 
 ${compactDiagnosisHtml}
 
