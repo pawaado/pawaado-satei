@@ -1538,10 +1538,6 @@ function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
 function progressMessage(progress){
   if(!progress) return '計算中';
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
-  const d=progress.debug;
-  if(d){
-    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0}`;
-  }
   return `計算中 ${pct}%`;
 }
 function currentCalcMode(){
@@ -1659,15 +1655,6 @@ function constrainSpecialGroups(groups,constraint){
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null, targetConstraint='normal'){
   let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
 
-  const targetOp=(()=>{
-    for(const g of groups){
-      for(const op of g.opts){
-        if(op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME)) return op;
-      }
-    }
-    return null;
-  })();
-
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
 
@@ -1721,38 +1708,45 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   // STATE_LIMIT自体は変えず、HARD_LIMITだけ広げてprune回数を減らす。
   const HARD_LIMIT=Math.floor(STATE_LIMIT*((mode==='high'||mode==='fast')?1.6:1.35));
 
-  // ③ Upper Bound: 残りグループで取り得る最大査定を安全側に足し、
-  // すでにベストへ届かない状態は早めにスキップする。
-  const suffixMax=new Array(groups.length+1).fill(0);
-  const suffixBestEff=new Array(groups.length+1).fill(0);
-  for(let i=groups.length-1;i>=0;i--){
+  // Upper Bound高速化：
+  // 高精度では安全なsuffixMaxだけを使う。従来は同じ上界を2回判定していたため一本化する。
+  // 高速βでのみ効率ベース近似上界を追加し、整数の残経験点は配列キャッシュで再利用する。
+  const groupCount=groups.length;
+  const suffixMax=new Float64Array(groupCount+1);
+  const useFastApproxUpper=!disableUpperBound && mode==='fast';
+  const suffixBestEff=useFastApproxUpper ? new Float64Array(groupCount+1) : null;
+
+  for(let i=groupCount-1;i>=0;i--){
     suffixMax[i]=suffixMax[i+1]+(groups[i].maxScore||0);
-    suffixBestEff[i]=Math.max(suffixBestEff[i+1],groupEfficiency(groups[i]));
+    if(useFastApproxUpper){
+      const eff=groupEfficiency(groups[i]);
+      suffixBestEff[i]=eff>suffixBestEff[i+1] ? eff : suffixBestEff[i+1];
+    }
   }
 
   function remainingCostSum(st){
     return totalExp-(st.usedCost ?? costSum(st.cost));
   }
 
-  // Sprint: Upper Bound軽量化。
-  // 残経験点は配列ではなく合計値だけで扱い、同じ条件のUpper Boundはキャッシュする。
-  const upperBoundCaches=Array.from({length:groups.length+1},()=>new Map());
-  function remainingScoreUpper(start,remainSum){
-    const byGroup=suffixMax[start]||0;
+  const upperBoundCaches=useFastApproxUpper
+    ? Array.from({length:groupCount+1},()=>{
+        const cache=new Float64Array(totalExp+1);
+        cache.fill(-1);
+        return cache;
+      })
+    : null;
 
-    // 高精度は安全な上界だけを使う。
-    // 残りグループの最大査定合計は必ず実現可能値以上なので、正解候補を落とさない。
-    if(mode!=='fast') return byGroup;
-
+  function fastRemainingScoreUpper(start,remainSum){
+    const safeRemain=remainSum<=0 ? 0 : (remainSum>=totalExp ? totalExp : remainSum|0);
     const cache=upperBoundCaches[start];
-    const cached=cache.get(remainSum);
-    if(cached!==undefined) return cached;
+    const cached=cache[safeRemain];
+    if(cached>=0) return cached;
 
-    // 高速βだけ、効率ベースの近似上界を使う。
-    const byEfficiency=remainSum*(suffixBestEff[start]||0)*1.00;
-    const v=byGroup<byEfficiency ? byGroup : byEfficiency;
-    cache.set(remainSum,v);
-    return v;
+    const byGroup=suffixMax[start];
+    const byEfficiency=safeRemain*suffixBestEff[start];
+    const value=byGroup<byEfficiency ? byGroup : byEfficiency;
+    cache[safeRemain]=value;
+    return value;
   }
 
   let states=new Map();
@@ -1775,89 +1769,43 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(st.score>bestScore) bestScore=st.score;
   }
 
-  const debug=progress?.debug||null;
   const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
-  const yieldEvery=mode==='fast' ? 4000 : 1400;
+  const yieldEvery=mode==='fast' ? 7000 : 2400;
 
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
     const group=groups[gi];
 
-    const beforeTargetNoMagic=ENABLE_INTERNAL_DIAGNOSTICS
-      ? [...states.values()].filter(isTargetNoMagicState)
-      : EMPTY_ITEMS;
-    const diagnoseMutual=
-      ENABLE_INTERNAL_DIAGNOSTICS &&
-      group.kind==='mutual' &&
-      beforeTargetNoMagic.length>0 &&
-      !TARGET_DEBUG.mutualTransition;
-
-    const trackedNoMagicKeys=diagnoseMutual
-      ? new Set(beforeTargetNoMagic.map(stateKey))
-      : null;
-
-    const mutualDiag=diagnoseMutual ? {
-      gi,
-      kind:group.kind||'',
-      optionNames:group.opts.map(op=>op.items.map(it=>String(it.name)).join('+')),
-      beforeTotal:states.size,
-      beforeNoMagic:beforeTargetNoMagic.length,
-      beforeBest:beforeTargetNoMagic.reduce((m,s)=>!m||s.score>m.score?s:m,null),
-      overwritten:0,
-      overwrittenByTargetMagic:0,
-      overwrittenExamples:[],
-      internalPruneLoss:0,
-      finalPruneLoss:0,
-      beforeFinalPrune:0,
-      afterTotal:0,
-      afterNoMagic:0,
-      afterBest:null
-    } : null;
-
     const next=new Map(states);
     let iter=0;
-    let candidateInc=0;
-    let acceptInc=0;
-    let ubCutInc=0;
-    let dupCutInc=0;
-    let pruneInc=0;
 
 
     for(const st of states.values()){
       if((iter&255)===0) throwIfCancelled();
-      // この状態から残り全部を最高値で取っても届かないならスキップ。
-      if(!disableUpperBound && st.score+suffixMax[gi]<bestScore){
-        ubCutInc++;
-        iter++;
-        if(iter%yieldEvery===0) await yieldToBrowser();
-        continue;
-      }
-
-      // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
       const remainSum=st._remainSum;
-      if(!disableUpperBound && st.score+remainingScoreUpper(gi,remainSum)<bestScore){
-        ubCutInc++;
-        iter++;
-        if(iter%yieldEvery===0) await yieldToBrowser();
-        continue;
+
+      // 高精度は安全なsuffixMaxを1回だけ判定。
+      // 高速βのみ、より厳しい効率ベース近似上界も追加する。
+      if(!disableUpperBound){
+        const upper=useFastApproxUpper
+          ? fastRemainingScoreUpper(gi,remainSum)
+          : suffixMax[gi];
+        if(st.score+upper<bestScore){
+          iter++;
+          if(iter%yieldEvery===0) await yieldToBrowser();
+          continue;
+        }
       }
 
       const stBits=st.bits ?? EMPTY_BITS;
 
       for(const op of group.opts){
-        candidateInc++;
-        if((candidateInc&127)===0){
-          throwIfCancelled();
-        }
-        const isTargetOp=ENABLE_INTERNAL_DIAGNOSTICS && op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME);
-        if(isTargetOp) TARGET_DEBUG.considered++;
+        if((iter&127)===0) throwIfCancelled();
         const opBits=op.bits;
         if((stBits & opBits)!==EMPTY_BITS){
-          if(isTargetOp) TARGET_DEBUG.duplicateCut++;
           continue;
         }
         if((stBits & op.conflictBits)!==EMPTY_BITS){
-          if(isTargetOp) TARGET_DEBUG.conflictCut++;
           continue;
         }
 
@@ -1865,38 +1813,33 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const oc=op.cost;
         const n0=c[0]+oc[0];
         if(n0>exp0){
-          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:筋力');
           continue;
         }
         const n1=c[1]+oc[1];
         if(n1>exp1){
-          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:敏捷');
           continue;
         }
         const n2=c[2]+oc[2];
         if(n2>exp2){
-          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:技術');
           continue;
         }
         const n3=c[3]+oc[3];
         if(n3>exp3){
-          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:知力');
           continue;
         }
         const n4=c[4]+oc[4];
         if(n4>exp4){
-          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:精神');
           continue;
         }
 
         const nc=[n0,n1,n2,n3,n4];
-        if(isTargetOp) TARGET_DEBUG.feasible++;
         const newScore=st.score+op.score;
         const childRemainSum=remainSum-op.costSum;
-        if(!disableUpperBound && newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
-          ubCutInc++;
-          if(isTargetOp) TARGET_DEBUG.ubCut++;
-          continue;
+        if(!disableUpperBound){
+          const childUpper=useFastApproxUpper
+            ? fastRemainingScoreUpper(gi+1,childRemainSum)
+            : suffixMax[gi+1];
+          if(newScore+childUpper<bestScore) continue;
         }
         if(newScore>bestScore) bestScore=newScore;
 
@@ -1907,118 +1850,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
-        const addedMagicForDecision=op.items.find(it=>
-          it?.type==='basic' &&
-          String(it.name||'')==='魔力' &&
-          Number(it.to)>Number(it.from)
-        );
-
-        if(
-          ENABLE_INTERNAL_DIAGNOSTICS &&
-          addedMagicForDecision &&
-          stateHasTarget(st) &&
-          !TARGET_DEBUG.magicDecisionSnapshot
-        ){
-          TARGET_DEBUG.magicDecisionSnapshot={
-            gi,
-            groupKind:group.kind||'',
-            parentKey:stateKey(st),
-            parentScore:Number(st.score),
-            parentCost:st.cost.slice(),
-            parentItems:restoreItems(st).map(traceItemLabel),
-            selectedKey:k,
-            selectedLabel:candidateCategory(op),
-            rows:[]
-          };
-        }
-
-        const activeDecision=TARGET_DEBUG.magicDecisionSnapshot;
-        if(
-          activeDecision &&
-          activeDecision.gi===gi &&
-          activeDecision.parentKey===stateKey(st)
-        ){
-          const label=candidateCategory(op);
-          const gain=Number(newScore)-Number(st.score);
-          const costArr=op.cost.slice();
-          const sum=op.costSum;
-          activeDecision.rows.push({
-            label,
-            newScore:Number(newScore),
-            gain,
-            cost:costArr,
-            costSum:sum,
-            efficiency:sum>0?gain/sum:null,
-            selected:k===activeDecision.selectedKey
-          });
-        }
-
-        if(ENABLE_INTERNAL_DIAGNOSTICS && !TARGET_DEBUG.magicAcquisitionTrace){
-          const addedMagic=op.items.find(it=>
-            it?.type==='basic' &&
-            String(it.name||'')==='魔力' &&
-            Number(it.to)>Number(it.from)
-          );
-          if(addedMagic && stateHasTarget(st)){
-            const preview=makeState(
-              nc,
-              newScore,
-              st.life,
-              st,
-              op.items,
-              newItemLen,
-              opBits,
-              k,
-              (st.usedCost ?? costSum(st.cost))+op.costSum
-            );
-            const rankInfo=topScoreRank(next,newScore);
-            TARGET_DEBUG.magicAcquisitionTrace={
-              gi,
-              groupKind:group.kind||'',
-              parentScore:Number(st.score),
-              newScore:Number(newScore),
-              scoreGain:Number(newScore)-Number(st.score),
-              addedItem:traceItemLabel(addedMagic),
-              addedCost:op.cost.slice(),
-              addedCostSum:op.costSum,
-              efficiency:op.costSum>0?(Number(newScore)-Number(st.score))/op.costSum:null,
-              rank:rankInfo.rank,
-              rankTotal:rankInfo.total,
-              parentItems:restoreItems(st).map(traceItemLabel),
-              newItems:restoreItems(preview).map(traceItemLabel),
-              stateKey:k,
-              parentHasTarget:stateHasTarget(st),
-              parentHasMagic:diagnosisHasMagicRaise(restoreItems(st))
-            };
-          }
-        }
-
-        if(mutualDiag && old && trackedNoMagicKeys.has(k) && isTargetNoMagicState(old)){
-          const generatedPreview=makeState(
-            nc,
-            newScore,
-            st.life,
-            st,
-            op.items,
-            newItemLen,
-            opBits,
-            k,
-            (st.usedCost ?? costSum(st.cost))+op.costSum
-          );
-          if(!isTargetNoMagicState(generatedPreview)){
-            mutualDiag.overwritten++;
-            if(stateHasTarget(generatedPreview)) mutualDiag.overwrittenByTargetMagic++;
-            if(mutualDiag.overwrittenExamples.length<2){
-              mutualDiag.overwrittenExamples.push(
-                `旧[${briefState(old)}] → 新[${briefState(generatedPreview)}]`
-              );
-            }
-          }
-        }
-
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
-          dupCutInc++;
-          if(isTargetOp) TARGET_DEBUG.duplicateCut++;
           continue;
         }
 
@@ -2036,25 +1868,12 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         newState._remainSum=childRemainSum;
         newState._groupIndex=gi;
         newState._groupKind=group.kind||'';
-        acceptInc++;
         next.set(k,newState);
       }
 
       if(next.size>HARD_LIMIT){
-        pruneInc++;
-
-        let beforeTracked=0;
-        if(mutualDiag){
-          for(const k of trackedNoMagicKeys) if(next.has(k)) beforeTracked++;
-        }
 
         const pruned=prune(next,STATE_LIMIT);
-
-        if(mutualDiag){
-          let afterTracked=0;
-          for(const k of trackedNoMagicKeys) if(pruned.has(k)) afterTracked++;
-          mutualDiag.internalPruneLoss += Math.max(0,beforeTracked-afterTracked);
-        }
 
         next.clear();
         pruned.forEach((v,k)=>next.set(k,v));
@@ -2065,25 +1884,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
-    if(mutualDiag){
-      mutualDiag.beforeFinalPrune=[...next.values()].filter(isTargetNoMagicState).length;
-    }
-
     if(next.size>STATE_LIMIT){
-      pruneInc++;
-
-      let beforeTracked=0;
-      if(mutualDiag){
-        for(const k of trackedNoMagicKeys) if(next.has(k)) beforeTracked++;
-      }
 
       states=prune(next,STATE_LIMIT);
-
-      if(mutualDiag){
-        let afterTracked=0;
-        for(const k of trackedNoMagicKeys) if(states.has(k)) afterTracked++;
-        mutualDiag.finalPruneLoss=Math.max(0,beforeTracked-afterTracked);
-      }
     }else{
       states=next;
     }
@@ -2101,50 +1904,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       for(const st of states.values()) if(st.score>bestScore) bestScore=st.score;
     }
 
-    if(
-      ENABLE_INTERNAL_DIAGNOSTICS &&
-      TARGET_DEBUG.magicDecisionSnapshot &&
-      TARGET_DEBUG.magicDecisionSnapshot.gi===gi
-    ){
-      const snap=TARGET_DEBUG.magicDecisionSnapshot;
-
-      if(!snap.rows.some(r=>r.label==='何もしない')){
-        snap.rows.push({
-          label:'何もしない',
-          newScore:snap.parentScore,
-          gain:0,
-          cost:[0,0,0,0,0],
-          costSum:0,
-          efficiency:null,
-          selected:false
-        });
-      }
-
-      const priority=['魔力','生命力','器用さ','パワー','耐久力','精神力',TARGET_DEBUG_NAME,'何もしない'];
-      const seen=new Set();
-      snap.rows=snap.rows
-        .sort((a,b)=>{
-          const pa=priority.includes(a.label)?priority.indexOf(a.label):99;
-          const pb=priority.includes(b.label)?priority.indexOf(b.label):99;
-          if(pa!==pb) return pa-pb;
-          return b.newScore-a.newScore;
-        })
-        .filter(r=>{
-          const key=`${r.label}|${r.newScore}|${r.cost.join(',')}`;
-          if(seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .slice(0,12);
-    }
-
-    if(mutualDiag){
-      const afterNoMagicStates=[...states.values()].filter(isTargetNoMagicState);
-      mutualDiag.afterTotal=states.size;
-      mutualDiag.afterNoMagic=afterNoMagicStates.length;
-      mutualDiag.afterBest=afterNoMagicStates.reduce((m,s)=>!m||s.score>m.score?s:m,null);
-      TARGET_DEBUG.mutualTransition=mutualDiag;
-    }
     for(const st of states.values()){
       if(st.score>bestScore) bestScore=st.score;
     }
@@ -2167,13 +1926,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       });
     }
 
-    if(debug){
-      debug.candidate+=candidateInc;
-      debug.accept+=acceptInc;
-      debug.ubCut+=ubCutInc;
-      debug.dupCut+=dupCutInc;
-      debug.prune+=pruneInc;
-    }
 
     if(progress){
       progress.done++;
@@ -2182,116 +1934,15 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       onProgress?.('計算中');
     }
 
-    if(mode!=='fast' || gi%4===3 || gi===groups.length-1){
+    if(gi%2===1 || gi===groups.length-1){
       await yieldToBrowser();
     }
   }
 
   let best=null;
-  TARGET_DEBUG.finalStatesWithTarget=countTargetStates(states);
-
-  let bestWithTarget=null;
-  let bestWithoutTarget=null;
-  let bestAugmentable=null;
-  let augmentableCount=0;
-  let augmentableStateAlreadyExists=0;
-
-  if(targetOp){
-    const targetBits=targetOp.bits??specialItemsBits(targetOp.items);
-    const targetConflict=targetOp.conflictBits??EMPTY_BITS;
-    const targetCost=targetOp.cost;
-
-    for(const st of states.values()){
-      if(stateHasTarget(st)) continue;
-
-      const stBits=st.bits??EMPTY_BITS;
-      if((stBits&targetBits)!==EMPTY_BITS) continue;
-      if((stBits&targetConflict)!==EMPTY_BITS) continue;
-
-      const nc=addCost(st.cost,targetCost);
-      if(!leq(nc,exp)) continue;
-
-      augmentableCount++;
-      const hypotheticalScore=st.score+targetOp.score;
-      const hypotheticalItemLen=itemLenOf(st)+(targetOp.itemLen??targetOp.items.length);
-      const nextBits=stBits|targetBits;
-      const expectedKey=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
-      const exists=states.has(expectedKey);
-      if(exists) augmentableStateAlreadyExists++;
-
-      const cand={
-        baseScore:st.score,
-        hypotheticalScore,
-        baseItemLen:itemLenOf(st),
-        hypotheticalItemLen,
-        baseCost:(st.cost||[]).slice(),
-        newCost:nc.slice(),
-        exists
-      };
-
-      if(
-        !bestAugmentable ||
-        hypotheticalScore>bestAugmentable.hypotheticalScore ||
-        (
-          hypotheticalScore===bestAugmentable.hypotheticalScore &&
-          hypotheticalItemLen<bestAugmentable.hypotheticalItemLen
-        )
-      ){
-        bestAugmentable=cand;
-      }
-    }
-  }
-
-  TARGET_DEBUG.augmentChecks.push({
-    hp,
-    targetOpFound:!!targetOp,
-    augmentableCount,
-    augmentableStateAlreadyExists,
-    bestAugmentable
-  });
-
-  if(
-    bestAugmentable &&
-    (
-      !TARGET_DEBUG.bestAugmentable ||
-      bestAugmentable.hypotheticalScore>TARGET_DEBUG.bestAugmentable.hypotheticalScore ||
-      (
-        bestAugmentable.hypotheticalScore===TARGET_DEBUG.bestAugmentable.hypotheticalScore &&
-        bestAugmentable.hypotheticalItemLen<TARGET_DEBUG.bestAugmentable.hypotheticalItemLen
-      )
-    )
-  ){
-    TARGET_DEBUG.bestAugmentable={hp,...bestAugmentable};
-  }
-
   for(const st of states.values()){
-    if(stateHasTarget(st)){
-      if(better(st,bestWithTarget)) bestWithTarget=st;
-    }else{
-      if(better(st,bestWithoutTarget)) bestWithoutTarget=st;
-    }
-
     if(better(st,best)) best=st;
   }
-
-  TARGET_DEBUG._bestWithState=bestWithTarget;
-  TARGET_DEBUG._bestWithoutState=bestWithoutTarget;
-
-  TARGET_DEBUG.bestWithTarget=bestWithTarget ? {
-    score:bestWithTarget.score,
-    itemLen:itemLenOf(bestWithTarget),
-    cost:(bestWithTarget.cost||[]).slice()
-  } : null;
-
-  TARGET_DEBUG.bestWithoutTarget=bestWithoutTarget ? {
-    score:bestWithoutTarget.score,
-    itemLen:itemLenOf(bestWithoutTarget),
-    cost:(bestWithoutTarget.cost||[]).slice()
-  } : null;
-
-  TARGET_DEBUG.selectedScore=best?.score ?? null;
-  TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
-  TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
@@ -2347,11 +1998,8 @@ async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
+  const progress={done:0,total:Math.max(1,total),start:Date.now()};
   let best=null;
-  let globalBestWithTarget=null;
-  let globalBestWithoutTarget=null;
-  TARGET_DEBUG.taskSummaries=[];
 
   for(const task of tasks){
     throwIfCancelled();
@@ -2359,128 +2007,12 @@ async function optimizeAsync(exp,onProgress,targetConstraint='normal'){
     const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups,targetConstraint);
     pEnd("特殊能力探索");
 
-    const taskBestWith=TARGET_DEBUG._bestWithState;
-    const taskBestWithout=TARGET_DEBUG._bestWithoutState;
-
-    if(taskBestWith && better(taskBestWith,globalBestWithTarget)){
-      globalBestWithTarget=taskBestWith;
-    }
-    if(taskBestWithout && better(taskBestWithout,globalBestWithoutTarget)){
-      globalBestWithoutTarget=taskBestWithout;
-    }
-
-    TARGET_DEBUG.taskSummaries.push({
-      hp:task.hp,
-      selectedScore:cand?.score ?? null,
-      selectedHasTarget:!!cand && stateHasTarget(cand),
-      bestWithScore:taskBestWith?.score ?? null,
-      bestWithoutScore:taskBestWithout?.score ?? null
-    });
-
     if(cand && better(cand,best)){
       best=cand;
     }
 
     if(currentCalcMode()!=='fast') await yieldToBrowser();
   }
-
-  // 診断表示は、各HPタスク内ではなく全タスク横断の最終比較へ統一する。
-  TARGET_DEBUG._bestWithState=globalBestWithTarget;
-  TARGET_DEBUG._bestWithoutState=globalBestWithoutTarget;
-  TARGET_DEBUG.bestWithTarget=globalBestWithTarget ? {
-    score:globalBestWithTarget.score,
-    itemLen:itemLenOf(globalBestWithTarget),
-    cost:(globalBestWithTarget.cost||[]).slice()
-  } : null;
-  TARGET_DEBUG.bestWithoutTarget=globalBestWithoutTarget ? {
-    score:globalBestWithoutTarget.score,
-    itemLen:itemLenOf(globalBestWithoutTarget),
-    cost:(globalBestWithoutTarget.cost||[]).slice()
-  } : null;
-  TARGET_DEBUG.finalStatesWithTarget=globalBestWithTarget ? 1 : 0;
-  TARGET_DEBUG.selectedScore=best?.score ?? null;
-  TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
-  TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
-
-  const rawWithTrace=inspectStateChain(globalBestWithTarget);
-  const rawWithoutTrace=inspectStateChain(globalBestWithoutTarget);
-  const rawSelectedTrace=inspectStateChain(best);
-
-  const withChainTrace=inspectChainNodes(globalBestWithTarget);
-  const selectedChainTrace=inspectChainNodes(best);
-
-  TARGET_DEBUG.finalCandidateTrace={
-    selectedIsWith:!!best && best===globalBestWithTarget,
-    selectedIsWithout:!!best && best===globalBestWithoutTarget,
-    selectedScore:best?.score ?? null,
-    selectedCost:best?.cost ? best.cost.slice() : null,
-    selectedStateKey:best?stateKey(best):null,
-
-    withScore:globalBestWithTarget?.score ?? null,
-    withCost:globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null,
-    withStateKey:globalBestWithTarget?stateKey(globalBestWithTarget):null,
-    withRawItems:rawWithTrace.items,
-    withRawHasTarget:diagnosisHasTarget(rawWithTrace.items),
-    withRawHasMagic:diagnosisHasMagicRaise(rawWithTrace.items),
-    withCycle:rawWithTrace.cycle,
-    withNodes:rawWithTrace.nodeCount,
-    withChoices:rawWithTrace.choiceCount,
-    withCachedBefore:rawWithTrace.cachedItems,
-    withChain:withChainTrace,
-
-    withoutScore:globalBestWithoutTarget?.score ?? null,
-    withoutCost:globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null,
-    withoutStateKey:globalBestWithoutTarget?stateKey(globalBestWithoutTarget):null,
-    withoutRawItems:rawWithoutTrace.items,
-    withoutRawHasTarget:diagnosisHasTarget(rawWithoutTrace.items),
-    withoutRawHasMagic:diagnosisHasMagicRaise(rawWithoutTrace.items),
-
-    selectedRawItems:rawSelectedTrace.items,
-    selectedRawHasTarget:diagnosisHasTarget(rawSelectedTrace.items),
-    selectedRawHasMagic:diagnosisHasMagicRaise(rawSelectedTrace.items),
-    selectedCycle:rawSelectedTrace.cycle,
-    selectedNodes:rawSelectedTrace.nodeCount,
-    selectedChoices:rawSelectedTrace.choiceCount,
-    selectedCachedBefore:rawSelectedTrace.cachedItems,
-    selectedChain:selectedChainTrace
-  };
-
-  // 診断は途中で最初に見つけた候補ではなく、実際に最終採用されたチェーンから作り直す。
-  // これによりN6候補比較と最終候補チェーンの参照先を統一する。
-  TARGET_DEBUG.magicDecisionSnapshot=buildSelectedChainDecision(selectedChainTrace,6);
-
-  const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
-  TARGET_DEBUG.withOnlyItems=candidateDiff.withOnly;
-  TARGET_DEBUG.withoutOnlyItems=candidateDiff.withoutOnly;
-  TARGET_DEBUG.withOnlyDetails=candidateDiff.withOnlyDetails;
-  TARGET_DEBUG.withoutOnlyDetails=candidateDiff.withoutOnlyDetails;
-
-  const currentJob=String(job?.value||'');
-  const suspicious=[];
-  const withItemsForWarning=globalBestWithTarget ? restoreItems(globalBestWithTarget) : [];
-
-  for(const it of withItemsForWarning){
-    if(it?.type!=='basic') continue;
-    const name=String(it.name||'');
-
-    if(['剣士','重戦士','弓使い'].includes(currentJob) && name==='魔力'){
-      suspicious.push(`${currentJob}で魔力 ${it.from}→${it.to} を選択`);
-    }
-    if(['魔法使い','僧侶','魔闘士'].includes(currentJob) && name==='パワー'){
-      suspicious.push(`${currentJob}でパワー ${it.from}→${it.to} を選択`);
-    }
-  }
-
-  TARGET_DEBUG.suspiciousBasicWarnings=suspicious;
-  TARGET_DEBUG.withCost=globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null;
-  TARGET_DEBUG.withoutCost=globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null;
-  TARGET_DEBUG.costDiff=(
-    TARGET_DEBUG.withCost && TARGET_DEBUG.withoutCost
-      ? TARGET_DEBUG.withCost.map((v,i)=>v-TARGET_DEBUG.withoutCost[i])
-      : null
-  );
-  TARGET_DEBUG.withLife=globalBestWithTarget?.life ?? null;
-  TARGET_DEBUG.withoutLife=globalBestWithoutTarget?.life ?? null;
 
   onProgress?.('計算中 100%');
   return best||fallback;
@@ -2572,9 +2104,14 @@ async function calc(){
     if(finalCandidate){
       btn.textContent='計算中 100%';
     }else{
+      let lastProgressPaint=0;
       finalCandidate=await optimizeAsync(exp,(msg)=>{
-        btn.textContent=msg;
-        result.innerHTML=`<p class="calculating">${msg}</p>`;
+        const now=performance.now();
+        if(msg.includes('100%') || now-lastProgressPaint>=250){
+          lastProgressPaint=now;
+          btn.textContent=msg;
+          result.innerHTML=`<p class="calculating">${msg}</p>`;
+        }
       },'normal');
       setCachedResult(cacheKey,finalCandidate);
     }
