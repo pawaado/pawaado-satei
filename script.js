@@ -103,6 +103,29 @@ function conflictBitsFor(bits){
   }
   return mask;
 }
+const TARGET_DEBUG_NAME='物理攻撃○';
+const TARGET_DEBUG={
+  reset(){
+    this.index=-1;
+    this.hint=0;
+    this.owned=false;
+    this.generated=false;
+    this.score=null;
+    this.rawCost=null;
+    this.discountedCost=null;
+    this.grouped=false;
+    this.groupIndex=-1;
+    this.groupKind='';
+    this.considered=0;
+    this.feasible=0;
+    this.conflictCut=0;
+    this.duplicateCut=0;
+    this.ubCut=0;
+    this.selected=false;
+    this.notes=[];
+  }
+};
+TARGET_DEBUG.reset();
 const PROFILE={marks:new Map(),times:new Map()};
 function pStart(k){PROFILE.marks.set(k,performance.now());}
 function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
@@ -688,12 +711,32 @@ function itemForSpecialIndex(i,hp,includeLower=false){
 
   const score=skillScore(s,hp);
   if(score<=0){
+    if(String(s[1])===TARGET_DEBUG_NAME){
+      TARGET_DEBUG.index=i;
+      TARGET_DEBUG.hint=specialHint(i);
+      TARGET_DEBUG.owned=specialOwned(i);
+      TARGET_DEBUG.generated=false;
+      TARGET_DEBUG.score=score;
+      TARGET_DEBUG.notes.push('査定値が0以下のため候補生成されなかった');
+    }
     specialItemCache.set(cacheKey,null);
     return null;
   }
 
   const hint=specialHint(i);
-  const costs=[s[3],s[4],s[5],s[6],s[7]].map(c=>costAfter(Number(c||0),hint,false));
+  const rawCosts=[s[3],s[4],s[5],s[6],s[7]].map(c=>Number(c||0));
+  const costs=rawCosts.map(c=>costAfter(c,hint,false));
+
+  if(String(s[1])===TARGET_DEBUG_NAME){
+    TARGET_DEBUG.index=i;
+    TARGET_DEBUG.hint=hint;
+    TARGET_DEBUG.owned=specialOwned(i);
+    TARGET_DEBUG.generated=true;
+    TARGET_DEBUG.score=score;
+    TARGET_DEBUG.rawCost=rawCosts.slice();
+    TARGET_DEBUG.discountedCost=costs.slice();
+  }
+
   let totalCost=costs.slice();
   let totalScore=score;
   let items=[{type:'special',idx:i,name:s[1]}];
@@ -748,6 +791,13 @@ function specialChoiceGroups(hp){
     if(used.has(i) || specialOwned(i)) return;
     if(isUpperSpecial(i)) return;
     const it=itemForSpecialIndex(i,hp,false); if(it) groups.push({kind:'single',opts:[it]});
+  });
+  groups.forEach((g,gi)=>{
+    if(g.opts.some(op=>op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME))){
+      TARGET_DEBUG.grouped=true;
+      TARGET_DEBUG.groupIndex=gi;
+      TARGET_DEBUG.groupKind=g.kind||'';
+    }
   });
   return groups;
 }
@@ -981,28 +1031,53 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       for(const op of group.opts){
         candidateInc++;
+        const isTargetOp=op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME);
+        if(isTargetOp) TARGET_DEBUG.considered++;
         const opBits=op.bits;
-        if((stBits & opBits)!==EMPTY_BITS) continue;
-        if((stBits & op.conflictBits)!==EMPTY_BITS) continue;
+        if((stBits & opBits)!==EMPTY_BITS){
+          if(isTargetOp) TARGET_DEBUG.duplicateCut++;
+          continue;
+        }
+        if((stBits & op.conflictBits)!==EMPTY_BITS){
+          if(isTargetOp) TARGET_DEBUG.conflictCut++;
+          continue;
+        }
 
         const c=st.cost;
         const oc=op.cost;
         const n0=c[0]+oc[0];
-        if(n0>exp0) continue;
+        if(n0>exp0){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:筋力');
+          continue;
+        }
         const n1=c[1]+oc[1];
-        if(n1>exp1) continue;
+        if(n1>exp1){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:敏捷');
+          continue;
+        }
         const n2=c[2]+oc[2];
-        if(n2>exp2) continue;
+        if(n2>exp2){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:技術');
+          continue;
+        }
         const n3=c[3]+oc[3];
-        if(n3>exp3) continue;
+        if(n3>exp3){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:知力');
+          continue;
+        }
         const n4=c[4]+oc[4];
-        if(n4>exp4) continue;
+        if(n4>exp4){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:精神');
+          continue;
+        }
 
         const nc=[n0,n1,n2,n3,n4];
+        if(isTargetOp) TARGET_DEBUG.feasible++;
         const newScore=st.score+op.score;
         const childRemainSum=remainSum-op.costSum;
         if(newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
           ubCutInc++;
+          if(isTargetOp) TARGET_DEBUG.ubCut++;
           continue;
         }
         if(newScore>bestScore) bestScore=newScore;
@@ -1015,6 +1090,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
           dupCutInc++;
+          if(isTargetOp) TARGET_DEBUG.duplicateCut++;
           continue;
         }
 
@@ -1194,6 +1270,7 @@ function validateInputs(){
 }
 async function calc(){
   clearCalcCaches();
+  TARGET_DEBUG.reset();
   pReset();
   validateAllInline();
   const result=document.getElementById('result');
@@ -1230,12 +1307,34 @@ async function calc(){
     const bestItems=restoreItems(best);
     pEnd("結果復元");
     best.items=bestItems;
+    TARGET_DEBUG.selected=bestItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
     setCachedResult(cacheKey,best);
 
     const elapsed=((performance.now()-startTime)/1000).toFixed(2);
     const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-    const debugHtml=`<div class="result-block"><h3>検証用ログ</h3><p>${lastDetailedProgress || lastProgressMessage || 'ログなし'}</p></div>`;
+    const rawCostText=TARGET_DEBUG.rawCost?TARGET_DEBUG.rawCost.join(','):'未生成';
+    const discountedCostText=TARGET_DEBUG.discountedCost?TARGET_DEBUG.discountedCost.join(','):'未生成';
+    const targetNotes=[...new Set(TARGET_DEBUG.notes)].slice(0,8).join(' / ')||'なし';
+    const targetDebugHtml=`<div class="result-block"><h3>物理攻撃○ 診断</h3>
+      <table class="result-table"><tbody>
+        <tr><td>index</td><td>${TARGET_DEBUG.index}</td></tr>
+        <tr><td>コツLv</td><td>${TARGET_DEBUG.hint}</td></tr>
+        <tr><td>候補生成</td><td>${TARGET_DEBUG.generated?'あり':'なし'}</td></tr>
+        <tr><td>査定</td><td>${TARGET_DEBUG.score ?? '不明'}</td></tr>
+        <tr><td>元コスト</td><td>${rawCostText}</td></tr>
+        <tr><td>割引後コスト</td><td>${discountedCostText}</td></tr>
+        <tr><td>グループ登録</td><td>${TARGET_DEBUG.grouped?'あり':'なし'} ${TARGET_DEBUG.groupKind}</td></tr>
+        <tr><td>検討回数</td><td>${TARGET_DEBUG.considered}</td></tr>
+        <tr><td>取得可能回数</td><td>${TARGET_DEBUG.feasible}</td></tr>
+        <tr><td>競合カット</td><td>${TARGET_DEBUG.conflictCut}</td></tr>
+        <tr><td>重複カット</td><td>${TARGET_DEBUG.duplicateCut}</td></tr>
+        <tr><td>UBカット</td><td>${TARGET_DEBUG.ubCut}</td></tr>
+        <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
+        <tr><td>補足</td><td>${targetNotes}</td></tr>
+      </tbody></table>
+    </div>`;
+    const debugHtml=`<div class="result-block"><h3>検証用ログ</h3><p>${lastDetailedProgress || lastProgressMessage || 'ログなし'}</p></div>${targetDebugHtml}`;
     const profileHtml=`<div class="result-block"><h3>プロファイル</h3><table class="result-table"><tbody>${pReport()}</tbody></table></div>`;
     const scoreText=Math.round(best.score||0).toLocaleString('ja-JP');
     result.innerHTML=`
