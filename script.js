@@ -99,11 +99,11 @@ function initSpecialBitMeta(){
   mutualGroups.forEach(g=>{
     let mask=EMPTY_BITS;
     g.forEach(n=>{
-      const i=specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1;
+      const i=specialNameIndex.get(String(n)) ?? -1;
       if(i>=0) mask|=specialBit(i);
     });
     g.forEach(n=>{
-      const i=specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1;
+      const i=specialNameIndex.get(String(n)) ?? -1;
       if(i>=0) mutualMaskByIndex[i]=mask & ~specialBit(i);
     });
   });
@@ -451,10 +451,18 @@ function renderSkillName(name){
   else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="◎">◎</span>';}
   return `<span class="skill-name-text">${base}${rank}</span>`;
 }
-function getSpecialState(i){const k=String(i); if(!specialState.has(k)) specialState.set(k,{hint:0,own:0}); return specialState.get(k);}
+function getSpecialState(i){
+  const k=String(i);
+  let st=specialState.get(k);
+  if(st===undefined){
+    st={hint:0,own:0};
+    specialState.set(k,st);
+  }
+  return st;
+}
 function isUpperSpecial(i){return String(D.special[i][1]).endsWith('◎');}
-function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return specialNameIndex.has(String(req))?specialNameIndex.get(String(req)):-1;}
-function upperIndex(i){const name=D.special[i]?.[1]; return specialReqIndex.has(String(name))?specialReqIndex.get(String(name)):-1;}
+function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return specialNameIndex.get(String(req)) ?? -1;}
+function upperIndex(i){const name=D.special[i]?.[1]; return specialReqIndex.get(String(name)) ?? -1;}
 function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIndex(i);}
 function specialOwned(i){return getSpecialState(i).own===1;}
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
@@ -512,7 +520,7 @@ function setSpecialOwned(i,on,chain=true){
   const st=getSpecialState(i); st.own=on?1:0;
   if(on){
     const group=inMutualGroup(D.special[i][1]);
-    if(group){group.forEach(n=>{const j=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(j>=0 && j!==i){getSpecialState(j).own=0; applySkillVisual(j);}});}
+    if(group){group.forEach(n=>{const j=specialNameIndex.get(String(n)) ?? -1; if(j>=0 && j!==i){getSpecialState(j).own=0; applySkillVisual(j);}});}
   }
   applySkillVisual(i);
   if(!chain){ renderSpecials(); return; }
@@ -1199,7 +1207,8 @@ function prune(states,limit=12000,mode=currentCalcMode()){
 const rangeRowCache=new WeakMap();
 const valueRowCache=new WeakMap();
 function rowsForTable(table){
-  if(rangeRowCache.has(table)) return rangeRowCache.get(table);
+  const cachedRows=rangeRowCache.get(table);
+  if(cachedRows!==undefined) return cachedRows;
   const rows=[];
   for(let i=0;i<table.length;i++){
     const range=parseRange(table[i][0]);
@@ -1211,7 +1220,8 @@ function rowsForTable(table){
 function rowForValue(table,value){
   let cache=valueRowCache.get(table);
   if(!cache){cache=new Map();valueRowCache.set(table,cache);}
-  if(cache.has(value)) return cache.get(value);
+  const cachedRow=cache.get(value);
+  if(cachedRow!==undefined) return cachedRow;
   const rows=rowsForTable(table);
   for(let i=0;i<rows.length;i++){
     const x=rows[i];
@@ -1386,9 +1396,8 @@ function setCachedResult(cacheKey,result){
 function itemForSpecialIndex(i,hp,includeLower=false){
   const s=D.special[i]; if(!s) return null;
   const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
-  if(specialItemCache.has(cacheKey)){
-    return specialItemCache.get(cacheKey);
-  }
+  const cachedItem=specialItemCache.get(cacheKey);
+  if(cachedItem!==undefined) return cachedItem;
 
   const score=skillScore(s,hp);
   if(score<=0){
@@ -1460,11 +1469,11 @@ function specialChoiceGroups(hp){
   });
   mutualGroups.forEach(g=>{
     const opts=[];
-    const already=g.some(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); return i>=0 && specialOwned(i);});
+    const already=g.some(n=>{const i=specialNameIndex.get(String(n)) ?? -1; return i>=0 && specialOwned(i);});
     if(!already){
-      g.forEach(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
+      g.forEach(n=>{const i=specialNameIndex.get(String(n)) ?? -1; if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
     }else{
-      g.forEach(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(i>=0) used.add(i);});
+      g.forEach(n=>{const i=specialNameIndex.get(String(n)) ?? -1; if(i>=0) used.add(i);});
     }
     if(opts.length) groups.push({kind:'mutual',opts});
   });
@@ -1492,7 +1501,8 @@ function specialGroupIsHpDependent(g){
 }
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
-  if(specialGroupCache.has(k)) return specialGroupCache.get(k);
+  const cachedGroups=specialGroupCache.get(k);
+  if(cachedGroups!==undefined) return cachedGroups;
 
   // v4.5: 特殊能力候補はHPごとに事前整形・事前ソートしてキャッシュする。
   // 計算本体では原則ソートし直さず、フィルタだけ行う。
