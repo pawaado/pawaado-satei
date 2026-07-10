@@ -1,4 +1,4 @@
- (function(){
+(function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -423,8 +423,14 @@ function prune(states,limit=12000){
     const max=Math.min(list.length,EXACT_CHECK_LIMIT);
     for(let i=0;i<max;i++){
       const k=list[i];
+
+      // 支配には「査定以上」かつ「総コスト以下」が最低条件。
+      // 満たさない候補では5項目のコスト比較を行わない。
+      if(k.score<st.score) break;
+      if(k.totalCost>st.totalCost) continue;
+
       PRUNE_STATS.comparisons++;
-      if(k.score>=st.score && leq(k.cost,st.cost)){
+      if(leq(k.cost,st.cost)){
         PRUNE_STATS.dominatedRemoved++;
         return true;
       }
@@ -451,8 +457,13 @@ function prune(states,limit=12000){
       const list=buckets.get(bk);
       if(!list) continue;
       for(const k of list){
+
+        // bucket内でも、支配の最低条件を満たさない候補は即スキップ。
+        if(k.score<st.score) continue;
+        if(k.totalCost>st.totalCost) continue;
+
         PRUNE_STATS.comparisons++;
-        if(k.score>=st.score && leq(k.cost,st.cost)){
+        if(leq(k.cost,st.cost)){
           PRUNE_STATS.dominatedRemoved++;
           continue outer;
         }
