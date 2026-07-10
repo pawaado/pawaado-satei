@@ -1690,9 +1690,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   const baseStateLimit=(mode==='high'||mode==='fast')
     ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
     : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
-  // 最終安定性検証：○必須の保持数拡大型では、通常の2.5倍を確保する。
-  const STATE_LIMIT=targetConstraint==='requiredWide'
-    ? Math.floor(baseStateLimit*2.5)
+  // 最終完全性検証：
+  // requiredNoUB はUpper Boundだけ無効、requiredFullはUpper Bound無効＋保持上限を大幅拡大する。
+  const disableUpperBound=targetConstraint==='requiredNoUB' || targetConstraint==='requiredFull';
+  const STATE_LIMIT=targetConstraint==='requiredFull'
+    ? Math.max(120000,Math.floor(baseStateLimit*30))
     : baseStateLimit;
   // 高速化：
   // 正確性優先の修正で候補が増えるため、途中pruneの発火を少し遅らせる。
@@ -1801,7 +1803,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     for(const st of states.values()){
       if((iter&255)===0) throwIfCancelled();
       // この状態から残り全部を最高値で取っても届かないならスキップ。
-      if(st.score+suffixMax[gi]<bestScore){
+      if(!disableUpperBound && st.score+suffixMax[gi]<bestScore){
         ubCutInc++;
         iter++;
         if(iter%yieldEvery===0) await yieldToBrowser();
@@ -1810,7 +1812,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
       const remainSum=st._remainSum;
-      if(st.score+remainingScoreUpper(gi,remainSum)<bestScore){
+      if(!disableUpperBound && st.score+remainingScoreUpper(gi,remainSum)<bestScore){
         ubCutInc++;
         iter++;
         if(iter%yieldEvery===0) await yieldToBrowser();
@@ -1868,7 +1870,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         if(isTargetOp) TARGET_DEBUG.feasible++;
         const newScore=st.score+op.score;
         const childRemainSum=remainSum-op.costSum;
-        if(newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
+        if(!disableUpperBound && newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
           ubCutInc++;
           if(isTargetOp) TARGET_DEBUG.ubCut++;
           continue;
@@ -2537,8 +2539,8 @@ async function calc(){
 
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
-    // 最終安定性検証：物理攻撃○必須探索を3条件で独立実行する。
-    // A: 現行の専用保持枠、B: 保持上限2.5倍、C: 通常グループ順のまま○ありを保護。
+    // 最終完全性検証：物理攻撃○必須探索を3条件で独立実行する。
+    // A: 現行、B: Upper Bound無効、C: Upper Bound無効＋保持上限を大幅拡大。
     async function runRequiredVerification(constraint,label){
       activeTargetConstraint=constraint;
       clearCalcCaches();
@@ -2552,8 +2554,8 @@ async function calc(){
     }
 
     const independentRequired=await runRequiredVerification('required','○必須A（現行）');
-    const independentRequiredWide=await runRequiredVerification('requiredWide','○必須B（保持拡大）');
-    const independentRequiredNormalOrder=await runRequiredVerification('requiredNormalOrder','○必須C（通常順序）');
+    const independentRequiredNoUB=await runRequiredVerification('requiredNoUB','○必須B（UB無効）');
+    const independentRequiredFull=await runRequiredVerification('requiredFull','○必須C（UB無効・保持大幅拡大）');
 
     // 通常探索を最後に実行し、画面表示・チェーン診断は通常結果の情報だけで作る。
     activeTargetConstraint='normal';
@@ -2795,8 +2797,8 @@ async function calc(){
     </div>`;
 
     const requiredState=independentRequired;
-    const requiredWideState=independentRequiredWide;
-    const requiredNormalOrderState=independentRequiredNormalOrder;
+    const requiredNoUBState=independentRequiredNoUB;
+    const requiredFullState=independentRequiredFull;
     const forbiddenState=independentForbidden;
 
     function sameCandidateResult(a,b){
@@ -2806,8 +2808,8 @@ async function calc(){
         JSON.stringify(itemNamesForDiagnosis(restoreItems(a)))===JSON.stringify(itemNamesForDiagnosis(restoreItems(b)));
     }
     const requiredStable=
-      sameCandidateResult(requiredState,requiredWideState) &&
-      sameCandidateResult(requiredState,requiredNormalOrderState);
+      sameCandidateResult(requiredState,requiredNoUBState) &&
+      sameCandidateResult(requiredState,requiredFullState);
     const bestWith=requiredState ? {
       score:requiredState.score,
       itemLen:itemLenOf(requiredState),
@@ -2834,10 +2836,10 @@ async function calc(){
       ? independentDiff.withoutOnly.join(' / ')
       : 'なし';
     const withCostText=requiredState?.cost ? requiredState.cost.join(',') : 'なし';
-    const wideScoreText=requiredWideState ? fmtScore(requiredWideState.score) : 'なし';
-    const wideCostText=requiredWideState?.cost ? requiredWideState.cost.join(',') : 'なし';
-    const normalOrderScoreText=requiredNormalOrderState ? fmtScore(requiredNormalOrderState.score) : 'なし';
-    const normalOrderCostText=requiredNormalOrderState?.cost ? requiredNormalOrderState.cost.join(',') : 'なし';
+    const noUBScoreText=requiredNoUBState ? fmtScore(requiredNoUBState.score) : 'なし';
+    const noUBCostText=requiredNoUBState?.cost ? requiredNoUBState.cost.join(',') : 'なし';
+    const fullScoreText=requiredFullState ? fmtScore(requiredFullState.score) : 'なし';
+    const fullCostText=requiredFullState?.cost ? requiredFullState.cost.join(',') : 'なし';
     const withoutCostText=forbiddenState?.cost ? forbiddenState.cost.join(',') : 'なし';
 
     const finalDisplayLabels=itemNamesForDiagnosis(finalItems);
@@ -2857,15 +2859,15 @@ async function calc(){
       JSON.stringify(constrainedExpected.cost||[])===JSON.stringify(finalCandidate.cost||[]);
 
     const targetCompareDiagnosis=(()=>{
-      if(!bestWith || !requiredWideState || !requiredNormalOrderState) return '○必須の安定性検証で候補を取得できない条件あり';
-      if(!requiredStable) return '○必須結果が保持上限または処理順で変化。枝刈り・順序依存が残っている';
+      if(!bestWith || !requiredNoUBState || !requiredFullState) return '○必須の最終完全性検証で候補を取得できない条件あり';
+      if(!requiredStable) return 'Upper Bound無効化または保持上限拡大で結果が変化。枝刈りの影響あり';
       if(!bestWithout) return '○必須3条件は一致。通常結果が○ありのため○禁止値は今回未算出';
       if(!constrainedMatchesNormal){
         return '○必須3条件は一致したが、通常結果と制約比較が不一致。状態統合を要確認';
       }
-      if(bestWith.score>bestWithout.score) return '○必須3条件が同一結果で安定し、○あり側が高査定';
-      if(bestWith.score<bestWithout.score) return '○必須3条件が同一結果で安定。保持上限・処理順を変えても○禁止側が高査定';
-      return '○必須3条件が同一結果で安定し、○あり／なしは同査定';
+      if(bestWith.score>bestWithout.score) return 'UB無効・保持大幅拡大でも同一結果。○あり側が高査定';
+      if(bestWith.score<bestWithout.score) return 'UB無効・保持大幅拡大でも同一結果。今回条件では○禁止側が高査定';
+      return 'UB無効・保持大幅拡大でも同一結果。○あり／なしは同査定';
     })();
 
 
@@ -2885,12 +2887,12 @@ async function calc(){
     const targetCompareHtml=`<div class="result-block">
       <h3>物理攻撃○ 独立制約探索</h3>
       <table class="result-table"><tbody>
-        <tr><td>検証方式</td><td>○必須を「現行保持枠」「保持上限2.5倍」「通常グループ順」の3条件で独立探索</td></tr>
+        <tr><td>検証方式</td><td>○必須を「現行」「Upper Bound無効」「Upper Bound無効＋保持上限大幅拡大」の3条件で独立探索</td></tr>
         <tr><td>通常結果</td><td>${stateHasTarget(finalCandidate)?'○あり':'○なし'} / score ${fmtScore(finalCandidate.score)} / cost ${finalCandidate.cost.join(',')}</td></tr>
         <tr><td>○必須A・現行</td><td>score ${withScoreText} / cost ${withCostText}</td></tr>
-        <tr><td>○必須B・保持拡大</td><td>score ${wideScoreText} / cost ${wideCostText}</td></tr>
-        <tr><td>○必須C・通常順序</td><td>score ${normalOrderScoreText} / cost ${normalOrderCostText}</td></tr>
-        <tr><td>○必須結果の安定性</td><td>${requiredStable?'3条件で完全一致':'不一致'}</td></tr>
+        <tr><td>○必須B・UB無効</td><td>score ${noUBScoreText} / cost ${noUBCostText}</td></tr>
+        <tr><td>○必須C・UB無効＋保持拡大</td><td>score ${fullScoreText} / cost ${fullCostText}</td></tr>
+        <tr><td>○必須結果の完全性</td><td>${requiredStable?'3条件で完全一致':'不一致'}</td></tr>
         <tr><td>○禁止の最高</td><td>score ${withoutScoreText} / cost ${withoutCostText}</td></tr>
         <tr><td>査定差（あり−なし）</td><td>${scoreDiffText}</td></tr>
         <tr><td>○あり側だけ</td><td>${withOnlyText}</td></tr>
