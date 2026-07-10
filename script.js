@@ -611,10 +611,12 @@ function buildBasicStates(exp){
 }
 const specialItemCache=new Map();
 const specialGroupCache=new Map();
+const filteredSpecialGroupCache=new Map();
 const calcResultCache=new Map();
 function clearCalcCaches(){
   specialItemCache.clear();
   specialGroupCache.clear();
+  filteredSpecialGroupCache.clear();
 }
 function calcCacheKey(exp){
   const basicPart=basicNames.map(n=>{
@@ -753,6 +755,35 @@ function specialChoiceGroupsCached(hp){
   return groups;
 }
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
+function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
+  const cacheKey=String(hp)+'|'+key(exp);
+  if(filteredSpecialGroupCache.has(cacheKey)){
+    return filteredSpecialGroupCache.get(cacheKey);
+  }
+
+  const source=preGroups||specialChoiceGroupsCached(hp);
+  const groups=source
+    .map(g=>{
+      const opts=g.opts.filter(op=>!impossibleChoice(op,exp));
+      if(!opts.length) return null;
+
+      const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
+      const bestEfficiency=opts.reduce(
+        (m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost))))),
+        0
+      );
+
+      return {...g,opts,maxScore,bestEfficiency};
+    })
+    .filter(Boolean)
+    .sort((a,b)=>{
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
+    });
+
+  filteredSpecialGroupCache.set(cacheKey,groups);
+  return groups;
+}
 
 function progressMessage(progress){
   if(!progress) return '計算中';
@@ -789,19 +820,7 @@ function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
-  let groups=(preGroups||specialChoiceGroupsCached(hp))
-    .map(g=>{
-      const opts=g.opts.filter(op=>!impossibleChoice(op,exp));
-      if(!opts.length) return null;
-      const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
-      const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+o.costSum)),0),0);
-      return {...g,opts,maxScore,bestEfficiency};
-    })
-    .filter(Boolean)
-    .sort((a,b)=>{
-      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
-      return b.maxScore-a.maxScore;
-    });
+  let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
 
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
@@ -1213,31 +1232,9 @@ function resetAll(){
 
   document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
 }
-function renderScriptVersion(){
-  const old=document.getElementById('scriptVersionBadge');
-  if(old) old.remove();
 
-  const badge=document.createElement('div');
-  badge.id='scriptVersionBadge';
-  badge.textContent='Script Ver. speed-12b';
-
-  badge.style.position='fixed';
-  badge.style.right='10px';
-  badge.style.bottom='10px';
-  badge.style.zIndex='99999';
-  badge.style.padding='6px 10px';
-  badge.style.borderRadius='8px';
-  badge.style.background='rgba(0,0,0,0.75)';
-  badge.style.color='#fff';
-  badge.style.fontSize='12px';
-  badge.style.fontWeight='700';
-  badge.style.fontFamily='sans-serif';
-  badge.style.pointerEvents='none';
-
-  document.body.appendChild(badge);
-}
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline(); renderScriptVersion();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
