@@ -787,9 +787,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     })
     .filter(Boolean)
     .sort((a,b)=>{
-      // bestScoreを早く引き上げ、Upper Boundを早期に効かせる。
-      if(b.maxScore!==a.maxScore) return b.maxScore-a.maxScore;
-      return b.bestEfficiency-a.bestEfficiency;
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
     });
 
   const totalExp=costSum(exp);
@@ -808,11 +807,8 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   groups=groups.map(g=>{
     const opts=[...g.opts].sort((a,b)=>{
-      // 高査定候補を先に試してbestScoreを早く更新する。
-      if(b.score!==a.score) return b.score-a.score;
       if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
-
-      // 査定・効率が同じ場合だけ残経験点バランスを使う。
+      if(b.score!==a.score) return b.score-a.score;
       return balancePenalty(a.cost)-balancePenalty(b.cost);
     });
     return {...g,opts};
@@ -884,17 +880,16 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   for(let gi=0;gi<groups.length;gi++){
     const group=groups[gi];
-    const snapshot=[...states.values()];
     const next=new Map(states);
     let iter=0;
 
 
-    for(const st of snapshot){
+    for(const st of states.values()){
       // この状態から残り全部を最高値で取っても届かないならスキップ。
       if(st.score+suffixMax[gi]<bestScore){
         if(progress?.debug) progress.debug.ubCut++;
         iter++;
-        if(iter%700===0) await yieldToBrowser();
+        if(iter%2500===0) await yieldToBrowser();
         continue;
       }
 
@@ -903,14 +898,16 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(st.score+remainingScoreUpper(gi,remainSum)<bestScore){
         if(progress?.debug) progress.debug.ubCut++;
         iter++;
-        if(iter%700===0) await yieldToBrowser();
+        if(iter%2500===0) await yieldToBrowser();
         continue;
       }
+
+      const stBits=st.bits ?? EMPTY_BITS;
+      const lifePart=st.life==null?'':Number(st.life).toString(36);
 
       for(const op of group.opts){
         if(progress?.debug) progress.debug.candidate++;
         const opBits=op.bits ?? specialItemsBits(op.items);
-        const stBits=st.bits ?? EMPTY_BITS;
         if((stBits & opBits)!==EMPTY_BITS) continue;
         if((stBits & (op.conflictBits ?? EMPTY_BITS))!==EMPTY_BITS) continue;
 
@@ -928,7 +925,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
         const nextBits=stBits | opBits;
-        const k=key(nc)+'|'+(st.life==null?'':Number(st.life).toString(36))+'|'+bitsKey(nextBits);
+        const k=key(nc)+'|'+lifePart+'|'+bitsKey(nextBits);
         const old=next.get(k);
         const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
@@ -952,7 +949,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       }
 
       iter++;
-      if(iter%700===0) await yieldToBrowser();
+      if(iter%2500===0) await yieldToBrowser();
     }
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
