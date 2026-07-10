@@ -318,6 +318,16 @@ function restoreItems(st){
 }
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && itemLenOf(a)<itemLenOf(b));}
 function yieldToBrowser(){return new Promise(r=>setTimeout(r,0));}
+const PRUNE_STATS={
+  dominatedRemoved:0,
+  replacedRemoved:0,
+  comparisons:0
+};
+function resetPruneStats(){
+  PRUNE_STATS.dominatedRemoved=0;
+  PRUNE_STATS.replacedRemoved=0;
+  PRUNE_STATS.comparisons=0;
+}
 function prune(states,limit=12000){
   const mode=currentCalcMode();
   const arr=[...states.values()]
@@ -343,7 +353,11 @@ function prune(states,limit=12000){
 
         // 正確性優先：
         // 生命力だけでなく、取得済み特殊能力bitも同じ状態だけを支配判定する。
-        if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score) continue outer;
+        PRUNE_STATS.comparisons++;
+        if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score){
+          PRUNE_STATS.dominatedRemoved++;
+          continue outer;
+        }
       }
       keep.push(st);
       if(keep.length>=limit) break;
@@ -409,7 +423,11 @@ function prune(states,limit=12000){
     const max=Math.min(list.length,EXACT_CHECK_LIMIT);
     for(let i=0;i<max;i++){
       const k=list[i];
-      if(k.score>=st.score && leq(k.cost,st.cost)) return true;
+      PRUNE_STATS.comparisons++;
+      if(k.score>=st.score && leq(k.cost,st.cost)){
+        PRUNE_STATS.dominatedRemoved++;
+        return true;
+      }
     }
     return false;
   }
@@ -422,7 +440,11 @@ function prune(states,limit=12000){
     const max=Math.min(list.length,EXACT_CHECK_LIMIT);
     for(let i=max-1;i>=0;i--){
       const k=list[i];
-      if(st.score>=k.score && leq(st.cost,k.cost)) list.splice(i,1);
+      PRUNE_STATS.comparisons++;
+      if(st.score>=k.score && leq(st.cost,k.cost)){
+        list.splice(i,1);
+        PRUNE_STATS.replacedRemoved++;
+      }
     }
     list.push(st);
   }
@@ -435,7 +457,11 @@ function prune(states,limit=12000){
       const list=buckets.get(bk);
       if(!list) continue;
       for(const k of list){
-        if(k.score>=st.score && leq(k.cost,st.cost)) continue outer;
+        PRUNE_STATS.comparisons++;
+        if(k.score>=st.score && leq(k.cost,st.cost)){
+          PRUNE_STATS.dominatedRemoved++;
+          continue outer;
+        }
       }
     }
 
@@ -732,7 +758,7 @@ function progressMessage(progress){
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
   const d=progress.debug;
   if(d){
-    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0} states:${d.pruneBefore||0}→${d.pruneAfter||0} scopes:${d.scopeCount||0}`;
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0} states:${d.pruneBefore||0}→${d.pruneAfter||0} scopes:${d.scopeCount||0} 支配除外:${PRUNE_STATS.dominatedRemoved} 置換除外:${PRUNE_STATS.replacedRemoved} 比較:${PRUNE_STATS.comparisons}`;
   }
   return `計算中 ${pct}%`;
 }
@@ -984,6 +1010,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 async function optimizeAsync(exp,onProgress){
+  resetPruneStats();
   await yieldToBrowser();
   onProgress?.('計算中 0%');
 
