@@ -125,6 +125,11 @@ const TARGET_DEBUG={
     this.groupSnapshots=[];
     this.pruneEvents=[];
     this.finalStatesWithTarget=0;
+    this.bestWithTarget=null;
+    this.bestWithoutTarget=null;
+    this.selectedScore=null;
+    this.selectedItemLen=null;
+    this.selectedHasTarget=false;
     this.notes=[];
   }
 };
@@ -1199,9 +1204,34 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   let best=null;
   TARGET_DEBUG.finalStatesWithTarget=countTargetStates(states);
 
+  let bestWithTarget=null;
+  let bestWithoutTarget=null;
+
   for(const st of states.values()){
+    if(stateHasTarget(st)){
+      if(better(st,bestWithTarget)) bestWithTarget=st;
+    }else{
+      if(better(st,bestWithoutTarget)) bestWithoutTarget=st;
+    }
+
     if(better(st,best)) best=st;
   }
+
+  TARGET_DEBUG.bestWithTarget=bestWithTarget ? {
+    score:bestWithTarget.score,
+    itemLen:itemLenOf(bestWithTarget),
+    cost:(bestWithTarget.cost||[]).slice()
+  } : null;
+
+  TARGET_DEBUG.bestWithoutTarget=bestWithoutTarget ? {
+    score:bestWithoutTarget.score,
+    itemLen:itemLenOf(bestWithoutTarget),
+    cost:(bestWithoutTarget.cost||[]).slice()
+  } : null;
+
+  TARGET_DEBUG.selectedScore=best?.score ?? null;
+  TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
+  TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
@@ -1368,6 +1398,25 @@ async function calc(){
       .map((x,i)=>`P${i+1}:${x.targetBefore}→${x.targetAfter} / 全体${x.before}→${x.after}`)
       .join(' | ')||'なし';
 
+    const bestWith=TARGET_DEBUG.bestWithTarget;
+    const bestWithout=TARGET_DEBUG.bestWithoutTarget;
+    const withScoreText=bestWith ? String(bestWith.score) : 'なし';
+    const withoutScoreText=bestWithout ? String(bestWithout.score) : 'なし';
+    const withItemLenText=bestWith ? String(bestWith.itemLen) : 'なし';
+    const withoutItemLenText=bestWithout ? String(bestWithout.itemLen) : 'なし';
+    const scoreDiff=(bestWith&&bestWithout) ? (bestWith.score-bestWithout.score) : null;
+    const scoreDiffText=scoreDiff==null ? '比較不可' : String(scoreDiff);
+    const finalDecisionReason=(()=>{
+      if(!bestWith && !bestWithout) return '最終候補なし';
+      if(bestWith && !bestWithout) return '物理攻撃○あり候補のみ';
+      if(!bestWith && bestWithout) return '物理攻撃○なし候補のみ';
+      if(bestWith.score>bestWithout.score) return '物理攻撃○ありのscoreが高い';
+      if(bestWith.score<bestWithout.score) return '物理攻撃○なしのscoreが高い';
+      if(bestWith.itemLen<bestWithout.itemLen) return '同scoreで、物理攻撃○ありのitem数が少ない';
+      if(bestWith.itemLen>bestWithout.itemLen) return '同scoreで、物理攻撃○なしのitem数が少ない';
+      return 'score・item数とも同じ（Map順で決定）';
+    })();
+
     const targetDebugHtml=`<div class="result-block"><h3>物理攻撃○ 診断</h3>
       <table class="result-table"><tbody>
         <tr><td>index</td><td>${TARGET_DEBUG.index}</td></tr>
@@ -1383,6 +1432,15 @@ async function calc(){
         <tr><td>重複カット</td><td>${TARGET_DEBUG.duplicateCut}</td></tr>
         <tr><td>UBカット</td><td>${TARGET_DEBUG.ubCut}</td></tr>
         <tr><td>最終状態内の保持数</td><td>${TARGET_DEBUG.finalStatesWithTarget}</td></tr>
+        <tr><td>あり候補の最高score</td><td>${withScoreText}</td></tr>
+        <tr><td>なし候補の最高score</td><td>${withoutScoreText}</td></tr>
+        <tr><td>score差（あり−なし）</td><td>${scoreDiffText}</td></tr>
+        <tr><td>あり候補item数</td><td>${withItemLenText}</td></tr>
+        <tr><td>なし候補item数</td><td>${withoutItemLenText}</td></tr>
+        <tr><td>採用候補score</td><td>${TARGET_DEBUG.selectedScore ?? 'なし'}</td></tr>
+        <tr><td>採用候補item数</td><td>${TARGET_DEBUG.selectedItemLen ?? 'なし'}</td></tr>
+        <tr><td>採用候補に物理攻撃○</td><td>${TARGET_DEBUG.selectedHasTarget?'あり':'なし'}</td></tr>
+        <tr><td>最終比較の判定</td><td>${finalDecisionReason}</td></tr>
         <tr><td>各グループ残存</td><td>${snapshotText}</td></tr>
         <tr><td>prune前後</td><td>${pruneText}</td></tr>
         <tr><td>最終選択</td><td>${TARGET_DEBUG.selected?'あり':'なし'}</td></tr>
