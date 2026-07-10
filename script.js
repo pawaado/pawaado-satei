@@ -1,4 +1,4 @@
- (function(){
+(function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -148,6 +148,9 @@ const TARGET_DEBUG={
     this.bestAugmentable=null;
     this.withOnlyItems=[];
     this.withoutOnlyItems=[];
+    this.withOnlyDetails=[];
+    this.withoutOnlyDetails=[];
+    this.suspiciousBasicWarnings=[];
     this.withCost=null;
     this.withoutCost=null;
     this.costDiff=null;
@@ -179,6 +182,81 @@ function debugItemLabel(it){
   if(it.type==='basic') return `${it.name} ${it.from}→${it.to}`;
   return String(it.name||it.type||'不明');
 }
+function basicDebugDetail(it){
+  const name=String(it?.name||'');
+  const from=Number(it?.from);
+  const to=Number(it?.to);
+  const hint=Number(basicHints[name]||0);
+  const t=tableFor(name);
+
+  if(!t || !Number.isFinite(from) || !Number.isFinite(to)){
+    return `${debugItemLabel(it)}：詳細取得不可`;
+  }
+
+  let totalCost=[0,0,0,0,0];
+  let totalScore=0;
+  const refs=[];
+
+  for(let v=from;v<to;v++){
+    const costRow=rowForValue(t.cost,v);
+    const scoreRow=rowForValue(t.score,v);
+    if(!costRow || !scoreRow){
+      refs.push(`${v}→${v+1}:行なし`);
+      continue;
+    }
+
+    const step=basicCostVector(name,costRow,hint);
+    const stepScore=Number(scoreRow[2]||0);
+
+    if(step) totalCost=addCost(totalCost,step);
+    totalScore+=stepScore;
+
+    refs.push(
+      `${v}→${v+1}`+
+      `[cost:${String(costRow[0])},score:${String(scoreRow[0])}]`
+    );
+  }
+
+  const sum=costSum(totalCost);
+  const eff=totalScore/(1+sum);
+
+  return `${debugItemLabel(it)}`+
+    `｜査定:${totalScore}`+
+    `｜コスト:${totalCost.join(',')}`+
+    `｜合計:${sum}`+
+    `｜効率:${eff.toFixed(5)}`+
+    `｜コツLv:${hint}`+
+    `｜参照:${refs.join(' / ')}`;
+}
+
+function specialDebugDetail(it,hp){
+  const idx=Number(it?.idx);
+  const s=D.special[idx];
+  if(!s) return `${debugItemLabel(it)}：詳細取得不可`;
+
+  const hint=specialHint(idx);
+  const score=skillScore(s,hp);
+  const raw=[s[3],s[4],s[5],s[6],s[7]].map(x=>Number(x||0));
+  const cost=raw.map(x=>costAfter(x,hint,false));
+  const sum=costSum(cost);
+  const eff=score/(1+sum);
+
+  return `${debugItemLabel(it)}`+
+    `｜査定:${score}`+
+    `｜コスト:${cost.join(',')}`+
+    `｜元コスト:${raw.join(',')}`+
+    `｜合計:${sum}`+
+    `｜効率:${eff.toFixed(5)}`+
+    `｜コツLv:${hint}`+
+    `｜dataIndex:${idx}`;
+}
+
+function debugItemDetail(it,hp){
+  if(it?.type==='basic') return basicDebugDetail(it);
+  if(it?.type==='special') return specialDebugDetail(it,hp);
+  return debugItemLabel(it);
+}
+
 function compareDebugItems(withState,withoutState){
   const withItems=withState ? restoreItems(withState) : [];
   const withoutItems=withoutState ? restoreItems(withoutState) : [];
@@ -188,15 +266,23 @@ function compareDebugItems(withState,withoutState){
 
   const withOnly=[];
   const withoutOnly=[];
+  const withOnlyDetails=[];
+  const withoutOnlyDetails=[];
 
   for(const [k,it] of withMap){
-    if(!withoutMap.has(k)) withOnly.push(debugItemLabel(it));
+    if(!withoutMap.has(k)){
+      withOnly.push(debugItemLabel(it));
+      withOnlyDetails.push(debugItemDetail(it,withState?.life));
+    }
   }
   for(const [k,it] of withoutMap){
-    if(!withMap.has(k)) withoutOnly.push(debugItemLabel(it));
+    if(!withMap.has(k)){
+      withoutOnly.push(debugItemLabel(it));
+      withoutOnlyDetails.push(debugItemDetail(it,withoutState?.life));
+    }
   }
 
-  return {withOnly,withoutOnly};
+  return {withOnly,withoutOnly,withOnlyDetails,withoutOnlyDetails};
 }
 
 function countTargetStates(mapOrIterable){
@@ -987,15 +1073,29 @@ function ensureCancelButton(){
   cancelBtn.className='secondary';
   cancelBtn.textContent='キャンセル';
   cancelBtn.style.display='none';
+  cancelBtn.style.setProperty('pointer-events','auto','important');
+  cancelBtn.style.setProperty('opacity','1','important');
+  cancelBtn.style.setProperty('position','relative','important');
+  cancelBtn.style.setProperty('z-index','2147483647','important');
+  cancelBtn.style.setProperty('touch-action','manipulation','important');
+  cancelBtn.style.setProperty('-webkit-tap-highlight-color','rgba(0,0,0,0)','important');
 
   calcBtn.insertAdjacentElement('afterend',cancelBtn);
 
-  cancelBtn.addEventListener('click',()=>{
+  const requestCancel=(ev)=>{
+    ev?.preventDefault?.();
+    ev?.stopPropagation?.();
+
     if(!isCalculating || cancelRequested) return;
+
     cancelRequested=true;
-    cancelBtn.disabled=true;
-    cancelBtn.textContent='キャンセル中';
-  });
+    cancelBtn.disabled=false;
+    cancelBtn.textContent='キャンセル中…';
+  };
+
+  cancelBtn.addEventListener('pointerdown',requestCancel,{passive:false});
+  cancelBtn.addEventListener('touchstart',requestCancel,{passive:false});
+  cancelBtn.addEventListener('click',requestCancel,{passive:false});
 
   return cancelBtn;
 }
@@ -1129,7 +1229,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   const debug=progress?.debug||null;
   const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
-  const yieldEvery=mode==='fast' ? 10000 : 2500;
+  const yieldEvery=mode==='fast' ? 2500 : 600;
 
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
@@ -1166,6 +1266,9 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       for(const op of group.opts){
         candidateInc++;
+        if((candidateInc&127)===0){
+          throwIfCancelled();
+        }
         const isTargetOp=op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME);
         if(isTargetOp) TARGET_DEBUG.considered++;
         const opBits=op.bits;
@@ -1513,6 +1616,26 @@ async function optimizeAsync(exp,onProgress){
   const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
   TARGET_DEBUG.withOnlyItems=candidateDiff.withOnly;
   TARGET_DEBUG.withoutOnlyItems=candidateDiff.withoutOnly;
+  TARGET_DEBUG.withOnlyDetails=candidateDiff.withOnlyDetails;
+  TARGET_DEBUG.withoutOnlyDetails=candidateDiff.withoutOnlyDetails;
+
+  const currentJob=String(job?.value||'');
+  const suspicious=[];
+  const withItemsForWarning=globalBestWithTarget ? restoreItems(globalBestWithTarget) : [];
+
+  for(const it of withItemsForWarning){
+    if(it?.type!=='basic') continue;
+    const name=String(it.name||'');
+
+    if(['剣士','重戦士','弓使い'].includes(currentJob) && name==='魔力'){
+      suspicious.push(`${currentJob}で魔力 ${it.from}→${it.to} を選択`);
+    }
+    if(['魔法使い','僧侶','魔闘士'].includes(currentJob) && name==='パワー'){
+      suspicious.push(`${currentJob}でパワー ${it.from}→${it.to} を選択`);
+    }
+  }
+
+  TARGET_DEBUG.suspiciousBasicWarnings=suspicious;
   TARGET_DEBUG.withCost=globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null;
   TARGET_DEBUG.withoutCost=globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null;
   TARGET_DEBUG.costDiff=(
@@ -1590,6 +1713,16 @@ async function calc(){
   cancelBtn.disabled=false;
   cancelBtn.textContent='キャンセル';
   cancelBtn.style.display='';
+  cancelBtn.style.setProperty('pointer-events','auto','important');
+  cancelBtn.style.setProperty('opacity','1','important');
+  cancelBtn.style.setProperty('z-index','2147483647','important');
+
+  let cancelParent=cancelBtn.parentElement;
+  while(cancelParent && cancelParent!==document.body){
+    cancelParent.style.setProperty('pointer-events','auto','important');
+    cancelParent=cancelParent.parentElement;
+  }
+
   result.innerHTML='<p class="calculating">計算中</p>';
   try{
     let best=getCachedResult(cacheKey);
@@ -1629,12 +1762,15 @@ async function calc(){
 
     const bestWith=TARGET_DEBUG.bestWithTarget;
     const bestWithout=TARGET_DEBUG.bestWithoutTarget;
-    const withScoreText=bestWith ? String(bestWith.score) : 'なし';
-    const withoutScoreText=bestWithout ? String(bestWithout.score) : 'なし';
+    const fmtScore=v=>Number.isFinite(Number(v))
+      ? Number(v).toFixed(2).replace(/\.00$/,'')
+      : 'なし';
+    const withScoreText=bestWith ? fmtScore(bestWith.score) : 'なし';
+    const withoutScoreText=bestWithout ? fmtScore(bestWithout.score) : 'なし';
     const withItemLenText=bestWith ? String(bestWith.itemLen) : 'なし';
     const withoutItemLenText=bestWithout ? String(bestWithout.itemLen) : 'なし';
     const scoreDiff=(bestWith&&bestWithout) ? (bestWith.score-bestWithout.score) : null;
-    const scoreDiffText=scoreDiff==null ? '比較不可' : String(scoreDiff);
+    const scoreDiffText=scoreDiff==null ? '比較不可' : fmtScore(scoreDiff);
     const taskSummaryText=TARGET_DEBUG.taskSummaries
       .map((x,i)=>`T${i+1}(HP${x.hp}):採用${x.selectedScore ?? 'なし'}${x.selectedHasTarget?'[○あり]':'[○なし]'} / あり${x.bestWithScore ?? 'なし'} / なし${x.bestWithoutScore ?? 'なし'}`)
       .join(' | ')||'なし';
@@ -1657,6 +1793,15 @@ async function calc(){
       : 'なし';
     const withoutOnlyText=TARGET_DEBUG.withoutOnlyItems.length
       ? TARGET_DEBUG.withoutOnlyItems.join(' / ')
+      : 'なし';
+    const withOnlyDetailText=TARGET_DEBUG.withOnlyDetails.length
+      ? TARGET_DEBUG.withOnlyDetails.join('<br>')
+      : 'なし';
+    const withoutOnlyDetailText=TARGET_DEBUG.withoutOnlyDetails.length
+      ? TARGET_DEBUG.withoutOnlyDetails.join('<br>')
+      : 'なし';
+    const suspiciousBasicText=TARGET_DEBUG.suspiciousBasicWarnings.length
+      ? TARGET_DEBUG.suspiciousBasicWarnings.join(' / ')
       : 'なし';
     const withCostText=TARGET_DEBUG.withCost
       ? TARGET_DEBUG.withCost.join(',')
@@ -1705,6 +1850,9 @@ async function calc(){
         <tr><td>最終比較の判定</td><td>${finalDecisionReason}</td></tr>
         <tr><td>○あり候補だけの能力</td><td>${withOnlyText}</td></tr>
         <tr><td>○なし候補だけの能力</td><td>${withoutOnlyText}</td></tr>
+        <tr><td>不自然な基本能力警告</td><td>${suspiciousBasicText}</td></tr>
+        <tr><td>○あり側・能力別詳細</td><td>${withOnlyDetailText}</td></tr>
+        <tr><td>○なし側・能力別詳細</td><td>${withoutOnlyDetailText}</td></tr>
         <tr><td>○あり候補の消費経験点</td><td>${withCostText}</td></tr>
         <tr><td>○なし候補の消費経験点</td><td>${withoutCostText}</td></tr>
         <tr><td>消費経験点差（あり−なし）</td><td>${costDiffText}</td></tr>
