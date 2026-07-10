@@ -1,5 +1,5 @@
 (function(){
-// 高精度モード軽量化版：参照・比較・prune呼び出しのオーバーヘッドを削減。査定条件は変更なし。
+// 高精度モード最適化版：optimizer・prune・作業メモリ再利用を軽量化。査定条件は変更なし。
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
@@ -1057,39 +1057,25 @@ function yieldToBrowser(){
     throwIfCancelled();
   });
 }
-function prune(states,limit=12000,mode=currentCalcMode()){
-  const arr=Array.from(states.values());
+const PRUNE_WORK={
+  arr:[],
+  keep:[],
+  skylineByScope:new Map(),
+  bucketsByScope:new Map()
+};
+const PRUNE_BUCKET_BASE=32;
+function pruneBucketCode(b0,b1,b2,b3,b4){
+  return ((((b0*PRUNE_BUCKET_BASE+b1)*PRUNE_BUCKET_BASE+b2)*PRUNE_BUCKET_BASE+b3)*PRUNE_BUCKET_BASE+b4);
+}
+function prune(states,limit=12000){
+  // 高精度専用。作業配列とトップレベルMapを再利用してGC負荷を抑える。
+  const arr=PRUNE_WORK.arr;
+  arr.length=0;
+  for(const st of states.values()) arr.push(st);
   arr.sort((a,b)=>{
     if(b.score!==a.score) return b.score-a.score;
     return a.usedCost-b.usedCost;
   });
-
-  if(mode==='normal'){
-    const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
-    const keep=[];
-
-    outer: for(let si=0;si<preLimit;si++){
-      const st=arr[si];
-      const stScope=pruneScopeKey(st);
-      const checkMax=Math.min(keep.length,320);
-      for(let i=0;i<checkMax;i++){
-        const k=keep[i];
-        if(pruneScopeKey(k)===stScope && k.score>=st.score){
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
-        }
-      }
-      keep.push(st);
-      if(keep.length>=limit) break;
-    }
-
-    const m=new Map();
-    for(let i=0;i<keep.length;i++){
-      const st=keep[i];
-      m.set(stateKey(st),st);
-    }
-    return m;
-  }
 
   const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
   let usedTotal=0;
@@ -1098,55 +1084,55 @@ function prune(states,limit=12000,mode=currentCalcMode()){
   const EXACT_CHECK_LIMIT=avgExp>1500?1200:900;
   const BUCKET_SIZE=avgExp>1500?70:45;
   const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
-  const BUCKET_BASE=32;
 
-  const keep=[];
-  const skylineByScope=new Map();
-  const bucketsByScope=new Map();
-
-  function bucketCode(b0,b1,b2,b3,b4){
-    return ((((b0*BUCKET_BASE+b1)*BUCKET_BASE+b2)*BUCKET_BASE+b3)*BUCKET_BASE+b4);
-  }
+  const keep=PRUNE_WORK.keep;
+  keep.length=0;
+  const skylineByScope=PRUNE_WORK.skylineByScope;
+  const bucketsByScope=PRUNE_WORK.bucketsByScope;
+  skylineByScope.clear();
+  bucketsByScope.clear();
 
   outer: for(let si=0;si<preLimit;si++){
     const st=arr[si];
+    const stScore=st.score;
+    const stUsedCost=st.usedCost;
+    const sc=st.cost;
     const scope=pruneScopeKey(st);
     const skyline=skylineByScope.get(scope);
 
     if(skyline){
-      const max=Math.min(skyline.length,EXACT_CHECK_LIMIT);
+      const max=skyline.length<EXACT_CHECK_LIMIT?skyline.length:EXACT_CHECK_LIMIT;
       for(let i=0;i<max;i++){
         const k=skyline[i];
-        if(k.score<st.score) break;
-        if(k.usedCost>st.usedCost) continue;
-        const kc=k.cost, sc=st.cost;
+        if(k.score<stScore) break;
+        if(k.usedCost>stUsedCost) continue;
+        const kc=k.cost;
         if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
       }
     }
 
-    const c=st.cost;
-    const b0=Math.floor(c[0]/BUCKET_SIZE);
-    const b1=Math.floor(c[1]/BUCKET_SIZE);
-    const b2=Math.floor(c[2]/BUCKET_SIZE);
-    const b3=Math.floor(c[3]/BUCKET_SIZE);
-    const b4=Math.floor(c[4]/BUCKET_SIZE);
+    const b0=Math.floor(sc[0]/BUCKET_SIZE);
+    const b1=Math.floor(sc[1]/BUCKET_SIZE);
+    const b2=Math.floor(sc[2]/BUCKET_SIZE);
+    const b3=Math.floor(sc[3]/BUCKET_SIZE);
+    const b4=Math.floor(sc[4]/BUCKET_SIZE);
     const scopeBuckets=bucketsByScope.get(scope);
 
     if(scopeBuckets){
       for(let mask=0;mask<32;mask++){
-        const n0=b0-((mask&1)?1:0);
-        const n1=b1-((mask&2)?1:0);
-        const n2=b2-((mask&4)?1:0);
-        const n3=b3-((mask&8)?1:0);
-        const n4=b4-((mask&16)?1:0);
+        const n0=b0-((mask&1)!==0?1:0);
+        const n1=b1-((mask&2)!==0?1:0);
+        const n2=b2-((mask&4)!==0?1:0);
+        const n3=b3-((mask&8)!==0?1:0);
+        const n4=b4-((mask&16)!==0?1:0);
         if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
 
-        const list=scopeBuckets.get(bucketCode(n0,n1,n2,n3,n4));
+        const list=scopeBuckets.get(pruneBucketCode(n0,n1,n2,n3,n4));
         if(!list) continue;
-        for(let i=0;i<list.length;i++){
+        for(let i=0,len=list.length;i<len;i++){
           const k=list[i];
-          if(k.score<st.score || k.usedCost>st.usedCost) continue;
-          const kc=k.cost, sc=st.cost;
+          if(k.score<stScore || k.usedCost>stUsedCost) continue;
+          const kc=k.cost;
           if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
         }
       }
@@ -1162,7 +1148,7 @@ function prune(states,limit=12000,mode=currentCalcMode()){
       activeBuckets=new Map();
       bucketsByScope.set(scope,activeBuckets);
     }
-    const code=bucketCode(b0,b1,b2,b3,b4);
+    const code=pruneBucketCode(b0,b1,b2,b3,b4);
     let list=activeBuckets.get(code);
     if(!list){
       list=[];
@@ -1174,14 +1160,14 @@ function prune(states,limit=12000,mode=currentCalcMode()){
     }else{
       let worstIdx=0;
       let worst=list[0];
-      for(let wi=1;wi<list.length;wi++){
+      for(let wi=1,len=list.length;wi<len;wi++){
         const cand=list[wi];
         if(cand.score<worst.score || (cand.score===worst.score && cand.usedCost>worst.usedCost)){
           worst=cand;
           worstIdx=wi;
         }
       }
-      if(st.score>worst.score || (st.score===worst.score && st.usedCost<worst.usedCost)){
+      if(stScore>worst.score || (stScore===worst.score && stUsedCost<worst.usedCost)){
         list[worstIdx]=st;
       }
     }
@@ -1189,12 +1175,12 @@ function prune(states,limit=12000,mode=currentCalcMode()){
     if(keep.length>=limit) break;
   }
 
-  const m=new Map();
-  for(let i=0;i<keep.length;i++){
+  const result=new Map();
+  for(let i=0,len=keep.length;i<len;i++){
     const st=keep[i];
-    m.set(stateKey(st),st);
+    result.set(stateKey(st),st);
   }
-  return m;
+  return result;
 }
 const rangeRowCache=new WeakMap();
 const valueRowCache=new WeakMap();
@@ -1330,7 +1316,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) continue;
-    states=next.size>6200 ? prune(next,6200,mode) : next;
+    states=next.size>6200 ? prune(next,6200) : next;
     if(!states.size) break;
   }
 
@@ -1623,12 +1609,20 @@ function ensureCancelButton(){
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
+const suffixMaxCache=new WeakMap();
+function suffixMaxForGroups(groups){
+  let suffix=suffixMaxCache.get(groups);
+  if(suffix) return suffix;
+  suffix=new Float64Array(groups.length+1);
+  for(let i=groups.length-1;i>=0;i--) suffix[i]=suffix[i+1]+(groups[i].maxScore||0);
+  suffixMaxCache.set(groups,suffix);
+  return suffix;
+}
 async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null, modeValue=null, totalExpValue=null, expKeyValue=null){
   // optimizeAsyncで準備済みの値はそのまま受け取り、同じ計算・キャッシュ参照を繰り返さない。
   let groups=preGroups || specialChoiceGroupsForExpCached(hp,exp);
 
   const totalExp=totalExpValue ?? costSum(exp);
-  const mode=modeValue || currentCalcMode();
 
   // 知力余り対策を含む最終候補順まで、HP + 経験点条件ごとにキャッシュする。
   const orderedCacheKey=String(hp)+'|'+(expKeyValue || key(exp));
@@ -1666,12 +1660,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   // Upper Boundは高精度用の安全なsuffixMaxのみを使用する。
   const groupCount=groups.length;
-  const suffixMax=new Float64Array(groupCount+1);
-  const useFastApproxUpper=false;
-
-  for(let i=groupCount-1;i>=0;i--){
-    suffixMax[i]=suffixMax[i+1]+(groups[i].maxScore||0);
-  }
+  const suffixMax=suffixMaxForGroups(groups);
 
   function remainingCostSum(st){
     return totalExp-(st.usedCost ?? costSum(st.cost));
@@ -1701,7 +1690,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     return {items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
   }
 
-  if(states.size>STATE_LIMIT) states=prune(states,STATE_LIMIT,mode);
+  if(states.size>STATE_LIMIT) states=prune(states,STATE_LIMIT);
   let bestScore=-Infinity;
   for(const st of states.values()){
     if(st.score>bestScore) bestScore=st.score;
@@ -1709,13 +1698,18 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
   const yieldEvery=2400;
+  const reusableNextMaps=[new Map(),new Map()];
+  let reusableNextIndex=0;
 
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
     const group=groups[gi];
     const groupOpts=group.opts;
 
-    let next=new Map(states);
+    let next=reusableNextMaps[reusableNextIndex];
+    reusableNextIndex^=1;
+    next.clear();
+    for(const [k,v] of states) next.set(k,v);
     let iter=0;
 
     for(const st of states.values()){
@@ -1770,9 +1764,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
         const newScore=stScore+op.score;
         const childRemainSum=remainSum-op.costSum;
-        const childUpper=useFastApproxUpper
-          ? fastRemainingScoreUpper(gi+1,childRemainSum)
-          : suffixMax[gi+1];
+        const childUpper=suffixMax[gi+1];
         if(newScore+childUpper<bestScore) continue;
         if(newScore>bestScore) bestScore=newScore;
 
@@ -1805,7 +1797,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
       if(next.size>HARD_LIMIT){
 
-        next=prune(next,STATE_LIMIT,mode);
+        next=prune(next,STATE_LIMIT);
       }
 
       iter++;
@@ -1815,7 +1807,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
     if(next.size>STATE_LIMIT){
 
-      states=prune(next,STATE_LIMIT,mode);
+      states=prune(next,STATE_LIMIT);
     }else{
       states=next;
     }
@@ -1882,7 +1874,7 @@ async function optimizeAsync(exp,onProgress){
   const prepared=[];
   let totalGroups=0;
   for(const [hp,baseMap] of byHp){
-    const states=baseMap.size>6200 ? prune(baseMap,6200,mode) : baseMap;
+    const states=baseMap.size>6200 ? prune(baseMap,6200) : baseMap;
     if(!states.size) continue;
 
     const groups=specialChoiceGroupsForExpCached(hp,exp);
