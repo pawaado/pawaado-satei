@@ -52,7 +52,7 @@ function bitsKey(bits){
   return converted;
 }
 function bitKeyOfState(st){
-  return st.bitKey ?? bitsKey(st.bits ?? EMPTY_BITS);
+  return bitsKey(st.bits ?? EMPTY_BITS);
 }
 function lifeKeyOfState(st){
   return st.life==null?'':Number(st.life).toString(36);
@@ -328,7 +328,6 @@ function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bit
     prev,
     choice:ch,
     bits:nextBits,
-    bitKey:bitsKey(nextBits),
     _pruneScopeKey:scopeKeyFor(life,nextBits),
     _stateKey:stateKeyValue,
     usedCost:usedCostValue ?? costSum(cost),
@@ -637,11 +636,13 @@ function buildBasicStates(exp){
 const specialItemCache=new Map();
 const specialGroupCache=new Map();
 const filteredSpecialGroupCache=new Map();
+const orderedSpecialGroupCache=new Map();
 const calcResultCache=new Map();
 function clearCalcCaches(){
   specialItemCache.clear();
   specialGroupCache.clear();
   filteredSpecialGroupCache.clear();
+  orderedSpecialGroupCache.clear();
 }
 function calcCacheKey(exp){
   const basicPart=basicNames.map(n=>{
@@ -664,7 +665,6 @@ function cloneResult(st){
     items:items.map(x=>({...x})),
     itemLen:itemLenOf(st),
     bits:st.bits ?? specialItemsBits(items),
-    bitKey:st.bitKey ?? bitsKey(st.bits ?? specialItemsBits(items)),
     usedCost:st.usedCost ?? costSum(st.cost||[0,0,0,0,0])
   };
 }
@@ -711,7 +711,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
   }
 
   const bits=specialItemsBits(items);
-  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,bits,bitKey:bitsKey(bits),conflictBits:conflictBitsFor(bits),idx:i,name:s[1]};
+  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,bits,conflictBits:conflictBitsFor(bits),idx:i,name:s[1]};
   specialItemCache.set(cacheKey,result);
   return result;
 }
@@ -762,7 +762,7 @@ function specialChoiceGroupsCached(hp){
       const opts=g.opts.map(op=>{
         const cs=costSum(op.cost);
         const bits=op.bits ?? specialItemsBits(op.items);
-        return {...op,bits,bitKey:op.bitKey ?? bitsKey(bits),conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
+        return {...op,bits,conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
       }).sort((a,b)=>{
         if(b.eff!==a.eff) return b.eff-a.eff;
         return b.score-a.score;
@@ -851,25 +851,32 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   const totalExp=costSum(exp);
   const mode=currentCalcMode();
 
-  // 知力余り対策：
-  // 単純な査定効率順だけでなく、取得後の残経験点バランスが極端に崩れにくい候補を少し優先する。
-  function balancePenalty(cost){
-    let p=0;
-    for(let i=0;i<5;i++){
-      const remain=exp[i]-cost[i];
-      p += remain*remain;
+  // 知力余り対策を含む最終候補順まで、HP + 経験点条件ごとにキャッシュする。
+  const orderedCacheKey=String(hp)+'|'+key(exp);
+  const orderedCached=orderedSpecialGroupCache.get(orderedCacheKey);
+  if(orderedCached){
+    groups=orderedCached;
+  }else{
+    function balancePenalty(cost){
+      let p=0;
+      for(let i=0;i<5;i++){
+        const remain=exp[i]-cost[i];
+        p += remain*remain;
+      }
+      return p;
     }
-    return p;
-  }
 
-  groups=groups.map(g=>{
-    const opts=[...g.opts].sort((a,b)=>{
-      if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
-      if(b.score!==a.score) return b.score-a.score;
-      return balancePenalty(a.cost)-balancePenalty(b.cost);
+    groups=groups.map(g=>{
+      const opts=[...g.opts].sort((a,b)=>{
+        if((b.eff||0)!==(a.eff||0)) return (b.eff||0)-(a.eff||0);
+        if(b.score!==a.score) return b.score-a.score;
+        return balancePenalty(a.cost)-balancePenalty(b.cost);
+      });
+      return {...g,opts};
     });
-    return {...g,opts};
-  });
+
+    orderedSpecialGroupCache.set(orderedCacheKey,groups);
+  }
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
   const STATE_LIMIT=mode==='high'
