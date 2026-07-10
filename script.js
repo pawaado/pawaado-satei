@@ -1,4 +1,4 @@
- (function(){
+(function(){
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -907,16 +907,18 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   // 残経験点は配列ではなく合計値だけで扱い、同じ条件のUpper Boundはキャッシュする。
   const upperBoundCaches=Array.from({length:groups.length+1},()=>new Map());
   function remainingScoreUpper(start,remainSum){
+    const byGroup=suffixMax[start]||0;
+
+    // 高精度は安全な上界だけを使う。
+    // 残りグループの最大査定合計は必ず実現可能値以上なので、正解候補を落とさない。
+    if(mode!=='fast') return byGroup;
+
     const cache=upperBoundCaches[start];
     const cached=cache.get(remainSum);
     if(cached!==undefined) return cached;
 
-    const byGroup=suffixMax[start]||0;
-    const ubMargin=mode==='fast' ? 1.00 : 1.15;
-    const byEfficiency=remainSum*(suffixBestEff[start]||0)*ubMargin;
-
-    // 速度優先：
-    // 効率上界を少し安全マージン付きで戻し、候補爆発を抑える。
+    // 高速βだけ、効率ベースの近似上界を使う。
+    const byEfficiency=remainSum*(suffixBestEff[start]||0)*1.00;
     const v=byGroup<byEfficiency ? byGroup : byEfficiency;
     cache.set(remainSum,v);
     return v;
