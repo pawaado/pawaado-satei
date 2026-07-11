@@ -27,7 +27,6 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 let cancelRequested=false;
-let activeTargetConstraint='normal';
 
 class CalculationCancelledError extends Error{
   constructor(){
@@ -117,288 +116,6 @@ function conflictBitsFor(bits){
   }
   return mask;
 }
-const TARGET_DEBUG_NAME='物理攻撃○';
-const ENABLE_INTERNAL_DIAGNOSTICS=false;
-const TARGET_DEBUG={
-  reset(){
-    this.index=-1;
-    this.hint=0;
-    this.owned=false;
-    this.generated=false;
-    this.score=null;
-    this.rawCost=null;
-    this.discountedCost=null;
-    this.grouped=false;
-    this.groupIndex=-1;
-    this.groupKind='';
-    this.considered=0;
-    this.feasible=0;
-    this.conflictCut=0;
-    this.duplicateCut=0;
-    this.ubCut=0;
-    this.selected=false;
-    this.groupSnapshots=[];
-    this.routeGroupSnapshots=[];
-    this.pruneEvents=[];
-    this.mutualTransition=null;
-    this.finalCandidateTrace=null;
-    this.magicAcquisitionTrace=null;
-    this.magicDecisionSnapshot=null;
-    this.finalStatesWithTarget=0;
-    this.bestWithTarget=null;
-    this.bestWithoutTarget=null;
-    this.selectedScore=null;
-    this.selectedItemLen=null;
-    this.selectedHasTarget=false;
-    this._bestWithState=null;
-    this._bestWithoutState=null;
-    this.taskSummaries=[];
-    this.augmentChecks=[];
-    this.bestAugmentable=null;
-    this.withOnlyItems=[];
-    this.withoutOnlyItems=[];
-    this.withOnlyDetails=[];
-    this.withoutOnlyDetails=[];
-    this.suspiciousBasicWarnings=[];
-    this.withCost=null;
-    this.withoutCost=null;
-    this.costDiff=null;
-    this.withLife=null;
-    this.withoutLife=null;
-    this.branchCandidateDiagnostics=[];
-    this.notes=[];
-  }
-};
-TARGET_DEBUG.reset();
-function stateHasTarget(st){
-  if(!st) return false;
-  const idx=TARGET_DEBUG.index;
-  if(idx>=0){
-    const bit=specialBit(idx);
-    if(((st.bits??EMPTY_BITS)&bit)!==EMPTY_BITS) return true;
-  }
-  const items=st.items||st.choice;
-  return !!items?.some(it=>String(it?.name)===TARGET_DEBUG_NAME);
-}
-function targetRouteProfile(iterable){
-  const values=iterable instanceof Map ? iterable.values() : iterable;
-  const out={
-    target:0,
-    targetNoMagic:0,
-    targetDex60:0,
-    targetLife52:0,
-    targetNoMagicDex60:0,
-    targetNoMagicLife52:0,
-    targetNoMagicDexOrLife:0,
-    bestTarget:null,
-    bestNoMagic:null,
-    bestNoMagicDexOrLife:null
-  };
-
-  for(const st of values){
-    if(!stateHasTarget(st)) continue;
-
-    out.target++;
-    if(out.bestTarget==null || st.score>out.bestTarget) out.bestTarget=st.score;
-
-    const items=restoreItems(st);
-    let magicRaised=false;
-    let dex60=false;
-
-    for(const it of items){
-      if(it?.type!=='basic') continue;
-      if(String(it.name)==='魔力' && Number(it.to)>Number(it.from)) magicRaised=true;
-      if(String(it.name)==='器用さ' && Number(it.to)>=60) dex60=true;
-    }
-
-    const life52=Number(st.life)>=52;
-
-    if(!magicRaised){
-      out.targetNoMagic++;
-      if(out.bestNoMagic==null || st.score>out.bestNoMagic) out.bestNoMagic=st.score;
-    }
-    if(dex60) out.targetDex60++;
-    if(life52) out.targetLife52++;
-
-    if(!magicRaised && dex60) out.targetNoMagicDex60++;
-    if(!magicRaised && life52) out.targetNoMagicLife52++;
-
-    if(!magicRaised && (dex60 || life52)){
-      out.targetNoMagicDexOrLife++;
-      if(out.bestNoMagicDexOrLife==null || st.score>out.bestNoMagicDexOrLife){
-        out.bestNoMagicDexOrLife=st.score;
-      }
-    }
-  }
-
-  return out;
-}
-
-function isTargetNoMagicState(st){
-  if(!stateHasTarget(st)) return false;
-  const items=restoreItems(st);
-  return !items.some(it=>
-    it?.type==='basic' &&
-    String(it.name)==='魔力' &&
-    Number(it.to)>Number(it.from)
-  );
-}
-
-function briefState(st){
-  if(!st) return 'なし';
-  const items=restoreItems(st)
-    .map(debugItemLabel)
-    .filter(Boolean);
-  return `score:${Number(st.score).toFixed(2)} / cost:${st.cost.join(',')} / ${items.join('・')}`;
-}
-
-function compactRouteProfile(p){
-  if(!p) return 'なし';
-  const fmt=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
-  return [
-    `○:${p.target}`,
-    `魔力なし:${p.targetNoMagic}`,
-    `器用60:${p.targetDex60}`,
-    `生命52:${p.targetLife52}`,
-    `魔力なし＋器用/生命:${p.targetNoMagicDexOrLife}`,
-    `最高:${fmt(p.bestTarget)}`,
-    `魔力なし最高:${fmt(p.bestNoMagic)}`,
-    `有力ルート最高:${fmt(p.bestNoMagicDexOrLife)}`
-  ].join(' / ');
-}
-
-function debugItemKey(it){
-  if(!it) return '';
-  if(it.type==='special') return `special:${it.idx}`;
-  if(it.type==='basic') return `basic:${it.name}:${it.from}:${it.to}`;
-  return JSON.stringify(it);
-}
-function debugItemLabel(it){
-  if(!it) return '不明';
-  if(it.type==='special') return String(it.name||`特殊能力#${it.idx}`);
-  if(it.type==='basic') return `${it.name} ${it.from}→${it.to}`;
-  return String(it.name||it.type||'不明');
-}
-function basicDebugDetail(it){
-  const name=String(it?.name||'');
-  const from=Number(it?.from);
-  const to=Number(it?.to);
-  const hint=Number(basicHints[name]||0);
-  const t=tableFor(name);
-
-  if(!t || !Number.isFinite(from) || !Number.isFinite(to)){
-    return `${debugItemLabel(it)}：詳細取得不可`;
-  }
-
-  let totalCost=[0,0,0,0,0];
-  let totalScore=0;
-  const refs=[];
-
-  for(let v=from;v<to;v++){
-    const costRow=rowForValue(t.cost,v);
-    const scoreRow=rowForValue(t.score,v);
-    if(!costRow || !scoreRow){
-      refs.push(`${v}→${v+1}:行なし`);
-      continue;
-    }
-
-    const step=basicCostVector(name,costRow,hint);
-    const stepScore=Number(scoreRow[2]||0);
-
-    if(step) totalCost=addCost(totalCost,step);
-    totalScore+=stepScore;
-
-    refs.push(
-      `${v}→${v+1}`+
-      `[cost:${String(costRow[0])},score:${String(scoreRow[0])}]`
-    );
-  }
-
-  const sum=costSum(totalCost);
-  const eff=totalScore/(1+sum);
-
-  return `${debugItemLabel(it)}`+
-    `｜査定:${totalScore}`+
-    `｜コスト:${totalCost.join(',')}`+
-    `｜合計:${sum}`+
-    `｜効率:${eff.toFixed(5)}`+
-    `｜コツLv:${hint}`+
-    `｜参照:${refs.join(' / ')}`;
-}
-
-function specialDebugDetail(it,hp){
-  const idx=Number(it?.idx);
-  const s=D.special[idx];
-  if(!s) return `${debugItemLabel(it)}：詳細取得不可`;
-
-  const hint=specialHint(idx);
-  const score=skillScore(s,hp);
-  const raw=[s[3],s[4],s[5],s[6],s[7]].map(x=>Number(x||0));
-  const cost=raw.map(x=>costAfter(x,hint,false));
-  const sum=costSum(cost);
-  const eff=score/(1+sum);
-
-  return `${debugItemLabel(it)}`+
-    `｜査定:${score}`+
-    `｜コスト:${cost.join(',')}`+
-    `｜元コスト:${raw.join(',')}`+
-    `｜合計:${sum}`+
-    `｜効率:${eff.toFixed(5)}`+
-    `｜コツLv:${hint}`+
-    `｜dataIndex:${idx}`;
-}
-
-function debugItemDetail(it,hp){
-  if(it?.type==='basic') return basicDebugDetail(it);
-  if(it?.type==='special') return specialDebugDetail(it,hp);
-  return debugItemLabel(it);
-}
-
-function compareDebugItems(withState,withoutState){
-  const withItems=withState ? restoreItems(withState) : [];
-  const withoutItems=withoutState ? restoreItems(withoutState) : [];
-
-  const withMap=new Map(withItems.map(it=>[debugItemKey(it),it]));
-  const withoutMap=new Map(withoutItems.map(it=>[debugItemKey(it),it]));
-
-  const withOnly=[];
-  const withoutOnly=[];
-  const withOnlyDetails=[];
-  const withoutOnlyDetails=[];
-
-  for(const [k,it] of withMap){
-    if(!withoutMap.has(k)){
-      withOnly.push(debugItemLabel(it));
-      withOnlyDetails.push(debugItemDetail(it,withState?.life));
-    }
-  }
-  for(const [k,it] of withoutMap){
-    if(!withMap.has(k)){
-      withoutOnly.push(debugItemLabel(it));
-      withoutOnlyDetails.push(debugItemDetail(it,withoutState?.life));
-    }
-  }
-
-  return {withOnly,withoutOnly,withOnlyDetails,withoutOnlyDetails};
-}
-
-function countTargetStates(mapOrIterable){
-  let n=0;
-  const values=mapOrIterable instanceof Map ? mapOrIterable.values() : mapOrIterable;
-  for(const st of values){
-    if(stateHasTarget(st)) n++;
-  }
-  return n;
-}
-const PROFILE={marks:new Map(),times:new Map()};
-function pStart(k){PROFILE.marks.set(k,performance.now());}
-function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
-function pReset(){PROFILE.marks.clear();PROFILE.times.clear();}
-function pReport(){
-  const rows=[...PROFILE.times.entries()].map(([k,v])=>`<tr><td>${k}</td><td>${(v/1000).toFixed(3)} 秒</td></tr>`);
-  return rows.length?rows.join(""):'<tr><td colspan="2">計測なし</td></tr>';
-}
-
 function removeTemporaryVersionDisplay(){
   const nodes=document.querySelectorAll('body *');
   for(const el of nodes){
@@ -674,373 +391,6 @@ function makeState(cost,score,life,prev=null,choice=EMPTY_ITEMS,itemLen=null,bit
     itemLen:itemLen ?? ((prev?itemLenOf(prev):0)+ch.length)
   };
 }
-function inspectStateChain(st){
-  if(!st){
-    return {
-      items:[],
-      cycle:false,
-      nodeCount:0,
-      choiceCount:0,
-      cachedItems:false
-    };
-  }
-
-  const chunks=[];
-  const seen=new Set();
-  let cur=st;
-  let cycle=false;
-  let nodeCount=0;
-  let choiceCount=0;
-
-  while(cur){
-    if(seen.has(cur)){
-      cycle=true;
-      break;
-    }
-    seen.add(cur);
-    nodeCount++;
-
-    if(cur.choice&&cur.choice.length){
-      chunks.push(cur.choice);
-      choiceCount+=cur.choice.length;
-    }
-    cur=cur.prev;
-  }
-
-  const items=[];
-  for(let i=chunks.length-1;i>=0;i--){
-    items.push(...chunks[i]);
-  }
-
-  return {
-    items,
-    cycle,
-    nodeCount,
-    choiceCount,
-    cachedItems:Array.isArray(st.items)
-  };
-}
-
-function itemNamesForDiagnosis(items){
-  return (items||[])
-    .map(debugItemLabel)
-    .filter(Boolean);
-}
-
-function diagnosisHasTarget(items){
-  return (items||[]).some(it=>String(it?.name||'')===TARGET_DEBUG_NAME);
-}
-
-function diagnosisHasMagicRaise(items){
-  return (items||[]).some(it=>
-    it?.type==='basic' &&
-    String(it.name||'')==='魔力' &&
-    Number(it.to)>Number(it.from)
-  );
-}
-
-function traceItemLabel(it){
-  if(!it) return '不明';
-  if(it.type==='basic') return `${it.name} ${it.from}→${it.to}`;
-  return String(it.name||'不明');
-}
-
-function topScoreRank(states, score){
-  const values=[...states.values()]
-    .map(s=>Number(s.score))
-    .filter(Number.isFinite)
-    .sort((a,b)=>b-a);
-  let rank=1;
-  for(const v of values){
-    if(v>score) rank++;
-    else break;
-  }
-  return {rank,total:values.length};
-}
-
-function inspectChainNodes(st){
-  const nodes=[];
-  const seen=new Set();
-  let cur=st;
-  let cycle=false;
-
-  while(cur){
-    if(seen.has(cur)){
-      cycle=true;
-      break;
-    }
-    seen.add(cur);
-
-    nodes.push({
-      score:Number(cur.score),
-      cost:Array.isArray(cur.cost)?cur.cost.slice():[],
-      choice:Array.isArray(cur.choice)?cur.choice.map(traceItemLabel):[],
-      life:cur.life,
-      key:stateKey(cur),
-      groupIndex:Number.isInteger(cur._groupIndex)?cur._groupIndex:null,
-      groupKind:cur._groupKind||'',
-      stateRef:cur
-    });
-
-    cur=cur.prev;
-  }
-
-  nodes.reverse();
-  return {nodes,cycle};
-}
-
-function meaningfulChainNodes(info){
-  const nodes=info?.nodes||[];
-  if(!nodes.length) return [];
-
-  const out=[nodes[0]];
-  for(let i=1;i<nodes.length;i++){
-    const prev=out[out.length-1];
-    const node=nodes[i];
-    const hasChoice=Array.isArray(node.choice)&&node.choice.length>0;
-    const scoreChanged=Number(node.score)!==Number(prev.score);
-    const costChanged=(node.cost||[]).some((v,j)=>Number(v)!==Number(prev.cost?.[j]||0));
-
-    // 基本能力探索から特殊能力探索へ渡す際に挟まる、
-    // score・cost・choiceがすべて同じ「開始状態」ノードは表示・診断から除外する。
-    if(!hasChoice && !scoreChanged && !costChanged) continue;
-    out.push(node);
-  }
-  return out;
-}
-
-function compactChainText(info){
-  const nodes=meaningfulChainNodes(info);
-  if(!nodes.length) return 'なし';
-
-  return nodes.map((node,i)=>{
-    const added=node.choice.length?node.choice.join('・'):'開始状態';
-    return `N${i}：${added} / score ${node.score.toFixed(2)} / cost ${node.cost.join(',')}`;
-  }).join('<br>');
-}
-
-function candidateCategory(op){
-  const names=(op.items||[]).map(traceItemLabel);
-  if(names.some(n=>n.startsWith('魔力 '))) return '魔力';
-  if(names.some(n=>n.startsWith('生命力 '))) return '生命力';
-  if(names.some(n=>n.startsWith('器用さ '))) return '器用さ';
-  if(names.some(n=>n.startsWith('パワー '))) return 'パワー';
-  if(names.some(n=>n.startsWith('耐久力 '))) return '耐久力';
-  if(names.some(n=>n.startsWith('精神力 '))) return '精神力';
-  if(names.some(n=>n===TARGET_DEBUG_NAME)) return TARGET_DEBUG_NAME;
-  if(names.length===0) return '何もしない';
-  return names.join('・');
-}
-
-function compactCandidateRows(rows){
-  if(!rows||!rows.length) return '<tr><td colspan="7">候補なし</td></tr>';
-
-  return rows.map((r,i)=>`
-    <tr>
-      <td>${i+1}</td>
-      <td>${r.label}</td>
-      <td>${r.newScore.toFixed(2)}</td>
-      <td>${r.gain>=0?'+':''}${r.gain.toFixed(2)}</td>
-      <td>${r.cost.join(',')}</td>
-      <td>${r.efficiency==null?'なし':r.efficiency.toFixed(5)}</td>
-      <td>${r.selected?'採用':'不採用'}</td>
-    </tr>
-  `).join('');
-}
-
-function buildSelectedChainDecision(chainInfo,preferredIndex=6){
-  const nodes=meaningfulChainNodes(chainInfo);
-  if(nodes.length<2) return null;
-
-  // 重複した「開始状態」ノードを除外した実質チェーン上でN6を診断する。
-  // これにより、表示上のN6と候補比較の親・採用項目が一致する。
-  const nodeIndex=Math.min(Math.max(1,preferredIndex),nodes.length-1);
-  const parent=nodes[nodeIndex-1];
-  const selected=nodes[nodeIndex];
-  const added=selected.choice||[];
-  const gain=Number(selected.score)-Number(parent.score);
-  const deltaCost=selected.cost.map((v,i)=>Number(v)-Number(parent.cost[i]||0));
-  const deltaSum=costSum(deltaCost);
-
-  const parentItems=[];
-  for(let i=1;i<nodeIndex;i++){
-    parentItems.push(...(nodes[i].choice||[]));
-  }
-
-  return {
-    gi:null,
-    chainNodeIndex:nodeIndex,
-    groupKind:'final-selected-chain',
-    parentKey:parent.key,
-    parentScore:Number(parent.score),
-    parentCost:parent.cost.slice(),
-    parentItems,
-    selectedKey:selected.key,
-    selectedLabel:added.length?added.join('・'):'何もしない',
-    rows:[
-      {
-        label:added.length?added.join('・'):'何もしない',
-        newScore:Number(selected.score),
-        gain,
-        cost:deltaCost,
-        costSum:deltaSum,
-        efficiency:deltaSum>0?gain/deltaSum:null,
-        selected:true
-      },
-      {
-        label:'何もしない',
-        newScore:Number(parent.score),
-        gain:0,
-        cost:[0,0,0,0,0],
-        costSum:0,
-        efficiency:null,
-        selected:added.length===0
-      }
-    ]
-  };
-}
-
-
-function branchChoiceSignature(items){
-  return (items||[]).map(it=>{
-    if(it?.type==='special') return `special:${Number(it.idx)}`;
-    if(it?.type==='basic') return `basic:${it.name}:${it.from}:${it.to}`;
-    return traceItemLabel(it);
-  }).sort().join('|');
-}
-
-function buildBranchCandidateDiagnostics(finalState,exp,startIndex=5,endIndex=8){
-  const raw=inspectChainNodes(finalState);
-  const nodes=meaningfulChainNodes(raw);
-  const results=[];
-
-  for(let nodeIndex=Math.max(1,startIndex);nodeIndex<=Math.min(endIndex,nodes.length-1);nodeIndex++){
-    const selectedNode=nodes[nodeIndex];
-    const parentNode=nodes[nodeIndex-1];
-    const parent=parentNode.stateRef;
-    const groupIndex=selectedNode.groupIndex;
-
-    if(!parent || !Number.isInteger(groupIndex)){
-      results.push({
-        nodeIndex,
-        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-        groupIndex:null,
-        groupKind:selectedNode.groupKind||'',
-        parentScore:Number(parentNode.score),
-        parentCost:(parentNode.cost||[]).slice(),
-        rows:[],
-        note:'グループ情報なし（基本能力ノードまたは旧キャッシュ）'
-      });
-      continue;
-    }
-
-    const hp=currentHpForLife(parent.life);
-    const cacheKey=String(hp)+'|'+key(exp);
-    const groups=orderedSpecialGroupCache.get(cacheKey) || specialChoiceGroupsForExpCached(hp,exp);
-    const group=groups[groupIndex];
-
-    if(!group){
-      results.push({
-        nodeIndex,
-        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-        groupIndex,
-        groupKind:selectedNode.groupKind||'',
-        parentScore:Number(parent.score),
-        parentCost:(parent.cost||[]).slice(),
-        rows:[],
-        note:'対象グループを復元できず'
-      });
-      continue;
-    }
-
-    const parentBits=parent.bits??EMPTY_BITS;
-    const selectedSignature=branchChoiceSignature(selectedNode.stateRef?.choice||[]);
-    const rows=[];
-
-    for(const op of group.opts){
-      const opBits=op.bits??specialItemsBits(op.items);
-      let result='候補';
-      let reason='';
-      if((parentBits&opBits)!==EMPTY_BITS){
-        result='除外'; reason='取得済み重複';
-      }else if((parentBits&(op.conflictBits??conflictBitsFor(opBits)))!==EMPTY_BITS){
-        result='除外'; reason='相互排他';
-      }
-
-      const newCost=addCost(parent.cost,op.cost);
-      if(result!=='除外' && !leq(newCost,exp)){
-        result='除外'; reason='経験点不足';
-      }
-
-      const sig=branchChoiceSignature(op.items);
-      const selected=sig===selectedSignature;
-      if(selected && result!=='除外') result='採用';
-
-      rows.push({
-        label:(op.items||[]).map(traceItemLabel).join('・')||'不明',
-        score:Number(parent.score)+Number(op.score),
-        gain:Number(op.score),
-        cost:(op.cost||[]).slice(),
-        efficiency:(op.costSum??costSum(op.cost))>0 ? Number(op.score)/(op.costSum??costSum(op.cost)) : null,
-        result,
-        reason,
-        selected
-      });
-    }
-
-    rows.push({
-      label:'何もしない',
-      score:Number(parent.score),
-      gain:0,
-      cost:[0,0,0,0,0],
-      efficiency:null,
-      result:selectedSignature===''?'採用':'不採用',
-      reason:'',
-      selected:selectedSignature===''
-    });
-
-    rows.sort((a,b)=>{
-      if(a.selected!==b.selected) return a.selected?-1:1;
-      if(a.result==='除外' && b.result!=='除外') return 1;
-      if(a.result!=='除外' && b.result==='除外') return -1;
-      return b.score-a.score;
-    });
-
-    results.push({
-      nodeIndex,
-      selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-      groupIndex,
-      groupKind:group.kind||selectedNode.groupKind||'',
-      parentScore:Number(parent.score),
-      parentCost:(parent.cost||[]).slice(),
-      rows,
-      note:''
-    });
-  }
-
-  return results;
-}
-
-function compactBranchCandidateRows(rows){
-  if(!rows?.length) return '<tr><td colspan="8">候補情報なし</td></tr>';
-  return rows.map((r,i)=>`<tr>
-    <td>${i+1}</td>
-    <td>${r.label}</td>
-    <td>${r.score.toFixed(2)}</td>
-    <td>${r.gain>=0?'+':''}${r.gain.toFixed(2)}</td>
-    <td>${r.cost.join(',')}</td>
-    <td>${r.efficiency==null?'なし':r.efficiency.toFixed(5)}</td>
-    <td>${r.result}</td>
-    <td>${r.reason||'-'}</td>
-  </tr>`).join('');
-}
-
-function shortDiagnosisItems(items,max=8){
-  const names=itemNamesForDiagnosis(items);
-  if(!names.length) return 'なし';
-  return names.slice(0,max).join(' / ')+(names.length>max?` / 他${names.length-max}件`:'');
-}
-
 function restoreItems(st){
   if(!st) return [];
   if(st.items) return st.items;
@@ -1401,14 +751,6 @@ function itemForSpecialIndex(i,hp,includeLower=false){
 
   const score=skillScore(s,hp);
   if(score<=0){
-    if(ENABLE_INTERNAL_DIAGNOSTICS && String(s[1])===TARGET_DEBUG_NAME){
-      TARGET_DEBUG.index=i;
-      TARGET_DEBUG.hint=specialHint(i);
-      TARGET_DEBUG.owned=specialOwned(i);
-      TARGET_DEBUG.generated=false;
-      TARGET_DEBUG.score=score;
-      TARGET_DEBUG.notes.push('査定値が0以下のため候補生成されなかった');
-    }
     specialItemCache.set(cacheKey,null);
     return null;
   }
@@ -1416,16 +758,6 @@ function itemForSpecialIndex(i,hp,includeLower=false){
   const hint=specialHint(i);
   const rawCosts=[s[3],s[4],s[5],s[6],s[7]].map(c=>Number(c||0));
   const costs=rawCosts.map(c=>costAfter(c,hint,false));
-
-  if(ENABLE_INTERNAL_DIAGNOSTICS && String(s[1])===TARGET_DEBUG_NAME){
-    TARGET_DEBUG.index=i;
-    TARGET_DEBUG.hint=hint;
-    TARGET_DEBUG.owned=specialOwned(i);
-    TARGET_DEBUG.generated=true;
-    TARGET_DEBUG.score=score;
-    TARGET_DEBUG.rawCost=rawCosts.slice();
-    TARGET_DEBUG.discountedCost=costs.slice();
-  }
 
   let totalCost=costs.slice();
   let totalScore=score;
@@ -1481,13 +813,6 @@ function specialChoiceGroups(hp){
     if(used.has(i) || specialOwned(i)) return;
     if(isUpperSpecial(i)) return;
     const it=itemForSpecialIndex(i,hp,false); if(it) groups.push({kind:'single',opts:[it]});
-  });
-  if(ENABLE_INTERNAL_DIAGNOSTICS) groups.forEach((g,gi)=>{
-    if(g.opts.some(op=>op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME))){
-      TARGET_DEBUG.grouped=true;
-      TARGET_DEBUG.groupIndex=gi;
-      TARGET_DEBUG.groupKind=g.kind||'';
-    }
   });
   return groups;
 }
@@ -1886,9 +1211,7 @@ async function optimizeAsync(exp,onProgress){
   const defaultLife=Number(document.getElementById('basic_生命力')?.value||1);
   const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:defaultLife};
 
-  pStart("基本能力生成");
   const basicMap=buildBasicStates(exp);
-  pEnd("基本能力生成");
 
   if(!basicMap.size){
     if(onProgress) onProgress('計算中 100%');
@@ -1935,8 +1258,6 @@ async function optimizeAsync(exp,onProgress){
   const progress={done:0,total:Math.max(1,totalGroups),start:Date.now()};
   let best=null;
 
-  // プロファイル計測もタスクごとではなく特殊能力探索全体で1回だけ行う。
-  pStart("特殊能力探索");
   for(let ti=0,taskLen=prepared.length;ti<taskLen;ti++){
     throwIfCancelled();
     const task=prepared[ti];
@@ -1952,7 +1273,6 @@ async function optimizeAsync(exp,onProgress){
       await yieldToBrowser();
     }
   }
-  pEnd("特殊能力探索");
 
   if(onProgress) onProgress('計算中 100%');
   return best||fallback;
@@ -1997,8 +1317,6 @@ function validateInputs(){
 }
 async function calc(){
   clearCalcCaches();
-  TARGET_DEBUG.reset();
-  pReset();
   validateAllInline();
 
   const result=document.getElementById('result');
@@ -2016,7 +1334,6 @@ async function calc(){
 
   cancelRequested=false;
   isCalculating=true;
-  activeTargetConstraint='normal';
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{
     if(el.id!=='calcBtn' && el.id!=='cancelCalcBtn') el.disabled=true;
@@ -2086,8 +1403,7 @@ ${remainHtml}
     }
   }finally{
     isCalculating=false;
-    activeTargetConstraint='normal';
-    document.body.classList.remove('is-calculating');
+      document.body.classList.remove('is-calculating');
     document.querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;});
     job.disabled=!academy.value;
     basicNames.forEach(n=>applyBasicVisual(n));
