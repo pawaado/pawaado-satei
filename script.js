@@ -495,7 +495,10 @@ function applyBasicVisual(name){
   const lim=limits(); const disabled=!hasAcademyJob();
   setHintBtn(row.querySelector('.hint-btn'),basicHints[name]||0);
   row.classList.toggle('owned',!!basicOwned[name]);
+  const hintBtn=row.querySelector('.hint-btn');
+  if(hintBtn) hintBtn.disabled=false;
   const btn=row.querySelector('.name-btn');
+  if(btn) btn.disabled=false;
   btn.innerHTML=`<span class="ability-name-text">${name}</span>${ownedLabel(!!basicOwned[name])}`;
   const inp=document.getElementById('basic_'+name);
   if(inp){
@@ -569,6 +572,13 @@ function showAcademyJobRequired(name){
 // 数値欄または基本能力名のタップ時に選択を促すメッセージを表示する。
 // 左側の「＋」はアカデミー・ジョブ未選択時でもコツ入力に使える。
 document.addEventListener('pointerdown',e=>{
+  const nameBtn=e.target.closest?.('button[data-kind="basic-name"]');
+  if(nameBtn && !hasAcademyJob()){
+    e.preventDefault();
+    showAcademyJobRequired(nameBtn.dataset.name);
+    return;
+  }
+
   const inp=e.target.closest?.('input[id^="basic_"]');
   if(!inp || hasAcademyJob()) return;
   e.preventDefault();
