@@ -2143,11 +2143,3 @@ ensureCancelButton();
 removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
-
-
-/* 注記表示調整 */
-.note-title{font-weight:700;}
-.note-list{font-size:13px !important;line-height:1.45;}
-@media (orientation:landscape){
-  .note-list{font-size:13px !important;}
-}
