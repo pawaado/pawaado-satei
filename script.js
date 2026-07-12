@@ -399,6 +399,45 @@ function pReport(){
   return rows.length?rows.join(""):'<tr><td colspan="2">計測なし</td></tr>';
 }
 
+
+function formatNoteBlock(){
+  const note=document.querySelector('.note');
+  if(!note) return;
+
+  let items=[...note.querySelectorAll('p,li')]
+    .map(el=>(el.textContent||'').trim())
+    .filter(Boolean);
+
+  if(!items.length){
+    items=(note.textContent||'')
+      .split(/\n\s*\n/)
+      .map(s=>s.trim())
+      .filter(Boolean);
+  }
+
+  items=items
+    .map(s=>s.replace(/^注記\s*\d*\s*[:：]\s*/,'').trim())
+    .filter(Boolean);
+
+  note.replaceChildren();
+
+  const title=document.createElement('div');
+  title.className='note-title';
+  title.textContent='【注記】';
+  note.appendChild(title);
+
+  const list=document.createElement('ul');
+  list.className='note-list';
+
+  items.forEach(text=>{
+    const li=document.createElement('li');
+    li.textContent=text;
+    list.appendChild(li);
+  });
+
+  note.appendChild(list);
+}
+
 function removeTemporaryVersionDisplay(){
   const nodes=document.querySelectorAll('body *');
   for(const el of nodes){
@@ -2141,5 +2180,6 @@ document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 removeTemporaryVersionDisplay();
+formatNoteBlock();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
