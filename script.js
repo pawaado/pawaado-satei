@@ -1,4 +1,4 @@
-(function(){
+ (function(){
 // v8.0 高精度専用：安全な総経験点Upper Boundを追加。査定条件・保持上限・候補集合は変更なし。
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
@@ -15,7 +15,6 @@ D.academies.forEach(r=>{(jobsByAcademy[r[0]]??=[]).push(r[1]);});
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
 const specialList=document.getElementById('specialList');
-const search=document.getElementById('skillSearch');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
@@ -506,9 +505,6 @@ function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIn
 function specialOwned(i){return getSpecialState(i).own===1;}
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
 function shouldShowSpecial(i){
-  const name=String(D.special[i][1]);
-  const q=(search.value||'').trim().toLowerCase();
-  if(q) return name.toLowerCase().includes(q);
   if(!isUpperSpecial(i)) return true;
   const li=lowerIndex(i);
   return (li>=0 && specialOwned(li)) || specialOwned(i);
@@ -525,7 +521,6 @@ function renderSpecials(){
   specialList.innerHTML=html;
   D.special.forEach((_,i)=>applySkillVisual(i));
 }
-search.addEventListener('input',renderSpecials);
 function ownedLabel(on){return on ? '<span class="owned-label">✓取得済</span>' : ''}
 function setHintBtn(btn,level){if(!btn)return; btn.textContent=Number(level)>0?`Lv${level}`:'＋'; btn.classList.toggle('has-hint',Number(level)>0);}
 function cycleHint(v){return (Number(v)||0)>=5 ? 0 : (Number(v)||0)+1;}
@@ -2167,7 +2162,6 @@ function resetAll(){
 
   specialState.clear();
   calcResultCache.clear();
-  search.value='';
 
   renderBasic();
   renderSpecials();
