@@ -132,10 +132,6 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
     font-size:17px;
   }
 
-  .note{
-    font-size:16px;
-    line-height:1.7;
-  }
 
   .result-block{
     margin:8px 0 14px;
