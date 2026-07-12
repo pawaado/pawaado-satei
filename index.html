@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>パワアド査定ツール</title>
-  <link rel="stylesheet" href="style.css?v=650">
+  <link rel="stylesheet" href="style.css?v=651">
 </head>
 <body>
 <header>
@@ -45,9 +45,12 @@
     <div id="result">条件を入力して「計算する」を押してください。</div>
   </section>
 
-  <section class="note">
-    <p>注記1：基本能力の小数点以下の査定が不明であることなどから、本ツールの算出結果が実際の最大値と異なる場合があります。また、必殺技、アクションスキル、超特殊能力は割愛しています。あらかじめご了承ください。</p>
-    <p>注記2：〜攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</p>
+  <section class="note" aria-labelledby="noteTitle">
+    <div class="note-title" id="noteTitle">【注記】</div>
+    <ul class="note-list">
+      <li>基本能力の小数点以下の査定が不明であることなどから、本ツールの算出結果が実際の最大値と異なる場合があります。また、必殺技、アクションスキル、超特殊能力は対象外です。あらかじめご了承ください。</li>
+      <li>～攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
+    </ul>
   </section>
 </main>
 <script src="data.js?v=650"></script>
