@@ -4,6 +4,12 @@
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
+const ultraSpecialNames=new Set([
+  '治癒の教え'
+]);
+function isUltraSpecialName(name){
+  return ultraSpecialNames.has(String(name||''));
+}
 const mutualGroups=[
   ['生存本能','闘争本能'],
   ['柔軟な体','頑丈な体'],
@@ -472,6 +478,7 @@ function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIn
 function specialOwned(i){return getSpecialState(i).own===1;}
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
 function shouldShowSpecial(i){
+  if(isUltraSpecialName(D.special[i]?.[1])) return false;
   if(!isUpperSpecial(i)) return true;
   const li=lowerIndex(i);
   return (li>=0 && specialOwned(li)) || specialOwned(i);
@@ -1412,7 +1419,7 @@ function setCachedResult(cacheKey,result){
   calcResultCache.set(cacheKey,cloneResult(result));
 }
 function itemForSpecialIndex(i,hp,includeLower=false){
-  const s=D.special[i]; if(!s) return null;
+  const s=D.special[i]; if(!s || isUltraSpecialName(s[1])) return null;
   const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
   const cachedItem=specialItemCache.get(cacheKey);
   if(cachedItem!==undefined) return cachedItem;
@@ -2018,6 +2025,7 @@ function validateInputs(){
 
 function diagnosticItemNames(st){
   return restoreItems(st)
+    .filter(it=>it?.type!=='special' || !isUltraSpecialName(it?.name))
     .map(it=>it?.type==='basic'
       ? `${it.name} ${it.from}→${it.to}`
       : String(it?.name||''))
@@ -2058,6 +2066,7 @@ function diagnosticCompareHtml(rows){
 
   return `<div class="result-block">
     <h3>不具合切り分け結果</h3>
+    <p>※金色の超特殊能力（治癒の教え）は比較・査定対象外です。</p>
     <p><strong>${verdict}</strong></p>
     ${cards}
   </div>`;
