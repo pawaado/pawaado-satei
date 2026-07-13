@@ -1,6 +1,4 @@
 (function(){
-// v8.0 高精度専用：安全な総経験点Upper Boundを追加。査定条件・保持上限・候補集合は変更なし。
-// Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
@@ -15,6 +13,7 @@ D.academies.forEach(r=>{(jobsByAcademy[r[0]]??=[]).push(r[1]);});
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
 const specialList=document.getElementById('specialList');
+const search=document.getElementById('skillSearch');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
@@ -26,7 +25,12 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 let cancelRequested=false;
-let activeTargetConstraint='normal';
+
+// 不具合切り分け用
+// normal : 現行
+// no_ub  : Upper Boundのみ無効
+// wide   : Upper Bound無効＋保持上限拡大
+let diagnosticRunMode='normal';
 
 class CalculationCancelledError extends Error{
   constructor(){
@@ -98,11 +102,11 @@ function initSpecialBitMeta(){
   mutualGroups.forEach(g=>{
     let mask=EMPTY_BITS;
     g.forEach(n=>{
-      const i=specialNameIndex.get(String(n)) ?? -1;
+      const i=specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1;
       if(i>=0) mask|=specialBit(i);
     });
     g.forEach(n=>{
-      const i=specialNameIndex.get(String(n)) ?? -1;
+      const i=specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1;
       if(i>=0) mutualMaskByIndex[i]=mask & ~specialBit(i);
     });
   });
@@ -117,7 +121,6 @@ function conflictBitsFor(bits){
   return mask;
 }
 const TARGET_DEBUG_NAME='物理攻撃○';
-const ENABLE_INTERNAL_DIAGNOSTICS=false;
 const TARGET_DEBUG={
   reset(){
     this.index=-1;
@@ -164,7 +167,6 @@ const TARGET_DEBUG={
     this.costDiff=null;
     this.withLife=null;
     this.withoutLife=null;
-    this.branchCandidateDiagnostics=[];
     this.notes=[];
   }
 };
@@ -398,18 +400,6 @@ function pReport(){
   return rows.length?rows.join(""):'<tr><td colspan="2">計測なし</td></tr>';
 }
 
-
-function removeTemporaryVersionDisplay(){
-  const nodes=document.querySelectorAll('body *');
-  for(const el of nodes){
-    if(el.children.length) continue;
-    const text=(el.textContent||'').trim();
-    if(/^Version\s+\d/i.test(text)){
-      el.remove();
-      break;
-    }
-  }
-}
 function opt(label,value){return new Option(label,value??label)}
 function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]===job.value)}
 function hasAcademyJob(){return !!academy.value && !!job.value;}
@@ -436,9 +426,9 @@ function renderBasic(){
   wrap.innerHTML=basicNames.map(n=>`
     <div class="ability-block">
       <div class="ability-row ${basicOwned[n]?'owned':''}" data-basic="${n}">
-        <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}">＋</button>
-        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}"><span class="ability-name-text">${n}</span></button>
-        <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'readonly aria-disabled="true"':''}>
+        <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}" ${disabled?'disabled':''}>＋</button>
+        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}" ${disabled?'disabled':''}><span class="ability-name-text">${n}</span></button>
+        <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'disabled':''}>
       </div>
       <div class="inline-error" id="err_basic_${safeId(n)}"></div>
     </div>`).join('');
@@ -451,22 +441,17 @@ function renderSkillName(name){
   else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="◎">◎</span>';}
   return `<span class="skill-name-text">${base}${rank}</span>`;
 }
-function getSpecialState(i){
-  const k=String(i);
-  let st=specialState.get(k);
-  if(st===undefined){
-    st={hint:0,own:0};
-    specialState.set(k,st);
-  }
-  return st;
-}
+function getSpecialState(i){const k=String(i); if(!specialState.has(k)) specialState.set(k,{hint:0,own:0}); return specialState.get(k);}
 function isUpperSpecial(i){return String(D.special[i][1]).endsWith('◎');}
-function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return specialNameIndex.get(String(req)) ?? -1;}
-function upperIndex(i){const name=D.special[i]?.[1]; return specialReqIndex.get(String(name)) ?? -1;}
+function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return specialNameIndex.has(String(req))?specialNameIndex.get(String(req)):-1;}
+function upperIndex(i){const name=D.special[i]?.[1]; return specialReqIndex.has(String(name))?specialReqIndex.get(String(name)):-1;}
 function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIndex(i);}
 function specialOwned(i){return getSpecialState(i).own===1;}
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
 function shouldShowSpecial(i){
+  const name=String(D.special[i][1]);
+  const q=(search.value||'').trim().toLowerCase();
+  if(q) return name.toLowerCase().includes(q);
   if(!isUpperSpecial(i)) return true;
   const li=lowerIndex(i);
   return (li>=0 && specialOwned(li)) || specialOwned(i);
@@ -483,6 +468,7 @@ function renderSpecials(){
   specialList.innerHTML=html;
   D.special.forEach((_,i)=>applySkillVisual(i));
 }
+search.addEventListener('input',renderSpecials);
 function ownedLabel(on){return on ? '<span class="owned-label">✓取得済</span>' : ''}
 function setHintBtn(btn,level){if(!btn)return; btn.textContent=Number(level)>0?`Lv${level}`:'＋'; btn.classList.toggle('has-hint',Number(level)>0);}
 function cycleHint(v){return (Number(v)||0)>=5 ? 0 : (Number(v)||0)+1;}
@@ -491,19 +477,12 @@ function applyBasicVisual(name){
   const lim=limits(); const disabled=!hasAcademyJob();
   setHintBtn(row.querySelector('.hint-btn'),basicHints[name]||0);
   row.classList.toggle('owned',!!basicOwned[name]);
-  const hintBtn=row.querySelector('.hint-btn');
-  if(hintBtn) hintBtn.disabled=false;
   const btn=row.querySelector('.name-btn');
-  if(btn) btn.disabled=false;
   btn.innerHTML=`<span class="ability-name-text">${name}</span>${ownedLabel(!!basicOwned[name])}`;
   const inp=document.getElementById('basic_'+name);
   if(inp){
-    // アカデミー／ジョブ未選択時はreadonlyにして、タップ時の案内を受け取れるようにする。
-    // 取得済みで固定された能力だけは従来どおりdisabledにする。
-    inp.disabled=!!basicOwned[name];
-    inp.readOnly=disabled;
-    inp.setAttribute('aria-disabled',(disabled || !!basicOwned[name])?'true':'false');
-    inp.classList.toggle('locked',disabled || !!basicOwned[name]);
+    inp.disabled=disabled || !!basicOwned[name];
+    inp.classList.toggle('locked',!!basicOwned[name]);
     if(basicOwned[name] && lim[name]!=null) inp.value=lim[name];
   }
 }
@@ -519,7 +498,7 @@ function setSpecialOwned(i,on,chain=true){
   const st=getSpecialState(i); st.own=on?1:0;
   if(on){
     const group=inMutualGroup(D.special[i][1]);
-    if(group){group.forEach(n=>{const j=specialNameIndex.get(String(n)) ?? -1; if(j>=0 && j!==i){getSpecialState(j).own=0; applySkillVisual(j);}});}
+    if(group){group.forEach(n=>{const j=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(j>=0 && j!==i){getSpecialState(j).own=0; applySkillVisual(j);}});}
   }
   applySkillVisual(i);
   if(!chain){ renderSpecials(); return; }
@@ -540,14 +519,9 @@ document.addEventListener('click',e=>{
   const kind=t.dataset.kind;
   if(kind==='basic-hint'){const name=t.dataset.name; basicHints[name]=cycleHint(basicHints[name]); applyBasicVisual(name); return;}
   if(kind==='basic-name'){
-    const name=t.dataset.name;
-    if(!hasAcademyJob()){
-      showAcademyJobRequired(name);
-      return;
-    }
-    basicOwned[name]=!basicOwned[name];
-    applyBasicVisual(name);
-    return;
+    if(!hasAcademyJob()) return;
+    const name=t.dataset.name; basicOwned[name]=!basicOwned[name];
+    applyBasicVisual(name); return;
   }
   if(kind==='special-hint'){const i=Number(t.dataset.index); setSpecialHint(i,cycleHint(getSpecialState(i).hint)); return;}
   if(kind==='special-name'){toggleSpecial(Number(t.dataset.index)); return;}
@@ -555,34 +529,6 @@ document.addEventListener('click',e=>{
 
 
 function setInlineError(id,msg){const el=document.getElementById(id); if(el) el.textContent=msg||'';}
-function showAcademyJobRequired(name){
-  const msg=!academy.value
-    ? 'アカデミー、ジョブを選択してください'
-    : 'ジョブを選択してください';
-  setInlineError('err_basic_'+safeId(name),msg);
-  const inp=document.getElementById('basic_'+name);
-  if(inp) inp.classList.add('input-error');
-}
-
-// 未選択時の数値欄はreadonlyにしてタップを受け取り、
-// 数値欄または基本能力名のタップ時に選択を促すメッセージを表示する。
-// 左側の「＋」はアカデミー・ジョブ未選択時でもコツ入力に使える。
-document.addEventListener('pointerdown',e=>{
-  const nameBtn=e.target.closest?.('button[data-kind="basic-name"]');
-  if(nameBtn && !hasAcademyJob()){
-    e.preventDefault();
-    showAcademyJobRequired(nameBtn.dataset.name);
-    return;
-  }
-
-  const inp=e.target.closest?.('input[id^="basic_"]');
-  if(!inp || hasAcademyJob()) return;
-  e.preventDefault();
-  const name=inp.id.replace('basic_','');
-  showAcademyJobRequired(name);
-  inp.blur();
-},{passive:false});
-
 function validateExpField(name){
   const inp=document.getElementById('exp_'+name); if(!inp) return '';
   const v=inp.value;
@@ -632,18 +578,8 @@ document.addEventListener('input',e=>{
 function jobScoreIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
 function fixedAddIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
 function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return Math.round((fixed+hp*rate)*10)/10;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
-const SPECIAL_DISCOUNT=[0,.5,.6,.7,.8,.9];
-function costAfter(cost,hint,basic=false){const disc=basic?hint*0.02:(SPECIAL_DISCOUNT[hint]||0); return Math.floor(cost*(1-disc));}
-const hpByLifeCache=new Map();
-function currentHpForLife(life){
-  const key=Number(life)||0;
-  const cached=hpByLifeCache.get(key);
-  if(cached!==undefined) return cached;
-  let hp=50;
-  for(const r of D.hp){if(key>=Number(r[0])) hp=Number(r[1]);}
-  hpByLifeCache.set(key,hp);
-  return hp;
-}
+function costAfter(cost,hint,basic=false){const disc=basic?hint*0.02:({0:0,1:.5,2:.6,3:.7,4:.8,5:.9}[hint]||0); return Math.floor(cost*(1-disc));}
+function currentHpForLife(life){let hp=50; for(const r of D.hp){if(life>=Number(r[0])) hp=Number(r[1]);} return hp;}
 function parseRange(r){const m=String(r).match(/(\d+)→(\d+)/); return m?{a:Number(m[1]),b:Number(m[2])}:null;}
 function tableFor(name){
   if(name==='生命力') return {cost:D.life,score:D.life};
@@ -655,10 +591,10 @@ function tableFor(name){
 }
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
-function key5(c0,c1,c2,c3,c4){
-  return String(((((c0*1001+c1)*1001+c2)*1001+c3)*1001+c4));
+function key(c){
+  const n=((((c[0]*1001+c[1])*1001+c[2])*1001+c[3])*1001+c[4]);
+  return String(n);
 }
-function key(c){return key5(c[0],c[1],c[2],c[3],c[4]);}
 function stateKey(st){
   if(st._stateKey!==undefined && st._stateKey!==null) return st._stateKey;
   const value=key(st.cost)+'|'+scopeKeyFor(st.life,st.bits??EMPTY_BITS);
@@ -788,10 +724,7 @@ function inspectChainNodes(st){
       cost:Array.isArray(cur.cost)?cur.cost.slice():[],
       choice:Array.isArray(cur.choice)?cur.choice.map(traceItemLabel):[],
       life:cur.life,
-      key:stateKey(cur),
-      groupIndex:Number.isInteger(cur._groupIndex)?cur._groupIndex:null,
-      groupKind:cur._groupKind||'',
-      stateRef:cur
+      key:stateKey(cur)
     });
 
     cur=cur.prev;
@@ -801,31 +734,10 @@ function inspectChainNodes(st){
   return {nodes,cycle};
 }
 
-function meaningfulChainNodes(info){
-  const nodes=info?.nodes||[];
-  if(!nodes.length) return [];
-
-  const out=[nodes[0]];
-  for(let i=1;i<nodes.length;i++){
-    const prev=out[out.length-1];
-    const node=nodes[i];
-    const hasChoice=Array.isArray(node.choice)&&node.choice.length>0;
-    const scoreChanged=Number(node.score)!==Number(prev.score);
-    const costChanged=(node.cost||[]).some((v,j)=>Number(v)!==Number(prev.cost?.[j]||0));
-
-    // 基本能力探索から特殊能力探索へ渡す際に挟まる、
-    // score・cost・choiceがすべて同じ「開始状態」ノードは表示・診断から除外する。
-    if(!hasChoice && !scoreChanged && !costChanged) continue;
-    out.push(node);
-  }
-  return out;
-}
-
 function compactChainText(info){
-  const nodes=meaningfulChainNodes(info);
-  if(!nodes.length) return 'なし';
+  if(!info || !info.nodes || !info.nodes.length) return 'なし';
 
-  return nodes.map((node,i)=>{
+  return info.nodes.map((node,i)=>{
     const added=node.choice.length?node.choice.join('・'):'開始状態';
     return `N${i}：${added} / score ${node.score.toFixed(2)} / cost ${node.cost.join(',')}`;
   }).join('<br>');
@@ -860,193 +772,6 @@ function compactCandidateRows(rows){
   `).join('');
 }
 
-function buildSelectedChainDecision(chainInfo,preferredIndex=6){
-  const nodes=meaningfulChainNodes(chainInfo);
-  if(nodes.length<2) return null;
-
-  // 重複した「開始状態」ノードを除外した実質チェーン上でN6を診断する。
-  // これにより、表示上のN6と候補比較の親・採用項目が一致する。
-  const nodeIndex=Math.min(Math.max(1,preferredIndex),nodes.length-1);
-  const parent=nodes[nodeIndex-1];
-  const selected=nodes[nodeIndex];
-  const added=selected.choice||[];
-  const gain=Number(selected.score)-Number(parent.score);
-  const deltaCost=selected.cost.map((v,i)=>Number(v)-Number(parent.cost[i]||0));
-  const deltaSum=costSum(deltaCost);
-
-  const parentItems=[];
-  for(let i=1;i<nodeIndex;i++){
-    parentItems.push(...(nodes[i].choice||[]));
-  }
-
-  return {
-    gi:null,
-    chainNodeIndex:nodeIndex,
-    groupKind:'final-selected-chain',
-    parentKey:parent.key,
-    parentScore:Number(parent.score),
-    parentCost:parent.cost.slice(),
-    parentItems,
-    selectedKey:selected.key,
-    selectedLabel:added.length?added.join('・'):'何もしない',
-    rows:[
-      {
-        label:added.length?added.join('・'):'何もしない',
-        newScore:Number(selected.score),
-        gain,
-        cost:deltaCost,
-        costSum:deltaSum,
-        efficiency:deltaSum>0?gain/deltaSum:null,
-        selected:true
-      },
-      {
-        label:'何もしない',
-        newScore:Number(parent.score),
-        gain:0,
-        cost:[0,0,0,0,0],
-        costSum:0,
-        efficiency:null,
-        selected:added.length===0
-      }
-    ]
-  };
-}
-
-
-function branchChoiceSignature(items){
-  return (items||[]).map(it=>{
-    if(it?.type==='special') return `special:${Number(it.idx)}`;
-    if(it?.type==='basic') return `basic:${it.name}:${it.from}:${it.to}`;
-    return traceItemLabel(it);
-  }).sort().join('|');
-}
-
-function buildBranchCandidateDiagnostics(finalState,exp,startIndex=5,endIndex=8){
-  const raw=inspectChainNodes(finalState);
-  const nodes=meaningfulChainNodes(raw);
-  const results=[];
-
-  for(let nodeIndex=Math.max(1,startIndex);nodeIndex<=Math.min(endIndex,nodes.length-1);nodeIndex++){
-    const selectedNode=nodes[nodeIndex];
-    const parentNode=nodes[nodeIndex-1];
-    const parent=parentNode.stateRef;
-    const groupIndex=selectedNode.groupIndex;
-
-    if(!parent || !Number.isInteger(groupIndex)){
-      results.push({
-        nodeIndex,
-        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-        groupIndex:null,
-        groupKind:selectedNode.groupKind||'',
-        parentScore:Number(parentNode.score),
-        parentCost:(parentNode.cost||[]).slice(),
-        rows:[],
-        note:'グループ情報なし（基本能力ノードまたは旧キャッシュ）'
-      });
-      continue;
-    }
-
-    const hp=currentHpForLife(parent.life);
-    const cacheKey=String(hp)+'|'+key(exp);
-    const groups=orderedSpecialGroupCache.get(cacheKey) || specialChoiceGroupsForExpCached(hp,exp);
-    const group=groups[groupIndex];
-
-    if(!group){
-      results.push({
-        nodeIndex,
-        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-        groupIndex,
-        groupKind:selectedNode.groupKind||'',
-        parentScore:Number(parent.score),
-        parentCost:(parent.cost||[]).slice(),
-        rows:[],
-        note:'対象グループを復元できず'
-      });
-      continue;
-    }
-
-    const parentBits=parent.bits??EMPTY_BITS;
-    const selectedSignature=branchChoiceSignature(selectedNode.stateRef?.choice||[]);
-    const rows=[];
-
-    for(const op of group.opts){
-      const opBits=op.bits??specialItemsBits(op.items);
-      let result='候補';
-      let reason='';
-      if((parentBits&opBits)!==EMPTY_BITS){
-        result='除外'; reason='取得済み重複';
-      }else if((parentBits&(op.conflictBits??conflictBitsFor(opBits)))!==EMPTY_BITS){
-        result='除外'; reason='相互排他';
-      }
-
-      const newCost=addCost(parent.cost,op.cost);
-      if(result!=='除外' && !leq(newCost,exp)){
-        result='除外'; reason='経験点不足';
-      }
-
-      const sig=branchChoiceSignature(op.items);
-      const selected=sig===selectedSignature;
-      if(selected && result!=='除外') result='採用';
-
-      rows.push({
-        label:(op.items||[]).map(traceItemLabel).join('・')||'不明',
-        score:Number(parent.score)+Number(op.score),
-        gain:Number(op.score),
-        cost:(op.cost||[]).slice(),
-        efficiency:(op.costSum??costSum(op.cost))>0 ? Number(op.score)/(op.costSum??costSum(op.cost)) : null,
-        result,
-        reason,
-        selected
-      });
-    }
-
-    rows.push({
-      label:'何もしない',
-      score:Number(parent.score),
-      gain:0,
-      cost:[0,0,0,0,0],
-      efficiency:null,
-      result:selectedSignature===''?'採用':'不採用',
-      reason:'',
-      selected:selectedSignature===''
-    });
-
-    rows.sort((a,b)=>{
-      if(a.selected!==b.selected) return a.selected?-1:1;
-      if(a.result==='除外' && b.result!=='除外') return 1;
-      if(a.result!=='除外' && b.result==='除外') return -1;
-      return b.score-a.score;
-    });
-
-    results.push({
-      nodeIndex,
-      selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-      groupIndex,
-      groupKind:group.kind||selectedNode.groupKind||'',
-      parentScore:Number(parent.score),
-      parentCost:(parent.cost||[]).slice(),
-      rows,
-      note:''
-    });
-  }
-
-  return results;
-}
-
-function compactBranchCandidateRows(rows){
-  if(!rows?.length) return '<tr><td colspan="8">候補情報なし</td></tr>';
-  return rows.map((r,i)=>`<tr>
-    <td>${i+1}</td>
-    <td>${r.label}</td>
-    <td>${r.score.toFixed(2)}</td>
-    <td>${r.gain>=0?'+':''}${r.gain.toFixed(2)}</td>
-    <td>${r.cost.join(',')}</td>
-    <td>${r.efficiency==null?'なし':r.efficiency.toFixed(5)}</td>
-    <td>${r.result}</td>
-    <td>${r.reason||'-'}</td>
-  </tr>`).join('');
-}
-
 function shortDiagnosisItems(items,max=8){
   const names=itemNamesForDiagnosis(items);
   if(!names.length) return 'なし';
@@ -1077,26 +802,35 @@ function yieldToBrowser(){
     throwIfCancelled();
   });
 }
-function prune(states,limit=12000,mode=currentCalcMode()){
-  const arr=Array.from(states.values());
-  arr.sort((a,b)=>{
-    if(b.score!==a.score) return b.score-a.score;
-    return a.usedCost-b.usedCost;
-  });
+function prune(states,limit=12000){
+  const mode=currentCalcMode();
+  const targetBefore=countTargetStates(states);
+  const routeBefore=targetRouteProfile(states);
+  const arr=[...states.values()]
+    .map(st=>{st.totalCost=costSum(st.cost); return st;})
+    .sort((a,b)=>{
+      if(b.score!==a.score) return b.score-a.score;
+      return a.totalCost-b.totalCost;
+    });
+
+  function sameScope(a,b){
+    return pruneScopeKey(a)===pruneScopeKey(b);
+  }
 
   if(mode==='normal'){
     const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
+    const src=arr.slice(0,preLimit);
     const keep=[];
 
-    outer: for(let si=0;si<preLimit;si++){
-      const st=arr[si];
-      const stScope=pruneScopeKey(st);
+    outer: for(const st of src){
       const checkMax=Math.min(keep.length,320);
       for(let i=0;i<checkMax;i++){
         const k=keep[i];
-        if(pruneScopeKey(k)===stScope && k.score>=st.score){
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
+
+        // 正確性優先：
+        // 生命力だけでなく、取得済み特殊能力bitも同じ状態だけを支配判定する。
+          if(sameScope(k,st) && leq(k.cost,st.cost) && k.score>=st.score){
+            continue outer;
         }
       }
       keep.push(st);
@@ -1104,90 +838,123 @@ function prune(states,limit=12000,mode=currentCalcMode()){
     }
 
     const m=new Map();
-    for(let i=0;i<keep.length;i++){
-      const st=keep[i];
+    keep.forEach(st=>{
+      delete st.totalCost;
       m.set(stateKey(st),st);
-    }
+    });
+    TARGET_DEBUG.pruneEvents.push({
+      mode,
+      before:states.size,
+      after:m.size,
+      targetBefore,
+      targetAfter:countTargetStates(m),
+      routeBefore,
+      routeAfter:targetRouteProfile(m)
+    });
     return m;
   }
 
+  // 正確性優先版：
+  // 同じ「生命力 + 特殊能力bit」の中だけで、低コスト・高査定の状態を支配判定する。
+  // 生命力が同じでも取得済み特殊能力が違う状態は、今後の選択肢が違うため別物として残す。
   const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
-  let usedTotal=0;
-  for(let i=0;i<preLimit;i++) usedTotal+=arr[i].usedCost;
-  const avgExp=preLimit?usedTotal/preLimit:0;
+  const src=arr.slice(0,preLimit);
+  const avgExp=src.length?src.reduce((sum,st)=>sum+st.totalCost,0)/src.length:0;
   const EXACT_CHECK_LIMIT=avgExp>1500?1200:900;
   const BUCKET_SIZE=avgExp>1500?70:45;
   const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
-  const BUCKET_BASE=32;
 
   const keep=[];
   const skylineByScope=new Map();
-  const bucketsByScope=new Map();
+  const buckets=new Map();
 
-  function bucketCode(b0,b1,b2,b3,b4){
-    return ((((b0*BUCKET_BASE+b1)*BUCKET_BASE+b2)*BUCKET_BASE+b3)*BUCKET_BASE+b4);
+  function bucketKey(st){
+    const c=st.cost;
+    return Math.floor(c[0]/BUCKET_SIZE)+','+
+      Math.floor(c[1]/BUCKET_SIZE)+','+
+      Math.floor(c[2]/BUCKET_SIZE)+','+
+      Math.floor(c[3]/BUCKET_SIZE)+','+
+      Math.floor(c[4]/BUCKET_SIZE)+'|'+pruneScopeKey(st);
   }
 
-  outer: for(let si=0;si<preLimit;si++){
-    const st=arr[si];
+  function nearbyBucketKeys(st){
+    const c=st.cost;
+    const base=[
+      Math.floor(c[0]/BUCKET_SIZE),
+      Math.floor(c[1]/BUCKET_SIZE),
+      Math.floor(c[2]/BUCKET_SIZE),
+      Math.floor(c[3]/BUCKET_SIZE),
+      Math.floor(c[4]/BUCKET_SIZE)
+    ];
     const scope=pruneScopeKey(st);
-    const skyline=skylineByScope.get(scope);
+    const keys=[];
+    for(let mask=0;mask<32;mask++){
+      const b0=base[0]-((mask&1)?1:0);
+      const b1=base[1]-((mask&2)?1:0);
+      const b2=base[2]-((mask&4)?1:0);
+      const b3=base[3]-((mask&8)?1:0);
+      const b4=base[4]-((mask&16)?1:0);
+      if(b0<0||b1<0||b2<0||b3<0||b4<0) continue;
+      keys.push(b0+','+b1+','+b2+','+b3+','+b4+'|'+scope);
+    }
+    return keys;
+  }
 
-    if(skyline){
-      const max=Math.min(skyline.length,EXACT_CHECK_LIMIT);
-      for(let i=0;i<max;i++){
-        const k=skyline[i];
-        if(k.score<st.score) break;
-        if(k.usedCost>st.usedCost) continue;
-        const kc=k.cost, sc=st.cost;
-        if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
+  function dominatedBySkyline(st){
+    const list=skylineByScope.get(pruneScopeKey(st));
+    if(!list) return false;
+    const max=Math.min(list.length,EXACT_CHECK_LIMIT);
+    for(let i=0;i<max;i++){
+      const k=list[i];
+
+      // 支配には「査定以上」かつ「総コスト以下」が最低条件。
+      // 満たさない候補では5項目のコスト比較を行わない。
+      if(k.score<st.score) break;
+      if(k.totalCost>st.totalCost) continue;
+
+      if(leq(k.cost,st.cost)){
+        return true;
       }
     }
+    return false;
+  }
 
-    const c=st.cost;
-    const b0=Math.floor(c[0]/BUCKET_SIZE);
-    const b1=Math.floor(c[1]/BUCKET_SIZE);
-    const b2=Math.floor(c[2]/BUCKET_SIZE);
-    const b3=Math.floor(c[3]/BUCKET_SIZE);
-    const b4=Math.floor(c[4]/BUCKET_SIZE);
-    const scopeBuckets=bucketsByScope.get(scope);
+  function addToSkyline(st){
+    const scope=pruneScopeKey(st);
+    let list=skylineByScope.get(scope);
+    if(!list){list=[]; skylineByScope.set(scope,list);}
 
-    if(scopeBuckets){
-      for(let mask=0;mask<32;mask++){
-        const n0=b0-((mask&1)?1:0);
-        const n1=b1-((mask&2)?1:0);
-        const n2=b2-((mask&4)?1:0);
-        const n3=b3-((mask&8)?1:0);
-        const n4=b4-((mask&16)?1:0);
-        if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
+    // arrは「査定の高い順、同査定なら総コストの低い順」で処理される。
+    // そのため、後から来た状態が既存状態を支配して追い出すケースは実質発生しない。
+    // ここで全件比較すると膨大な無駄になるため、登録だけ行う。
+    list.push(st);
+  }
 
-        const list=scopeBuckets.get(bucketCode(n0,n1,n2,n3,n4));
-        if(!list) continue;
-        for(let i=0;i<list.length;i++){
-          const k=list[i];
-          if(k.score<st.score || k.usedCost>st.usedCost) continue;
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
+  outer: for(const st of src){
+    if(dominatedBySkyline(st)) continue;
+
+    const keys=nearbyBucketKeys(st);
+    for(const bk of keys){
+      const list=buckets.get(bk);
+      if(!list) continue;
+      for(const k of list){
+
+        // bucket内でも、支配の最低条件を満たさない候補は即スキップ。
+        if(k.score<st.score) continue;
+        if(k.totalCost>st.totalCost) continue;
+
+          if(leq(k.cost,st.cost)){
+            continue outer;
         }
       }
     }
 
     keep.push(st);
+    addToSkyline(st);
 
-    if(skyline) skyline.push(st);
-    else skylineByScope.set(scope,[st]);
-
-    let activeBuckets=scopeBuckets;
-    if(!activeBuckets){
-      activeBuckets=new Map();
-      bucketsByScope.set(scope,activeBuckets);
-    }
-    const code=bucketCode(b0,b1,b2,b3,b4);
-    let list=activeBuckets.get(code);
-    if(!list){
-      list=[];
-      activeBuckets.set(code,list);
-    }
+    const bk=bucketKey(st);
+    let list=buckets.get(bk);
+    if(!list){list=[]; buckets.set(bk,list);}
 
     if(list.length<BUCKET_KEEP_LIMIT){
       list.push(st);
@@ -1196,12 +963,12 @@ function prune(states,limit=12000,mode=currentCalcMode()){
       let worst=list[0];
       for(let wi=1;wi<list.length;wi++){
         const cand=list[wi];
-        if(cand.score<worst.score || (cand.score===worst.score && cand.usedCost>worst.usedCost)){
+        if(cand.score<worst.score || (cand.score===worst.score && cand.totalCost>worst.totalCost)){
           worst=cand;
           worstIdx=wi;
         }
       }
-      if(st.score>worst.score || (st.score===worst.score && st.usedCost<worst.usedCost)){
+      if(st.score>worst.score || (st.score===worst.score && st.totalCost<worst.totalCost)){
         list[worstIdx]=st;
       }
     }
@@ -1210,50 +977,41 @@ function prune(states,limit=12000,mode=currentCalcMode()){
   }
 
   const m=new Map();
-  for(let i=0;i<keep.length;i++){
-    const st=keep[i];
+  keep.forEach(st=>{
+    delete st.totalCost;
     m.set(stateKey(st),st);
-  }
+  });
+  TARGET_DEBUG.pruneEvents.push({
+    mode,
+    before:states.size,
+    after:m.size,
+    targetBefore,
+    targetAfter:countTargetStates(m),
+    routeBefore,
+    routeAfter:targetRouteProfile(m)
+  });
   return m;
 }
 const rangeRowCache=new WeakMap();
-const valueRowCache=new WeakMap();
 function rowsForTable(table){
-  const cachedRows=rangeRowCache.get(table);
-  if(cachedRows!==undefined) return cachedRows;
-  const rows=[];
-  for(let i=0;i<table.length;i++){
-    const range=parseRange(table[i][0]);
-    if(range) rows.push({row:table[i],range});
-  }
+  if(rangeRowCache.has(table)) return rangeRowCache.get(table);
+  const rows=table.map(r=>({row:r,range:parseRange(r[0])})).filter(x=>x.range);
   rangeRowCache.set(table,rows);
   return rows;
 }
 function rowForValue(table,value){
-  let cache=valueRowCache.get(table);
-  if(!cache){cache=new Map();valueRowCache.set(table,cache);}
-  const cachedRow=cache.get(value);
-  if(cachedRow!==undefined) return cachedRow;
-  const rows=rowsForTable(table);
-  for(let i=0;i<rows.length;i++){
-    const x=rows[i];
-    if(value>=x.range.a && value<x.range.b){cache.set(value,x.row);return x.row;}
+  for(const x of rowsForTable(table)){
+    if(value>=x.range.a && value<x.range.b) return x.row;
   }
-  cache.set(value,null);
   return null;
 }
 function basicCostVector(name,costRow,hint){
-  const offset=name==='生命力'?3:1;
-  const n0=Number(costRow[offset]);
-  const n1=Number(costRow[offset+1]);
-  const n2=Number(costRow[offset+2]);
-  const n3=Number(costRow[offset+3]);
-  const n4=Number(costRow[offset+4]);
-  if(!Number.isFinite(n0)||!Number.isFinite(n1)||!Number.isFinite(n2)||!Number.isFinite(n3)||!Number.isFinite(n4)) return null;
-  return [
-    costAfter(n0,hint,true),costAfter(n1,hint,true),costAfter(n2,hint,true),
-    costAfter(n3,hint,true),costAfter(n4,hint,true)
-  ];
+  // 生命力テーブルだけ、査定列を含むため必要経験点は3列目以降。
+  // それ以外の基本能力は1列目以降が5種類の必要経験点。
+  const raw = name==='生命力' ? [costRow[3],costRow[4],costRow[5],costRow[6],costRow[7]] : [costRow[1],costRow[2],costRow[3],costRow[4],costRow[5]];
+  const nums = raw.map(x=>Number(x));
+  if(nums.some(x=>!Number.isFinite(x))) return null;
+  return nums.map(x=>costAfter(x,hint,true));
 }
 function basicOptions(name,exp){
   const lim=limits();
@@ -1272,11 +1030,7 @@ function basicOptions(name,exp){
     if(!costRow || !scoreRow) break;
     const step=basicCostVector(name,costRow,hint);
     if(!step) break;
-    c[0]+=step[0];
-    c[1]+=step[1];
-    c[2]+=step[2];
-    c[3]+=step[3];
-    c[4]+=step[4];
+    c=addCost(c,step);
     sc += Number(scoreRow[2]||0);
     v += 1;
     if(leq(c,exp)){
@@ -1307,7 +1061,6 @@ function basicPlanEntry(name,exp){
   return {name,opts,priority,bestScore};
 }
 function buildBasicStates(exp){
-  const mode=currentCalcMode();
   const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
   const init=makeState([0,0,0,0,0],0,initialLife,null,EMPTY_ITEMS,0,EMPTY_BITS);
   let states=new Map([[stateKey(init),init]]);
@@ -1324,35 +1077,26 @@ function buildBasicStates(exp){
   for(const entry of plan){
     const next=new Map();
 
-    const exp0=exp[0],exp1=exp[1],exp2=exp[2],exp3=exp[3],exp4=exp[4];
     for(const st of states.values()){
-      const stItemLen=st.itemLen ?? 0;
-      const stScore=st.score;
-      const stUsedCost=st.usedCost;
-      const sc=st.cost;
       for(const op of entry.opts){
-        const oc=op.cost;
-        const n0=sc[0]+oc[0]; if(n0>exp0) continue;
-        const n1=sc[1]+oc[1]; if(n1>exp1) continue;
-        const n2=sc[2]+oc[2]; if(n2>exp2) continue;
-        const n3=sc[3]+oc[3]; if(n3>exp3) continue;
-        const n4=sc[4]+oc[4]; if(n4>exp4) continue;
+        const nc=addCost(st.cost,op.cost);
+        if(!leq(nc,exp)) continue;
 
-        const newScore=stScore+op.score;
+        const newScore=st.score+op.score;
         const newLife=op.life!==null?op.life:st.life;
-        const k=key5(n0,n1,n2,n3,n4)+'|'+(newLife==null?'':Number(newLife).toString(36));
+        const k=key(nc)+'|'+(newLife==null?'':Number(newLife).toString(36));
         const old=next.get(k);
-        const newItemLen=stItemLen+(op.itemLen ?? op.items.length);
+        const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
         if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))) continue;
 
-        const nc=[n0,n1,n2,n3,n4];
-        next.set(k,makeState(nc,newScore,newLife,st,op.items,newItemLen,null,k,stUsedCost+op.costSum));
+        next.set(k,makeState(nc,newScore,newLife,st,op.items,newItemLen,null,k));
       }
     }
 
     if(!next.size) continue;
-    states=next.size>6200 ? prune(next,6200,mode) : next;
+    const basicStateLimit=diagnosticRunMode==='wide'?16000:6200;
+    states=next.size>basicStateLimit ? prune(next,basicStateLimit) : next;
     if(!states.size) break;
   }
 
@@ -1368,7 +1112,6 @@ function clearCalcCaches(){
   specialGroupCache.clear();
   filteredSpecialGroupCache.clear();
   orderedSpecialGroupCache.clear();
-  // 最終結果キャッシュは入力条件を含むキーで管理するため維持する。
 }
 function calcCacheKey(exp){
   const basicPart=basicNames.map(n=>{
@@ -1408,12 +1151,13 @@ function setCachedResult(cacheKey,result){
 function itemForSpecialIndex(i,hp,includeLower=false){
   const s=D.special[i]; if(!s) return null;
   const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
-  const cachedItem=specialItemCache.get(cacheKey);
-  if(cachedItem!==undefined) return cachedItem;
+  if(specialItemCache.has(cacheKey)){
+    return specialItemCache.get(cacheKey);
+  }
 
   const score=skillScore(s,hp);
   if(score<=0){
-    if(ENABLE_INTERNAL_DIAGNOSTICS && String(s[1])===TARGET_DEBUG_NAME){
+    if(String(s[1])===TARGET_DEBUG_NAME){
       TARGET_DEBUG.index=i;
       TARGET_DEBUG.hint=specialHint(i);
       TARGET_DEBUG.owned=specialOwned(i);
@@ -1429,7 +1173,7 @@ function itemForSpecialIndex(i,hp,includeLower=false){
   const rawCosts=[s[3],s[4],s[5],s[6],s[7]].map(c=>Number(c||0));
   const costs=rawCosts.map(c=>costAfter(c,hint,false));
 
-  if(ENABLE_INTERNAL_DIAGNOSTICS && String(s[1])===TARGET_DEBUG_NAME){
+  if(String(s[1])===TARGET_DEBUG_NAME){
     TARGET_DEBUG.index=i;
     TARGET_DEBUG.hint=hint;
     TARGET_DEBUG.owned=specialOwned(i);
@@ -1481,11 +1225,11 @@ function specialChoiceGroups(hp){
   });
   mutualGroups.forEach(g=>{
     const opts=[];
-    const already=g.some(n=>{const i=specialNameIndex.get(String(n)) ?? -1; return i>=0 && specialOwned(i);});
+    const already=g.some(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); return i>=0 && specialOwned(i);});
     if(!already){
-      g.forEach(n=>{const i=specialNameIndex.get(String(n)) ?? -1; if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
+      g.forEach(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
     }else{
-      g.forEach(n=>{const i=specialNameIndex.get(String(n)) ?? -1; if(i>=0) used.add(i);});
+      g.forEach(n=>{const i=(specialNameIndex.has(String(n))?specialNameIndex.get(String(n)):-1); if(i>=0) used.add(i);});
     }
     if(opts.length) groups.push({kind:'mutual',opts});
   });
@@ -1494,7 +1238,7 @@ function specialChoiceGroups(hp){
     if(isUpperSpecial(i)) return;
     const it=itemForSpecialIndex(i,hp,false); if(it) groups.push({kind:'single',opts:[it]});
   });
-  if(ENABLE_INTERNAL_DIAGNOSTICS) groups.forEach((g,gi)=>{
+  groups.forEach((g,gi)=>{
     if(g.opts.some(op=>op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME))){
       TARGET_DEBUG.grouped=true;
       TARGET_DEBUG.groupIndex=gi;
@@ -1503,18 +1247,9 @@ function specialChoiceGroups(hp){
   });
   return groups;
 }
-function specialOptionIsHpDependent(op){
-  return !!op?.items?.some(it=>
-    it?.type==='special' && Number(D.special[Number(it.idx)]?.[11]||0)!==0
-  );
-}
-function specialGroupIsHpDependent(g){
-  return !!g?.opts?.length && g.opts.every(specialOptionIsHpDependent);
-}
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
-  const cachedGroups=specialGroupCache.get(k);
-  if(cachedGroups!==undefined) return cachedGroups;
+  if(specialGroupCache.has(k)) return specialGroupCache.get(k);
 
   // v4.5: 特殊能力候補はHPごとに事前整形・事前ソートしてキャッシュする。
   // 計算本体では原則ソートし直さず、フィルタだけ行う。
@@ -1525,20 +1260,15 @@ function specialChoiceGroupsCached(hp){
         const bits=op.bits ?? specialItemsBits(op.items);
         return {...op,bits,conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
       }).sort((a,b)=>{
-        const ah=specialOptionIsHpDependent(a)?1:0;
-        const bh=specialOptionIsHpDependent(b)?1:0;
-        if(ah!==bh) return ah-bh;
         if(b.eff!==a.eff) return b.eff-a.eff;
         return b.score-a.score;
       });
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
-      const hpDependent=specialGroupIsHpDependent({opts});
-      return {...g,opts,maxScore,bestEfficiency,hpDependent};
+      return {...g,opts,maxScore,bestEfficiency};
     })
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>{
-      if(!!a.hpDependent!==!!b.hpDependent) return a.hpDependent?1:-1;
       if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
       return b.maxScore-a.maxScore;
     });
@@ -1549,36 +1279,29 @@ function specialChoiceGroupsCached(hp){
 function impossibleChoice(op,exp){return !leq(op.cost,exp);}
 function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
   const cacheKey=String(hp)+'|'+key(exp);
-  const cached=filteredSpecialGroupCache.get(cacheKey);
-  if(cached!==undefined) return cached;
-
-  const source=preGroups||specialChoiceGroupsCached(hp);
-  const groups=[];
-  for(let gi=0;gi<source.length;gi++){
-    const g=source[gi];
-    const opts=[];
-    let maxScore=0;
-    let bestEfficiency=0;
-    let allHpDependent=true;
-
-    for(let oi=0;oi<g.opts.length;oi++){
-      const op=g.opts[oi];
-      if(impossibleChoice(op,exp)) continue;
-      opts.push(op);
-      if(op.score>maxScore) maxScore=op.score;
-      const eff=op.eff ?? (op.score/(1+(op.costSum??costSum(op.cost))));
-      if(eff>bestEfficiency) bestEfficiency=eff;
-      if(!specialOptionIsHpDependent(op)) allHpDependent=false;
-    }
-    if(!opts.length) continue;
-    groups.push({...g,opts,maxScore,bestEfficiency,hpDependent:allHpDependent});
+  if(filteredSpecialGroupCache.has(cacheKey)){
+    return filteredSpecialGroupCache.get(cacheKey);
   }
 
-  groups.sort((a,b)=>{
-    if(!!a.hpDependent!==!!b.hpDependent) return a.hpDependent?1:-1;
-    if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
-    return b.maxScore-a.maxScore;
-  });
+  const source=preGroups||specialChoiceGroupsCached(hp);
+  const groups=source
+    .map(g=>{
+      const opts=g.opts.filter(op=>!impossibleChoice(op,exp));
+      if(!opts.length) return null;
+
+      const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
+      const bestEfficiency=opts.reduce(
+        (m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost))))),
+        0
+      );
+
+      return {...g,opts,maxScore,bestEfficiency};
+    })
+    .filter(Boolean)
+    .sort((a,b)=>{
+      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
+      return b.maxScore-a.maxScore;
+    });
 
   filteredSpecialGroupCache.set(cacheKey,groups);
   return groups;
@@ -1587,10 +1310,18 @@ function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
 function progressMessage(progress){
   if(!progress) return '計算中';
   const pct=Math.min(99,Math.floor(progress.done/progress.total*100));
+  const d=progress.debug;
+  if(d){
+    return `計算中 ${pct}% / 候補:${d.candidate} 採用:${d.accept} UB:${d.ubCut} prune:${d.prune||0}`;
+  }
   return `計算中 ${pct}%`;
 }
-function currentCalcMode(){return 'high';}
-function calcModeLabel(){return '高精度';}
+function currentCalcMode(){
+  return document.getElementById('calcMode')?.value || 'high';
+}
+function calcModeLabel(){
+  return currentCalcMode()==='fast' ? '高速β' : '高精度';
+}
 function ensureCancelButton(){
   let cancelBtn=document.getElementById('cancelCalcBtn');
   if(cancelBtn) return cancelBtn;
@@ -1642,18 +1373,45 @@ function ensureCancelButton(){
   return cancelBtn;
 }
 
+function renderCalcMode(){
+  const btn=document.getElementById('calcBtn');
+  if(!btn || document.getElementById('calcMode')) return;
+
+  const wrap=document.createElement('div');
+  wrap.className='calc-mode-wrap';
+  wrap.innerHTML=`
+    <label for="calcMode">計算モード</label>
+    <select id="calcMode">
+      <option value="high" selected>高精度（推奨）</option>
+      <option value="fast">高速β（検証用）</option>
+    </select>
+  `;
+
+  btn.parentNode.insertBefore(wrap,btn);
+  wrap.querySelector('#calcMode')?.addEventListener('change',()=>{
+    calcResultCache.clear();
+  });
+}
 function groupEfficiency(g){
   return g.bestEfficiency ?? g.opts.reduce((m,o)=>Math.max(m,o.eff ?? (o.score/(1+(o.costSum??costSum(o.cost)))),0),0);
 }
-async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null, modeValue=null, totalExpValue=null, expKeyValue=null){
-  // optimizeAsyncで準備済みの値はそのまま受け取り、同じ計算・キャッシュ参照を繰り返さない。
-  let groups=preGroups || specialChoiceGroupsForExpCached(hp,exp);
+async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress, preGroups=null){
+  let groups=specialChoiceGroupsForExpCached(hp,exp,preGroups);
 
-  const totalExp=totalExpValue ?? costSum(exp);
-  const mode=modeValue || currentCalcMode();
+  const targetOp=(()=>{
+    for(const g of groups){
+      for(const op of g.opts){
+        if(op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME)) return op;
+      }
+    }
+    return null;
+  })();
+
+  const totalExp=costSum(exp);
+  const mode=currentCalcMode();
 
   // 知力余り対策を含む最終候補順まで、HP + 経験点条件ごとにキャッシュする。
-  const orderedCacheKey=String(hp)+'|'+(expKeyValue || key(exp));
+  const orderedCacheKey=String(hp)+'|'+key(exp);
   const orderedCached=orderedSpecialGroupCache.get(orderedCacheKey);
   if(orderedCached){
     groups=orderedCached;
@@ -1680,178 +1438,345 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
-  const STATE_LIMIT=Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)));
-  // 高速化：
-  // 正確性優先の修正で候補が増えるため、途中pruneの発火を少し遅らせる。
-  // STATE_LIMIT自体は変えず、HARD_LIMITだけ広げてprune回数を減らす。
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*1.6);
+  const normalStateLimit=(mode==='high'||mode==='fast')
+    ? Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)))
+    : Math.max(700,Math.min(1800,500+Math.floor(totalExp*0.45)));
+  const STATE_LIMIT=diagnosticRunMode==='wide'
+    ? Math.max(16000,Math.min(26000,normalStateLimit*4))
+    : normalStateLimit;
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(diagnosticRunMode==='wide'?2.0:((mode==='high'||mode==='fast')?1.6:1.35)));
 
-  // v8.0: 高精度を維持する安全なBranch & Bound。
-  // 1) 各グループの最大査定合計
-  // 2) 残り総経験点 × 残グループ中の最大「査定/総コスト」
-  // の小さい方を上界にする。どちらも実現可能な査定以上になるため、精度は落とさない。
-  const groupCount=groups.length;
-  const suffixMax=new Float64Array(groupCount+1);
-  const suffixBestRatio=new Float64Array(groupCount+1);
-  const suffixZeroScore=new Float64Array(groupCount+1);
-
-  for(let i=groupCount-1;i>=0;i--){
-    const g=groups[i];
-    let groupBestRatio=0;
-    let groupZeroScore=0;
-    const opts=g.opts;
-    for(let oi=0;oi<opts.length;oi++){
-      const op=opts[oi];
-      const cs=op.costSum??costSum(op.cost);
-      if(cs>0){
-        const ratio=op.score/cs;
-        if(ratio>groupBestRatio) groupBestRatio=ratio;
-      }else if(op.score>groupZeroScore){
-        groupZeroScore=op.score;
-      }
-    }
-    suffixMax[i]=suffixMax[i+1]+(g.maxScore||0);
-    suffixBestRatio[i]=Math.max(suffixBestRatio[i+1],groupBestRatio);
-    suffixZeroScore[i]=suffixZeroScore[i+1]+groupZeroScore;
-  }
-
-  function remainingScoreUpper(start,remainSum){
-    const byGroup=suffixMax[start];
-    const byTotalCost=suffixZeroScore[start]+Math.max(0,remainSum)*suffixBestRatio[start];
-    return byTotalCost<byGroup?byTotalCost:byGroup;
+  // ③ Upper Bound: 残りグループで取り得る最大査定を安全側に足し、
+  // すでにベストへ届かない状態は早めにスキップする。
+  const suffixMax=new Array(groups.length+1).fill(0);
+  const suffixBestEff=new Array(groups.length+1).fill(0);
+  for(let i=groups.length-1;i>=0;i--){
+    suffixMax[i]=suffixMax[i+1]+(groups[i].maxScore||0);
+    suffixBestEff[i]=Math.max(suffixBestEff[i+1],groupEfficiency(groups[i]));
   }
 
   function remainingCostSum(st){
     return totalExp-(st.usedCost ?? costSum(st.cost));
   }
 
-  let states;
+  // Sprint: Upper Bound軽量化。
+  // 残経験点は配列ではなく合計値だけで扱い、同じ条件のUpper Boundはキャッシュする。
+  const upperBoundCaches=Array.from({length:groups.length+1},()=>new Map());
+  function remainingScoreUpper(start,remainSum){
+    const byGroup=suffixMax[start]||0;
 
-  // optimizeAsync から Map を受け取った場合は、そのまま初期状態集合として利用する。
-  // 通常の iterable の場合だけ重複統合用 Map を生成する。
-  if(baseStates instanceof Map){
-    states=baseStates;
-    for(const st of states.values()){
-      if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
-    }
-  }else{
-    states=new Map();
-    for(const base of baseStates){
-      if(!base) continue;
-      const st=base;
-      if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
-      const k=stateKey(st);
-      if(better(st,states.get(k))) states.set(k,st);
-    }
+    // 高精度は安全な上界だけを使う。
+    // 残りグループの最大査定合計は必ず実現可能値以上なので、正解候補を落とさない。
+    if(mode!=='fast') return byGroup;
+
+    const cache=upperBoundCaches[start];
+    const cached=cache.get(remainSum);
+    if(cached!==undefined) return cached;
+
+    // 高速βだけ、効率ベースの近似上界を使う。
+    const byEfficiency=remainSum*(suffixBestEff[start]||0)*1.00;
+    const v=byGroup<byEfficiency ? byGroup : byEfficiency;
+    cache.set(remainSum,v);
+    return v;
+  }
+
+  let states=new Map();
+
+  for(const base of baseStates){
+    if(!base) continue;
+    const st=base;
+    if(st._remainSum===undefined) st._remainSum=remainingCostSum(st);
+    const k=stateKey(st);
+    if(better(st,states.get(k))) states.set(k,st);
   }
 
   if(!states.size){
     return {items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
   }
 
-  if(states.size>STATE_LIMIT) states=prune(states,STATE_LIMIT,mode);
+  if(states.size>STATE_LIMIT) states=prune(states,STATE_LIMIT);
   let bestScore=-Infinity;
   for(const st of states.values()){
     if(st.score>bestScore) bestScore=st.score;
   }
 
+  const debug=progress?.debug||null;
   const exp0=exp[0], exp1=exp[1], exp2=exp[2], exp3=exp[3], exp4=exp[4];
-  const yieldEvery=2400;
+  const yieldEvery=mode==='fast' ? 2500 : 600;
 
   for(let gi=0;gi<groups.length;gi++){
     throwIfCancelled();
     const group=groups[gi];
-    const groupOpts=group.opts;
 
-    let next=new Map(states);
+    const beforeTargetNoMagic=[...states.values()].filter(isTargetNoMagicState);
+    const diagnoseMutual=
+      group.kind==='mutual' &&
+      beforeTargetNoMagic.length>0 &&
+      !TARGET_DEBUG.mutualTransition;
+
+    const trackedNoMagicKeys=diagnoseMutual
+      ? new Set(beforeTargetNoMagic.map(stateKey))
+      : null;
+
+    const mutualDiag=diagnoseMutual ? {
+      gi,
+      kind:group.kind||'',
+      optionNames:group.opts.map(op=>op.items.map(it=>String(it.name)).join('+')),
+      beforeTotal:states.size,
+      beforeNoMagic:beforeTargetNoMagic.length,
+      beforeBest:beforeTargetNoMagic.reduce((m,s)=>!m||s.score>m.score?s:m,null),
+      overwritten:0,
+      overwrittenByTargetMagic:0,
+      overwrittenExamples:[],
+      internalPruneLoss:0,
+      finalPruneLoss:0,
+      beforeFinalPrune:0,
+      afterTotal:0,
+      afterNoMagic:0,
+      afterBest:null
+    } : null;
+
+    const next=new Map(states);
     let iter=0;
+    let candidateInc=0;
+    let acceptInc=0;
+    let ubCutInc=0;
+    let dupCutInc=0;
+    let pruneInc=0;
+
 
     for(const st of states.values()){
       if((iter&255)===0) throwIfCancelled();
-      const remainSum=st._remainSum;
+      // この状態から残り全部を最高値で取っても届かないならスキップ。
+      if(diagnosticRunMode==='normal' && st.score+suffixMax[gi]<bestScore){
+        ubCutInc++;
+        iter++;
+        if(iter%yieldEvery===0) await yieldToBrowser();
+        continue;
+      }
 
-      const upper=remainingScoreUpper(gi,remainSum);
-      if(st.score+upper+1e-9<bestScore){
+      // 残経験点込みの上界でも届かないなら、より早く枝刈りする。
+      const remainSum=st._remainSum;
+      if(diagnosticRunMode==='normal' && st.score+remainingScoreUpper(gi,remainSum)<bestScore){
+        ubCutInc++;
         iter++;
         if(iter%yieldEvery===0) await yieldToBrowser();
         continue;
       }
 
       const stBits=st.bits ?? EMPTY_BITS;
-      const stCost=st.cost;
-      const stScore=st.score;
-      const stLife=st.life;
-      const stUsedCost=st.usedCost;
-      const stItemLen=st.itemLen ?? 0;
-      for(let oi=0,optsLen=groupOpts.length;oi<optsLen;oi++){
-        const op=groupOpts[oi];
-        if((iter&127)===0) throwIfCancelled();
+
+      for(const op of group.opts){
+        candidateInc++;
+        if((candidateInc&127)===0){
+          throwIfCancelled();
+        }
+        const isTargetOp=op.items?.some(it=>String(it.name)===TARGET_DEBUG_NAME);
+        if(isTargetOp) TARGET_DEBUG.considered++;
         const opBits=op.bits;
         if((stBits & opBits)!==EMPTY_BITS){
+          if(isTargetOp) TARGET_DEBUG.duplicateCut++;
           continue;
         }
         if((stBits & op.conflictBits)!==EMPTY_BITS){
+          if(isTargetOp) TARGET_DEBUG.conflictCut++;
           continue;
         }
 
+        const c=st.cost;
         const oc=op.cost;
-        const n0=stCost[0]+oc[0];
+        const n0=c[0]+oc[0];
         if(n0>exp0){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:筋力');
           continue;
         }
-        const n1=stCost[1]+oc[1];
+        const n1=c[1]+oc[1];
         if(n1>exp1){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:敏捷');
           continue;
         }
-        const n2=stCost[2]+oc[2];
+        const n2=c[2]+oc[2];
         if(n2>exp2){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:技術');
           continue;
         }
-        const n3=stCost[3]+oc[3];
+        const n3=c[3]+oc[3];
         if(n3>exp3){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:知力');
           continue;
         }
-        const n4=stCost[4]+oc[4];
+        const n4=c[4]+oc[4];
         if(n4>exp4){
+          if(isTargetOp) TARGET_DEBUG.notes.push('経験点不足:精神');
           continue;
         }
 
-        const newScore=stScore+op.score;
+        const nc=[n0,n1,n2,n3,n4];
+        if(isTargetOp) TARGET_DEBUG.feasible++;
+        const newScore=st.score+op.score;
         const childRemainSum=remainSum-op.costSum;
-        const childUpper=remainingScoreUpper(gi+1,childRemainSum);
-        if(newScore+childUpper+1e-9<bestScore) continue;
+        if(diagnosticRunMode==='normal' && newScore+remainingScoreUpper(gi+1,childRemainSum)<bestScore){
+          ubCutInc++;
+          if(isTargetOp) TARGET_DEBUG.ubCut++;
+          continue;
+        }
         if(newScore>bestScore) bestScore=newScore;
 
         // v5.0: 同一状態は生成直後に統合する。
         // items配列の結合は「採用される可能性がある状態」だけに限定する。
         const nextBits=stBits | opBits;
-        const k=key5(n0,n1,n2,n3,n4)+'|'+scopeKeyFor(stLife,nextBits);
+        const k=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
         const old=next.get(k);
-        const newItemLen=stItemLen+(op.itemLen ?? op.items.length);
+        const newItemLen=itemLenOf(st)+(op.itemLen ?? op.items.length);
 
-        if(old && (old.score>newScore || (old.score===newScore && (old.itemLen??0)<=newItemLen))){
+        const addedMagicForDecision=op.items.find(it=>
+          it?.type==='basic' &&
+          String(it.name||'')==='魔力' &&
+          Number(it.to)>Number(it.from)
+        );
+
+        if(
+          addedMagicForDecision &&
+          stateHasTarget(st) &&
+          !TARGET_DEBUG.magicDecisionSnapshot
+        ){
+          TARGET_DEBUG.magicDecisionSnapshot={
+            gi,
+            groupKind:group.kind||'',
+            parentKey:stateKey(st),
+            parentScore:Number(st.score),
+            parentCost:st.cost.slice(),
+            parentItems:restoreItems(st).map(traceItemLabel),
+            selectedKey:k,
+            selectedLabel:candidateCategory(op),
+            rows:[]
+          };
+        }
+
+        const activeDecision=TARGET_DEBUG.magicDecisionSnapshot;
+        if(
+          activeDecision &&
+          activeDecision.gi===gi &&
+          activeDecision.parentKey===stateKey(st)
+        ){
+          const label=candidateCategory(op);
+          const gain=Number(newScore)-Number(st.score);
+          const costArr=op.cost.slice();
+          const sum=op.costSum;
+          activeDecision.rows.push({
+            label,
+            newScore:Number(newScore),
+            gain,
+            cost:costArr,
+            costSum:sum,
+            efficiency:sum>0?gain/sum:null,
+            selected:k===activeDecision.selectedKey
+          });
+        }
+
+        if(!TARGET_DEBUG.magicAcquisitionTrace){
+          const addedMagic=op.items.find(it=>
+            it?.type==='basic' &&
+            String(it.name||'')==='魔力' &&
+            Number(it.to)>Number(it.from)
+          );
+          if(addedMagic && stateHasTarget(st)){
+            const preview=makeState(
+              nc,
+              newScore,
+              st.life,
+              st,
+              op.items,
+              newItemLen,
+              opBits,
+              k,
+              (st.usedCost ?? costSum(st.cost))+op.costSum
+            );
+            const rankInfo=topScoreRank(next,newScore);
+            TARGET_DEBUG.magicAcquisitionTrace={
+              gi,
+              groupKind:group.kind||'',
+              parentScore:Number(st.score),
+              newScore:Number(newScore),
+              scoreGain:Number(newScore)-Number(st.score),
+              addedItem:traceItemLabel(addedMagic),
+              addedCost:op.cost.slice(),
+              addedCostSum:op.costSum,
+              efficiency:op.costSum>0?(Number(newScore)-Number(st.score))/op.costSum:null,
+              rank:rankInfo.rank,
+              rankTotal:rankInfo.total,
+              parentItems:restoreItems(st).map(traceItemLabel),
+              newItems:restoreItems(preview).map(traceItemLabel),
+              stateKey:k,
+              parentHasTarget:stateHasTarget(st),
+              parentHasMagic:diagnosisHasMagicRaise(restoreItems(st))
+            };
+          }
+        }
+
+        if(mutualDiag && old && trackedNoMagicKeys.has(k) && isTargetNoMagicState(old)){
+          const generatedPreview=makeState(
+            nc,
+            newScore,
+            st.life,
+            st,
+            op.items,
+            newItemLen,
+            opBits,
+            k,
+            (st.usedCost ?? costSum(st.cost))+op.costSum
+          );
+          if(!isTargetNoMagicState(generatedPreview)){
+            mutualDiag.overwritten++;
+            if(stateHasTarget(generatedPreview)) mutualDiag.overwrittenByTargetMagic++;
+            if(mutualDiag.overwrittenExamples.length<2){
+              mutualDiag.overwrittenExamples.push(
+                `旧[${briefState(old)}] → 新[${briefState(generatedPreview)}]`
+              );
+            }
+          }
+        }
+
+        if(old && (old.score>newScore || (old.score===newScore && itemLenOf(old)<=newItemLen))){
+          dupCutInc++;
+          if(isTargetOp) TARGET_DEBUG.duplicateCut++;
           continue;
         }
 
-        const nc=[n0,n1,n2,n3,n4];
         const newState=makeState(
           nc,
           newScore,
-          stLife,
+          st.life,
           st,
           op.items,
           newItemLen,
           opBits,
           k,
-          stUsedCost+op.costSum
+          (st.usedCost ?? costSum(st.cost))+op.costSum
         );
         newState._remainSum=childRemainSum;
+        acceptInc++;
         next.set(k,newState);
       }
 
       if(next.size>HARD_LIMIT){
+        pruneInc++;
 
-        next=prune(next,STATE_LIMIT,mode);
+        let beforeTracked=0;
+        if(mutualDiag){
+          for(const k of trackedNoMagicKeys) if(next.has(k)) beforeTracked++;
+        }
+
+        const pruned=prune(next,STATE_LIMIT);
+
+        if(mutualDiag){
+          let afterTracked=0;
+          for(const k of trackedNoMagicKeys) if(pruned.has(k)) afterTracked++;
+          mutualDiag.internalPruneLoss += Math.max(0,beforeTracked-afterTracked);
+        }
+
+        next.clear();
+        pruned.forEach((v,k)=>next.set(k,v));
       }
 
       iter++;
@@ -1859,114 +1784,405 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     }
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
-    if(next.size>STATE_LIMIT){
+    if(mutualDiag){
+      mutualDiag.beforeFinalPrune=[...next.values()].filter(isTargetNoMagicState).length;
+    }
 
-      states=prune(next,STATE_LIMIT,mode);
+    if(next.size>STATE_LIMIT){
+      pruneInc++;
+
+      let beforeTracked=0;
+      if(mutualDiag){
+        for(const k of trackedNoMagicKeys) if(next.has(k)) beforeTracked++;
+      }
+
+      states=prune(next,STATE_LIMIT);
+
+      if(mutualDiag){
+        let afterTracked=0;
+        for(const k of trackedNoMagicKeys) if(states.has(k)) afterTracked++;
+        mutualDiag.finalPruneLoss=Math.max(0,beforeTracked-afterTracked);
+      }
     }else{
       states=next;
     }
 
+    if(
+      TARGET_DEBUG.magicDecisionSnapshot &&
+      TARGET_DEBUG.magicDecisionSnapshot.gi===gi
+    ){
+      const snap=TARGET_DEBUG.magicDecisionSnapshot;
 
-    // bestScore は候補生成時に更新済み。prune は新しい高得点状態を作らないため、
-    // グループごとの全状態再走査は不要。
-    if(progress){
-      progress.done++;
-      if(onProgress) onProgress(progressMessage(progress));
-    }else{
-      if(onProgress) onProgress('計算中');
+      if(!snap.rows.some(r=>r.label==='何もしない')){
+        snap.rows.push({
+          label:'何もしない',
+          newScore:snap.parentScore,
+          gain:0,
+          cost:[0,0,0,0,0],
+          costSum:0,
+          efficiency:null,
+          selected:false
+        });
+      }
+
+      const priority=['魔力','生命力','器用さ','パワー','耐久力','精神力',TARGET_DEBUG_NAME,'何もしない'];
+      const seen=new Set();
+      snap.rows=snap.rows
+        .sort((a,b)=>{
+          const pa=priority.includes(a.label)?priority.indexOf(a.label):99;
+          const pb=priority.includes(b.label)?priority.indexOf(b.label):99;
+          if(pa!==pb) return pa-pb;
+          return b.newScore-a.newScore;
+        })
+        .filter(r=>{
+          const key=`${r.label}|${r.newScore}|${r.cost.join(',')}`;
+          if(seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0,12);
     }
 
-    if((gi&1)===1 || gi===groupCount-1){
+    if(mutualDiag){
+      const afterNoMagicStates=[...states.values()].filter(isTargetNoMagicState);
+      mutualDiag.afterTotal=states.size;
+      mutualDiag.afterNoMagic=afterNoMagicStates.length;
+      mutualDiag.afterBest=afterNoMagicStates.reduce((m,s)=>!m||s.score>m.score?s:m,null);
+      TARGET_DEBUG.mutualTransition=mutualDiag;
+    }
+    for(const st of states.values()){
+      if(st.score>bestScore) bestScore=st.score;
+    }
+
+    TARGET_DEBUG.groupSnapshots.push({
+      gi,
+      groupKind:group.kind||'',
+      stateCount:states.size,
+      targetCount:countTargetStates(states),
+      bestScore
+    });
+
+    const routeProfile=targetRouteProfile(states);
+    TARGET_DEBUG.routeGroupSnapshots.push({
+      gi,
+      groupKind:group.kind||'',
+      stateCount:states.size,
+      profile:routeProfile
+    });
+
+    if(debug){
+      debug.candidate+=candidateInc;
+      debug.accept+=acceptInc;
+      debug.ubCut+=ubCutInc;
+      debug.dupCut+=dupCutInc;
+      debug.prune+=pruneInc;
+    }
+
+    if(progress){
+      progress.done++;
+      onProgress?.(progressMessage(progress));
+    }else{
+      onProgress?.('計算中');
+    }
+
+    if(mode!=='fast' || gi%4===3 || gi===groups.length-1){
       await yieldToBrowser();
     }
   }
 
   let best=null;
+  TARGET_DEBUG.finalStatesWithTarget=countTargetStates(states);
+
+  let bestWithTarget=null;
+  let bestWithoutTarget=null;
+  let bestAugmentable=null;
+  let augmentableCount=0;
+  let augmentableStateAlreadyExists=0;
+
+  if(targetOp){
+    const targetBits=targetOp.bits??specialItemsBits(targetOp.items);
+    const targetConflict=targetOp.conflictBits??EMPTY_BITS;
+    const targetCost=targetOp.cost;
+
+    for(const st of states.values()){
+      if(stateHasTarget(st)) continue;
+
+      const stBits=st.bits??EMPTY_BITS;
+      if((stBits&targetBits)!==EMPTY_BITS) continue;
+      if((stBits&targetConflict)!==EMPTY_BITS) continue;
+
+      const nc=addCost(st.cost,targetCost);
+      if(!leq(nc,exp)) continue;
+
+      augmentableCount++;
+      const hypotheticalScore=st.score+targetOp.score;
+      const hypotheticalItemLen=itemLenOf(st)+(targetOp.itemLen??targetOp.items.length);
+      const nextBits=stBits|targetBits;
+      const expectedKey=key(nc)+'|'+scopeKeyFor(st.life,nextBits);
+      const exists=states.has(expectedKey);
+      if(exists) augmentableStateAlreadyExists++;
+
+      const cand={
+        baseScore:st.score,
+        hypotheticalScore,
+        baseItemLen:itemLenOf(st),
+        hypotheticalItemLen,
+        baseCost:(st.cost||[]).slice(),
+        newCost:nc.slice(),
+        exists
+      };
+
+      if(
+        !bestAugmentable ||
+        hypotheticalScore>bestAugmentable.hypotheticalScore ||
+        (
+          hypotheticalScore===bestAugmentable.hypotheticalScore &&
+          hypotheticalItemLen<bestAugmentable.hypotheticalItemLen
+        )
+      ){
+        bestAugmentable=cand;
+      }
+    }
+  }
+
+  TARGET_DEBUG.augmentChecks.push({
+    hp,
+    targetOpFound:!!targetOp,
+    augmentableCount,
+    augmentableStateAlreadyExists,
+    bestAugmentable
+  });
+
+  if(
+    bestAugmentable &&
+    (
+      !TARGET_DEBUG.bestAugmentable ||
+      bestAugmentable.hypotheticalScore>TARGET_DEBUG.bestAugmentable.hypotheticalScore ||
+      (
+        bestAugmentable.hypotheticalScore===TARGET_DEBUG.bestAugmentable.hypotheticalScore &&
+        bestAugmentable.hypotheticalItemLen<TARGET_DEBUG.bestAugmentable.hypotheticalItemLen
+      )
+    )
+  ){
+    TARGET_DEBUG.bestAugmentable={hp,...bestAugmentable};
+  }
+
   for(const st of states.values()){
+    if(stateHasTarget(st)){
+      if(better(st,bestWithTarget)) bestWithTarget=st;
+    }else{
+      if(better(st,bestWithoutTarget)) bestWithoutTarget=st;
+    }
+
     if(better(st,best)) best=st;
   }
+
+  TARGET_DEBUG._bestWithState=bestWithTarget;
+  TARGET_DEBUG._bestWithoutState=bestWithoutTarget;
+
+  TARGET_DEBUG.bestWithTarget=bestWithTarget ? {
+    score:bestWithTarget.score,
+    itemLen:itemLenOf(bestWithTarget),
+    cost:(bestWithTarget.cost||[]).slice()
+  } : null;
+
+  TARGET_DEBUG.bestWithoutTarget=bestWithoutTarget ? {
+    score:bestWithoutTarget.score,
+    itemLen:itemLenOf(bestWithoutTarget),
+    cost:(bestWithoutTarget.cost||[]).slice()
+  } : null;
+
+  TARGET_DEBUG.selectedScore=best?.score ?? null;
+  TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
+  TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
-  if(onProgress) onProgress('計算中 0%');
+  onProgress?.('計算中 0%');
 
-  const mode=currentCalcMode();
-  const totalExp=costSum(exp);
-  const expKeyValue=key(exp);
-  const defaultLife=Number(document.getElementById('basic_生命力')?.value||1);
-  const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:defaultLife};
+  const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:Number(document.getElementById('basic_生命力')?.value||1)};
 
   pStart("基本能力生成");
   const basicMap=buildBasicStates(exp);
   pEnd("基本能力生成");
+  const basicStates=[...basicMap.values()];
 
-  if(!basicMap.size){
-    if(onProgress) onProgress('計算中 100%');
+  if(!basicStates.length){
+    onProgress?.('計算中 100%');
     return fallback;
   }
 
   await yieldToBrowser();
 
-  // basicMapはstateKeyで一意。entriesの既存キーをそのまま再利用し、
-  // HP別グループ化でstateKey再生成・better判定を行わない。
-  const byHp=new Map();
-  for(const [stateKeyValue,st] of basicMap){
-    const life=st.life||defaultLife;
+  const byLife=new Map();
+  basicStates.forEach(st=>{
+    const life=st.life||Number(document.getElementById('basic_生命力')?.value||1);
     const hp=currentHpForLife(life);
-    let hpStates=byHp.get(hp);
-    if(!hpStates){
-      hpStates=new Map();
-      byHp.set(hp,hpStates);
-    }
-    hpStates.set(stateKeyValue,st);
+    if(!byLife.has(hp)) byLife.set(hp,[]);
+    byLife.get(hp).push(st);
+  });
+
+  const tasks=[];
+  let total=0;
+
+  for(const [hp,statesRaw] of byLife.entries()){
+    const baseMap=new Map();
+
+    statesRaw.forEach(st=>{
+      const k=stateKey(st);
+      if(better(st,baseMap.get(k))) baseMap.set(k,st);
+    });
+
+    const preparedLimit=diagnosticRunMode==='wide'?16000:6200;
+    const states=[...(baseMap.size>preparedLimit ? prune(baseMap,preparedLimit) : baseMap).values()];
+    if(!states.length) continue;
+
+    const groups=specialChoiceGroupsCached(hp);
+    const groupCount=groups.filter(g=>g.opts.some(op=>!impossibleChoice(op,exp))).length || 1;
+
+    total+=groupCount;
+    tasks.push({hp,states,groupCount,groups});
   }
 
-  // 進捗率の総数を先に確定する必要があるため、HP単位の準備情報だけ保持する。
-  // 小オブジェクトを増やさず、固定長配列 [hp, states, groups] を使う。
-  const prepared=[];
-  let totalGroups=0;
-  for(const [hp,baseMap] of byHp){
-    const states=baseMap.size>6200 ? prune(baseMap,6200,mode) : baseMap;
-    if(!states.size) continue;
-
-    const groups=specialChoiceGroupsForExpCached(hp,exp);
-    totalGroups+=groups.length || 1;
-    prepared.push([hp,states,groups]);
-  }
-
-  // 以後byHpは不要。大きいMapへの参照を早めに外してGC対象にしやすくする。
-  byHp.clear();
-
-  if(!prepared.length){
-    if(onProgress) onProgress('計算中 100%');
+  if(!tasks.length){
+    onProgress?.('計算中 100%');
     return fallback;
   }
 
-  const progress={done:0,total:Math.max(1,totalGroups),start:Date.now()};
+  const progress={done:0,total:Math.max(1,total),start:Date.now(),debug:{candidate:0,accept:0,ubCut:0,dupCut:0,prune:0}};
   let best=null;
+  let globalBestWithTarget=null;
+  let globalBestWithoutTarget=null;
+  TARGET_DEBUG.taskSummaries=[];
 
-  // プロファイル計測もタスクごとではなく特殊能力探索全体で1回だけ行う。
-  pStart("特殊能力探索");
-  for(let ti=0,taskLen=prepared.length;ti<taskLen;ti++){
+  for(const task of tasks){
     throwIfCancelled();
-    const task=prepared[ti];
-    const cand=await optimizeSpecialsForLife(
-      task[1],exp,task[0],onProgress,progress,task[2],mode,totalExp,expKeyValue
-    );
+    pStart("特殊能力探索");
+    const cand=await optimizeSpecialsForLife(task.states,exp,task.hp,onProgress,progress,task.groups);
+    pEnd("特殊能力探索");
 
-    if(cand && better(cand,best)) best=cand;
+    const taskBestWith=TARGET_DEBUG._bestWithState;
+    const taskBestWithout=TARGET_DEBUG._bestWithoutState;
 
-    // optimizeSpecialsForLife内ですでに定期yieldしているため、
-    // HPタスク間の追加yieldは複数タスク時だけ間引いて行う。
-    if(mode!=='fast' && ti+1<taskLen && (ti&1)===1){
-      await yieldToBrowser();
+    if(taskBestWith && better(taskBestWith,globalBestWithTarget)){
+      globalBestWithTarget=taskBestWith;
+    }
+    if(taskBestWithout && better(taskBestWithout,globalBestWithoutTarget)){
+      globalBestWithoutTarget=taskBestWithout;
+    }
+
+    TARGET_DEBUG.taskSummaries.push({
+      hp:task.hp,
+      selectedScore:cand?.score ?? null,
+      selectedHasTarget:!!cand && stateHasTarget(cand),
+      bestWithScore:taskBestWith?.score ?? null,
+      bestWithoutScore:taskBestWithout?.score ?? null
+    });
+
+    if(cand && better(cand,best)){
+      best=cand;
+    }
+
+    if(currentCalcMode()!=='fast') await yieldToBrowser();
+  }
+
+  // 診断表示は、各HPタスク内ではなく全タスク横断の最終比較へ統一する。
+  TARGET_DEBUG._bestWithState=globalBestWithTarget;
+  TARGET_DEBUG._bestWithoutState=globalBestWithoutTarget;
+  TARGET_DEBUG.bestWithTarget=globalBestWithTarget ? {
+    score:globalBestWithTarget.score,
+    itemLen:itemLenOf(globalBestWithTarget),
+    cost:(globalBestWithTarget.cost||[]).slice()
+  } : null;
+  TARGET_DEBUG.bestWithoutTarget=globalBestWithoutTarget ? {
+    score:globalBestWithoutTarget.score,
+    itemLen:itemLenOf(globalBestWithoutTarget),
+    cost:(globalBestWithoutTarget.cost||[]).slice()
+  } : null;
+  TARGET_DEBUG.finalStatesWithTarget=globalBestWithTarget ? 1 : 0;
+  TARGET_DEBUG.selectedScore=best?.score ?? null;
+  TARGET_DEBUG.selectedItemLen=best ? itemLenOf(best) : null;
+  TARGET_DEBUG.selectedHasTarget=!!best && stateHasTarget(best);
+
+  const rawWithTrace=inspectStateChain(globalBestWithTarget);
+  const rawWithoutTrace=inspectStateChain(globalBestWithoutTarget);
+  const rawSelectedTrace=inspectStateChain(best);
+
+  const withChainTrace=inspectChainNodes(globalBestWithTarget);
+  const selectedChainTrace=inspectChainNodes(best);
+
+  TARGET_DEBUG.finalCandidateTrace={
+    selectedIsWith:!!best && best===globalBestWithTarget,
+    selectedIsWithout:!!best && best===globalBestWithoutTarget,
+    selectedScore:best?.score ?? null,
+    selectedCost:best?.cost ? best.cost.slice() : null,
+    selectedStateKey:best?stateKey(best):null,
+
+    withScore:globalBestWithTarget?.score ?? null,
+    withCost:globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null,
+    withStateKey:globalBestWithTarget?stateKey(globalBestWithTarget):null,
+    withRawItems:rawWithTrace.items,
+    withRawHasTarget:diagnosisHasTarget(rawWithTrace.items),
+    withRawHasMagic:diagnosisHasMagicRaise(rawWithTrace.items),
+    withCycle:rawWithTrace.cycle,
+    withNodes:rawWithTrace.nodeCount,
+    withChoices:rawWithTrace.choiceCount,
+    withCachedBefore:rawWithTrace.cachedItems,
+    withChain:withChainTrace,
+
+    withoutScore:globalBestWithoutTarget?.score ?? null,
+    withoutCost:globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null,
+    withoutStateKey:globalBestWithoutTarget?stateKey(globalBestWithoutTarget):null,
+    withoutRawItems:rawWithoutTrace.items,
+    withoutRawHasTarget:diagnosisHasTarget(rawWithoutTrace.items),
+    withoutRawHasMagic:diagnosisHasMagicRaise(rawWithoutTrace.items),
+
+    selectedRawItems:rawSelectedTrace.items,
+    selectedRawHasTarget:diagnosisHasTarget(rawSelectedTrace.items),
+    selectedRawHasMagic:diagnosisHasMagicRaise(rawSelectedTrace.items),
+    selectedCycle:rawSelectedTrace.cycle,
+    selectedNodes:rawSelectedTrace.nodeCount,
+    selectedChoices:rawSelectedTrace.choiceCount,
+    selectedCachedBefore:rawSelectedTrace.cachedItems,
+    selectedChain:selectedChainTrace
+  };
+
+  const candidateDiff=compareDebugItems(globalBestWithTarget,globalBestWithoutTarget);
+  TARGET_DEBUG.withOnlyItems=candidateDiff.withOnly;
+  TARGET_DEBUG.withoutOnlyItems=candidateDiff.withoutOnly;
+  TARGET_DEBUG.withOnlyDetails=candidateDiff.withOnlyDetails;
+  TARGET_DEBUG.withoutOnlyDetails=candidateDiff.withoutOnlyDetails;
+
+  const currentJob=String(job?.value||'');
+  const suspicious=[];
+  const withItemsForWarning=globalBestWithTarget ? restoreItems(globalBestWithTarget) : [];
+
+  for(const it of withItemsForWarning){
+    if(it?.type!=='basic') continue;
+    const name=String(it.name||'');
+
+    if(['剣士','重戦士','弓使い'].includes(currentJob) && name==='魔力'){
+      suspicious.push(`${currentJob}で魔力 ${it.from}→${it.to} を選択`);
+    }
+    if(['魔法使い','僧侶','魔闘士'].includes(currentJob) && name==='パワー'){
+      suspicious.push(`${currentJob}でパワー ${it.from}→${it.to} を選択`);
     }
   }
-  pEnd("特殊能力探索");
 
-  if(onProgress) onProgress('計算中 100%');
+  TARGET_DEBUG.suspiciousBasicWarnings=suspicious;
+  TARGET_DEBUG.withCost=globalBestWithTarget?.cost ? globalBestWithTarget.cost.slice() : null;
+  TARGET_DEBUG.withoutCost=globalBestWithoutTarget?.cost ? globalBestWithoutTarget.cost.slice() : null;
+  TARGET_DEBUG.costDiff=(
+    TARGET_DEBUG.withCost && TARGET_DEBUG.withoutCost
+      ? TARGET_DEBUG.withCost.map((v,i)=>v-TARGET_DEBUG.withoutCost[i])
+      : null
+  );
+  TARGET_DEBUG.withLife=globalBestWithTarget?.life ?? null;
+  TARGET_DEBUG.withoutLife=globalBestWithoutTarget?.life ?? null;
+
+  onProgress?.('計算中 100%');
   return best||fallback;
 }
 function resultTable(items,kind){
@@ -2007,33 +2223,74 @@ function validateInputs(){
   });
   return errs;
 }
+
+function diagnosticItemNames(st){
+  return restoreItems(st)
+    .map(it=>it?.type==='basic'
+      ? `${it.name} ${it.from}→${it.to}`
+      : String(it?.name||''))
+    .filter(Boolean);
+}
+function diagnosticResultSummary(label,st,seconds){
+  return {
+    label,
+    score:Number(st?.score||0),
+    cost:(st?.cost||[0,0,0,0,0]).slice(),
+    seconds,
+    names:diagnosticItemNames(st)
+  };
+}
+function diagnosticCompareHtml(rows){
+  const base=rows[0];
+  const bestScore=Math.max(...rows.map(r=>r.score));
+  let verdict='';
+  if(rows[1].score>base.score){
+    verdict='Upper Boundで高い候補を落としている可能性が高いです。';
+  }else if(rows[2].score>rows[1].score){
+    verdict='保持上限またはpruneで高い候補を落としている可能性が高いです。';
+  }else{
+    verdict='Upper Bound・保持上限・pruneを緩めても同じ結果です。候補生成、査定データ、取得済み／コツ入力を次に確認してください。';
+  }
+
+  const cards=rows.map(r=>{
+    const diff=r.score-base.score;
+    return `<div style="margin:8px 0;padding:8px;border:1px solid #d7dfed;border-radius:10px">
+      <strong>${r.label}${r.score===bestScore?' ✅':''}</strong><br>
+      内部査定：${r.score}${diff?`（現行比 ${diff>0?'+':''}${diff}）`:''}<br>
+      使用経験点：${r.cost.join(',')}<br>
+      計算時間：${r.seconds} 秒
+      <details><summary>選択内容</summary><div style="margin-top:6px">${r.names.join('<br>')||'追加なし'}</div></details>
+    </div>`;
+  }).join('');
+
+  return `<div class="result-block">
+    <h3>不具合切り分け結果</h3>
+    <p><strong>${verdict}</strong></p>
+    ${cards}
+  </div>`;
+}
+
 async function calc(){
   clearCalcCaches();
   TARGET_DEBUG.reset();
   pReset();
   validateAllInline();
-
   const result=document.getElementById('result');
   const errs=validateInputs();
-  if(errs.length){
-    result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`;
-    return;
-  }
-
+  if(errs.length){result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`; return;}
   const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
   const startTime=performance.now();
   const btn=document.getElementById('calcBtn');
   const cancelBtn=ensureCancelButton();
   const cacheKey=calcCacheKey(exp);
-
+  let lastProgressMessage='';
+  let lastDetailedProgress='';
   cancelRequested=false;
   isCalculating=true;
-  activeTargetConstraint='normal';
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{
     if(el.id!=='calcBtn' && el.id!=='cancelCalcBtn') el.disabled=true;
   });
-
   btn.disabled=true;
   btn.textContent='計算中';
   cancelBtn.disabled=false;
@@ -2048,59 +2305,426 @@ async function calc(){
   cancelBtn.style.setProperty('box-shadow','0 3px 0 rgba(16,24,40,.22)','important');
   cancelBtn.style.setProperty('filter','none','important');
 
-  result.innerHTML='';
+  let cancelParent=cancelBtn.parentElement;
+  while(cancelParent && cancelParent!==document.body){
+    cancelParent.style.setProperty('pointer-events','auto','important');
+    cancelParent=cancelParent.parentElement;
+  }
 
+  result.innerHTML='<p class="calculating">計算中</p>';
   try{
-    let finalCandidate=getCachedResult(cacheKey);
-
-    if(finalCandidate){
+    let best=getCachedResult(cacheKey);
+    if(best){
       btn.textContent='計算中 100%';
+      lastProgressMessage='キャッシュ使用';
+      lastDetailedProgress='キャッシュ使用';
     }else{
-      let lastProgressPaint=0;
-      finalCandidate=await optimizeAsync(exp,(msg)=>{
-        const now=performance.now();
-        if(msg.includes('100%') || now-lastProgressPaint>=250){
-          lastProgressPaint=now;
-          btn.textContent=msg;
+      best=await optimizeAsync(exp,(msg)=>{
+        lastProgressMessage=msg;
+        if(msg.includes('候補:') || msg.includes('UB:') || msg.includes('prune:')){
+          lastDetailedProgress=msg;
         }
+        btn.textContent=msg;
+        result.innerHTML=`<p class="calculating">${msg}</p>`;
       });
-      setCachedResult(cacheKey,finalCandidate);
+    }
+    const diagnosticRows=[];
+    diagnosticRows.push(diagnosticResultSummary(
+      '現行（Upper Bound有効・通常保持上限）',
+      best,
+      ((performance.now()-startTime)/1000).toFixed(2)
+    ));
+
+    diagnosticRunMode='no_ub';
+    clearCalcCaches();
+    const noUbStart=performance.now();
+    const verifyNoUb=await optimizeAsync(exp,msg=>{
+      btn.textContent='検証1/2 '+msg.replace('計算中','').trim();
+    });
+    diagnosticRows.push(diagnosticResultSummary(
+      '検証1（Upper Bound無効・通常保持上限）',
+      verifyNoUb,
+      ((performance.now()-noUbStart)/1000).toFixed(2)
+    ));
+
+    diagnosticRunMode='wide';
+    clearCalcCaches();
+    const wideStart=performance.now();
+    const verifyWide=await optimizeAsync(exp,msg=>{
+      btn.textContent='検証2/2 '+msg.replace('計算中','').trim();
+    });
+    diagnosticRows.push(diagnosticResultSummary(
+      '検証2（Upper Bound無効・保持上限拡大）',
+      verifyWide,
+      ((performance.now()-wideStart)/1000).toFixed(2)
+    ));
+
+    diagnosticRunMode='normal';
+
+    pStart("結果復元");
+    const bestItems=restoreItems(best);
+    pEnd("結果復元");
+
+    const finalTrace=TARGET_DEBUG.finalCandidateTrace||{};
+    const selectedRawNow=inspectStateChain(best);
+    const withState=TARGET_DEBUG._bestWithState;
+    const withRawNow=inspectStateChain(withState);
+    const withRestoredNow=withState ? restoreItems(withState) : [];
+
+    finalTrace.selectedRestoredItems=bestItems.slice();
+    finalTrace.selectedRawItemsAfter=selectedRawNow.items;
+    finalTrace.selectedRestoredHasTarget=diagnosisHasTarget(bestItems);
+    finalTrace.selectedRestoredHasMagic=diagnosisHasMagicRaise(bestItems);
+    finalTrace.selectedRawRestoredSame=
+      JSON.stringify(itemNamesForDiagnosis(selectedRawNow.items))===
+      JSON.stringify(itemNamesForDiagnosis(bestItems));
+
+    finalTrace.withRawItemsAfter=withRawNow.items;
+    finalTrace.withRestoredItems=withRestoredNow.slice();
+    finalTrace.withRestoredHasTarget=diagnosisHasTarget(withRestoredNow);
+    finalTrace.withRestoredHasMagic=diagnosisHasMagicRaise(withRestoredNow);
+    finalTrace.withRawRestoredSame=
+      JSON.stringify(itemNamesForDiagnosis(withRawNow.items))===
+      JSON.stringify(itemNamesForDiagnosis(withRestoredNow));
+
+    TARGET_DEBUG.finalCandidateTrace=finalTrace;
+
+    best.items=bestItems;
+    TARGET_DEBUG.selected=bestItems.some(it=>String(it.name)===TARGET_DEBUG_NAME);
+    setCachedResult(cacheKey,best);
+
+    const elapsed=((performance.now()-startTime)/1000).toFixed(2);
+    const remain=exp.map((v,i)=>v-(best.cost?.[i]||0));
+    const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+    const rawCostText=TARGET_DEBUG.rawCost?TARGET_DEBUG.rawCost.join(','):'未生成';
+    const discountedCostText=TARGET_DEBUG.discountedCost?TARGET_DEBUG.discountedCost.join(','):'未生成';
+    const targetNotes=[...new Set(TARGET_DEBUG.notes)].slice(0,8).join(' / ')||'なし';
+    const snapshotText=TARGET_DEBUG.groupSnapshots
+      .map(x=>`G${x.gi}:${x.targetCount}/${x.stateCount}`)
+      .join(' → ')||'なし';
+    const pruneText=TARGET_DEBUG.pruneEvents
+      .map((x,i)=>`P${i+1}:${x.targetBefore}→${x.targetAfter} / 全体${x.before}→${x.after}`)
+      .join(' | ')||'なし';
+
+    const routeRows=TARGET_DEBUG.routeGroupSnapshots||[];
+    const routeKeys=[
+      ['target','物理攻撃○付き'],
+      ['targetNoMagic','魔力なし'],
+      ['targetNoMagicDex60','魔力なし＋器用60'],
+      ['targetNoMagicLife52','魔力なし＋生命52'],
+      ['targetNoMagicDexOrLife','有力ルート']
+    ];
+
+    function routeLifeSummary(key,label){
+      const first=routeRows.find(x=>Number(x.profile?.[key]||0)>0);
+      if(!first) return `${label}：一度も生成されず`;
+
+      let firstZeroAfter=null;
+      let lastPositive=first;
+      let peakCount=0;
+      let bestScore=null;
+
+      for(const x of routeRows){
+        const count=Number(x.profile?.[key]||0);
+        if(count>0){
+          lastPositive=x;
+          peakCount=Math.max(peakCount,count);
+          const scoreKey=key==='target'
+            ? 'bestTarget'
+            : key==='targetNoMagic'
+              ? 'bestNoMagic'
+              : 'bestNoMagicDexOrLife';
+          const score=x.profile?.[scoreKey];
+          if(score!=null && (bestScore==null || score>bestScore)) bestScore=score;
+        }else if(x.gi>first.gi && lastPositive && x.gi>lastPositive.gi && !firstZeroAfter){
+          firstZeroAfter=x;
+        }
+      }
+
+      const generated=`初生成 G${first.gi}(${first.groupKind||'-'})`;
+      const survived=firstZeroAfter
+        ? `初消滅 G${firstZeroAfter.gi}(${firstZeroAfter.groupKind||'-'})`
+        : `最終G${lastPositive.gi}まで生存`;
+      const best=bestScore==null?'なし':Number(bestScore).toFixed(2).replace(/\.00$/,'');
+      return `${label}：${generated} / ${survived} / 最大件数${peakCount} / 最高score ${best}`;
     }
 
-    const finalItems=restoreItems(finalCandidate);
-    const elapsed=((performance.now()-startTime)/1000).toFixed(2);
-    const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
+    const routeGroupSummaryText=routeKeys
+      .map(([key,label])=>routeLifeSummary(key,label))
+      .join('<br>');
 
-    const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+    const pruneDisappearances=[];
+    TARGET_DEBUG.pruneEvents.forEach((x,i)=>{
+      const b=x.routeBefore;
+      const a=x.routeAfter;
+      if(!b || !a) return;
+
+      const lost=[];
+      if(b.target>0 && a.target===0) lost.push('物理攻撃○付き');
+      if(b.targetNoMagic>0 && a.targetNoMagic===0) lost.push('魔力なし');
+      if(b.targetNoMagicDex60>0 && a.targetNoMagicDex60===0) lost.push('魔力なし＋器用60');
+      if(b.targetNoMagicLife52>0 && a.targetNoMagicLife52===0) lost.push('魔力なし＋生命52');
+      if(b.targetNoMagicDexOrLife>0 && a.targetNoMagicDexOrLife===0) lost.push('有力ルート');
+
+      if(lost.length){
+        pruneDisappearances.push(
+          `P${i+1}（全体${x.before}→${x.after}）：${lost.join('・')}が消滅`
+        );
+      }
+    });
+
+    const routePruneSummaryText=pruneDisappearances.length
+      ? pruneDisappearances.join('<br>')
+      : '枝刈り直後に0件となった追跡ルートはなし';
+
+    const firstUseful=routeRows.find(x=>Number(x.profile?.targetNoMagicDexOrLife||0)>0);
+    const lastUseful=[...routeRows].reverse().find(x=>Number(x.profile?.targetNoMagicDexOrLife||0)>0);
+    const firstUsefulZero=firstUseful
+      ? routeRows.find(x=>x.gi>firstUseful.gi && Number(x.profile?.targetNoMagicDexOrLife||0)===0)
+      : null;
+
+    const routeCauseText=(()=>{
+      if(!firstUseful) return '有力ルート自体が生成されていないため、候補生成条件または状態統合を優先確認';
+      if(pruneDisappearances.some(s=>s.includes('有力ルート'))) return '有力ルートが枝刈りで消滅。prune順位・上限6200・状態評価を優先確認';
+      if(firstUsefulZero) return `有力ルートはG${firstUsefulZero.gi}のグループ処理後に消滅。競合・重複・状態統合を優先確認`;
+      return `有力ルートは最終G${lastUseful?.gi ?? firstUseful.gi}まで残存。最終比較または候補score算定を優先確認`;
+    })();
+
+    const lastUsefulScore=lastUseful?.profile?.bestNoMagicDexOrLife;
+    const routeFinalText=lastUseful
+      ? `最終到達 G${lastUseful.gi} / 件数${lastUseful.profile.targetNoMagicDexOrLife} / 最高score ${lastUsefulScore==null?'なし':Number(lastUsefulScore).toFixed(2).replace(/\.00$/,'')}`
+      : '最終到達なし';
+
+    // N6の局所スナップショットは、探索順や状態統合の影響で取得できない場合がある。
+    // 診断表示では、確実に取得できる全タスク横断の最終○あり／なし候補を比較する。
+    const decision=TARGET_DEBUG.magicDecisionSnapshot;
+    const finalCompareRows=[];
+    if(TARGET_DEBUG.bestWithTarget){
+      finalCompareRows.push({
+        label:'物理攻撃○あり',
+        newScore:Number(TARGET_DEBUG.bestWithTarget.score),
+        gain:0,
+        cost:(TARGET_DEBUG.bestWithTarget.cost||[]).slice(),
+        efficiency:null,
+        selected:!!TARGET_DEBUG.selectedHasTarget
+      });
+    }
+    if(TARGET_DEBUG.bestWithoutTarget){
+      finalCompareRows.push({
+        label:'物理攻撃○なし',
+        newScore:Number(TARGET_DEBUG.bestWithoutTarget.score),
+        gain:0,
+        cost:(TARGET_DEBUG.bestWithoutTarget.cost||[]).slice(),
+        efficiency:null,
+        selected:!TARGET_DEBUG.selectedHasTarget
+      });
+    }
+    finalCompareRows.sort((a,b)=>b.newScore-a.newScore);
+    const finalCompareBest=finalCompareRows[0]||null;
+    const finalCompareSelected=finalCompareRows.find(r=>r.selected)||null;
+
+    const decisionDiagnosis=(()=>{
+      if(!finalCompareRows.length) return '比較対象を取得できず';
+      if(!finalCompareSelected) return '最終採用候補の特定に失敗';
+      if(finalCompareBest && finalCompareBest.label!==finalCompareSelected.label){
+        return `最高は${finalCompareBest.label}だが、${finalCompareSelected.label}が採用表示。最終比較処理を確認`;
+      }
+      return `${finalCompareSelected.label}を最終採用。最終比較と表示は一致`;
+    })();
+
+    const decisionDiagnosisHtml=`<div class="result-block">
+      <h3>N6候補比較</h3>
+      <table class="result-table">
+        <tbody>
+          <tr><td>比較方法</td><td colspan="6">局所N6ではなく、全HPタスク横断の最終○あり／なし候補を比較</td></tr>
+          <tr><td>局所記録</td><td colspan="6">${decision?'取得あり':'取得なし（最終比較で代替）'}</td></tr>
+          <tr><td>判定</td><td colspan="6">${decisionDiagnosis}</td></tr>
+        </tbody>
+        <thead>
+          <tr><th>#</th><th>候補</th><th>score</th><th>増加</th><th>cost</th><th>効率</th><th>結果</th></tr>
+        </thead>
+        <tbody>
+          ${compactCandidateRows(finalCompareRows)}
+        </tbody>
+      </table>
+    </div>`;
+
+    const trace=TARGET_DEBUG.finalCandidateTrace||{};
+    // 表示対象は○側固定ではなく、実際に最終採用された候補のチェーンに統一する。
+    const selectedChainText=compactChainText(trace.selectedChain);
+    const magicNodeIndex=trace.selectedChain?.nodes?.findIndex(node=>
+      node.choice.some(name=>String(name).startsWith('魔力 '))
+    ) ?? -1;
+
+    const chainDiagnosis=(()=>{
+      const side=trace.selectedIsWith?'物理攻撃○あり側':trace.selectedIsWithout?'物理攻撃○なし側':'最終採用候補';
+      if(magicNodeIndex>=0){
+        const node=trace.selectedChain.nodes[magicNodeIndex];
+        return `${side}を表示。魔力はN${magicNodeIndex}で追加（${node.choice.join('・')}）`;
+      }
+      if(trace.selectedRawHasMagic){
+        return `${side}を表示。魔力上昇はあるが、各ノードchoiceから未検出`;
+      }
+      return `${side}を表示。最終チェーンに魔力上昇なし`;
+    })();
+
+    const magicDiagnosisHtml=`<div class="result-block">
+      <h3>最終候補チェーン</h3>
+      <table class="result-table"><tbody>
+        <tr><td>判定</td><td>${chainDiagnosis}</td></tr>
+        <tr><td>採用チェーン</td><td>${selectedChainText}</td></tr>
+      </tbody></table>
+    </div>`;
+
+    const f=v=>v==null?'なし':Number(v).toFixed(2).replace(/\.00$/,'');
+    const c=v=>Array.isArray(v)?v.join(','):'なし';
+
+    const finalDiagnosis=(()=>{
+      if(trace.withCycle || trace.selectedCycle){
+        return 'prevチェーンに循環あり。親参照の破損が原因候補';
+      }
+      if(trace.withRawHasMagic){
+        return '物理攻撃○側の最終候補は、選択時点ですでに魔力上昇を含む。候補評価・最終比較を確認';
+      }
+      if(!trace.withRawHasMagic && trace.withRestoredHasMagic){
+        return '選択時点では魔力なしだが、restoreItems後に魔力が混入。復元キャッシュまたはprev参照を確認';
+      }
+      if(trace.withRawRestoredSame===false){
+        return '生のprevチェーンとrestoreItemsの内容が不一致。復元処理またはitemsキャッシュを確認';
+      }
+      if(trace.withRawHasTarget===false){
+        return 'bestWithTargetとして保存された候補に物理攻撃○が存在しない。候補分類を確認';
+      }
+      if(trace.selectedIsWith===false && trace.withScore!=null){
+        return '物理攻撃○側候補は正常だが、全体の最終比較で別候補が採用されている';
+      }
+      return '候補選択・復元は整合。score算定または候補生成内容を確認';
+    })();
+
+    const compactDiagnosisHtml=`<div class="result-block">
+      <h3>最終候補診断</h3>
+      <table class="result-table"><tbody>
+        <tr><td>最終採用</td><td>${trace.selectedIsWith?'物理攻撃○側':trace.selectedIsWithout?'物理攻撃○なし側':'別候補'} / score ${f(trace.selectedScore)} / cost ${c(trace.selectedCost)}</td></tr>
+        <tr><td>○側候補</td><td>score ${f(trace.withScore)} / cost ${c(trace.withCost)}</td></tr>
+        <tr><td>選択時の○側</td><td>物理攻撃○:${trace.withRawHasTarget?'あり':'なし'} / 魔力上昇:${trace.withRawHasMagic?'あり':'なし'} / itemsキャッシュ:${trace.withCachedBefore?'あり':'なし'}</td></tr>
+        <tr><td>復元後の○側</td><td>物理攻撃○:${trace.withRestoredHasTarget?'あり':'なし'} / 魔力上昇:${trace.withRestoredHasMagic?'あり':'なし'} / 生チェーンと一致:${trace.withRawRestoredSame?'はい':'いいえ'}</td></tr>
+        <tr><td>○側の能力</td><td>${shortDiagnosisItems(trace.withRestoredItems||trace.withRawItems)}</td></tr>
+        <tr><td>チェーン</td><td>ノード${trace.withNodes??'なし'} / 選択項目${trace.withChoices??'なし'} / 循環:${trace.withCycle?'あり':'なし'}</td></tr>
+        <tr><td>判定</td><td>${finalDiagnosis}</td></tr>
+      </tbody></table>
+    </div>`;
+
+    const bestWith=TARGET_DEBUG.bestWithTarget;
+    const bestWithout=TARGET_DEBUG.bestWithoutTarget;
+    const fmtScore=v=>Number.isFinite(Number(v))
+      ? Number(v).toFixed(2).replace(/\.00$/,'')
+      : 'なし';
+    const withScoreText=bestWith ? fmtScore(bestWith.score) : 'なし';
+    const withoutScoreText=bestWithout ? fmtScore(bestWithout.score) : 'なし';
+    const withItemLenText=bestWith ? String(bestWith.itemLen) : 'なし';
+    const withoutItemLenText=bestWithout ? String(bestWithout.itemLen) : 'なし';
+    const scoreDiff=(bestWith&&bestWithout) ? (bestWith.score-bestWithout.score) : null;
+    const scoreDiffText=scoreDiff==null ? '比較不可' : fmtScore(scoreDiff);
+    const taskSummaryText=TARGET_DEBUG.taskSummaries
+      .map((x,i)=>`T${i+1}(HP${x.hp}):採用${x.selectedScore ?? 'なし'}${x.selectedHasTarget?'[○あり]':'[○なし]'} / あり${x.bestWithScore ?? 'なし'} / なし${x.bestWithoutScore ?? 'なし'}`)
+      .join(' | ')||'なし';
+
+    const augmentSummaryText=TARGET_DEBUG.augmentChecks
+      .map((x,i)=>{
+        const best=x.bestAugmentable;
+        return `A${i+1}(HP${x.hp}):候補${x.targetOpFound?'あり':'なし'} / 後付け可能${x.augmentableCount} / 生成済${x.augmentableStateAlreadyExists} / 最高${best?best.hypotheticalScore:'なし'}${best&&best.exists?'[生成済]':'[未生成]'}`;
+      })
+      .join(' | ')||'なし';
+
+    const bestAug=TARGET_DEBUG.bestAugmentable;
+    const bestAugScoreText=bestAug ? String(bestAug.hypotheticalScore) : 'なし';
+    const bestAugBaseScoreText=bestAug ? String(bestAug.baseScore) : 'なし';
+    const bestAugExistsText=bestAug ? (bestAug.exists?'あり':'なし') : '比較不可';
+    const bestAugHpText=bestAug ? String(bestAug.hp) : 'なし';
+
+    const withOnlyText=TARGET_DEBUG.withOnlyItems.length
+      ? TARGET_DEBUG.withOnlyItems.join(' / ')
+      : 'なし';
+    const withoutOnlyText=TARGET_DEBUG.withoutOnlyItems.length
+      ? TARGET_DEBUG.withoutOnlyItems.join(' / ')
+      : 'なし';
+    const withOnlyDetailText=TARGET_DEBUG.withOnlyDetails.length
+      ? TARGET_DEBUG.withOnlyDetails.join('<br>')
+      : 'なし';
+    const withoutOnlyDetailText=TARGET_DEBUG.withoutOnlyDetails.length
+      ? TARGET_DEBUG.withoutOnlyDetails.join('<br>')
+      : 'なし';
+    const suspiciousBasicText=TARGET_DEBUG.suspiciousBasicWarnings.length
+      ? TARGET_DEBUG.suspiciousBasicWarnings.join(' / ')
+      : 'なし';
+    const withCostText=TARGET_DEBUG.withCost
+      ? TARGET_DEBUG.withCost.join(',')
+      : 'なし';
+    const withoutCostText=TARGET_DEBUG.withoutCost
+      ? TARGET_DEBUG.withoutCost.join(',')
+      : 'なし';
+    const costDiffText=TARGET_DEBUG.costDiff
+      ? TARGET_DEBUG.costDiff.map((v,i)=>`${expNames[i]}:${v>=0?'+':''}${v}`).join(' / ')
+      : '比較不可';
+
+    const finalDecisionReason=(()=>{
+      if(!bestWith && !bestWithout) return '最終候補なし';
+      if(bestWith && !bestWithout) return '物理攻撃○あり候補のみ';
+      if(!bestWith && bestWithout) return '物理攻撃○なし候補のみ';
+      if(bestWith.score>bestWithout.score) return '物理攻撃○ありのscoreが高い';
+      if(bestWith.score<bestWithout.score) return '物理攻撃○なしのscoreが高い';
+      if(bestWith.itemLen<bestWithout.itemLen) return '同scoreで、物理攻撃○ありのitem数が少ない';
+      if(bestWith.itemLen>bestWithout.itemLen) return '同scoreで、物理攻撃○なしのitem数が少ない';
+      return 'score・item数とも同じ（Map順で決定）';
+    })();
 
     result.innerHTML=`
 <div class="result-block">
   <h3>基本能力</h3>
-  ${resultTable(finalItems,'basic')}
+  ${resultTable(bestItems,'basic')}
 </div>
+
 <div class="result-block">
   <h3>特殊能力</h3>
-  ${resultTable(finalItems,'special')}
+  ${resultTable(bestItems,'special')}
 </div>
 ${remainHtml}
+
+${decisionDiagnosisHtml}
+
+${magicDiagnosisHtml}
+
+${compactDiagnosisHtml}
+
 <div class="result-block">
   <h3>計算時間</h3>
-  <p>${elapsed} 秒</p>
-</div>`;
+  <p>${elapsed} 秒（現行計算のみ）</p>
+</div>
+${diagnosticCompareHtml(diagnosticRows)}
+`;
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
-      result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
+      result.innerHTML=`<div class="result-block">
+        <p>計算をキャンセルしました。</p>
+        <p>条件を変更して、もう一度「計算する」を押してください。</p>
+      </div>`;
     }else{
       const name=err?.name||'Error';
       const message=err?.message||'原因不明のエラーです';
-      result.innerHTML=`<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p><p>${name}</p><p>${message}</p></div>`;
+
+      result.innerHTML=`<div class="error-box">
+        <p>⚠️ 計算中にエラーが発生しました。</p>
+        <p>${name}</p>
+        <p>${message}</p>
+      </div>`;
+
       console.error(err);
     }
   }finally{
+    diagnosticRunMode='normal';
     isCalculating=false;
-    activeTargetConstraint='normal';
     document.body.classList.remove('is-calculating');
-    document.querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;});
+    document.querySelectorAll('button,input,select').forEach(el=>{ el.disabled=false; });
     job.disabled=!academy.value;
     basicNames.forEach(n=>applyBasicVisual(n));
     D.special.forEach((_,i)=>applySkillVisual(i));
@@ -2112,7 +2736,6 @@ ${remainHtml}
     cancelRequested=false;
   }
 }
-
 function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
@@ -2124,6 +2747,7 @@ function resetAll(){
 
   specialState.clear();
   calcResultCache.clear();
+  search.value='';
 
   renderBasic();
   renderSpecials();
@@ -2135,6 +2759,5 @@ document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
-removeTemporaryVersionDisplay();
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); renderCalcMode(); validateAllInline();
 })();
