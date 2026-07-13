@@ -30,6 +30,7 @@ let cancelRequested=false;
 // normal : 現行
 // no_ub  : Upper Boundだけ無効
 // wide   : Upper Bound無効＋保持上限拡大
+// life50 : Upper Bound無効＋保持上限拡大＋生命力50固定
 let diagnosticRunMode='normal';
 let activeTargetConstraint='normal';
 
@@ -1296,6 +1297,17 @@ function basicOptions(name,exp){
   const lim=limits();
   const inp=document.getElementById('basic_'+name);
   const cur=Number(inp?.value||1);
+  if(diagnosticRunMode==='life50' && name==='生命力'){
+    return [{
+      cost:[0,0,0,0,0],
+      score:0,
+      items:EMPTY_ITEMS,
+      itemLen:0,
+      life:cur,
+      costSum:0,
+      eff:0
+    }];
+  }
   const hint=Number(basicHints[name]||0);
   const max=lim[name];
   if(basicOwned[name]) return [{cost:[0,0,0,0,0],score:0,items:EMPTY_ITEMS,itemLen:0,life: name==='生命力'?max:null,costSum:0,eff:0}];
@@ -1339,8 +1351,8 @@ function basicPlanEntry(name,exp){
     if(op.eff>bestEff) bestEff=op.eff;
     if(op.score>bestScore) bestScore=op.score;
   }
-  // 生命力はHP依存特殊能力に効くので、同効率なら少し早めに探索する。
-  const priority=bestEff+(name==='生命力'?0.0001:0);
+  // 生命力は意図的に優遇しない。査定効率そのものだけを使う。
+  const priority=bestEff;
   return {name,opts,priority,bestScore};
 }
 function buildBasicStates(exp){
@@ -1355,6 +1367,11 @@ function buildBasicStates(exp){
     .map(name=>basicPlanEntry(name,exp))
     .sort((a,b)=>{
       if(b.priority!==a.priority) return b.priority-a.priority;
+
+      const aLife=a.name==='生命力'?1:0;
+      const bLife=b.name==='生命力'?1:0;
+      if(aLife!==bLife) return aLife-bLife;
+
       return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
     });
 
@@ -1389,7 +1406,7 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) continue;
-    const basicStateLimit=diagnosticRunMode==='wide'?16000:6200;
+    const basicStateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
     states=next.size>basicStateLimit ? prune(next,basicStateLimit,mode) : next;
     if(!states.size) break;
   }
@@ -1728,11 +1745,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
   const normalStateLimit=Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)));
-  const STATE_LIMIT=diagnosticRunMode==='wide'
+  const STATE_LIMIT=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
     ? Math.max(16000,Math.min(26000,normalStateLimit*4))
     : normalStateLimit;
   // wide検証時だけ保持上限を広げ、pruneによる最適解落ちを切り分ける。
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*(diagnosticRunMode==='wide'?2.0:1.6));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*((diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?2.0:1.6));
 
   // v8.0: 高精度を維持する安全なBranch & Bound。
   // 1) 各グループの最大査定合計
@@ -1976,7 +1993,7 @@ async function optimizeAsync(exp,onProgress){
   const prepared=[];
   let totalGroups=0;
   for(const [hp,baseMap] of byHp){
-    const preparedLimit=diagnosticRunMode==='wide'?16000:6200;
+    const preparedLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
     const states=baseMap.size>preparedLimit ? prune(baseMap,preparedLimit,mode) : baseMap;
     if(!states.size) continue;
 
@@ -2195,7 +2212,14 @@ function diagnosticCompareHtml(rows){
   }else if(rows[2].score>rows[1].score){
     verdict='保持上限またはpruneで、より高い候補を落としている可能性が高いです。';
   }else{
-    verdict='Upper Bound・保持上限・pruneを緩めても結果は同じです。候補生成、査定データ、取得済み／コツ入力の扱いを次に確認してください。';
+    verdict='Upper Bound・保持上限・pruneを緩めても大きな改善がありません。候補生成または査定データを確認してください。';
+  }
+
+  if(rows[3]){
+    const lifeDiff=Math.round((rows[3].score-rows[2].score)*10)/10;
+    verdict+=lifeDiff>0
+      ? ` 生命力50固定の方が検証2より${lifeDiff}高く、生命力を上げる判断が探索を悪化させています。`
+      : ` 生命力50固定は検証2比${lifeDiff}で、生命力上昇の過大評価だけが主因ではありません。`;
   }
 
   const cards=rows.map(r=>{
@@ -2217,6 +2241,203 @@ function diagnosticCompareHtml(rows){
   </div>`;
 }
 
+
+const DIAGNOSTIC_MANUAL_PLAN={
+  basicTargets:{
+    '生命力':51,
+    'パワー':15,
+    '器用さ':11
+  },
+  specials:[
+    '物理防御◎',
+    '魔法防御◎',
+    'アクションスキル◎',
+    'ケガしにくさ◎',
+    '柔軟な体',
+    '無心の構え',
+    '狙い撃ち',
+    '通常攻撃○',
+    '対スケルトン○'
+  ]
+};
+
+function manualBasicChoice(name,target,exp){
+  const options=basicOptions(name,exp);
+  return options.find(op=>{
+    if(!op.items?.length) return Number(target)===Number(document.getElementById('basic_'+name)?.value||1);
+    return Number(op.items[0]?.to)===Number(target);
+  })||null;
+}
+
+function manualSpecialChoice(name,hp){
+  const idx=specialNameIndex.get(String(name));
+  if(idx==null) return {name,idx:-1,generated:false,reason:'data.jsに名称なし',choice:null};
+
+  if(specialOwned(idx)){
+    return {name,idx,generated:true,reason:'取得済みのため追加不要',choice:null,alreadyOwned:true};
+  }
+
+  const includeLower=isUpperSpecial(idx);
+  const choice=itemForSpecialIndex(idx,hp,includeLower);
+  if(!choice){
+    return {name,idx,generated:false,reason:'候補生成されない（査定0・データ不備など）',choice:null};
+  }
+
+  return {name,idx,generated:true,reason:'候補生成あり',choice};
+}
+
+function scoreManualPlan(exp){
+  const startLife=initialLifeValue();
+  let cost=[0,0,0,0,0];
+  let score=0;
+  let finalLife=startLife;
+  const basicRows=[];
+  const missing=[];
+
+  for(const [name,target] of Object.entries(DIAGNOSTIC_MANUAL_PLAN.basicTargets)){
+    const current=Number(document.getElementById('basic_'+name)?.value||1);
+    if(Number(target)===current) continue;
+
+    const op=manualBasicChoice(name,target,exp);
+    if(!op){
+      missing.push(`${name}${current}→${target}を基本能力候補として生成できない`);
+      continue;
+    }
+
+    cost=addCost(cost,op.cost);
+    score=Math.round((score+Number(op.score||0))*10)/10;
+    if(name==='生命力' && op.life!=null) finalLife=Number(op.life);
+    basicRows.push({
+      name:`${name} ${current}→${target}`,
+      score:Number(op.score||0),
+      cost:op.cost.slice()
+    });
+  }
+
+  const hp=currentHpForLife(finalLife);
+  let bits=EMPTY_BITS;
+  const specialRows=[];
+  const generationRows=[];
+  let conflict=false;
+
+  for(const name of DIAGNOSTIC_MANUAL_PLAN.specials){
+    const info=manualSpecialChoice(name,hp);
+    generationRows.push({
+      name,
+      generated:info.generated,
+      reason:info.reason
+    });
+
+    if(!info.generated){
+      missing.push(`${name}：${info.reason}`);
+      continue;
+    }
+    if(info.alreadyOwned || !info.choice) continue;
+
+    const op=info.choice;
+    if((bits & op.bits)!==EMPTY_BITS){
+      conflict=true;
+      missing.push(`${name}：手動案内で重複`);
+      continue;
+    }
+    if((bits & op.conflictBits)!==EMPTY_BITS){
+      conflict=true;
+      missing.push(`${name}：手動案内で相互排他`);
+      continue;
+    }
+
+    bits|=op.bits;
+    cost=addCost(cost,op.cost);
+    score=Math.round((score+Number(op.score||0))*10)/10;
+    specialRows.push({
+      name,
+      score:Number(op.score||0),
+      cost:op.cost.slice(),
+      items:(op.items||[]).map(x=>String(x.name||''))
+    });
+  }
+
+  const ownedHp=ownedHpDependentBreakdown(finalLife);
+  score=Math.round((score+ownedHp.total)*10)/10;
+
+  const feasible=leq(cost,exp) && !conflict && missing.length===0;
+  return {
+    score,
+    cost,
+    remain:exp.map((v,i)=>v-cost[i]),
+    feasible,
+    finalLife,
+    hp,
+    basicRows,
+    specialRows,
+    generationRows,
+    ownedHp,
+    missing
+  };
+}
+
+function manualPlanHtml(manual,wideResult){
+  const wideScore=Number(wideResult?.score||0);
+  const diff=Math.round((manual.score-wideScore)*10)/10;
+
+  let verdict='';
+  if(!manual.feasible){
+    verdict='手動案はツール内部で完全な実行可能候補として組み立てられていません。下の不足・候補生成結果を確認してください。';
+  }else if(manual.score>wideScore){
+    verdict='手動案の内部査定が検証2を上回っています。候補自体は作れるのに探索途中で落としている可能性が高いです。';
+  }else{
+    verdict='手動案は内部採点できていますが、ツール内部では検証2以下です。ゲーム内査定との差は、査定データまたは計算式のズレが本命です。';
+  }
+
+  const basic=manual.basicRows.length
+    ? manual.basicRows.map(r=>`<div>${r.name}：査定 +${r.score}／経験点 ${r.cost.join(',')}</div>`).join('')
+    : '<div>基本能力の追加なし</div>';
+
+  const specials=manual.specialRows.length
+    ? manual.specialRows.map(r=>`<div>${r.name}：査定 +${r.score}／経験点 ${r.cost.join(',')}<br><small>内部項目：${r.items.join('・')}</small></div>`).join('')
+    : '<div>新規特殊能力なし</div>';
+
+  const generated=manual.generationRows.map(r=>
+    `<div>${r.generated?'✅':'❌'} ${r.name}：${r.reason}</div>`
+  ).join('');
+
+  const missing=manual.missing.length
+    ? `<div style="margin-top:8px"><strong>不足・不整合</strong><br>${manual.missing.join('<br>')}</div>`
+    : '';
+
+  return `<div class="result-block">
+    <h3>手動案・強制内部採点</h3>
+    <p>※診断版では生命力の探索優遇を削除し、同効率時は生命力を後回しにしています。査定値そのものは変更していません。</p>
+    <p><strong>${verdict}</strong></p>
+    <p>内部査定：${manual.score}（検証2比 ${diff>=0?'+':''}${diff}）</p>
+    <p>使用経験点：${manual.cost.join(',')}</p>
+    <p>残経験点：${manual.remain.join(',')}</p>
+    <p>最終生命力：${manual.finalLife}／HP：${manual.hp}</p>
+    <p>実行可能判定：${manual.feasible?'✅ 実行可能':'❌ 不完全'}</p>
+
+    <details open>
+      <summary>基本能力の強制採点</summary>
+      <div style="margin-top:6px">${basic}</div>
+    </details>
+
+    <details open>
+      <summary>特殊能力の強制採点</summary>
+      <div style="margin-top:6px">${specials}</div>
+    </details>
+
+    <details open>
+      <summary>各手動特殊能力は候補生成されるか</summary>
+      <div style="margin-top:6px">${generated}</div>
+    </details>
+
+    <details>
+      <summary>取得済みHP依存能力の上昇分</summary>
+      <div style="margin-top:6px">${diagnosticOwnedHpRows(manual.ownedHp)}</div>
+      <div><strong>合計：+${manual.ownedHp.total}</strong></div>
+    </details>
+    ${missing}
+  </div>`;
+}
 async function calc(){
   clearCalcCaches();
   TARGET_DEBUG.reset();
@@ -2310,7 +2531,20 @@ async function calc(){
       ((performance.now()-wideStart)/1000).toFixed(2)
     ));
 
+    diagnosticRunMode='life50';
+    clearCalcCaches();
+    const life50Start=performance.now();
+    const verifyLife50=await optimizeAsync(exp,msg=>{
+      btn.textContent='検証3/3 '+msg.replace('計算中','').trim();
+    });
+    diagnosticRows.push(diagnosticResultSummary(
+      '検証3（生命力50固定・Upper Bound無効・保持上限拡大）',
+      verifyLife50,
+      ((performance.now()-life50Start)/1000).toFixed(2)
+    ));
+
     diagnosticRunMode='normal';
+    const manualPlan=scoreManualPlan(exp);
 
     const finalItems=restoreItems(finalCandidate);
     const elapsed=normalElapsed;
@@ -2332,7 +2566,8 @@ ${remainHtml}
   <h3>計算時間</h3>
   <p>${elapsed} 秒（現行計算のみ）</p>
 </div>
-${diagnosticCompareHtml(diagnosticRows)}`;
+${diagnosticCompareHtml(diagnosticRows)}
+${manualPlanHtml(manualPlan,verifyWide)}`;
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
@@ -2378,10 +2613,94 @@ function resetAll(){
   document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
 }
 
+
+function applyTemporaryDiagnosticPreset(){
+  const academyOption=[...academy.options].find(o=>String(o.value).includes('タテレスキュア'));
+  if(!academyOption) return;
+
+  academy.value=academyOption.value;
+  updateJobs();
+
+  const jobOption=[...job.options].find(o=>String(o.value)==='僧侶');
+  if(!jobOption) return;
+  job.value=jobOption.value;
+
+  clearBasicState();
+  renderBasic();
+  renderSpecials();
+
+  const expPreset={
+    '筋力':506,
+    '敏捷':639,
+    '技術':490,
+    '知力':145,
+    '精神':559
+  };
+  const basicPreset={
+    '生命力':50,
+    'パワー':10,
+    '魔力':95,
+    '器用さ':10,
+    '耐久力':90,
+    '精神力':50
+  };
+  const hintPreset={
+    '物理攻撃○':3,
+    '物理防御○':3,
+    '魔法防御○':3,
+    '生存本能':1,
+    '狙い撃ち':2,
+    'アクションスキル◎':3,
+    'ケガしにくさ◎':1,
+    '免疫強化':3,
+    '仲間思い':1
+  };
+  const ownedPreset=[
+    '忍耐',
+    'アクションスキル○',
+    '単体攻撃○',
+    'ケガしにくさ○',
+    '見切り',
+    '危機察知',
+    '意志',
+    '対弓使い○',
+    '対キラービー○',
+    '対ハーピー○',
+    '対フィッシュ○',
+    'バランス感覚'
+  ];
+
+  for(const [name,value] of Object.entries(expPreset)){
+    const input=document.getElementById('exp_'+name);
+    if(input) input.value=value;
+  }
+  for(const [name,value] of Object.entries(basicPreset)){
+    const input=document.getElementById('basic_'+name);
+    if(input) input.value=value;
+  }
+
+  specialState.clear();
+
+  for(const [name,level] of Object.entries(hintPreset)){
+    const idx=specialNameIndex.get(String(name));
+    if(idx!=null) setSpecialHint(idx,level,true);
+  }
+  for(const name of ownedPreset){
+    const idx=specialNameIndex.get(String(name));
+    if(idx!=null) setSpecialOwned(idx,true,true);
+  }
+
+  renderBasic();
+  renderSpecials();
+  validateAllInline();
+  document.getElementById('result').textContent='検証条件を自動入力しました。「計算する」を押してください。';
+}
+
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+applyTemporaryDiagnosticPreset();
 })();
