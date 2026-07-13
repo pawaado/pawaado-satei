@@ -4,12 +4,6 @@
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
-const ultraSpecialNames=new Set([
-  '治癒の教え'
-]);
-function isUltraSpecialName(name){
-  return ultraSpecialNames.has(String(name||''));
-}
 const mutualGroups=[
   ['生存本能','闘争本能'],
   ['柔軟な体','頑丈な体'],
@@ -478,7 +472,6 @@ function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIn
 function specialOwned(i){return getSpecialState(i).own===1;}
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
 function shouldShowSpecial(i){
-  if(isUltraSpecialName(D.special[i]?.[1])) return false;
   if(!isUpperSpecial(i)) return true;
   const li=lowerIndex(i);
   return (li>=0 && specialOwned(li)) || specialOwned(i);
@@ -644,6 +637,38 @@ document.addEventListener('input',e=>{
 function jobScoreIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
 function fixedAddIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
 function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return Math.round((fixed+hp*rate)*10)/10;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
+
+function initialLifeValue(){
+  return Number(document.getElementById('basic_生命力')?.value||1);
+}
+function ownedHpDependentBreakdown(life){
+  const baseHp=currentHpForLife(initialLifeValue());
+  const finalHp=currentHpForLife(life);
+  const rows=[];
+  let total=0;
+
+  for(let i=0;i<D.special.length;i++){
+    if(!specialOwned(i)) continue;
+    const skill=D.special[i];
+    const rate=Number(skill?.[11]||0);
+    if(!rate) continue;
+
+    const before=skillScore(skill,baseHp);
+    const after=skillScore(skill,finalHp);
+    const delta=Math.round((after-before)*10)/10;
+    if(delta===0) continue;
+
+    rows.push({
+      name:String(skill[1]),
+      before,
+      after,
+      delta
+    });
+    total=Math.round((total+delta)*10)/10;
+  }
+
+  return {baseHp,finalHp,total,rows};
+}
 const SPECIAL_DISCOUNT=[0,.5,.6,.7,.8,.9];
 function costAfter(cost,hint,basic=false){const disc=basic?hint*0.02:(SPECIAL_DISCOUNT[hint]||0); return Math.floor(cost*(1-disc));}
 const hpByLifeCache=new Map();
@@ -1369,6 +1394,14 @@ function buildBasicStates(exp){
     if(!states.size) break;
   }
 
+  // 取得済みHP依存能力は、現在HP時点の査定を再加算せず、
+  // 生命力上昇で増えた査定差分だけを追加する。
+  for(const st of states.values()){
+    const ownedHp=ownedHpDependentBreakdown(st.life);
+    st.ownedHpDelta=ownedHp.total;
+    st.score=Math.round((st.score+ownedHp.total)*10)/10;
+  }
+
   return states;
 }
 const specialItemCache=new Map();
@@ -1404,7 +1437,8 @@ function cloneResult(st){
     items:items.map(x=>({...x})),
     itemLen:itemLenOf(st),
     bits:st.bits ?? specialItemsBits(items),
-    usedCost:st.usedCost ?? costSum(st.cost||[0,0,0,0,0])
+    usedCost:st.usedCost ?? costSum(st.cost||[0,0,0,0,0]),
+    ownedHpDelta:Number(st.ownedHpDelta||0)
   };
 }
 function getCachedResult(cacheKey){
@@ -1419,7 +1453,7 @@ function setCachedResult(cacheKey,result){
   calcResultCache.set(cacheKey,cloneResult(result));
 }
 function itemForSpecialIndex(i,hp,includeLower=false){
-  const s=D.special[i]; if(!s || isUltraSpecialName(s[1])) return null;
+  const s=D.special[i]; if(!s) return null;
   const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
   const cachedItem=specialItemCache.get(cacheKey);
   if(cachedItem!==undefined) return cachedItem;
@@ -2023,9 +2057,119 @@ function validateInputs(){
   return errs;
 }
 
+
+function basicItemScore(it){
+  const table=tableFor(String(it?.name||''));
+  if(!table) return 0;
+
+  let total=0;
+  for(let v=Number(it.from);v<Number(it.to);v++){
+    const row=rowForValue(table.score,v);
+    if(row) total+=Number(row[2]||0);
+  }
+  return Math.round(total*10)/10;
+}
+function diagnosticScoreBreakdown(st){
+  const items=restoreItems(st);
+  const life=Number(st?.life??initialLifeValue());
+  const hp=currentHpForLife(life);
+
+  const basicRows=[];
+  const normalSpecialRows=[];
+  const newHpSpecialRows=[];
+  let basicTotal=0;
+  let normalSpecialTotal=0;
+  let newHpSpecialTotal=0;
+
+  for(const it of items){
+    if(it?.type==='basic'){
+      const score=basicItemScore(it);
+      basicRows.push({name:`${it.name} ${it.from}→${it.to}`,score});
+      basicTotal=Math.round((basicTotal+score)*10)/10;
+      continue;
+    }
+
+    if(it?.type==='special'){
+      const skill=D.special[Number(it.idx)];
+      if(!skill) continue;
+      const score=skillScore(skill,hp);
+      const row={name:String(it.name||skill[1]),score};
+      if(Number(skill[11]||0)){
+        newHpSpecialRows.push(row);
+        newHpSpecialTotal=Math.round((newHpSpecialTotal+score)*10)/10;
+      }else{
+        normalSpecialRows.push(row);
+        normalSpecialTotal=Math.round((normalSpecialTotal+score)*10)/10;
+      }
+    }
+  }
+
+  const ownedHp=ownedHpDependentBreakdown(life);
+  const reconstructed=Math.round((
+    basicTotal+
+    normalSpecialTotal+
+    newHpSpecialTotal+
+    ownedHp.total
+  )*10)/10;
+
+  return {
+    basicRows,
+    basicTotal,
+    normalSpecialRows,
+    normalSpecialTotal,
+    newHpSpecialRows,
+    newHpSpecialTotal,
+    ownedHp,
+    reconstructed,
+    internal:Number(st?.score||0),
+    difference:Math.round((Number(st?.score||0)-reconstructed)*10)/10
+  };
+}
+function diagnosticBreakdownRows(rows){
+  if(!rows.length) return '<div>該当なし</div>';
+  return rows.map(r=>`<div>${r.name}：${r.score>=0?'+':''}${r.score}</div>`).join('');
+}
+function diagnosticOwnedHpRows(ownedHp){
+  if(!ownedHp.rows.length) return '<div>上昇分なし</div>';
+  return ownedHp.rows.map(r=>
+    `<div>${r.name}：${r.before} → ${r.after}（+${r.delta}）</div>`
+  ).join('');
+}
+function diagnosticBreakdownHtml(st){
+  const b=diagnosticScoreBreakdown(st);
+  const diffNote=b.difference===0
+    ? '内部査定と内訳合計は一致'
+    : `⚠️ 内部査定との差：${b.difference>0?'+':''}${b.difference}`;
+
+  return `<details>
+    <summary>査定内訳</summary>
+    <div style="margin-top:8px">
+      <strong>基本能力査定</strong>
+      ${diagnosticBreakdownRows(b.basicRows)}
+      <div><strong>基本能力合計：${b.basicTotal}</strong></div>
+
+      <div style="margin-top:8px"><strong>新規取得・通常特殊能力査定</strong></div>
+      ${diagnosticBreakdownRows(b.normalSpecialRows)}
+      <div><strong>通常特殊能力合計：${b.normalSpecialTotal}</strong></div>
+
+      <div style="margin-top:8px"><strong>新規取得・HP依存特殊能力査定</strong></div>
+      ${diagnosticBreakdownRows(b.newHpSpecialRows)}
+      <div><strong>新規HP依存特殊能力合計：${b.newHpSpecialTotal}</strong></div>
+
+      <div style="margin-top:8px"><strong>取得済みHP依存能力のHP上昇分</strong></div>
+      <div>HP：${b.ownedHp.baseHp} → ${b.ownedHp.finalHp}</div>
+      ${diagnosticOwnedHpRows(b.ownedHp)}
+      <div><strong>HP上昇分合計：+${b.ownedHp.total}</strong></div>
+
+      <div style="margin-top:8px"><strong>内訳合計：${b.reconstructed}</strong></div>
+      <div><strong>内部査定：${b.internal}</strong></div>
+      <div>${diffNote}</div>
+    </div>
+  </details>`;
+}
+
 function diagnosticItemNames(st){
   return restoreItems(st)
-    .filter(it=>it?.type!=='special' || !isUltraSpecialName(it?.name))
     .map(it=>it?.type==='basic'
       ? `${it.name} ${it.from}→${it.to}`
       : String(it?.name||''))
@@ -2037,7 +2181,8 @@ function diagnosticResultSummary(label,st,seconds){
     score:Number(st?.score||0),
     cost:(st?.cost||[0,0,0,0,0]).slice(),
     seconds,
-    names:diagnosticItemNames(st)
+    names:diagnosticItemNames(st),
+    state:st
   };
 }
 function diagnosticCompareHtml(rows){
@@ -2061,12 +2206,12 @@ function diagnosticCompareHtml(rows){
       使用経験点：${r.cost.join(',')}<br>
       計算時間：${r.seconds} 秒
       <details><summary>選択内容</summary><div style="margin-top:6px">${r.names.join('<br>')||'追加なし'}</div></details>
+      ${diagnosticBreakdownHtml(r.state)}
     </div>`;
   }).join('');
 
   return `<div class="result-block">
     <h3>不具合切り分け結果</h3>
-    <p>※金色の超特殊能力（治癒の教え）は比較・査定対象外です。</p>
     <p><strong>${verdict}</strong></p>
     ${cards}
   </div>`;
