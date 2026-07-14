@@ -2418,9 +2418,315 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
+
+// v9.0: 基本能力と特殊能力の垣根をなくした混在探索。
+// 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
+// 同じ査定効率で比較し、上位候補へ分岐する。
+const MIXED_BRANCH_NORMAL=7;
+const MIXED_BRANCH_WIDE=11;
+const MIXED_MAX_STEPS=90;
+
+function mixedInitialLevels(){
+  const lim=limits();
+  return basicNames.map(name=>{
+    const cur=Number(document.getElementById('basic_'+name)?.value||1);
+    return basicOwned[name] && lim[name]!=null ? Number(lim[name]) : cur;
+  });
+}
+function mixedLevelsKey(levels){
+  return levels.map(v=>Number(v).toString(36)).join('.');
+}
+function mixedStateKey(st){
+  return key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS);
+}
+function mixedIsAcquired(i,bits){
+  return specialOwned(i) || (((bits??EMPTY_BITS)&specialBit(i))!==EMPTY_BITS);
+}
+function mixedBasicOption(name,from,to){
+  if(to<=from) return null;
+  const hint=Number(basicHints[name]||0);
+  const t=tableFor(name);
+  let c=[0,0,0,0,0],score=0,v=from;
+  while(v<to){
+    const costRow=rowForValue(t.cost,v);
+    const scoreRow=rowForValue(t.score,v);
+    if(!costRow||!scoreRow) return null;
+    const step=basicCostVector(name,costRow,hint);
+    if(!step) return null;
+    c=addCost(c,step);
+    score+=Number(scoreRow[2]||0);
+    v++;
+  }
+  const cs=costSum(c);
+  return {
+    kind:'basic',
+    name,
+    from,
+    to,
+    cost:c,
+    costSum:cs,
+    score,
+    efficiency:score/Math.max(1,cs),
+    items:[{type:'basic',name,from,to,idx:basicNames.indexOf(name)}]
+  };
+}
+function mixedHpDeltaForBits(bits,oldHp,newHp){
+  if(oldHp===newHp) return 0;
+  let delta=0;
+  for(let i=0;i<D.special.length;i++){
+    if(!mixedIsAcquired(i,bits)) continue;
+    const skill=D.special[i];
+    if(!Number(skill?.[11]||0)) continue;
+    delta+=skillScore(skill,newHp)-skillScore(skill,oldHp);
+  }
+  return Math.round(delta*10)/10;
+}
+function mixedBasicActions(st,exp){
+  const actions=[];
+  const lim=limits();
+  for(let bi=0;bi<basicNames.length;bi++){
+    const name=basicNames[bi];
+    const from=Number(st.levels[bi]);
+    const max=Number(lim[name]);
+    if(!Number.isFinite(max)||from>=max) continue;
+    if(diagnosticRunMode==='life50'&&name==='生命力') continue;
+
+    const targets=[from+1];
+    const milestones=basicMilestoneTargets(name,from,max);
+    if(milestones.length) targets.push(milestones[0]);
+
+    for(const to of [...new Set(targets)]){
+      const op=mixedBasicOption(name,from,to);
+      if(!op) continue;
+      const nc=addCost(st.cost,op.cost);
+      if(!leq(nc,exp)) continue;
+
+      let gain=op.score;
+      if(name==='生命力'){
+        const oldHp=currentHpForLife(from);
+        const newHp=currentHpForLife(to);
+        gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp);
+      }
+      actions.push({...op,gain,efficiency:gain/Math.max(1,op.costSum)});
+    }
+  }
+  return actions;
+}
+function mixedSpecialActions(st,exp){
+  const hp=currentHpForLife(st.levels[0]);
+  const actions=[];
+  const used=new Set();
+
+  // ○/◎ペア
+  for(let i=0;i<D.special.length;i++){
+    if(used.has(i)) continue;
+    const ui=upperIndex(i),li=lowerIndex(i);
+    if(li>=0) continue;
+    if(ui<0) continue;
+    used.add(i); used.add(ui);
+
+    const lowerOwned=mixedIsAcquired(i,st.bits);
+    const upperOwned=mixedIsAcquired(ui,st.bits);
+    if(upperOwned) continue;
+
+    if(!lowerOwned){
+      const lower=itemForSpecialIndex(i,hp,false);
+      const upper=itemForSpecialIndex(ui,hp,true);
+      if(lower) actions.push({...lower,kind:'special'});
+      if(upper) actions.push({...upper,kind:'special'});
+    }else{
+      const upperOnly=itemForSpecialIndex(ui,hp,false);
+      if(upperOnly) actions.push({...upperOnly,kind:'special'});
+    }
+  }
+
+  // 相互排他
+  for(const names of mutualGroups){
+    const idxs=names.map(n=>specialNameIndex.get(String(n))??-1).filter(i=>i>=0);
+    idxs.forEach(i=>used.add(i));
+    if(idxs.some(i=>mixedIsAcquired(i,st.bits))) continue;
+    for(const i of idxs){
+      const op=itemForSpecialIndex(i,hp,false);
+      if(op) actions.push({...op,kind:'special'});
+    }
+  }
+
+  // 単独
+  for(let i=0;i<D.special.length;i++){
+    if(used.has(i)||isUpperSpecial(i)||mixedIsAcquired(i,st.bits)) continue;
+    const op=itemForSpecialIndex(i,hp,false);
+    if(op) actions.push({...op,kind:'special'});
+  }
+
+  const out=[];
+  for(const op0 of actions){
+    const opBits=op0.bits??specialItemsBits(op0.items);
+    const conflict=op0.conflictBits??conflictBitsFor(opBits);
+    if(((st.bits??EMPTY_BITS)&opBits)!==EMPTY_BITS) continue;
+    if(((st.bits??EMPTY_BITS)&conflict)!==EMPTY_BITS) continue;
+    const nc=addCost(st.cost,op0.cost);
+    if(!leq(nc,exp)) continue;
+
+    const cs=op0.costSum??costSum(op0.cost);
+    const unhintedHp=specialOptionIsUnhintedHpDependent(op0);
+    const eff=Number(op0.score||0)/Math.max(1,cs);
+    out.push({
+      ...op0,
+      kind:'special',
+      bits:opBits,
+      costSum:cs,
+      gain:Number(op0.score||0),
+      efficiency:eff,
+      hpPriorityPenalty:unhintedHp
+    });
+  }
+  return out;
+}
+function mixedCandidateActions(st,exp){
+  const all=mixedBasicActions(st,exp).concat(mixedSpecialActions(st,exp));
+  all.sort((a,b)=>{
+    // コツなしHP依存だけは強く後回し。
+    if(!!a.hpPriorityPenalty!==!!b.hpPriorityPenalty) return a.hpPriorityPenalty?1:-1;
+    if(b.efficiency!==a.efficiency) return b.efficiency-a.efficiency;
+    if(b.gain!==a.gain) return b.gain-a.gain;
+    return a.costSum-b.costSum;
+  });
+  return all;
+}
+function mixedProjectedScore(st,exp,actions=null){
+  const candidates=actions||mixedCandidateActions(st,exp);
+  const remain=[
+    exp[0]-st.cost[0],exp[1]-st.cost[1],exp[2]-st.cost[2],
+    exp[3]-st.cost[3],exp[4]-st.cost[4]
+  ];
+  let bonus=0,used=0;
+  for(const op of candidates){
+    if(used>=10) break;
+    if(op.hpPriorityPenalty) continue;
+    if(op.cost[0]>remain[0]||op.cost[1]>remain[1]||op.cost[2]>remain[2]||
+       op.cost[3]>remain[3]||op.cost[4]>remain[4]) continue;
+    for(let i=0;i<5;i++) remain[i]-=op.cost[i];
+    bonus+=Number(op.gain||0);
+    used++;
+  }
+  return Number(st.score||0)+bonus;
+}
+function mixedPrune(states,limit,exp){
+  const arr=Array.from(states.values());
+  arr.sort((a,b)=>{
+    const bp=Number.isFinite(b._mixedProjected)?b._mixedProjected:mixedProjectedScore(b,exp);
+    const ap=Number.isFinite(a._mixedProjected)?a._mixedProjected:mixedProjectedScore(a,exp);
+    if(bp!==ap) return bp-ap;
+    if(b.score!==a.score) return b.score-a.score;
+    return a.usedCost-b.usedCost;
+  });
+  const out=new Map();
+  for(let i=0;i<arr.length&&out.size<limit;i++){
+    const st=arr[i];
+    const k=mixedStateKey(st);
+    const old=out.get(k);
+    if(!old||better(st,old)) out.set(k,st);
+  }
+  return out;
+}
+function mixedApplyAction(st,op){
+  const nc=addCost(st.cost,op.cost);
+  const levels=st.levels.slice();
+  let life=st.life;
+  let bits=st.bits??EMPTY_BITS;
+
+  if(op.kind==='basic'){
+    const bi=basicNames.indexOf(op.name);
+    levels[bi]=op.to;
+    if(op.name==='生命力') life=op.to;
+  }else{
+    bits|=(op.bits??specialItemsBits(op.items));
+  }
+
+  return {
+    cost:nc,
+    score:Math.round((Number(st.score||0)+Number(op.gain||0))*10)/10,
+    life,
+    levels,
+    bits,
+    prev:st,
+    choice:op.items||EMPTY_ITEMS,
+    itemLen:itemLenOf(st)+(op.items?.length||0),
+    usedCost:(st.usedCost??costSum(st.cost))+Number(op.costSum??costSum(op.cost)),
+    _mixedProjected:null
+  };
+}
+async function optimizeMixedAsync(exp,onProgress){
+  const levels=mixedInitialLevels();
+  const initialLife=levels[0];
+  const init={
+    cost:[0,0,0,0,0],score:0,life:initialLife,levels,
+    bits:EMPTY_BITS,prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
+  };
+  let states=new Map([[mixedStateKey(init),init]]);
+  let best=init;
+
+  const totalExp=costSum(exp);
+  const baseLimit=Math.max(2800,Math.min(7600,1900+Math.floor(totalExp*0.95)));
+  const stateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+    ? Math.max(16000,Math.min(28000,baseLimit*4))
+    : baseLimit;
+  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
+
+  for(let step=0;step<MIXED_MAX_STEPS;step++){
+    throwIfCancelled();
+    const next=new Map();
+    let expanded=0;
+
+    for(const st of states.values()){
+      const actions=mixedCandidateActions(st,exp);
+      if(!actions.length){
+        const k=mixedStateKey(st);
+        const old=next.get(k);
+        if(!old||better(st,old)) next.set(k,st);
+        if(better(st,best)) best=st;
+        continue;
+      }
+
+      const selected=actions.slice(0,branch);
+      // 経験点の偏りで有望手を落とさないよう、最高査定値候補も1件追加。
+      const maxGain=actions.reduce((m,o)=>!m||o.gain>m.gain?o:m,null);
+      if(maxGain&&!selected.includes(maxGain)) selected.push(maxGain);
+
+      for(const op of selected){
+        const ns=mixedApplyAction(st,op);
+        ns._mixedProjected=mixedProjectedScore(ns,exp);
+        const k=mixedStateKey(ns);
+        const old=next.get(k);
+        if(!old||better(ns,old)) next.set(k,ns);
+        if(better(ns,best)) best=ns;
+        expanded++;
+      }
+    }
+
+    if(!expanded) break;
+    states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
+
+    if(onProgress){
+      const pct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
+      onProgress(`混在探索中 ${pct}%`);
+    }
+    if((step&1)===1) await yieldToBrowser();
+  }
+
+  for(const st of states.values()) if(better(st,best)) best=st;
+  best.ownedHpDelta=ownedHpDependentBreakdown(best.life).total;
+  return best;
+}
+
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
-  if(onProgress) onProgress('計算中 0%');
+  if(onProgress) onProgress('混在探索中 0%');
+
+  // v9.0: 基本能力→特殊能力の二段階探索をやめ、
+  // 基本能力の現在区間・次節目と特殊能力を同じ査定効率で比較する。
+  return await optimizeMixedAsync(exp,onProgress);
 
   const mode=currentCalcMode();
   const totalExp=costSum(exp);
@@ -2939,7 +3245,8 @@ function manualRouteTraceHtml(){
   return `<div class="result-block">
     <h3>手動案系ルートの生存追跡</h3>
     <p><strong>最大目標：</strong>生命力固定なしで検証3（生命力50固定）と同等以上の内部査定を再現する。</p>
-    <p>基本能力の途中pruneは、現在査定に「残経験点で取得できそうな高効率特殊能力の見込み査定」を加えて順位付けしています。コツなしHP依存特殊能力は見込み対象から後回しにします。</p>
+    <p><strong>混在探索：</strong>基本能力と特殊能力の垣根をなくし、「基本能力の次の1」「次節目」「特殊能力」を同じ査定効率で比較します。各状態から上位候補へ分岐し、同じ状態を統合したうえで、見込み査定込みでpruneします。</p>
+    <p>HP依存特殊能力は、コツなしなら強く後回し、コツありなら現在の基礎HPにおける査定値とコツ適用後コストで通常比較します。</p>
     <p><strong>最初に消えた箇所：</strong>${MANUAL_ROUTE_TRACE.firstLoss||'最後まで生存'}</p>
     <p>基本能力の手動案状態：${MANUAL_ROUTE_TRACE.baseFound?'✅ 生存':'❌ 消失'}／最終状態：${MANUAL_ROUTE_TRACE.finalFound?'✅ 生存':'❌ 消失'}</p>
     ${lossHtml}
