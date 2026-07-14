@@ -26,6 +26,8 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 let cancelRequested=false;
+let activeCalcWorker=null;
+let activeCalcWorkerReject=null;
 
 class CalculationCancelledError extends Error{
   constructor(){
@@ -1764,6 +1766,11 @@ function ensureCancelButton(){
     if(!isCalculating || cancelRequested) return;
 
     cancelRequested=true;
+    if(activeCalcWorker){
+      const reject=activeCalcWorkerReject;
+      cleanupActiveWorker();
+      if(reject) reject(new CalculationCancelledError());
+    }
     cancelBtn.disabled=false;
     cancelBtn.setAttribute('aria-disabled','false');
     cancelBtn.textContent='キャンセル中…';
@@ -2038,7 +2045,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v10.0: 本番用クリーン版。進捗率表示を廃止し、計算中表示を固定。
+// v11.0: Web Worker版。重い探索をpawaado_worker.jsへ移し、画面描画と分離。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2396,6 +2403,7 @@ function mixedApplyAction(st,op){
 }
 async function optimizeMixedAsync(exp,onProgress){
   clearMixedSearchCaches();
+  let lastShownProgress=-10;
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2443,17 +2451,102 @@ async function optimizeMixedAsync(exp,onProgress){
     if(!expanded) break;
     states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
 
+    if(onProgress){
+      const rawPct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
+      const shownPct=Math.floor(rawPct/10)*10;
+      if(shownPct>lastShownProgress){
+        lastShownProgress=shownPct;
+        onProgress(`計算中 ${shownPct}%`);
+      }
+    }
     if((step&1)===1) await yieldToBrowser();
   }
 
   for(const st of states.values()) if(better(st,best)) best=st;
   best.ownedHpDelta=ownedHpDependentBreakdown(best.life).total;
+  if(onProgress) onProgress('計算中 100%');
   return best;
 }
 
+function buildWorkerPayload(exp){
+  const basicValues={};
+  for(const name of basicNames){
+    basicValues[name]=Number(document.getElementById('basic_'+name)?.value||1);
+  }
+  return {
+    academy:String(academy.value||''),
+    job:String(job.value||''),
+    exp:exp.slice(),
+    basicValues,
+    basicOwned:{...basicOwned},
+    basicHints:{...basicHints},
+    specialState:[...specialState.entries()].map(([index,state])=>[
+      String(index),
+      {hint:Number(state?.hint||0),own:Number(state?.own||0)}
+    ])
+  };
+}
+function cleanupActiveWorker(){
+  if(activeCalcWorker){
+    activeCalcWorker.terminate();
+    activeCalcWorker=null;
+  }
+  activeCalcWorkerReject=null;
+}
 async function optimizeAsync(exp){
   await yieldToBrowser();
-  return await optimizeMixedAsync(exp,null);
+
+  if(typeof Worker==='undefined'){
+    throw new Error('このブラウザではWeb Workerを利用できません。');
+  }
+
+  const payload=buildWorkerPayload(exp);
+
+  return await new Promise((resolve,reject)=>{
+    const worker=new Worker('./pawaado_worker.js');
+    activeCalcWorker=worker;
+    activeCalcWorkerReject=reject;
+
+    const finish=()=>{
+      if(activeCalcWorker===worker) activeCalcWorker=null;
+      if(activeCalcWorkerReject===reject) activeCalcWorkerReject=null;
+      worker.terminate();
+    };
+
+    worker.onmessage=(event)=>{
+      const data=event.data||{};
+      if(data.type==='result'){
+        finish();
+        const result=data.result||{};
+        const items=Array.isArray(result.items)?result.items:[];
+        resolve({
+          cost:Array.isArray(result.cost)?result.cost:[0,0,0,0,0],
+          score:Number(result.score||0),
+          life:result.life??null,
+          items,
+          itemLen:Number(result.itemLen||items.length),
+          bits:specialItemsBits(items),
+          usedCost:Number(result.usedCost??costSum(result.cost||[0,0,0,0,0])),
+          ownedHpDelta:Number(result.ownedHpDelta||0)
+        });
+      }else if(data.type==='cancelled'){
+        finish();
+        reject(new CalculationCancelledError());
+      }else if(data.type==='error'){
+        finish();
+        const err=new Error(data.message||'Worker内で計算エラーが発生しました。');
+        err.name=data.name||'WorkerError';
+        reject(err);
+      }
+    };
+
+    worker.onerror=(event)=>{
+      finish();
+      reject(new Error(event.message||'Workerの読み込みまたは実行に失敗しました。'));
+    };
+
+    worker.postMessage({type:'calculate',payload});
+  });
 }
 
 function mergeBasicResultItems(items){
@@ -2605,7 +2698,14 @@ async function calc(){
     if(finalCandidate){
       btn.textContent='計算 100%';
     }else{
-      finalCandidate=await optimizeAsync(exp);
+      let lastProgressPaint=0;
+      finalCandidate=await optimizeAsync(exp,(msg)=>{
+        const now=performance.now();
+        if(msg.includes('100%') || now-lastProgressPaint>=250){
+          lastProgressPaint=now;
+          btn.textContent=msg;
+        }
+      });
       setCachedResult(cacheKey,finalCandidate);
     }
 
@@ -2639,6 +2739,7 @@ ${remainHtml}
       console.error(err);
     }
   }finally{
+    cleanupActiveWorker();
     isCalculating=false;
     document.body.classList.remove('is-calculating');
     document.querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;});
