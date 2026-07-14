@@ -2045,7 +2045,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v11.6: Web Worker高速版。1%進捗表示を維持し、Worker内の不要な待機を削除。
+// v11.7: Web Worker高速版。進捗率を4段階の処理表示へ変更。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2503,7 +2503,7 @@ async function optimizeAsync(exp){
   const payload=buildWorkerPayload(exp);
 
   return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./pawaado_worker.js?v=20260715-progress1-fast');
+    const worker=new Worker('./pawaado_worker.js?v=20260715-stage-progress');
     activeCalcWorker=worker;
     activeCalcWorkerReject=reject;
 
