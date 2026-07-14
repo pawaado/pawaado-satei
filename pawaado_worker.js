@@ -2428,6 +2428,11 @@ function mixedApplyAction(st,op){
 }
 async function optimizeMixedAsync(exp,onProgress){
   clearMixedSearchCaches();
+  let lastShownProgress=-1;
+  if(onProgress){
+    lastShownProgress=0;
+    onProgress('計算中 0%');
+  }
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2447,7 +2452,21 @@ async function optimizeMixedAsync(exp,onProgress){
     const next=new Map();
     let expanded=0;
 
+    const stateCount=Math.max(1,states.size);
+    let processedStates=0;
+
     for(const st of states.values()){
+      processedStates++;
+
+      if(onProgress){
+        const overall=(step+(processedStates/stateCount))/MIXED_MAX_STEPS;
+        const shownPct=Math.min(99,Math.floor(overall*100));
+        if(shownPct>lastShownProgress){
+          lastShownProgress=shownPct;
+          onProgress(`計算中 ${shownPct}%`);
+        }
+      }
+
       const actions=mixedCandidateActions(st,exp);
       if(!actions.length){
         const k=mixedStateKey(st);
@@ -2475,11 +2494,11 @@ async function optimizeMixedAsync(exp,onProgress){
     if(!expanded) break;
     states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
 
-    if((step&1)===1) await yieldToBrowser();
   }
 
   for(const st of states.values()) if(better(st,best)) best=st;
   best.ownedHpDelta=ownedHpDependentBreakdown(best.life).total;
+  if(onProgress) onProgress('計算中 100%');
   return best;
 }
 
@@ -2756,7 +2775,9 @@ self.onmessage=async(event)=>{
       ? payload.exp.map(v=>Number(v||0))
       : [0,0,0,0,0];
 
-    const finalCandidate=await optimizeMixedAsync(exp,null);
+    const finalCandidate=await optimizeMixedAsync(exp,(message)=>{
+      self.postMessage({type:'progress',message});
+    });
     const items=restoreItems(finalCandidate).map(item=>({...item}));
 
     self.postMessage({
