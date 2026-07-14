@@ -1124,14 +1124,77 @@ function restoreItems(st){
   return out;
 }
 function better(a,b){return !b || a.score>b.score || (a.score===b.score && itemLenOf(a)<itemLenOf(b));}
+
+// 基本能力の途中prune専用。
+// 現在査定だけでなく、残経験点から取得できそうな高効率特殊能力の見込み査定も加えて並べる。
+// 完全な混在探索ではなく、候補を早期に落としすぎないための保守的な中間評価。
+const BASIC_SPECIAL_LOOKAHEAD_GROUPS=14;
+function estimateSpecialPotentialForBasicState(st,exp){
+  if(!st || !exp) return 0;
+
+  const remain=[
+    Math.max(0,Number(exp[0]||0)-Number(st.cost?.[0]||0)),
+    Math.max(0,Number(exp[1]||0)-Number(st.cost?.[1]||0)),
+    Math.max(0,Number(exp[2]||0)-Number(st.cost?.[2]||0)),
+    Math.max(0,Number(exp[3]||0)-Number(st.cost?.[3]||0)),
+    Math.max(0,Number(exp[4]||0)-Number(st.cost?.[4]||0))
+  ];
+
+  const hp=currentHpForLife(st.life);
+  const groups=specialChoiceGroupsCached(hp);
+  let bonus=0;
+  let checked=0;
+
+  for(let gi=0;gi<groups.length && checked<BASIC_SPECIAL_LOOKAHEAD_GROUPS;gi++){
+    const g=groups[gi];
+
+    // コツなしHP依存グループは、見込み査定でも後回し。
+    if(g.hpPriorityPenalty) continue;
+
+    let chosen=null;
+    for(const op of g.opts){
+      if(op.cost[0]>remain[0]||op.cost[1]>remain[1]||op.cost[2]>remain[2]||
+         op.cost[3]>remain[3]||op.cost[4]>remain[4]) continue;
+      chosen=op;
+      break;
+    }
+
+    checked++;
+    if(!chosen) continue;
+
+    remain[0]-=chosen.cost[0];
+    remain[1]-=chosen.cost[1];
+    remain[2]-=chosen.cost[2];
+    remain[3]-=chosen.cost[3];
+    remain[4]-=chosen.cost[4];
+    bonus+=Number(chosen.score||0);
+  }
+
+  return bonus;
+}
+function basicPruneProjectedScore(st,exp){
+  if(st._basicProjectedScoreKey===key(exp) && Number.isFinite(st._basicProjectedScore)){
+    return st._basicProjectedScore;
+  }
+  const projected=Number(st.score||0)+estimateSpecialPotentialForBasicState(st,exp);
+  st._basicProjectedScore=projected;
+  st._basicProjectedScoreKey=key(exp);
+  return projected;
+}
+
 function yieldToBrowser(){
   return new Promise(r=>setTimeout(r,0)).then(()=>{
     throwIfCancelled();
   });
 }
-function prune(states,limit=12000,mode=currentCalcMode()){
+function prune(states,limit=12000,mode=currentCalcMode(),context='generic',expForProjection=null){
   const arr=Array.from(states.values());
   arr.sort((a,b)=>{
+    if(context==='basic' && expForProjection){
+      const bp=basicPruneProjectedScore(b,expForProjection);
+      const ap=basicPruneProjectedScore(a,expForProjection);
+      if(bp!==ap) return bp-ap;
+    }
     if(b.score!==a.score) return b.score-a.score;
     return a.usedCost-b.usedCost;
   });
@@ -1465,7 +1528,7 @@ function basicStateDistance(st,targetCost,targetLife){
   for(let i=0;i<5;i++) d+=Math.abs(Number(c[i]||0)-Number(targetCost[i]||0));
   return d;
 }
-function analyzeBasicPruneLoss(targetState,beforeStates,survivors,beforeCount,limit){
+function analyzeBasicPruneLoss(targetState,beforeStates,survivors,beforeCount,limit,exp){
   if(!targetState) return null;
 
   let dominator=null;
@@ -1475,13 +1538,18 @@ function analyzeBasicPruneLoss(targetState,beforeStates,survivors,beforeCount,li
   const targetScope=pruneScopeKey(targetState);
 
   const ranked=Array.from(beforeStates.values()).sort((a,b)=>{
+    const bp=basicPruneProjectedScore(b,exp);
+    const ap=basicPruneProjectedScore(a,exp);
+    if(bp!==ap) return bp-ap;
     if(Number(b.score)!==Number(a.score)) return Number(b.score)-Number(a.score);
     return Number(a.usedCost??costSum(a.cost))-Number(b.usedCost??costSum(b.cost));
   });
   const rawRank=Math.max(1,ranked.indexOf(targetState)+1);
   const cutoffIndex=Math.min(Math.max(0,Number(limit||1)-1),Math.max(0,ranked.length-1));
   const cutoffState=ranked[cutoffIndex]||null;
+  const targetProjected=basicPruneProjectedScore(targetState,exp);
   const cutoffScore=cutoffState?Number(cutoffState.score):null;
+  const cutoffProjected=cutoffState?basicPruneProjectedScore(cutoffState,exp):null;
   const cutoffUsedCost=cutoffState?Number(cutoffState.usedCost??costSum(cutoffState.cost)):null;
 
   for(const st of survivors.values()){
@@ -1511,9 +1579,12 @@ function analyzeBasicPruneLoss(targetState,beforeStates,survivors,beforeCount,li
     afterCount:survivors.size,
     limit:Number(limit||0),
     rawRank,
+    targetProjected,
     cutoffScore,
+    cutoffProjected,
     cutoffUsedCost,
     scoreToCutoff:cutoffScore==null?null:Number(targetState.score)-cutoffScore,
+    projectedToCutoff:cutoffProjected==null?null:targetProjected-cutoffProjected,
     targetItems:restoreItems(targetState).map(debugItemLabel),
     cutoff:cutoffState?{
       score:Number(cutoffState.score),
@@ -1692,7 +1763,9 @@ function buildBasicStates(exp){
 
     const basicStateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
     const beforePruneCount=next.size;
-    states=next.size>basicStateLimit ? prune(next,basicStateLimit,mode) : next;
+    states=next.size>basicStateLimit
+      ? prune(next,basicStateLimit,mode,'basic',exp)
+      : next;
 
     if(diagnosticRunMode==='wide'){
       const survived=findStateByCostLife(states,manualExpectedCost,manualExpectedLife);
@@ -1702,7 +1775,8 @@ function buildBasicStates(exp){
             next,
             states,
             beforePruneCount,
-            basicStateLimit
+            basicStateLimit,
+            exp
           )
         : null;
       traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,states,manualExpectedCost,manualExpectedLife,'prune後',lossDetail);
@@ -2854,8 +2928,9 @@ function manualRouteTraceHtml(){
     <p><strong>消失理由の判定：</strong>${loss.reason}</p>
     <p>消えた状態：査定 ${loss.targetScore}／生命力 ${loss.targetLife}／経験点 ${loss.targetCost.join(',')}</p>
     <p>prune：${loss.beforeCount}件 → ${loss.afterCount}件（上限 ${loss.limit}件）</p>
-    <p><strong>prune前の査定順位：</strong>${loss.rawRank}位／${loss.beforeCount}件</p>
-    ${loss.cutoff?`<p><strong>保持境界（${loss.limit}位相当）：</strong>査定 ${loss.cutoff.score}／使用経験点合計 ${loss.cutoff.usedCost}／生命力 ${loss.cutoff.life}／経験点 ${loss.cutoff.cost.join(',')}<br>消えた状態との差：${loss.scoreToCutoff>=0?'+':''}${loss.scoreToCutoff}<br>${loss.cutoff.items.join('・')||'基本状態'}</p>`:''}
+    <p><strong>prune前の見込み査定順位：</strong>${loss.rawRank}位／${loss.beforeCount}件</p>
+    <p><strong>消えた状態：</strong>現在査定 ${loss.targetScore}／特殊能力見込み込み ${loss.targetProjected}</p>
+    ${loss.cutoff?`<p><strong>保持境界（${loss.limit}位相当）：</strong>現在査定 ${loss.cutoff.score}／特殊能力見込み込み ${loss.cutoffProjected}／使用経験点合計 ${loss.cutoff.usedCost}／生命力 ${loss.cutoff.life}／経験点 ${loss.cutoff.cost.join(',')}<br>見込み査定差：${loss.projectedToCutoff>=0?'+':''}${loss.projectedToCutoff}<br>${loss.cutoff.items.join('・')||'基本状態'}</p>`:''}
     ${loss.targetItems?.length?`<p><strong>消えた状態の基本能力：</strong>${loss.targetItems.join('・')}</p>`:''}
     ${loss.dominator?`<p><strong>支配候補：</strong>査定 ${loss.dominator.score}／生命力 ${loss.dominator.life}／経験点 ${loss.dominator.cost.join(',')}<br>${loss.dominator.items.join('・')||'基本状態'}</p>`:''}
     ${loss.closest?`<p><strong>最も近い生存候補：</strong>査定 ${loss.closest.score}／生命力 ${loss.closest.life}／経験点 ${loss.closest.cost.join(',')}／距離 ${loss.closest.distance}<br>${loss.closest.items.join('・')||'基本状態'}</p>`:''}
@@ -2864,6 +2939,7 @@ function manualRouteTraceHtml(){
   return `<div class="result-block">
     <h3>手動案系ルートの生存追跡</h3>
     <p><strong>最大目標：</strong>生命力固定なしで検証3（生命力50固定）と同等以上の内部査定を再現する。</p>
+    <p>基本能力の途中pruneは、現在査定に「残経験点で取得できそうな高効率特殊能力の見込み査定」を加えて順位付けしています。コツなしHP依存特殊能力は見込み対象から後回しにします。</p>
     <p><strong>最初に消えた箇所：</strong>${MANUAL_ROUTE_TRACE.firstLoss||'最後まで生存'}</p>
     <p>基本能力の手動案状態：${MANUAL_ROUTE_TRACE.baseFound?'✅ 生存':'❌ 消失'}／最終状態：${MANUAL_ROUTE_TRACE.finalFound?'✅ 生存':'❌ 消失'}</p>
     ${lossHtml}
