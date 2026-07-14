@@ -2419,13 +2419,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.3: 通常分岐数7＋検証分岐数10を同一実行で比較。
+// v9.4: 分岐数7の本番版。検証用自動入力・比較結果を削除し、基本能力結果を連結表示。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
-const MIXED_BRANCH_VALIDATION=10;
 const MIXED_BRANCH_WIDE=11;
-let mixedBranchOverride=null;
 const MIXED_MAX_STEPS=90;
 
 // 混在探索高速化用。計算条件が変わるたびに初期化する。
@@ -2642,10 +2640,8 @@ function mixedCandidateActions(st,exp){
   normalActions.sort(mixedActionSort);
 
   // 分岐上限内に生命力候補が入るか判定。
-  const branch=mixedBranchOverride!=null
-    ? mixedBranchOverride
-    : ((diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-      ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL);
+  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
   const normalTop=normalActions.slice(0,branch);
   const lifeTopActions=normalTop.filter(op=>op.kind==='basic'&&op.name==='生命力');
 
@@ -2798,10 +2794,8 @@ async function optimizeMixedAsync(exp,onProgress){
   const stateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
     ? Math.max(16000,Math.min(28000,baseLimit*4))
     : baseLimit;
-  const branch=mixedBranchOverride!=null
-    ? mixedBranchOverride
-    : ((diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-      ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL);
+  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
 
   for(let step=0;step<MIXED_MAX_STEPS;step++){
     throwIfCancelled();
@@ -2934,18 +2928,46 @@ async function optimizeAsync(exp,onProgress){
   if(onProgress) onProgress('計算中 100%');
   return best||fallback;
 }
+function mergeBasicResultItems(items){
+  const sorted=items.slice().sort((a,b)=>{
+    const idxDiff=(a.idx??0)-(b.idx??0);
+    if(idxDiff!==0) return idxDiff;
+    return Number(a.from??0)-Number(b.from??0);
+  });
+
+  const merged=[];
+  for(const item of sorted){
+    const current={
+      ...item,
+      from:Number(item.from),
+      to:Number(item.to)
+    };
+    const prev=merged[merged.length-1];
+
+    if(prev &&
+       prev.name===current.name &&
+       Number(prev.idx??0)===Number(current.idx??0) &&
+       Number(prev.to)===Number(current.from)){
+      prev.to=current.to;
+    }else{
+      merged.push(current);
+    }
+  }
+  return merged;
+}
 function resultTable(items,kind){
   let filtered=items.filter(x=>x.type===kind);
   if(kind==='special'){
     let chosenBits=EMPTY_BITS;
     filtered.forEach(x=>{ if(Number.isFinite(Number(x.idx))) chosenBits|=specialBit(Number(x.idx)); });
     filtered=filtered.filter(x=>{const ui=upperIndex(x.idx); return !(ui>=0 && (chosenBits & specialBit(ui))!==EMPTY_BITS);});
+  }else if(kind==='basic'){
+    filtered=mergeBasicResultItems(filtered);
   }
+
   if(!filtered.length) return '<p>追加なし</p>';
-  const sorted=filtered.sort((a,b)=>{
-    if(kind==='basic') return (a.idx??0)-(b.idx??0);
-    return (a.idx??0)-(b.idx??0);
-  });
+
+  const sorted=filtered.sort((a,b)=>(a.idx??0)-(b.idx??0));
   const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from}→${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
   return `<table class="result-table"><tbody>${rows}</tbody></table>`;
 }
@@ -3440,44 +3462,28 @@ async function calc(){
   result.innerHTML='';
 
   try{
-    mixedBranchOverride=MIXED_BRANCH_NORMAL;
     let finalCandidate=getCachedResult(cacheKey);
-    const normalStart=performance.now();
+    const calcStart=performance.now();
 
     if(finalCandidate){
-      btn.textContent='通常計算 100%';
+      btn.textContent='計算 100%';
     }else{
       let lastProgressPaint=0;
       finalCandidate=await optimizeAsync(exp,(msg)=>{
         const now=performance.now();
         if(msg.includes('100%') || now-lastProgressPaint>=250){
           lastProgressPaint=now;
-          btn.textContent=`通常：${msg}`;
+          btn.textContent=msg;
         }
       });
       setCachedResult(cacheKey,finalCandidate);
     }
-    const normalElapsed=((performance.now()-normalStart)/1000).toFixed(2);
 
-    mixedBranchOverride=MIXED_BRANCH_VALIDATION;
-    const validationStart=performance.now();
-    const validationCandidate=await optimizeAsync(exp,(msg)=>{
-      btn.textContent=`検証：${msg}`;
-    });
-    const validationElapsed=((performance.now()-validationStart)/1000).toFixed(2);
-    mixedBranchOverride=null;
-
+    const elapsed=((performance.now()-calcStart)/1000).toFixed(2);
     const finalItems=restoreItems(finalCandidate);
-    const validationItems=restoreItems(validationCandidate);
     const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
-    const validationRemain=exp.map((v,i)=>v-(validationCandidate.cost?.[i]||0));
 
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-
-    const sameScore=Number(finalCandidate.score)===Number(validationCandidate.score);
-    const sameCost=key(finalCandidate.cost)===key(validationCandidate.cost);
-    const sameItems=JSON.stringify(finalItems)===JSON.stringify(validationItems);
-    const sameResult=sameScore&&sameCost&&sameItems;
 
     result.innerHTML=`
 <div class="result-block">
@@ -3490,23 +3496,10 @@ async function calc(){
 </div>
 ${remainHtml}
 <div class="result-block">
-  <h3>検証（分岐数10）</h3>
-  <p><strong>${sameResult?'通常計算と同じ結果':'通常計算と異なる結果'}</strong></p>
-  <p>通常査定：${finalCandidate.score}<br>検証査定：${validationCandidate.score}</p>
-  ${sameResult?'':`
-  <h4>検証側の基本能力</h4>
-  ${resultTable(validationItems,'basic')}
-  <h4>検証側の特殊能力</h4>
-  ${resultTable(validationItems,'special')}
-  <h4>検証側の残経験点</h4>
-  <table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${validationRemain[i]}</td></tr>`).join('')}</tbody></table>`}
-</div>
-<div class="result-block">
   <h3>計算時間</h3>
-  <p>通常（分岐数7）：${normalElapsed} 秒<br>検証（分岐数10）：${validationElapsed} 秒</p>
+  <p>${elapsed} 秒</p>
 </div>`;
   }catch(err){
-    mixedBranchOverride=null;
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
     }else{
@@ -3552,112 +3545,6 @@ function resetAll(){
 }
 
 
-function applyTemporaryDiagnosticPreset(){
-  const academyOption=[...academy.options].find(o=>String(o.value).includes('タテレスキュア'));
-  if(!academyOption) return;
-
-  academy.value=academyOption.value;
-  updateJobs();
-
-  const jobOption=[...job.options].find(o=>String(o.value)==='僧侶');
-  if(!jobOption) return;
-  job.value=jobOption.value;
-
-  clearBasicState();
-  renderBasic();
-  renderSpecials();
-
-  const expPreset={
-    '筋力':506,
-    '敏捷':639,
-    '技術':490,
-    '知力':145,
-    '精神':559
-  };
-  const basicPreset={
-    '生命力':50,
-    'パワー':10,
-    '魔力':95,
-    '器用さ':10,
-    '耐久力':90,
-    '精神力':50
-  };
-  const hintPreset={
-    '物理攻撃○':3,
-    '物理防御○':3,
-    '魔法防御○':3,
-    '生存本能':1,
-    '狙い撃ち':2,
-    'アクションスキル◎':3,
-    'ケガしにくさ◎':1,
-    '免疫強化':3,
-    '仲間思い':1,
-    '危機察知':2
-  };
-  const ownedPreset=[
-    '忍耐',
-    'アクションスキル○',
-    '単体攻撃○',
-    'ケガしにくさ○',
-    '見切り',
-    '意志',
-    '対弓使い○',
-    '対キラービー○',
-    '対ハーピー○',
-    '対フィッシュ○',
-    'バランス感覚'
-  ];
-
-  for(const [name,value] of Object.entries(expPreset)){
-    const input=document.getElementById('exp_'+name);
-    if(input) input.value=value;
-  }
-  for(const [name,value] of Object.entries(basicPreset)){
-    const input=document.getElementById('basic_'+name);
-    if(input){
-      input.value=value;
-      basicOwned[name]=false;
-      applyBasicVisual(name);
-    }
-  }
-
-  specialState.clear();
-
-  for(const [name,level] of Object.entries(hintPreset)){
-    const idx=specialNameIndex.get(String(name));
-    if(idx!=null) setSpecialHint(idx,level,true);
-  }
-  for(const name of ownedPreset){
-    const idx=specialNameIndex.get(String(name));
-    if(idx!=null) setSpecialOwned(idx,true,true);
-  }
-
-  renderBasic();
-  renderSpecials();
-
-  // renderSpecialsや取得済み連動の後でも基本能力値が消えないよう、最後に再設定する。
-  for(const [name,value] of Object.entries(basicPreset)){
-    const input=document.getElementById('basic_'+name);
-    if(input){
-      input.value=String(value);
-      basicOwned[name]=false;
-      input.disabled=false;
-      input.readOnly=false;
-      applyBasicVisual(name);
-    }
-  }
-
-  requestAnimationFrame(()=>{
-    for(const [name,value] of Object.entries(basicPreset)){
-      const input=document.getElementById('basic_'+name);
-      if(input) input.value=String(value);
-    }
-    validateAllInline();
-  });
-
-  validateAllInline();
-  document.getElementById('result').textContent='検証条件を自動入力しました。「計算する」を押してください。';
-}
 
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
@@ -3665,5 +3552,4 @@ document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
-applyTemporaryDiagnosticPreset();
 })();
