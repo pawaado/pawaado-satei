@@ -2419,7 +2419,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.4: 分岐数7の本番版。検証用自動入力・比較結果を削除し、基本能力結果を連結表示。
+// v9.5-check: 分岐数7本番版＋最終代表ルートの取得順・効率・候補順位表示。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2772,6 +2772,18 @@ function mixedApplyAction(st,op){
     bits,
     prev:st,
     choice:op.items||EMPTY_ITEMS,
+    traceAction:{
+      kind:op.kind,
+      name:op.name||'',
+      from:op.from,
+      to:op.to,
+      gain:Number(op.gain||0),
+      efficiency:Number(op.efficiency||0),
+      rank:Number(op._selectedRank||0),
+      candidateCount:Number(op._candidateCount||0),
+      cost:(op.cost||[0,0,0,0,0]).slice(),
+      items:(op.items||EMPTY_ITEMS).map(x=>({...x}))
+    },
     itemLen:itemLenOf(st)+(op.items?.length||0),
     usedCost:(st.usedCost??costSum(st.cost))+Number(op.costSum??costSum(op.cost)),
     _mixedProjected:null,
@@ -2817,8 +2829,14 @@ async function optimizeMixedAsync(exp,onProgress){
       const maxGain=actions.reduce((m,o)=>!m||o.gain>m.gain?o:m,null);
       if(maxGain&&!selected.includes(maxGain)) selected.push(maxGain);
 
-      for(const op of selected){
-        const ns=mixedApplyAction(st,op);
+      for(let selectedIndex=0;selectedIndex<selected.length;selectedIndex++){
+        const op=selected[selectedIndex];
+        const tracedOp={
+          ...op,
+          _selectedRank:selectedIndex+1,
+          _candidateCount:actions.length
+        };
+        const ns=mixedApplyAction(st,tracedOp);
         const k=mixedStateKey(ns);
         const old=next.get(k);
         if(!old||better(ns,old)) next.set(k,ns);
@@ -2832,7 +2850,7 @@ async function optimizeMixedAsync(exp,onProgress){
 
     if(onProgress){
       const pct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
-      onProgress(`混在探索中 ${pct}%`);
+      onProgress(`計算中 ${pct}%`);
     }
     if((step&1)===1) await yieldToBrowser();
   }
@@ -2844,7 +2862,7 @@ async function optimizeMixedAsync(exp,onProgress){
 
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
-  if(onProgress) onProgress('混在探索中 0%');
+  if(onProgress) onProgress('計算中 0%');
 
   // v9.0: 基本能力→特殊能力の二段階探索をやめ、
   // 基本能力の現在区間・次節目と特殊能力を同じ査定効率で比較する。
@@ -2954,6 +2972,74 @@ function mergeBasicResultItems(items){
     }
   }
   return merged;
+}
+function traceActionLabel(action){
+  if(!action) return '不明';
+  const items=action.items||EMPTY_ITEMS;
+
+  if(action.kind==='basic'){
+    return `${action.name} ${action.from}→${action.to}`;
+  }
+  if(action.kind==='life_hp_set'){
+    return items.map(it=>it.type==='basic'
+      ? `${it.name} ${it.from}→${it.to}`
+      : renderSkillName(it.name)).join(' ＋ ');
+  }
+  if(items.length){
+    return items.map(it=>it.type==='basic'
+      ? `${it.name} ${it.from}→${it.to}`
+      : renderSkillName(it.name)).join(' ＋ ');
+  }
+  return action.name||'不明';
+}
+function restoreTraceSteps(st,exp){
+  const reversed=[];
+  let cur=st;
+  while(cur&&cur.prev){
+    if(cur.traceAction){
+      reversed.push({
+        action:cur.traceAction,
+        cost:(cur.cost||[0,0,0,0,0]).slice(),
+        score:Number(cur.score||0)
+      });
+    }
+    cur=cur.prev;
+  }
+  reversed.reverse();
+
+  return reversed.map((step,index)=>{
+    const remain=exp.map((v,i)=>Number(v||0)-Number(step.cost[i]||0));
+    return {
+      no:index+1,
+      label:traceActionLabel(step.action),
+      efficiency:Number(step.action.efficiency||0),
+      rank:Number(step.action.rank||0),
+      candidateCount:Number(step.action.candidateCount||0),
+      gain:Number(step.action.gain||0),
+      remain,
+      score:step.score
+    };
+  });
+}
+function routeTraceHtml(st,exp){
+  const steps=restoreTraceSteps(st,exp);
+  if(!steps.length) return '<p>記録なし</p>';
+
+  const rows=steps.map(step=>`
+    <tr>
+      <td>${step.no}</td>
+      <td>${step.label}</td>
+      <td>${step.efficiency.toFixed(4)}</td>
+      <td>${step.rank||'-'}／${step.candidateCount||'-'}</td>
+      <td>${step.remain.join(',')}</td>
+    </tr>`).join('');
+
+  return `<div style="overflow-x:auto">
+    <table class="result-table">
+      <thead><tr><th>順</th><th>選択</th><th>効率</th><th>候補順位</th><th>残経験点</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
 }
 function resultTable(items,kind){
   let filtered=items.filter(x=>x.type===kind);
@@ -3496,6 +3582,11 @@ async function calc(){
 </div>
 ${remainHtml}
 <div class="result-block">
+  <h3>取得順（確認用）</h3>
+  <p>最終的に残った代表ルートの取得順です。効率は、その時点で比較した査定効率です。</p>
+  ${routeTraceHtml(finalCandidate,exp)}
+</div>
+<div class="result-block">
   <h3>計算時間</h3>
   <p>${elapsed} 秒</p>
 </div>`;
@@ -3546,10 +3637,114 @@ function resetAll(){
 
 
 
+
+function applyRouteCheckPreset(){
+  const academyOption=[...academy.options].find(o=>String(o.value).includes('タテレスキュア'));
+  if(!academyOption) return;
+
+  academy.value=academyOption.value;
+  updateJobs();
+
+  const jobOption=[...job.options].find(o=>String(o.value)==='僧侶');
+  if(!jobOption) return;
+  job.value=jobOption.value;
+
+  clearBasicState();
+  specialState.clear();
+  renderBasic();
+  renderSpecials();
+
+  const expPreset={
+    '筋力':500,
+    '敏捷':200,
+    '技術':600,
+    '知力':500,
+    '精神':600
+  };
+  const basicPreset={
+    '生命力':50,
+    'パワー':10,
+    '魔力':95,
+    '器用さ':10,
+    '耐久力':90,
+    '精神力':50
+  };
+  const basicOwnedPreset=['魔力','耐久力'];
+
+  const hintPreset={
+    '物理攻撃○':3,
+    '物理防御○':3,
+    '魔法防御○':3,
+    '生存本能':1,
+    '狙い撃ち':2,
+    'アクションスキル○':3,
+    'アクションスキル◎':3,
+    'ケガしにくさ○':1,
+    'ケガしにくさ◎':1,
+    '戦況分析':1
+  };
+
+  const ownedPreset=[
+    '忍耐',
+    'アクションスキル○',
+    '単体攻撃○',
+    'ケガしにくさ○'
+  ];
+
+  for(const [name,value] of Object.entries(expPreset)){
+    const input=document.getElementById('exp_'+name);
+    if(input) input.value=String(value);
+  }
+
+  for(const [name,value] of Object.entries(basicPreset)){
+    const input=document.getElementById('basic_'+name);
+    if(input) input.value=String(value);
+    basicOwned[name]=basicOwnedPreset.includes(name);
+  }
+
+  for(const [name,level] of Object.entries(hintPreset)){
+    const idx=specialNameIndex.get(String(name));
+    if(idx!=null) setSpecialHint(idx,level,true);
+  }
+  for(const name of ownedPreset){
+    const idx=specialNameIndex.get(String(name));
+    if(idx!=null) setSpecialOwned(idx,true,true);
+  }
+
+  renderBasic();
+  renderSpecials();
+
+  // 再描画後に値・取得済み状態を確実に反映。
+  for(const [name,value] of Object.entries(basicPreset)){
+    const input=document.getElementById('basic_'+name);
+    if(input) input.value=String(value);
+    basicOwned[name]=basicOwnedPreset.includes(name);
+    applyBasicVisual(name);
+  }
+
+  requestAnimationFrame(()=>{
+    for(const [name,value] of Object.entries(expPreset)){
+      const input=document.getElementById('exp_'+name);
+      if(input) input.value=String(value);
+    }
+    for(const [name,value] of Object.entries(basicPreset)){
+      const input=document.getElementById('basic_'+name);
+      if(input) input.value=String(value);
+      applyBasicVisual(name);
+    }
+    validateAllInline();
+  });
+
+  validateAllInline();
+  const result=document.getElementById('result');
+  if(result) result.textContent='確認用条件を自動入力しました。「計算する」を押してください。';
+}
+
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+applyRouteCheckPreset();
 })();
