@@ -34,6 +34,7 @@ let cancelRequested=false;
 let diagnosticRunMode='normal';
 const MANUAL_ROUTE_TRACE={
   reset(){
+    this.plan=[];
     this.basic=[];
     this.special=[];
     this.baseFound=false;
@@ -41,6 +42,7 @@ const MANUAL_ROUTE_TRACE={
     this.baseCost=null;
     this.finalFound=false;
     this.firstLoss='';
+    this.firstLossDetail=null;
   }
 };
 MANUAL_ROUTE_TRACE.reset();
@@ -1423,7 +1425,64 @@ function findStateByCostLife(states,cost,life){
   }
   return null;
 }
-function traceBasicStage(stage,entry,states,cost,life,phase){
+function basicStateDistance(st,targetCost,targetLife){
+  const c=st.cost||[0,0,0,0,0];
+  let d=Math.abs(Number(st.life)-Number(targetLife))*25;
+  for(let i=0;i<5;i++) d+=Math.abs(Number(c[i]||0)-Number(targetCost[i]||0));
+  return d;
+}
+function analyzeBasicPruneLoss(targetState,survivors,beforeCount,limit){
+  if(!targetState) return null;
+
+  let dominator=null;
+  let closest=null;
+  let closestDistance=Infinity;
+  const tc=targetState.cost;
+  const targetScope=pruneScopeKey(targetState);
+
+  for(const st of survivors.values()){
+    const dist=basicStateDistance(st,tc,targetState.life);
+    if(dist<closestDistance){
+      closestDistance=dist;
+      closest=st;
+    }
+
+    if(pruneScopeKey(st)!==targetScope) continue;
+    const c=st.cost;
+    if(Number(st.score)>=Number(targetState.score) &&
+       c[0]<=tc[0]&&c[1]<=tc[1]&&c[2]<=tc[2]&&c[3]<=tc[3]&&c[4]<=tc[4]){
+      if(!dominator || Number(st.score)>Number(dominator.score) ||
+         (Number(st.score)===Number(dominator.score) && st.usedCost<dominator.usedCost)){
+        dominator=st;
+      }
+    }
+  }
+
+  return {
+    reason:dominator?'同一生命力・同一取得状態の支配候補に負けた':'保持上限による順位カットの可能性が高い',
+    targetScore:Number(targetState.score),
+    targetCost:tc.slice(),
+    targetLife:Number(targetState.life),
+    beforeCount:Number(beforeCount||0),
+    afterCount:survivors.size,
+    limit:Number(limit||0),
+    dominator:dominator?{
+      score:Number(dominator.score),
+      cost:dominator.cost.slice(),
+      life:Number(dominator.life),
+      items:restoreItems(dominator).map(debugItemLabel)
+    }:null,
+    closest:closest?{
+      score:Number(closest.score),
+      cost:closest.cost.slice(),
+      life:Number(closest.life),
+      distance:closestDistance,
+      items:restoreItems(closest).map(debugItemLabel)
+    }:null
+  };
+}
+
+function traceBasicStage(stage,entry,states,cost,life,phase,lossDetail=null){
   if(diagnosticRunMode!=='wide') return;
   const hit=findStateByCostLife(states,cost,life);
   MANUAL_ROUTE_TRACE.basic.push({
@@ -1434,10 +1493,12 @@ function traceBasicStage(stage,entry,states,cost,life,phase){
     score:hit?Number(hit.score):null,
     stateCount:states.size,
     cost:cost.slice(),
-    life:Number(life)
+    life:Number(life),
+    lossDetail
   });
   if(!hit && !MANUAL_ROUTE_TRACE.firstLoss){
     MANUAL_ROUTE_TRACE.firstLoss=`基本能力「${entry.name}」処理後（${phase}）`;
+    MANUAL_ROUTE_TRACE.firstLossDetail=lossDetail;
   }
 }
 function manualSpecialNamesSet(){
@@ -1499,9 +1560,22 @@ function buildBasicStates(exp){
       return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
     });
 
+  if(diagnosticRunMode==='wide'){
+    MANUAL_ROUTE_TRACE.reset();
+    MANUAL_ROUTE_TRACE.plan=plan.map((entry,index)=>({
+      order:index+1,
+      name:entry.name,
+      priority:Number(entry.priority||0),
+      bestEff:Number(entry.opts.reduce((m,o)=>Math.max(m,Number(o.eff||0)),0)),
+      milestoneTarget:entry.milestoneTarget,
+      milestoneEff:Number(entry.milestoneEff||0),
+      milestonePriority:!!entry.milestonePriority,
+      optionCount:entry.opts.length
+    }));
+  }
+
   let manualExpectedCost=[0,0,0,0,0];
   let manualExpectedLife=initialLife;
-  if(diagnosticRunMode==='wide') MANUAL_ROUTE_TRACE.reset();
 
   for(const entry of plan){
     const next=new Map();
@@ -1535,6 +1609,7 @@ function buildBasicStates(exp){
 
     if(!next.size) continue;
 
+    let manualTargetStateBeforePrune=null;
     if(diagnosticRunMode==='wide'){
       const target=manualTargetForBasic(entry.name);
       const targetOp=entry.opts.find(op=>{
@@ -1547,6 +1622,7 @@ function buildBasicStates(exp){
       if(targetOp){
         manualExpectedCost=addCost(manualExpectedCost,targetOp.cost);
         if(entry.name==='生命力' && targetOp.life!=null) manualExpectedLife=Number(targetOp.life);
+        manualTargetStateBeforePrune=findStateByCostLife(next,manualExpectedCost,manualExpectedLife);
         traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,next,manualExpectedCost,manualExpectedLife,'prune前');
       }else if(!MANUAL_ROUTE_TRACE.firstLoss){
         MANUAL_ROUTE_TRACE.firstLoss=`基本能力「${entry.name}」の手動目標候補が未生成`;
@@ -1554,10 +1630,15 @@ function buildBasicStates(exp){
     }
 
     const basicStateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
+    const beforePruneCount=next.size;
     states=next.size>basicStateLimit ? prune(next,basicStateLimit,mode) : next;
 
     if(diagnosticRunMode==='wide'){
-      traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,states,manualExpectedCost,manualExpectedLife,'prune後');
+      const survived=findStateByCostLife(states,manualExpectedCost,manualExpectedLife);
+      const lossDetail=!survived && manualTargetStateBeforePrune
+        ? analyzeBasicPruneLoss(manualTargetStateBeforePrune,states,beforePruneCount,basicStateLimit)
+        : null;
+      traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,states,manualExpectedCost,manualExpectedLife,'prune後',lossDetail);
     }
 
     if(!states.size) break;
@@ -2661,6 +2742,10 @@ function manualPlanHtml(manual,wideResult){
 }
 
 function manualRouteTraceHtml(){
+  const planRows=MANUAL_ROUTE_TRACE.plan.map(r=>
+    `<tr><td>${r.order}</td><td>${r.name}</td><td>${r.milestonePriority?'節目優先':'通常'}</td><td>${r.milestoneTarget??'-'}</td><td>${r.milestoneEff.toFixed(4)}</td><td>${r.bestEff.toFixed(4)}</td><td>${r.optionCount}</td></tr>`
+  ).join('');
+
   const basicRows=MANUAL_ROUTE_TRACE.basic.map(r=>
     `<tr><td>${r.ability}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td><td>${r.cost.join(',')}</td></tr>`
   ).join('');
@@ -2669,10 +2754,26 @@ function manualRouteTraceHtml(){
     `<tr><td>${r.group}</td><td>${r.choice}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td></tr>`
   ).join('');
 
+  const loss=MANUAL_ROUTE_TRACE.firstLossDetail;
+  const lossHtml=loss?`<div class="error-box" style="margin:10px 0">
+    <p><strong>消失理由の判定：</strong>${loss.reason}</p>
+    <p>消えた状態：査定 ${loss.targetScore}／生命力 ${loss.targetLife}／経験点 ${loss.targetCost.join(',')}</p>
+    <p>prune：${loss.beforeCount}件 → ${loss.afterCount}件（上限 ${loss.limit}件）</p>
+    ${loss.dominator?`<p><strong>支配候補：</strong>査定 ${loss.dominator.score}／生命力 ${loss.dominator.life}／経験点 ${loss.dominator.cost.join(',')}<br>${loss.dominator.items.join('・')||'基本状態'}</p>`:''}
+    ${loss.closest?`<p><strong>最も近い生存候補：</strong>査定 ${loss.closest.score}／生命力 ${loss.closest.life}／経験点 ${loss.closest.cost.join(',')}／距離 ${loss.closest.distance}<br>${loss.closest.items.join('・')||'基本状態'}</p>`:''}
+  </div>`:'';
+
   return `<div class="result-block">
     <h3>手動案系ルートの生存追跡</h3>
+    <p><strong>最大目標：</strong>生命力固定なしで検証3（生命力50固定）と同等以上の内部査定を再現する。</p>
     <p><strong>最初に消えた箇所：</strong>${MANUAL_ROUTE_TRACE.firstLoss||'最後まで生存'}</p>
     <p>基本能力の手動案状態：${MANUAL_ROUTE_TRACE.baseFound?'✅ 生存':'❌ 消失'}／最終状態：${MANUAL_ROUTE_TRACE.finalFound?'✅ 生存':'❌ 消失'}</p>
+    ${lossHtml}
+
+    <details open>
+      <summary>実際の基本能力探索順</summary>
+      <table class="result-table"><thead><tr><td>順</td><td>能力</td><td>区分</td><td>次節目</td><td>節目効率</td><td>最高効率</td><td>候補数</td></tr></thead><tbody>${planRows||'<tr><td colspan="7">記録なし</td></tr>'}</tbody></table>
+    </details>
 
     <details open>
       <summary>基本能力探索</summary>
