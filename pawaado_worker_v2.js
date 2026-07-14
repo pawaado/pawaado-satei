@@ -2428,7 +2428,7 @@ function mixedApplyAction(st,op){
 }
 async function optimizeMixedAsync(exp,onProgress){
   clearMixedSearchCaches();
-  let lastShownProgress=-10;
+  let lastShownProgress=-1;
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2477,8 +2477,7 @@ async function optimizeMixedAsync(exp,onProgress){
     states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
 
     if(onProgress){
-      const rawPct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
-      const shownPct=Math.floor(rawPct/10)*10;
+      const shownPct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
       if(shownPct>lastShownProgress){
         lastShownProgress=shownPct;
         onProgress(`計算中 ${shownPct}%`);
@@ -2766,7 +2765,9 @@ self.onmessage=async(event)=>{
       ? payload.exp.map(v=>Number(v||0))
       : [0,0,0,0,0];
 
-    const finalCandidate=await optimizeMixedAsync(exp,null);
+    const finalCandidate=await optimizeMixedAsync(exp,(message)=>{
+      self.postMessage({type:'progress',message});
+    });
     const items=restoreItems(finalCandidate).map(item=>({...item}));
 
     self.postMessage({
