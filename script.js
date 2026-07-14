@@ -2503,7 +2503,7 @@ async function optimizeAsync(exp){
   const payload=buildWorkerPayload(exp);
 
   return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./pawaado_worker.js');
+    const worker=new Worker('./pawaado_worker_v2.js?v=2');
     activeCalcWorker=worker;
     activeCalcWorkerReject=reject;
 
