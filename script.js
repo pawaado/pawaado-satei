@@ -26,27 +26,6 @@ D.special.forEach((s,i)=>{
 });
 let isCalculating=false;
 let cancelRequested=false;
-// 不具合切り分け用
-// normal : 現行
-// no_ub  : Upper Boundだけ無効
-// wide   : Upper Bound無効＋保持上限拡大
-// life50 : Upper Bound無効＋保持上限拡大＋生命力50固定
-let diagnosticRunMode='normal';
-const MANUAL_ROUTE_TRACE={
-  reset(){
-    this.plan=[];
-    this.basic=[];
-    this.special=[];
-    this.baseFound=false;
-    this.baseScore=null;
-    this.baseCost=null;
-    this.finalFound=false;
-    this.firstLoss='';
-    this.firstLossDetail=null;
-  }
-};
-MANUAL_ROUTE_TRACE.reset();
-let activeTargetConstraint='normal';
 
 class CalculationCancelledError extends Error{
   constructor(){
@@ -803,11 +782,7 @@ function diagnosisHasMagicRaise(items){
   );
 }
 
-function traceItemLabel(it){
-  if(!it) return '不明';
-  if(it.type==='basic') return `${it.name} ${it.from}→${it.to}`;
-  return String(it.name||'不明');
-}
+
 
 function topScoreRank(states, score){
   const values=[...states.values()]
@@ -973,117 +948,7 @@ function branchChoiceSignature(items){
   }).sort().join('|');
 }
 
-function buildBranchCandidateDiagnostics(finalState,exp,startIndex=5,endIndex=8){
-  const raw=inspectChainNodes(finalState);
-  const nodes=meaningfulChainNodes(raw);
-  const results=[];
 
-  for(let nodeIndex=Math.max(1,startIndex);nodeIndex<=Math.min(endIndex,nodes.length-1);nodeIndex++){
-    const selectedNode=nodes[nodeIndex];
-    const parentNode=nodes[nodeIndex-1];
-    const parent=parentNode.stateRef;
-    const groupIndex=selectedNode.groupIndex;
-
-    if(!parent || !Number.isInteger(groupIndex)){
-      results.push({
-        nodeIndex,
-        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-        groupIndex:null,
-        groupKind:selectedNode.groupKind||'',
-        parentScore:Number(parentNode.score),
-        parentCost:(parentNode.cost||[]).slice(),
-        rows:[],
-        note:'グループ情報なし（基本能力ノードまたは旧キャッシュ）'
-      });
-      continue;
-    }
-
-    const hp=currentHpForLife(parent.life);
-    const cacheKey=String(hp)+'|'+key(exp);
-    const groups=orderedSpecialGroupCache.get(cacheKey) || specialChoiceGroupsForExpCached(hp,exp);
-    const group=groups[groupIndex];
-
-    if(!group){
-      results.push({
-        nodeIndex,
-        selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-        groupIndex,
-        groupKind:selectedNode.groupKind||'',
-        parentScore:Number(parent.score),
-        parentCost:(parent.cost||[]).slice(),
-        rows:[],
-        note:'対象グループを復元できず'
-      });
-      continue;
-    }
-
-    const parentBits=parent.bits??EMPTY_BITS;
-    const selectedSignature=branchChoiceSignature(selectedNode.stateRef?.choice||[]);
-    const rows=[];
-
-    for(const op of group.opts){
-      const opBits=op.bits??specialItemsBits(op.items);
-      let result='候補';
-      let reason='';
-      if((parentBits&opBits)!==EMPTY_BITS){
-        result='除外'; reason='取得済み重複';
-      }else if((parentBits&(op.conflictBits??conflictBitsFor(opBits)))!==EMPTY_BITS){
-        result='除外'; reason='相互排他';
-      }
-
-      const newCost=addCost(parent.cost,op.cost);
-      if(result!=='除外' && !leq(newCost,exp)){
-        result='除外'; reason='経験点不足';
-      }
-
-      const sig=branchChoiceSignature(op.items);
-      const selected=sig===selectedSignature;
-      if(selected && result!=='除外') result='採用';
-
-      rows.push({
-        label:(op.items||[]).map(traceItemLabel).join('・')||'不明',
-        score:Number(parent.score)+Number(op.score),
-        gain:Number(op.score),
-        cost:(op.cost||[]).slice(),
-        efficiency:(op.costSum??costSum(op.cost))>0 ? Number(op.score)/(op.costSum??costSum(op.cost)) : null,
-        result,
-        reason,
-        selected
-      });
-    }
-
-    rows.push({
-      label:'何もしない',
-      score:Number(parent.score),
-      gain:0,
-      cost:[0,0,0,0,0],
-      efficiency:null,
-      result:selectedSignature===''?'採用':'不採用',
-      reason:'',
-      selected:selectedSignature===''
-    });
-
-    rows.sort((a,b)=>{
-      if(a.selected!==b.selected) return a.selected?-1:1;
-      if(a.result==='除外' && b.result!=='除外') return 1;
-      if(a.result!=='除外' && b.result==='除外') return -1;
-      return b.score-a.score;
-    });
-
-    results.push({
-      nodeIndex,
-      selectedLabel:selectedNode.choice?.join('・')||'何もしない',
-      groupIndex,
-      groupKind:group.kind||selectedNode.groupKind||'',
-      parentScore:Number(parent.score),
-      parentCost:(parent.cost||[]).slice(),
-      rows,
-      note:''
-    });
-  }
-
-  return results;
-}
 
 function compactBranchCandidateRows(rows){
   if(!rows?.length) return '<tr><td colspan="8">候補情報なし</td></tr>';
@@ -1183,13 +1048,7 @@ function basicPruneProjectedScore(st,exp){
 }
 
 function yieldToBrowser(){
-  return new Promise(resolve=>{
-    if(typeof requestAnimationFrame==='function'){
-      requestAnimationFrame(()=>resolve());
-    }else{
-      setTimeout(resolve,0);
-    }
-  }).then(()=>{
+  return new Promise(r=>setTimeout(r,0)).then(()=>{
     throwIfCancelled();
   });
 }
@@ -1380,17 +1239,7 @@ function basicOptions(name,exp){
   const lim=limits();
   const inp=document.getElementById('basic_'+name);
   const cur=Number(inp?.value||1);
-  if(diagnosticRunMode==='life50' && name==='生命力'){
-    return [{
-      cost:[0,0,0,0,0],
-      score:0,
-      items:EMPTY_ITEMS,
-      itemLen:0,
-      life:cur,
-      costSum:0,
-      eff:0
-    }];
-  }
+
   const hint=Number(basicHints[name]||0);
   const max=lim[name];
   if(basicOwned[name]) return [{cost:[0,0,0,0,0],score:0,items:EMPTY_ITEMS,itemLen:0,life: name==='生命力'?max:null,costSum:0,eff:0}];
@@ -1514,10 +1363,7 @@ function basicPlanEntry(name,exp){
   };
 }
 
-function manualTargetForBasic(name){
-  return Number(DIAGNOSTIC_MANUAL_PLAN?.basicTargets?.[name] ??
-    document.getElementById('basic_'+name)?.value ?? 1);
-}
+
 function findStateByCostLife(states,cost,life){
   for(const st of states.values()){
     if(Number(st.life)!==Number(life)) continue;
@@ -1528,144 +1374,13 @@ function findStateByCostLife(states,cost,life){
   }
   return null;
 }
-function basicStateDistance(st,targetCost,targetLife){
-  const c=st.cost||[0,0,0,0,0];
-  let d=Math.abs(Number(st.life)-Number(targetLife))*25;
-  for(let i=0;i<5;i++) d+=Math.abs(Number(c[i]||0)-Number(targetCost[i]||0));
-  return d;
-}
-function analyzeBasicPruneLoss(targetState,beforeStates,survivors,beforeCount,limit,exp){
-  if(!targetState) return null;
 
-  let dominator=null;
-  let closest=null;
-  let closestDistance=Infinity;
-  const tc=targetState.cost;
-  const targetScope=pruneScopeKey(targetState);
 
-  const ranked=Array.from(beforeStates.values()).sort((a,b)=>{
-    const bp=basicPruneProjectedScore(b,exp);
-    const ap=basicPruneProjectedScore(a,exp);
-    if(bp!==ap) return bp-ap;
-    if(Number(b.score)!==Number(a.score)) return Number(b.score)-Number(a.score);
-    return Number(a.usedCost??costSum(a.cost))-Number(b.usedCost??costSum(b.cost));
-  });
-  const rawRank=Math.max(1,ranked.indexOf(targetState)+1);
-  const cutoffIndex=Math.min(Math.max(0,Number(limit||1)-1),Math.max(0,ranked.length-1));
-  const cutoffState=ranked[cutoffIndex]||null;
-  const targetProjected=basicPruneProjectedScore(targetState,exp);
-  const cutoffScore=cutoffState?Number(cutoffState.score):null;
-  const cutoffProjected=cutoffState?basicPruneProjectedScore(cutoffState,exp):null;
-  const cutoffUsedCost=cutoffState?Number(cutoffState.usedCost??costSum(cutoffState.cost)):null;
 
-  for(const st of survivors.values()){
-    const dist=basicStateDistance(st,tc,targetState.life);
-    if(dist<closestDistance){
-      closestDistance=dist;
-      closest=st;
-    }
 
-    if(pruneScopeKey(st)!==targetScope) continue;
-    const c=st.cost;
-    if(Number(st.score)>=Number(targetState.score) &&
-       c[0]<=tc[0]&&c[1]<=tc[1]&&c[2]<=tc[2]&&c[3]<=tc[3]&&c[4]<=tc[4]){
-      if(!dominator || Number(st.score)>Number(dominator.score) ||
-         (Number(st.score)===Number(dominator.score) && st.usedCost<dominator.usedCost)){
-        dominator=st;
-      }
-    }
-  }
 
-  return {
-    reason:dominator?'同一生命力・同一取得状態の支配候補に負けた':'保持上限による順位カットの可能性が高い',
-    targetScore:Number(targetState.score),
-    targetCost:tc.slice(),
-    targetLife:Number(targetState.life),
-    beforeCount:Number(beforeCount||0),
-    afterCount:survivors.size,
-    limit:Number(limit||0),
-    rawRank,
-    targetProjected,
-    cutoffScore,
-    cutoffProjected,
-    cutoffUsedCost,
-    scoreToCutoff:cutoffScore==null?null:Number(targetState.score)-cutoffScore,
-    projectedToCutoff:cutoffProjected==null?null:targetProjected-cutoffProjected,
-    targetItems:restoreItems(targetState).map(debugItemLabel),
-    cutoff:cutoffState?{
-      score:Number(cutoffState.score),
-      usedCost:Number(cutoffState.usedCost??costSum(cutoffState.cost)),
-      cost:cutoffState.cost.slice(),
-      life:Number(cutoffState.life),
-      items:restoreItems(cutoffState).map(debugItemLabel)
-    }:null,
-    dominator:dominator?{
-      score:Number(dominator.score),
-      cost:dominator.cost.slice(),
-      life:Number(dominator.life),
-      items:restoreItems(dominator).map(debugItemLabel)
-    }:null,
-    closest:closest?{
-      score:Number(closest.score),
-      cost:closest.cost.slice(),
-      life:Number(closest.life),
-      distance:closestDistance,
-      items:restoreItems(closest).map(debugItemLabel)
-    }:null
-  };
-}
 
-function traceBasicStage(stage,entry,states,cost,life,phase,lossDetail=null){
-  if(diagnosticRunMode!=='wide') return;
-  const hit=findStateByCostLife(states,cost,life);
-  MANUAL_ROUTE_TRACE.basic.push({
-    stage,
-    ability:entry.name,
-    phase,
-    found:!!hit,
-    score:hit?Number(hit.score):null,
-    stateCount:states.size,
-    cost:cost.slice(),
-    life:Number(life),
-    lossDetail
-  });
-  if(!hit && !MANUAL_ROUTE_TRACE.firstLoss){
-    MANUAL_ROUTE_TRACE.firstLoss=`基本能力「${entry.name}」処理後（${phase}）`;
-    MANUAL_ROUTE_TRACE.firstLossDetail=lossDetail;
-  }
-}
-function manualSpecialNamesSet(){
-  return new Set(DIAGNOSTIC_MANUAL_PLAN?.specials||[]);
-}
-function manualOptionForGroup(group,targetNames){
-  let best=null;
-  for(const op of group.opts||[]){
-    const names=(op.items||[]).map(it=>String(it.name||''));
-    const containsTarget=names.some(n=>targetNames.has(n));
-    if(!containsTarget) continue;
-    if(!best || Number(op.score)>Number(best.score)) best=op;
-  }
-  return best;
-}
-function traceSpecialStage(gi,group,states,expected,phase,chosenLabel){
-  if(diagnosticRunMode!=='wide' || !expected?.active) return;
-  const k=key5(expected.cost[0],expected.cost[1],expected.cost[2],expected.cost[3],expected.cost[4])+
-    '|'+scopeKeyFor(expected.life,expected.bits??EMPTY_BITS);
-  const hit=states.get(k)||null;
-  MANUAL_ROUTE_TRACE.special.push({
-    group:gi+1,
-    kind:group.kind||'',
-    choice:chosenLabel||'何もしない',
-    phase,
-    found:!!hit,
-    score:hit?Number(hit.score):null,
-    stateCount:states.size,
-    cost:expected.cost.slice()
-  });
-  if(!hit && !MANUAL_ROUTE_TRACE.firstLoss){
-    MANUAL_ROUTE_TRACE.firstLoss=`特殊能力グループ${gi+1}「${chosenLabel||'何もしない'}」処理後（${phase}）`;
-  }
-}
+
 
 function buildBasicStates(exp){
   const mode=currentCalcMode();
@@ -1694,23 +1409,7 @@ function buildBasicStates(exp){
       return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
     });
 
-  if(diagnosticRunMode==='wide'){
-    MANUAL_ROUTE_TRACE.reset();
-    MANUAL_ROUTE_TRACE.plan=plan.map((entry,index)=>({
-      order:index+1,
-      name:entry.name,
-      priority:Number(entry.priority||0),
-      priorityTier:Number(entry.priorityTier||0),
-      bestEff:Number(entry.bestEff||0),
-      currentEff:Number(entry.currentEff||0),
-      milestoneTarget:entry.milestoneTarget,
-      milestoneEff:Number(entry.milestoneEff||0),
-      milestonePriority:!!entry.milestonePriority,
-      highRangePriority:!!entry.highRangePriority,
-      roleDeprioritized:!!entry.roleDeprioritized,
-      optionCount:entry.opts.length
-    }));
-  }
+
 
   let manualExpectedCost=[0,0,0,0,0];
   let manualExpectedLife=initialLife;
@@ -1748,45 +1447,15 @@ function buildBasicStates(exp){
     if(!next.size) continue;
 
     let manualTargetStateBeforePrune=null;
-    if(diagnosticRunMode==='wide'){
-      const target=manualTargetForBasic(entry.name);
-      const targetOp=entry.opts.find(op=>{
-        if(!op.items?.length){
-          const current=Number(document.getElementById('basic_'+entry.name)?.value||1);
-          return Number(target)===current;
-        }
-        return Number(op.items[0]?.to)===Number(target);
-      });
-      if(targetOp){
-        manualExpectedCost=addCost(manualExpectedCost,targetOp.cost);
-        if(entry.name==='生命力' && targetOp.life!=null) manualExpectedLife=Number(targetOp.life);
-        manualTargetStateBeforePrune=findStateByCostLife(next,manualExpectedCost,manualExpectedLife);
-        traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,next,manualExpectedCost,manualExpectedLife,'prune前');
-      }else if(!MANUAL_ROUTE_TRACE.firstLoss){
-        MANUAL_ROUTE_TRACE.firstLoss=`基本能力「${entry.name}」の手動目標候補が未生成`;
-      }
-    }
 
-    const basicStateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
+
+    const basicStateLimit=false?16000:6200;
     const beforePruneCount=next.size;
     states=next.size>basicStateLimit
       ? prune(next,basicStateLimit,mode,'basic',exp)
       : next;
 
-    if(diagnosticRunMode==='wide'){
-      const survived=findStateByCostLife(states,manualExpectedCost,manualExpectedLife);
-      const lossDetail=!survived && manualTargetStateBeforePrune
-        ? analyzeBasicPruneLoss(
-            manualTargetStateBeforePrune,
-            next,
-            states,
-            beforePruneCount,
-            basicStateLimit,
-            exp
-          )
-        : null;
-      traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,states,manualExpectedCost,manualExpectedLife,'prune後',lossDetail);
-    }
+
 
     if(!states.size) break;
   }
@@ -1799,12 +1468,7 @@ function buildBasicStates(exp){
     st.score=Math.round((st.score+ownedHp.total)*10)/10;
   }
 
-  if(diagnosticRunMode==='wide'){
-    const base=findStateByCostLife(states,manualExpectedCost,manualExpectedLife);
-    MANUAL_ROUTE_TRACE.baseFound=!!base;
-    MANUAL_ROUTE_TRACE.baseScore=base?Number(base.score):null;
-    MANUAL_ROUTE_TRACE.baseCost=manualExpectedCost.slice();
-  }
+
 
   return states;
 }
@@ -2155,11 +1819,11 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   // v4.5: 事前ソートと上界枝刈りを前提に、高精度は少しだけ保持数を絞る。
   const normalStateLimit=Math.max(2400,Math.min(6800,1700+Math.floor(totalExp*0.9)));
-  const STATE_LIMIT=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+  const STATE_LIMIT=false
     ? Math.max(16000,Math.min(26000,normalStateLimit*4))
     : normalStateLimit;
   // wide検証時だけ保持上限を広げ、pruneによる最適解落ちを切り分ける。
-  const HARD_LIMIT=Math.floor(STATE_LIMIT*((diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?2.0:1.6));
+  const HARD_LIMIT=Math.floor(STATE_LIMIT*(false?2.0:1.6));
 
   // v8.0: 高精度を維持する安全なBranch & Bound。
   // 1) 各グループの最大査定合計
@@ -2228,18 +1892,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
   let manualExpected=null;
   const manualTargetNames=manualSpecialNamesSet();
-  if(diagnosticRunMode==='wide'){
-    const manualBaseCost=MANUAL_ROUTE_TRACE.baseCost||[0,0,0,0,0];
-    const manualLife=Number(DIAGNOSTIC_MANUAL_PLAN?.basicTargets?.['生命力'] ?? initialLifeValue());
-    const base=findStateByCostLife(states,manualBaseCost,manualLife);
-    manualExpected=base ? {
-      active:true,
-      cost:base.cost.slice(),
-      score:Number(base.score),
-      life:Number(base.life),
-      bits:base.bits??EMPTY_BITS
-    } : {active:false};
-  }
+
 
   let bestScore=-Infinity;
   for(const st of states.values()){
@@ -2256,12 +1909,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
 
     let manualChosen=null;
     let manualChosenLabel='何もしない';
-    if(diagnosticRunMode==='wide' && manualExpected?.active){
-      manualChosen=manualOptionForGroup(group,manualTargetNames);
-      if(manualChosen){
-        manualChosenLabel=(manualChosen.items||[]).map(it=>String(it.name||'')).join('・');
-      }
-    }
+
 
     let next=new Map(states);
     let iter=0;
@@ -2271,11 +1919,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       const remainSum=st._remainSum;
 
       const upper=remainingScoreUpper(gi,remainSum);
-      if(diagnosticRunMode==='normal' && st.score+upper+1e-9<bestScore){
-        iter++;
-        if(iter%yieldEvery===0) await yieldToBrowser();
-        continue;
-      }
+
 
       const stBits=st.bits ?? EMPTY_BITS;
       const stCost=st.cost;
@@ -2319,7 +1963,6 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
         const newScore=stScore+op.score;
         const childRemainSum=remainSum-op.costSum;
         const childUpper=remainingScoreUpper(gi+1,childRemainSum);
-        if(diagnosticRunMode==='normal' && newScore+childUpper+1e-9<bestScore) continue;
         if(newScore>bestScore) bestScore=newScore;
 
         // v5.0: 同一状態は生成直後に統合する。
@@ -2358,31 +2001,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(iter%yieldEvery===0) await yieldToBrowser();
     }
 
-    if(diagnosticRunMode==='wide' && manualExpected?.active){
-      if(manualChosen){
-        const nextBits=(manualExpected.bits??EMPTY_BITS)|(manualChosen.bits??EMPTY_BITS);
-        const nextCost=addCost(manualExpected.cost,manualChosen.cost);
-        if(leq(nextCost,exp) &&
-           ((manualExpected.bits??EMPTY_BITS)&(manualChosen.bits??EMPTY_BITS))===EMPTY_BITS &&
-           ((manualExpected.bits??EMPTY_BITS)&(manualChosen.conflictBits??EMPTY_BITS))===EMPTY_BITS){
-          manualExpected={
-            active:true,
-            cost:nextCost,
-            score:Math.round((manualExpected.score+Number(manualChosen.score||0))*10)/10,
-            life:manualExpected.life,
-            bits:nextBits
-          };
-        }else{
-          manualExpected.active=false;
-          if(!MANUAL_ROUTE_TRACE.firstLoss){
-            MANUAL_ROUTE_TRACE.firstLoss=`特殊能力グループ${gi+1}で手動案が経験点不足・重複・相互排他`;
-          }
-        }
-      }
-      if(manualExpected.active){
-        traceSpecialStage(gi,group,next,manualExpected,'prune前',manualChosenLabel);
-      }
-    }
+
 
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
     if(next.size>STATE_LIMIT){
@@ -2392,9 +2011,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       states=next;
     }
 
-    if(diagnosticRunMode==='wide' && manualExpected?.active){
-      traceSpecialStage(gi,group,states,manualExpected,'prune後',manualChosenLabel);
-    }
+
 
 
     // bestScore は候補生成時に更新済み。prune は新しい高得点状態を作らないため、
@@ -2416,20 +2033,15 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     if(better(st,best)) best=st;
   }
 
-  if(diagnosticRunMode==='wide' && manualExpected?.active){
-    const k=key5(manualExpected.cost[0],manualExpected.cost[1],manualExpected.cost[2],manualExpected.cost[3],manualExpected.cost[4])+
-      '|'+scopeKeyFor(manualExpected.life,manualExpected.bits??EMPTY_BITS);
-    MANUAL_ROUTE_TRACE.finalFound=states.has(k);
-  }
+
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.8: 1手評価＋上位7分岐＋見込み査定prune＋スクロール描画改善版。
+// v9.9: 本番用クリーン版。旧診断コードと手動追跡コードを削除。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
-const MIXED_BRANCH_WIDE=11;
 const MIXED_MAX_STEPS=90;
 
 // 混在探索高速化用。計算条件が変わるたびに初期化する。
@@ -2511,7 +2123,6 @@ function mixedBasicActions(st,exp){
     const from=Number(st.levels[bi]);
     const max=Number(lim[name]);
     if(!Number.isFinite(max)||from>=max) continue;
-    if(diagnosticRunMode==='life50'&&name==='生命力') continue;
 
     const targets=[from+1];
     const milestones=basicMilestoneTargets(name,from,max);
@@ -2646,8 +2257,7 @@ function mixedCandidateActions(st,exp){
   normalActions.sort(mixedActionSort);
 
   // 分岐上限内に生命力候補が入るか判定。
-  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
+  const branch=MIXED_BRANCH_NORMAL;
   const normalTop=normalActions.slice(0,branch);
   const lifeTopActions=normalTop.filter(op=>op.kind==='basic'&&op.name==='生命力');
 
@@ -2786,6 +2396,7 @@ function mixedApplyAction(st,op){
 }
 async function optimizeMixedAsync(exp,onProgress){
   clearMixedSearchCaches();
+  let lastShownProgress=-10;
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2797,21 +2408,15 @@ async function optimizeMixedAsync(exp,onProgress){
 
   const totalExp=costSum(exp);
   const baseLimit=Math.max(2800,Math.min(7600,1900+Math.floor(totalExp*0.95)));
-  const stateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-    ? Math.max(16000,Math.min(28000,baseLimit*4))
-    : baseLimit;
-  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
+  const stateLimit=baseLimit;
+  const branch=MIXED_BRANCH_NORMAL;
 
   for(let step=0;step<MIXED_MAX_STEPS;step++){
     throwIfCancelled();
     const next=new Map();
     let expanded=0;
-    let lastUiYield=performance.now();
-    let processedStates=0;
 
     for(const st of states.values()){
-      processedStates++;
       const actions=mixedCandidateActions(st,exp);
       if(!actions.length){
         const k=mixedStateKey(st);
@@ -2834,119 +2439,34 @@ async function optimizeMixedAsync(exp,onProgress){
         if(better(ns,best)) best=ns;
         expanded++;
       }
-
-      // iPhone Safariで長時間メインスレッドを占有しないよう、
-      // 約12msごとに描画・スクロール処理へ制御を返す。
-      if((processedStates&31)===0 && performance.now()-lastUiYield>=12){
-        await yieldToBrowser();
-        lastUiYield=performance.now();
-      }
     }
 
     if(!expanded) break;
-
-    // prune前にも一度描画機会を作る。
-    await yieldToBrowser();
     states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
 
     if(onProgress){
-      const pct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
-      onProgress(`計算中 ${pct}%`);
+      const rawPct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
+      const shownPct=Math.floor(rawPct/10)*10;
+      if(shownPct>lastShownProgress){
+        lastShownProgress=shownPct;
+        onProgress(`計算中 ${shownPct}%`);
+      }
     }
-    await yieldToBrowser();
+    if((step&1)===1) await yieldToBrowser();
   }
 
   for(const st of states.values()) if(better(st,best)) best=st;
   best.ownedHpDelta=ownedHpDependentBreakdown(best.life).total;
+  if(onProgress) onProgress('計算中 100%');
   return best;
 }
 
 async function optimizeAsync(exp,onProgress){
   await yieldToBrowser();
   if(onProgress) onProgress('計算中 0%');
-
-  // v9.0: 基本能力→特殊能力の二段階探索をやめ、
-  // 基本能力の現在区間・次節目と特殊能力を同じ査定効率で比較する。
   return await optimizeMixedAsync(exp,onProgress);
-
-  const mode=currentCalcMode();
-  const totalExp=costSum(exp);
-  const expKeyValue=key(exp);
-  const defaultLife=Number(document.getElementById('basic_生命力')?.value||1);
-  const fallback={items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:defaultLife};
-
-  pStart("基本能力生成");
-  const basicMap=buildBasicStates(exp);
-  pEnd("基本能力生成");
-
-  if(!basicMap.size){
-    if(onProgress) onProgress('計算中 100%');
-    return fallback;
-  }
-
-  await yieldToBrowser();
-
-  // basicMapはstateKeyで一意。entriesの既存キーをそのまま再利用し、
-  // HP別グループ化でstateKey再生成・better判定を行わない。
-  const byHp=new Map();
-  for(const [stateKeyValue,st] of basicMap){
-    const life=st.life||defaultLife;
-    const hp=currentHpForLife(life);
-    let hpStates=byHp.get(hp);
-    if(!hpStates){
-      hpStates=new Map();
-      byHp.set(hp,hpStates);
-    }
-    hpStates.set(stateKeyValue,st);
-  }
-
-  // 進捗率の総数を先に確定する必要があるため、HP単位の準備情報だけ保持する。
-  // 小オブジェクトを増やさず、固定長配列 [hp, states, groups] を使う。
-  const prepared=[];
-  let totalGroups=0;
-  for(const [hp,baseMap] of byHp){
-    const preparedLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
-    const states=baseMap.size>preparedLimit ? prune(baseMap,preparedLimit,mode) : baseMap;
-    if(!states.size) continue;
-
-    const groups=specialChoiceGroupsForExpCached(hp,exp);
-    totalGroups+=groups.length || 1;
-    prepared.push([hp,states,groups]);
-  }
-
-  // 以後byHpは不要。大きいMapへの参照を早めに外してGC対象にしやすくする。
-  byHp.clear();
-
-  if(!prepared.length){
-    if(onProgress) onProgress('計算中 100%');
-    return fallback;
-  }
-
-  const progress={done:0,total:Math.max(1,totalGroups),start:Date.now()};
-  let best=null;
-
-  // プロファイル計測もタスクごとではなく特殊能力探索全体で1回だけ行う。
-  pStart("特殊能力探索");
-  for(let ti=0,taskLen=prepared.length;ti<taskLen;ti++){
-    throwIfCancelled();
-    const task=prepared[ti];
-    const cand=await optimizeSpecialsForLife(
-      task[1],exp,task[0],onProgress,progress,task[2],mode,totalExp,expKeyValue
-    );
-
-    if(cand && better(cand,best)) best=cand;
-
-    // optimizeSpecialsForLife内ですでに定期yieldしているため、
-    // HPタスク間の追加yieldは複数タスク時だけ間引いて行う。
-    if(mode!=='fast' && ti+1<taskLen && (ti&1)===1){
-      await yieldToBrowser();
-    }
-  }
-  pEnd("特殊能力探索");
-
-  if(onProgress) onProgress('計算中 100%');
-  return best||fallback;
 }
+
 function mergeBasicResultItems(items){
   const sorted=items.slice().sort((a,b)=>{
     const idxDiff=(a.idx??0)-(b.idx??0);
@@ -3026,416 +2546,26 @@ function basicItemScore(it){
   }
   return Math.round(total*10)/10;
 }
-function diagnosticScoreBreakdown(st){
-  const items=restoreItems(st);
-  const life=Number(st?.life??initialLifeValue());
-  const hp=currentHpForLife(life);
-
-  const basicRows=[];
-  const normalSpecialRows=[];
-  const newHpSpecialRows=[];
-  let basicTotal=0;
-  let normalSpecialTotal=0;
-  let newHpSpecialTotal=0;
-
-  for(const it of items){
-    if(it?.type==='basic'){
-      const score=basicItemScore(it);
-      basicRows.push({name:`${it.name} ${it.from}→${it.to}`,score});
-      basicTotal=Math.round((basicTotal+score)*10)/10;
-      continue;
-    }
-
-    if(it?.type==='special'){
-      const skill=D.special[Number(it.idx)];
-      if(!skill) continue;
-      const score=skillScore(skill,hp);
-      const row={name:String(it.name||skill[1]),score};
-      if(Number(skill[11]||0)){
-        newHpSpecialRows.push(row);
-        newHpSpecialTotal=Math.round((newHpSpecialTotal+score)*10)/10;
-      }else{
-        normalSpecialRows.push(row);
-        normalSpecialTotal=Math.round((normalSpecialTotal+score)*10)/10;
-      }
-    }
-  }
-
-  const ownedHp=ownedHpDependentBreakdown(life);
-  const reconstructed=Math.round((
-    basicTotal+
-    normalSpecialTotal+
-    newHpSpecialTotal+
-    ownedHp.total
-  )*10)/10;
-
-  return {
-    basicRows,
-    basicTotal,
-    normalSpecialRows,
-    normalSpecialTotal,
-    newHpSpecialRows,
-    newHpSpecialTotal,
-    ownedHp,
-    reconstructed,
-    internal:Number(st?.score||0),
-    difference:Math.round((Number(st?.score||0)-reconstructed)*10)/10
-  };
-}
-function diagnosticBreakdownRows(rows){
-  if(!rows.length) return '<div>該当なし</div>';
-  return rows.map(r=>`<div>${r.name}：${r.score>=0?'+':''}${r.score}</div>`).join('');
-}
-function diagnosticOwnedHpRows(ownedHp){
-  if(!ownedHp.rows.length) return '<div>上昇分なし</div>';
-  return ownedHp.rows.map(r=>
-    `<div>${r.name}：${r.before} → ${r.after}（+${r.delta}）</div>`
-  ).join('');
-}
-function diagnosticBreakdownHtml(st){
-  const b=diagnosticScoreBreakdown(st);
-  const diffNote=b.difference===0
-    ? '内部査定と内訳合計は一致'
-    : `⚠️ 内部査定との差：${b.difference>0?'+':''}${b.difference}`;
-
-  return `<details>
-    <summary>査定内訳</summary>
-    <div style="margin-top:8px">
-      <strong>基本能力査定</strong>
-      ${diagnosticBreakdownRows(b.basicRows)}
-      <div><strong>基本能力合計：${b.basicTotal}</strong></div>
-
-      <div style="margin-top:8px"><strong>新規取得・通常特殊能力査定</strong></div>
-      ${diagnosticBreakdownRows(b.normalSpecialRows)}
-      <div><strong>通常特殊能力合計：${b.normalSpecialTotal}</strong></div>
-
-      <div style="margin-top:8px"><strong>新規取得・HP依存特殊能力査定</strong></div>
-      ${diagnosticBreakdownRows(b.newHpSpecialRows)}
-      <div><strong>新規HP依存特殊能力合計：${b.newHpSpecialTotal}</strong></div>
-
-      <div style="margin-top:8px"><strong>取得済みHP依存能力のHP上昇分</strong></div>
-      <div>HP：${b.ownedHp.baseHp} → ${b.ownedHp.finalHp}</div>
-      ${diagnosticOwnedHpRows(b.ownedHp)}
-      <div><strong>HP上昇分合計：+${b.ownedHp.total}</strong></div>
-
-      <div style="margin-top:8px"><strong>内訳合計：${b.reconstructed}</strong></div>
-      <div><strong>内部査定：${b.internal}</strong></div>
-      <div>${diffNote}</div>
-    </div>
-  </details>`;
-}
-
-function diagnosticItemNames(st){
-  return restoreItems(st)
-    .map(it=>it?.type==='basic'
-      ? `${it.name} ${it.from}→${it.to}`
-      : String(it?.name||''))
-    .filter(Boolean);
-}
-function diagnosticResultSummary(label,st,seconds){
-  return {
-    label,
-    score:Number(st?.score||0),
-    cost:(st?.cost||[0,0,0,0,0]).slice(),
-    seconds,
-    names:diagnosticItemNames(st),
-    state:st
-  };
-}
-function diagnosticCompareHtml(rows){
-  const base=rows[0];
-  const bestScore=Math.max(...rows.map(r=>r.score));
-
-  let verdict='';
-  if(rows[1].score>base.score){
-    verdict='Upper Boundで、より高い候補を落としている可能性が高いです。';
-  }else if(rows[2].score>rows[1].score){
-    verdict='保持上限またはpruneで、より高い候補を落としている可能性が高いです。';
-  }else{
-    verdict='Upper Bound・保持上限・pruneを緩めても大きな改善がありません。候補生成または査定データを確認してください。';
-  }
-
-  if(rows[3]){
-    const lifeDiff=Math.round((rows[3].score-rows[2].score)*10)/10;
-    verdict+=lifeDiff>0
-      ? ` 生命力50固定の方が検証2より${lifeDiff}高く、生命力を上げる判断が探索を悪化させています。`
-      : ` 生命力50固定は検証2比${lifeDiff}で、生命力上昇の過大評価だけが主因ではありません。`;
-  }
-
-  const cards=rows.map(r=>{
-    const diff=r.score-base.score;
-    return `<div style="margin:8px 0;padding:8px;border:1px solid #d7dfed;border-radius:10px">
-      <strong>${r.label}${r.score===bestScore?' ✅最高':''}</strong><br>
-      内部査定：${r.score}${diff?`（現行比 ${diff>0?'+':''}${diff}）`:''}<br>
-      使用経験点：${r.cost.join(',')}<br>
-      計算時間：${r.seconds} 秒
-      <details><summary>選択内容</summary><div style="margin-top:6px">${r.names.join('<br>')||'追加なし'}</div></details>
-      ${diagnosticBreakdownHtml(r.state)}
-    </div>`;
-  }).join('');
-
-  return `<div class="result-block">
-    <h3>不具合切り分け結果</h3>
-    <p><strong>最大の検証目標：</strong>生命力固定なしで、検証3（生命力50固定）と同等以上の内部査定を再現すること。</p>
-    <p><strong>${verdict}</strong></p>
-    ${cards}
-  </div>`;
-}
 
 
-const DIAGNOSTIC_MANUAL_PLAN={
-  basicTargets:{
-    '生命力':51,
-    'パワー':15,
-    '器用さ':11
-  },
-  specials:[
-    '物理防御◎',
-    '魔法防御◎',
-    'アクションスキル◎',
-    'ケガしにくさ◎',
-    '柔軟な体',
-    '無心の構え',
-    '狙い撃ち',
-    '通常攻撃○',
-    '対スケルトン○'
-  ]
-};
 
-function manualBasicChoice(name,target,exp){
-  const options=basicOptions(name,exp);
-  return options.find(op=>{
-    if(!op.items?.length) return Number(target)===Number(document.getElementById('basic_'+name)?.value||1);
-    return Number(op.items[0]?.to)===Number(target);
-  })||null;
-}
 
-function manualSpecialChoice(name,hp){
-  const idx=specialNameIndex.get(String(name));
-  if(idx==null) return {name,idx:-1,generated:false,reason:'data.jsに名称なし',choice:null};
 
-  if(specialOwned(idx)){
-    return {name,idx,generated:true,reason:'取得済みのため追加不要',choice:null,alreadyOwned:true};
-  }
 
-  const includeLower=isUpperSpecial(idx);
-  const choice=itemForSpecialIndex(idx,hp,includeLower);
-  if(!choice){
-    return {name,idx,generated:false,reason:'候補生成されない（査定0・データ不備など）',choice:null};
-  }
 
-  return {name,idx,generated:true,reason:'候補生成あり',choice};
-}
 
-function scoreManualPlan(exp){
-  const startLife=initialLifeValue();
-  let cost=[0,0,0,0,0];
-  let score=0;
-  let finalLife=startLife;
-  const basicRows=[];
-  const missing=[];
 
-  for(const [name,target] of Object.entries(DIAGNOSTIC_MANUAL_PLAN.basicTargets)){
-    const current=Number(document.getElementById('basic_'+name)?.value||1);
-    if(Number(target)===current) continue;
 
-    const op=manualBasicChoice(name,target,exp);
-    if(!op){
-      missing.push(`${name}${current}→${target}を基本能力候補として生成できない`);
-      continue;
-    }
 
-    cost=addCost(cost,op.cost);
-    score=Math.round((score+Number(op.score||0))*10)/10;
-    if(name==='生命力' && op.life!=null) finalLife=Number(op.life);
-    basicRows.push({
-      name:`${name} ${current}→${target}`,
-      score:Number(op.score||0),
-      cost:op.cost.slice()
-    });
-  }
 
-  const hp=currentHpForLife(finalLife);
-  let bits=EMPTY_BITS;
-  const specialRows=[];
-  const generationRows=[];
-  let conflict=false;
 
-  for(const name of DIAGNOSTIC_MANUAL_PLAN.specials){
-    const info=manualSpecialChoice(name,hp);
-    generationRows.push({
-      name,
-      generated:info.generated,
-      reason:info.reason
-    });
 
-    if(!info.generated){
-      missing.push(`${name}：${info.reason}`);
-      continue;
-    }
-    if(info.alreadyOwned || !info.choice) continue;
 
-    const op=info.choice;
-    if((bits & op.bits)!==EMPTY_BITS){
-      conflict=true;
-      missing.push(`${name}：手動案内で重複`);
-      continue;
-    }
-    if((bits & op.conflictBits)!==EMPTY_BITS){
-      conflict=true;
-      missing.push(`${name}：手動案内で相互排他`);
-      continue;
-    }
 
-    bits|=op.bits;
-    cost=addCost(cost,op.cost);
-    score=Math.round((score+Number(op.score||0))*10)/10;
-    specialRows.push({
-      name,
-      score:Number(op.score||0),
-      cost:op.cost.slice(),
-      items:(op.items||[]).map(x=>String(x.name||''))
-    });
-  }
 
-  const ownedHp=ownedHpDependentBreakdown(finalLife);
-  score=Math.round((score+ownedHp.total)*10)/10;
 
-  const feasible=leq(cost,exp) && !conflict && missing.length===0;
-  return {
-    score,
-    cost,
-    remain:exp.map((v,i)=>v-cost[i]),
-    feasible,
-    finalLife,
-    hp,
-    basicRows,
-    specialRows,
-    generationRows,
-    ownedHp,
-    missing
-  };
-}
 
-function manualPlanHtml(manual,wideResult){
-  const wideScore=Number(wideResult?.score||0);
-  const diff=Math.round((manual.score-wideScore)*10)/10;
 
-  let verdict='';
-  if(!manual.feasible){
-    verdict='手動案はツール内部で完全な実行可能候補として組み立てられていません。下の不足・候補生成結果を確認してください。';
-  }else if(manual.score>wideScore){
-    verdict='手動案の内部査定が検証2を上回っています。候補自体は作れるのに探索途中で落としている可能性が高いです。';
-  }else{
-    verdict='手動案は内部採点できていますが、ツール内部では検証2以下です。ゲーム内査定との差は、査定データまたは計算式のズレが本命です。';
-  }
-
-  const basic=manual.basicRows.length
-    ? manual.basicRows.map(r=>`<div>${r.name}：査定 +${r.score}／経験点 ${r.cost.join(',')}</div>`).join('')
-    : '<div>基本能力の追加なし</div>';
-
-  const specials=manual.specialRows.length
-    ? manual.specialRows.map(r=>`<div>${r.name}：査定 +${r.score}／経験点 ${r.cost.join(',')}<br><small>内部項目：${r.items.join('・')}</small></div>`).join('')
-    : '<div>新規特殊能力なし</div>';
-
-  const generated=manual.generationRows.map(r=>
-    `<div>${r.generated?'✅':'❌'} ${r.name}：${r.reason}</div>`
-  ).join('');
-
-  const missing=manual.missing.length
-    ? `<div style="margin-top:8px"><strong>不足・不整合</strong><br>${manual.missing.join('<br>')}</div>`
-    : '';
-
-  return `<div class="result-block">
-    <h3>手動案・強制内部採点</h3>
-    <p>※診断版では、全基本能力について次の節目までの累積査定効率が0.5以上なら優先します。110→115は査定一定のため、115は節目に含めません。査定値そのものは変更していません。</p>
-    <p><strong>${verdict}</strong></p>
-    <p>内部査定：${manual.score}（検証2比 ${diff>=0?'+':''}${diff}）</p>
-    <p>使用経験点：${manual.cost.join(',')}</p>
-    <p>残経験点：${manual.remain.join(',')}</p>
-    <p>最終生命力：${manual.finalLife}／HP：${manual.hp}</p>
-    <p>実行可能判定：${manual.feasible?'✅ 実行可能':'❌ 不完全'}</p>
-
-    <details open>
-      <summary>基本能力の強制採点</summary>
-      <div style="margin-top:6px">${basic}</div>
-    </details>
-
-    <details open>
-      <summary>特殊能力の強制採点</summary>
-      <div style="margin-top:6px">${specials}</div>
-    </details>
-
-    <details open>
-      <summary>各手動特殊能力は候補生成されるか</summary>
-      <div style="margin-top:6px">${generated}</div>
-    </details>
-
-    <details>
-      <summary>取得済みHP依存能力の上昇分</summary>
-      <div style="margin-top:6px">${diagnosticOwnedHpRows(manual.ownedHp)}</div>
-      <div><strong>合計：+${manual.ownedHp.total}</strong></div>
-    </details>
-    ${missing}
-  </div>`;
-}
-
-function manualRouteTraceHtml(){
-  const planRows=MANUAL_ROUTE_TRACE.plan.map(r=>{
-    const category=r.milestonePriority
-      ? '節目優先'
-      : (r.highRangePriority
-          ? '90以上'
-          : (r.roleDeprioritized?'ジョブ補正で後回し':'通常'));
-    return `<tr><td>${r.order}</td><td>${r.name}</td><td>${category}</td><td>${r.milestoneTarget??'-'}</td><td>${r.milestoneEff.toFixed(4)}</td><td>${Number(r.currentEff||0).toFixed(4)}</td><td>${r.optionCount}</td></tr>`;
-  }).join('');
-
-  const basicRows=MANUAL_ROUTE_TRACE.basic.map(r=>
-    `<tr><td>${r.ability}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td><td>${r.cost.join(',')}</td></tr>`
-  ).join('');
-
-  const specialRows=MANUAL_ROUTE_TRACE.special.map(r=>
-    `<tr><td>${r.group}</td><td>${r.choice}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td></tr>`
-  ).join('');
-
-  const loss=MANUAL_ROUTE_TRACE.firstLossDetail;
-  const lossHtml=loss?`<div class="error-box" style="margin:10px 0">
-    <p><strong>消失理由の判定：</strong>${loss.reason}</p>
-    <p>消えた状態：査定 ${loss.targetScore}／生命力 ${loss.targetLife}／経験点 ${loss.targetCost.join(',')}</p>
-    <p>prune：${loss.beforeCount}件 → ${loss.afterCount}件（上限 ${loss.limit}件）</p>
-    <p><strong>prune前の見込み査定順位：</strong>${loss.rawRank}位／${loss.beforeCount}件</p>
-    <p><strong>消えた状態：</strong>現在査定 ${loss.targetScore}／特殊能力見込み込み ${loss.targetProjected}</p>
-    ${loss.cutoff?`<p><strong>保持境界（${loss.limit}位相当）：</strong>現在査定 ${loss.cutoff.score}／特殊能力見込み込み ${loss.cutoffProjected}／使用経験点合計 ${loss.cutoff.usedCost}／生命力 ${loss.cutoff.life}／経験点 ${loss.cutoff.cost.join(',')}<br>見込み査定差：${loss.projectedToCutoff>=0?'+':''}${loss.projectedToCutoff}<br>${loss.cutoff.items.join('・')||'基本状態'}</p>`:''}
-    ${loss.targetItems?.length?`<p><strong>消えた状態の基本能力：</strong>${loss.targetItems.join('・')}</p>`:''}
-    ${loss.dominator?`<p><strong>支配候補：</strong>査定 ${loss.dominator.score}／生命力 ${loss.dominator.life}／経験点 ${loss.dominator.cost.join(',')}<br>${loss.dominator.items.join('・')||'基本状態'}</p>`:''}
-    ${loss.closest?`<p><strong>最も近い生存候補：</strong>査定 ${loss.closest.score}／生命力 ${loss.closest.life}／経験点 ${loss.closest.cost.join(',')}／距離 ${loss.closest.distance}<br>${loss.closest.items.join('・')||'基本状態'}</p>`:''}
-  </div>`:'';
-
-  return `<div class="result-block">
-    <h3>手動案系ルートの生存追跡</h3>
-    <p><strong>最大目標：</strong>生命力固定なしで検証3（生命力50固定）と同等以上の内部査定を再現する。</p>
-    <p><strong>混在探索：</strong>基本能力と特殊能力の垣根をなくし、「基本能力の次の1」「次節目」「特殊能力」を同じ査定効率で比較します。各状態から上位候補へ分岐し、同じ状態を統合したうえで、見込み査定込みでpruneします。</p>
-    <p>HP依存特殊能力は、コツなしなら強く後回し、コツありなら現在の基礎HPにおける査定値とコツ適用後コストで通常比較します。</p>
-    <p><strong>最初に消えた箇所：</strong>${MANUAL_ROUTE_TRACE.firstLoss||'最後まで生存'}</p>
-    <p>基本能力の手動案状態：${MANUAL_ROUTE_TRACE.baseFound?'✅ 生存':'❌ 消失'}／最終状態：${MANUAL_ROUTE_TRACE.finalFound?'✅ 生存':'❌ 消失'}</p>
-    ${lossHtml}
-
-    <details open>
-      <summary>実際の基本能力探索順</summary>
-      <table class="result-table"><thead><tr><td>順</td><td>能力</td><td>区分</td><td>次節目</td><td>節目効率</td><td>現在効率</td><td>候補数</td></tr></thead><tbody>${planRows||'<tr><td colspan="7">記録なし</td></tr>'}</tbody></table>
-    </details>
-
-    <details open>
-      <summary>基本能力探索</summary>
-      <table class="result-table"><thead><tr><td>能力</td><td>時点</td><td>状態</td><td>保持数</td><td>使用経験点</td></tr></thead><tbody>${basicRows||'<tr><td colspan="5">記録なし</td></tr>'}</tbody></table>
-    </details>
-
-    <details open>
-      <summary>特殊能力探索</summary>
-      <table class="result-table"><thead><tr><td>群</td><td>手動案の選択</td><td>時点</td><td>状態</td><td>保持数</td></tr></thead><tbody>${specialRows||'<tr><td colspan="5">記録なし</td></tr>'}</tbody></table>
-    </details>
-  </div>`;
-}
 
 async function calc(){
   clearCalcCaches();
@@ -3458,7 +2588,6 @@ async function calc(){
 
   cancelRequested=false;
   isCalculating=true;
-  activeTargetConstraint='normal';
   document.body.classList.add('is-calculating');
   document.querySelectorAll('button,input,select').forEach(el=>{
     if(el.id!=='calcBtn' && el.id!=='cancelCalcBtn') el.disabled=true;
@@ -3528,9 +2657,7 @@ ${remainHtml}
       console.error(err);
     }
   }finally{
-    diagnosticRunMode='normal';
     isCalculating=false;
-    activeTargetConstraint='normal';
     document.body.classList.remove('is-calculating');
     document.querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;});
     job.disabled=!academy.value;
