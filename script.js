@@ -1465,7 +1465,7 @@ function basicStateDistance(st,targetCost,targetLife){
   for(let i=0;i<5;i++) d+=Math.abs(Number(c[i]||0)-Number(targetCost[i]||0));
   return d;
 }
-function analyzeBasicPruneLoss(targetState,survivors,beforeCount,limit){
+function analyzeBasicPruneLoss(targetState,beforeStates,survivors,beforeCount,limit){
   if(!targetState) return null;
 
   let dominator=null;
@@ -1473,6 +1473,16 @@ function analyzeBasicPruneLoss(targetState,survivors,beforeCount,limit){
   let closestDistance=Infinity;
   const tc=targetState.cost;
   const targetScope=pruneScopeKey(targetState);
+
+  const ranked=Array.from(beforeStates.values()).sort((a,b)=>{
+    if(Number(b.score)!==Number(a.score)) return Number(b.score)-Number(a.score);
+    return Number(a.usedCost??costSum(a.cost))-Number(b.usedCost??costSum(b.cost));
+  });
+  const rawRank=Math.max(1,ranked.indexOf(targetState)+1);
+  const cutoffIndex=Math.min(Math.max(0,Number(limit||1)-1),Math.max(0,ranked.length-1));
+  const cutoffState=ranked[cutoffIndex]||null;
+  const cutoffScore=cutoffState?Number(cutoffState.score):null;
+  const cutoffUsedCost=cutoffState?Number(cutoffState.usedCost??costSum(cutoffState.cost)):null;
 
   for(const st of survivors.values()){
     const dist=basicStateDistance(st,tc,targetState.life);
@@ -1500,6 +1510,18 @@ function analyzeBasicPruneLoss(targetState,survivors,beforeCount,limit){
     beforeCount:Number(beforeCount||0),
     afterCount:survivors.size,
     limit:Number(limit||0),
+    rawRank,
+    cutoffScore,
+    cutoffUsedCost,
+    scoreToCutoff:cutoffScore==null?null:Number(targetState.score)-cutoffScore,
+    targetItems:restoreItems(targetState).map(debugItemLabel),
+    cutoff:cutoffState?{
+      score:Number(cutoffState.score),
+      usedCost:Number(cutoffState.usedCost??costSum(cutoffState.cost)),
+      cost:cutoffState.cost.slice(),
+      life:Number(cutoffState.life),
+      items:restoreItems(cutoffState).map(debugItemLabel)
+    }:null,
     dominator:dominator?{
       score:Number(dominator.score),
       cost:dominator.cost.slice(),
@@ -1675,7 +1697,13 @@ function buildBasicStates(exp){
     if(diagnosticRunMode==='wide'){
       const survived=findStateByCostLife(states,manualExpectedCost,manualExpectedLife);
       const lossDetail=!survived && manualTargetStateBeforePrune
-        ? analyzeBasicPruneLoss(manualTargetStateBeforePrune,states,beforePruneCount,basicStateLimit)
+        ? analyzeBasicPruneLoss(
+            manualTargetStateBeforePrune,
+            next,
+            states,
+            beforePruneCount,
+            basicStateLimit
+          )
         : null;
       traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,states,manualExpectedCost,manualExpectedLife,'prune後',lossDetail);
     }
@@ -1851,8 +1879,19 @@ function specialOptionIsHpDependent(op){
     it?.type==='special' && Number(D.special[Number(it.idx)]?.[11]||0)!==0
   );
 }
+function specialOptionHasHint(op){
+  return !!op?.items?.some(it=>
+    it?.type==='special' && specialHint(Number(it.idx))>0
+  );
+}
+function specialOptionIsUnhintedHpDependent(op){
+  return specialOptionIsHpDependent(op) && !specialOptionHasHint(op);
+}
 function specialGroupIsHpDependent(g){
   return !!g?.opts?.length && g.opts.every(specialOptionIsHpDependent);
+}
+function specialGroupIsUnhintedHpDependent(g){
+  return !!g?.opts?.length && g.opts.every(specialOptionIsUnhintedHpDependent);
 }
 function specialChoiceGroupsCached(hp){
   const k=String(hp);
@@ -1868,8 +1907,10 @@ function specialChoiceGroupsCached(hp){
         const bits=op.bits ?? specialItemsBits(op.items);
         return {...op,bits,conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
       }).sort((a,b)=>{
-        const ah=specialOptionIsHpDependent(a)?1:0;
-        const bh=specialOptionIsHpDependent(b)?1:0;
+        // HP依存はコツなしの場合だけ後回し。
+        // コツが付いているHP依存能力は、通常能力と同じく実効率で比較する。
+        const ah=specialOptionIsUnhintedHpDependent(a)?1:0;
+        const bh=specialOptionIsUnhintedHpDependent(b)?1:0;
         if(ah!==bh) return ah-bh;
         if(b.eff!==a.eff) return b.eff-a.eff;
         return b.score-a.score;
@@ -1877,11 +1918,12 @@ function specialChoiceGroupsCached(hp){
       const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
       const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
       const hpDependent=specialGroupIsHpDependent({opts});
-      return {...g,opts,maxScore,bestEfficiency,hpDependent};
+      const hpPriorityPenalty=specialGroupIsUnhintedHpDependent({opts});
+      return {...g,opts,maxScore,bestEfficiency,hpDependent,hpPriorityPenalty};
     })
     .filter(g=>g.opts.length>0)
     .sort((a,b)=>{
-      if(!!a.hpDependent!==!!b.hpDependent) return a.hpDependent?1:-1;
+      if(!!a.hpPriorityPenalty!==!!b.hpPriorityPenalty) return a.hpPriorityPenalty?1:-1;
       if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
       return b.maxScore-a.maxScore;
     });
@@ -1903,6 +1945,7 @@ function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
     let maxScore=0;
     let bestEfficiency=0;
     let allHpDependent=true;
+    let allUnhintedHpDependent=true;
 
     for(let oi=0;oi<g.opts.length;oi++){
       const op=g.opts[oi];
@@ -1912,13 +1955,21 @@ function specialChoiceGroupsForExpCached(hp,exp,preGroups=null){
       const eff=op.eff ?? (op.score/(1+(op.costSum??costSum(op.cost))));
       if(eff>bestEfficiency) bestEfficiency=eff;
       if(!specialOptionIsHpDependent(op)) allHpDependent=false;
+      if(!specialOptionIsUnhintedHpDependent(op)) allUnhintedHpDependent=false;
     }
     if(!opts.length) continue;
-    groups.push({...g,opts,maxScore,bestEfficiency,hpDependent:allHpDependent});
+    groups.push({
+      ...g,
+      opts,
+      maxScore,
+      bestEfficiency,
+      hpDependent:allHpDependent,
+      hpPriorityPenalty:allUnhintedHpDependent
+    });
   }
 
   groups.sort((a,b)=>{
-    if(!!a.hpDependent!==!!b.hpDependent) return a.hpDependent?1:-1;
+    if(!!a.hpPriorityPenalty!==!!b.hpPriorityPenalty) return a.hpPriorityPenalty?1:-1;
     if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
     return b.maxScore-a.maxScore;
   });
@@ -2781,9 +2832,14 @@ function manualPlanHtml(manual,wideResult){
 }
 
 function manualRouteTraceHtml(){
-  const planRows=MANUAL_ROUTE_TRACE.plan.map(r=>
-    `<tr><td>${r.order}</td><td>${r.name}</td><td>${r.milestonePriority?'節目優先':'通常'}</td><td>${r.milestoneTarget??'-'}</td><td>${r.milestoneEff.toFixed(4)}</td><td>${r.bestEff.toFixed(4)}</td><td>${r.optionCount}</td></tr>`
-  ).join('');
+  const planRows=MANUAL_ROUTE_TRACE.plan.map(r=>{
+    const category=r.milestonePriority
+      ? '節目優先'
+      : (r.highRangePriority
+          ? '90以上'
+          : (r.roleDeprioritized?'ジョブ補正で後回し':'通常'));
+    return `<tr><td>${r.order}</td><td>${r.name}</td><td>${category}</td><td>${r.milestoneTarget??'-'}</td><td>${r.milestoneEff.toFixed(4)}</td><td>${Number(r.currentEff||0).toFixed(4)}</td><td>${r.optionCount}</td></tr>`;
+  }).join('');
 
   const basicRows=MANUAL_ROUTE_TRACE.basic.map(r=>
     `<tr><td>${r.ability}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td><td>${r.cost.join(',')}</td></tr>`
@@ -2798,6 +2854,9 @@ function manualRouteTraceHtml(){
     <p><strong>消失理由の判定：</strong>${loss.reason}</p>
     <p>消えた状態：査定 ${loss.targetScore}／生命力 ${loss.targetLife}／経験点 ${loss.targetCost.join(',')}</p>
     <p>prune：${loss.beforeCount}件 → ${loss.afterCount}件（上限 ${loss.limit}件）</p>
+    <p><strong>prune前の査定順位：</strong>${loss.rawRank}位／${loss.beforeCount}件</p>
+    ${loss.cutoff?`<p><strong>保持境界（${loss.limit}位相当）：</strong>査定 ${loss.cutoff.score}／使用経験点合計 ${loss.cutoff.usedCost}／生命力 ${loss.cutoff.life}／経験点 ${loss.cutoff.cost.join(',')}<br>消えた状態との差：${loss.scoreToCutoff>=0?'+':''}${loss.scoreToCutoff}<br>${loss.cutoff.items.join('・')||'基本状態'}</p>`:''}
+    ${loss.targetItems?.length?`<p><strong>消えた状態の基本能力：</strong>${loss.targetItems.join('・')}</p>`:''}
     ${loss.dominator?`<p><strong>支配候補：</strong>査定 ${loss.dominator.score}／生命力 ${loss.dominator.life}／経験点 ${loss.dominator.cost.join(',')}<br>${loss.dominator.items.join('・')||'基本状態'}</p>`:''}
     ${loss.closest?`<p><strong>最も近い生存候補：</strong>査定 ${loss.closest.score}／生命力 ${loss.closest.life}／経験点 ${loss.closest.cost.join(',')}／距離 ${loss.closest.distance}<br>${loss.closest.items.join('・')||'基本状態'}</p>`:''}
   </div>`:'';
@@ -2811,7 +2870,7 @@ function manualRouteTraceHtml(){
 
     <details open>
       <summary>実際の基本能力探索順</summary>
-      <table class="result-table"><thead><tr><td>順</td><td>能力</td><td>区分</td><td>次節目</td><td>節目効率</td><td>最高効率</td><td>候補数</td></tr></thead><tbody>${planRows||'<tr><td colspan="7">記録なし</td></tr>'}</tbody></table>
+      <table class="result-table"><thead><tr><td>順</td><td>能力</td><td>区分</td><td>次節目</td><td>節目効率</td><td>現在効率</td><td>候補数</td></tr></thead><tbody>${planRows||'<tr><td colspan="7">記録なし</td></tr>'}</tbody></table>
     </details>
 
     <details open>
