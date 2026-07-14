@@ -2038,7 +2038,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.9: 本番用クリーン版。旧診断コードと手動追跡コードを削除。
+// v10.0: 本番用クリーン版。進捗率表示を廃止し、計算中表示を固定。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2396,7 +2396,6 @@ function mixedApplyAction(st,op){
 }
 async function optimizeMixedAsync(exp,onProgress){
   clearMixedSearchCaches();
-  let lastShownProgress=-10;
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2444,27 +2443,17 @@ async function optimizeMixedAsync(exp,onProgress){
     if(!expanded) break;
     states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
 
-    if(onProgress){
-      const rawPct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
-      const shownPct=Math.floor(rawPct/10)*10;
-      if(shownPct>lastShownProgress){
-        lastShownProgress=shownPct;
-        onProgress(`計算中 ${shownPct}%`);
-      }
-    }
     if((step&1)===1) await yieldToBrowser();
   }
 
   for(const st of states.values()) if(better(st,best)) best=st;
   best.ownedHpDelta=ownedHpDependentBreakdown(best.life).total;
-  if(onProgress) onProgress('計算中 100%');
   return best;
 }
 
-async function optimizeAsync(exp,onProgress){
+async function optimizeAsync(exp){
   await yieldToBrowser();
-  if(onProgress) onProgress('計算中 0%');
-  return await optimizeMixedAsync(exp,onProgress);
+  return await optimizeMixedAsync(exp,null);
 }
 
 function mergeBasicResultItems(items){
@@ -2616,14 +2605,7 @@ async function calc(){
     if(finalCandidate){
       btn.textContent='計算 100%';
     }else{
-      let lastProgressPaint=0;
-      finalCandidate=await optimizeAsync(exp,(msg)=>{
-        const now=performance.now();
-        if(msg.includes('100%') || now-lastProgressPaint>=250){
-          lastProgressPaint=now;
-          btn.textContent=msg;
-        }
-      });
+      finalCandidate=await optimizeAsync(exp);
       setCachedResult(cacheKey,finalCandidate);
     }
 
