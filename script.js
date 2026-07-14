@@ -2419,11 +2419,13 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.5-check-b10: 分岐数10＋前提条件自動入力＋最終代表ルートの取得順・効率・候補順位表示。
+// v9.6-check: 2手先読み連携効率＋分岐7/10同時比較。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
-const MIXED_BRANCH_NORMAL=10;
+const MIXED_BRANCH_NORMAL=7;
+const MIXED_BRANCH_VALIDATION=10;
 const MIXED_BRANCH_WIDE=11;
+let mixedBranchOverride=null;
 const MIXED_MAX_STEPS=90;
 
 // 混在探索高速化用。計算条件が変わるたびに初期化する。
@@ -2628,6 +2630,99 @@ function mixedBuildLifeHpSetAction(st,lifeOp,hpOp){
     specialPart:hpOp
   };
 }
+function mixedActionSignature(op){
+  return [
+    op.kind,
+    op.name||'',
+    op.from??'',
+    op.to??'',
+    key(op.cost||[0,0,0,0,0]),
+    bitsKey(op.bits??EMPTY_BITS),
+    (op.items||EMPTY_ITEMS).map(x=>`${x.type}:${x.name}:${x.from??''}:${x.to??''}`).join('|')
+  ].join('#');
+}
+function mixedApplyActionPreview(st,op){
+  const nc=addCost(st.cost,op.cost);
+  const levels=st.levels.slice();
+  let life=st.life;
+  let bits=st.bits??EMPTY_BITS;
+
+  if(op.kind==='basic'){
+    const bi=basicNames.indexOf(op.name);
+    levels[bi]=op.to;
+    if(op.name==='生命力') life=op.to;
+  }else if(op.kind==='life_hp_set'){
+    levels[0]=op.to;
+    life=op.to;
+    bits|=(op.bits??specialItemsBits(op.items));
+  }else{
+    bits|=(op.bits??specialItemsBits(op.items));
+  }
+
+  return {
+    cost:nc,
+    score:Math.round((Number(st.score||0)+Number(op.gain||0))*10)/10,
+    life,
+    levels,
+    bits,
+    prev:null,
+    choice:EMPTY_ITEMS,
+    itemLen:0,
+    usedCost:costSum(nc),
+    _mixedProjected:null,
+    _mixedActions:null
+  };
+}
+function mixedTwoStepScore(st,op,exp){
+  const firstGain=Number(op.gain||0);
+  const firstCost=Number(op.costSum??costSum(op.cost));
+  const nextState=mixedApplyActionPreview(st,op);
+
+  // 2手目候補は、1手目後の状態で通常ルールにより生成。
+  const nextActions=mixedBasicActions(nextState,exp)
+    .concat(mixedSpecialActionsAtHp(nextState,exp,currentHpForLife(nextState.levels[0])))
+    .filter(nextOp=>{
+      const total=addCost(nextState.cost,nextOp.cost);
+      return leq(total,exp);
+    });
+
+  let bestPairEfficiency=firstGain/Math.max(1,firstCost);
+  let bestSecond=null;
+
+  for(const nextOp of nextActions){
+    const secondGain=Number(nextOp.gain||0);
+    const secondCost=Number(nextOp.costSum??costSum(nextOp.cost));
+    const pairEfficiency=(firstGain+secondGain)/Math.max(1,firstCost+secondCost);
+
+    if(pairEfficiency>bestPairEfficiency){
+      bestPairEfficiency=pairEfficiency;
+      bestSecond=nextOp;
+    }
+  }
+
+  return {
+    pairEfficiency:bestPairEfficiency,
+    bestSecond,
+    firstEfficiency:firstGain/Math.max(1,firstCost)
+  };
+}
+function mixedRankActionsWithTwoStep(st,actions,exp){
+  for(const op of actions){
+    const look=mixedTwoStepScore(st,op,exp);
+    op.twoStepEfficiency=look.pairEfficiency;
+    op.bestSecondSignature=look.bestSecond?mixedActionSignature(look.bestSecond):'';
+  }
+
+  actions.sort((a,b)=>{
+    if(b.twoStepEfficiency!==a.twoStepEfficiency){
+      return b.twoStepEfficiency-a.twoStepEfficiency;
+    }
+    if(b.efficiency!==a.efficiency) return b.efficiency-a.efficiency;
+    if(b.gain!==a.gain) return b.gain-a.gain;
+    return a.costSum-b.costSum;
+  });
+  return actions;
+}
 function mixedCandidateActions(st,exp){
   if(st._mixedActions) return st._mixedActions;
 
@@ -2640,8 +2735,10 @@ function mixedCandidateActions(st,exp){
   normalActions.sort(mixedActionSort);
 
   // 分岐上限内に生命力候補が入るか判定。
-  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
+  const branch=mixedBranchOverride!=null
+    ? mixedBranchOverride
+    : ((diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+      ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL);
   const normalTop=normalActions.slice(0,branch);
   const lifeTopActions=normalTop.filter(op=>op.kind==='basic'&&op.name==='生命力');
 
@@ -2682,7 +2779,9 @@ function mixedCandidateActions(st,exp){
   }
 
   const all=normalActions.concat(hpActions);
-  all.sort(mixedActionSort);
+
+  // 1手目だけでなく、1手目後の最良2手目まで含めた連携効率で順位付け。
+  mixedRankActionsWithTwoStep(st,all,exp);
 
   // 同じ候補を重複登録しない。
   const deduped=[];
@@ -2772,18 +2871,6 @@ function mixedApplyAction(st,op){
     bits,
     prev:st,
     choice:op.items||EMPTY_ITEMS,
-    traceAction:{
-      kind:op.kind,
-      name:op.name||'',
-      from:op.from,
-      to:op.to,
-      gain:Number(op.gain||0),
-      efficiency:Number(op.efficiency||0),
-      rank:Number(op._selectedRank||0),
-      candidateCount:Number(op._candidateCount||0),
-      cost:(op.cost||[0,0,0,0,0]).slice(),
-      items:(op.items||EMPTY_ITEMS).map(x=>({...x}))
-    },
     itemLen:itemLenOf(st)+(op.items?.length||0),
     usedCost:(st.usedCost??costSum(st.cost))+Number(op.costSum??costSum(op.cost)),
     _mixedProjected:null,
@@ -2806,8 +2893,10 @@ async function optimizeMixedAsync(exp,onProgress){
   const stateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
     ? Math.max(16000,Math.min(28000,baseLimit*4))
     : baseLimit;
-  const branch=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
-    ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL;
+  const branch=mixedBranchOverride!=null
+    ? mixedBranchOverride
+    : ((diagnosticRunMode==='wide'||diagnosticRunMode==='life50')
+      ? MIXED_BRANCH_WIDE:MIXED_BRANCH_NORMAL);
 
   for(let step=0;step<MIXED_MAX_STEPS;step++){
     throwIfCancelled();
@@ -2829,14 +2918,8 @@ async function optimizeMixedAsync(exp,onProgress){
       const maxGain=actions.reduce((m,o)=>!m||o.gain>m.gain?o:m,null);
       if(maxGain&&!selected.includes(maxGain)) selected.push(maxGain);
 
-      for(let selectedIndex=0;selectedIndex<selected.length;selectedIndex++){
-        const op=selected[selectedIndex];
-        const tracedOp={
-          ...op,
-          _selectedRank:selectedIndex+1,
-          _candidateCount:actions.length
-        };
-        const ns=mixedApplyAction(st,tracedOp);
+      for(const op of selected){
+        const ns=mixedApplyAction(st,op);
         const k=mixedStateKey(ns);
         const old=next.get(k);
         if(!old||better(ns,old)) next.set(k,ns);
@@ -2972,74 +3055,6 @@ function mergeBasicResultItems(items){
     }
   }
   return merged;
-}
-function traceActionLabel(action){
-  if(!action) return '不明';
-  const items=action.items||EMPTY_ITEMS;
-
-  if(action.kind==='basic'){
-    return `${action.name} ${action.from}→${action.to}`;
-  }
-  if(action.kind==='life_hp_set'){
-    return items.map(it=>it.type==='basic'
-      ? `${it.name} ${it.from}→${it.to}`
-      : renderSkillName(it.name)).join(' ＋ ');
-  }
-  if(items.length){
-    return items.map(it=>it.type==='basic'
-      ? `${it.name} ${it.from}→${it.to}`
-      : renderSkillName(it.name)).join(' ＋ ');
-  }
-  return action.name||'不明';
-}
-function restoreTraceSteps(st,exp){
-  const reversed=[];
-  let cur=st;
-  while(cur&&cur.prev){
-    if(cur.traceAction){
-      reversed.push({
-        action:cur.traceAction,
-        cost:(cur.cost||[0,0,0,0,0]).slice(),
-        score:Number(cur.score||0)
-      });
-    }
-    cur=cur.prev;
-  }
-  reversed.reverse();
-
-  return reversed.map((step,index)=>{
-    const remain=exp.map((v,i)=>Number(v||0)-Number(step.cost[i]||0));
-    return {
-      no:index+1,
-      label:traceActionLabel(step.action),
-      efficiency:Number(step.action.efficiency||0),
-      rank:Number(step.action.rank||0),
-      candidateCount:Number(step.action.candidateCount||0),
-      gain:Number(step.action.gain||0),
-      remain,
-      score:step.score
-    };
-  });
-}
-function routeTraceHtml(st,exp){
-  const steps=restoreTraceSteps(st,exp);
-  if(!steps.length) return '<p>記録なし</p>';
-
-  const rows=steps.map(step=>`
-    <tr>
-      <td>${step.no}</td>
-      <td>${step.label}</td>
-      <td>${step.efficiency.toFixed(4)}</td>
-      <td>${step.rank||'-'}／${step.candidateCount||'-'}</td>
-      <td>${step.remain.join(',')}</td>
-    </tr>`).join('');
-
-  return `<div style="overflow-x:auto">
-    <table class="result-table">
-      <thead><tr><th>順</th><th>選択</th><th>効率</th><th>候補順位</th><th>残経験点</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>`;
 }
 function resultTable(items,kind){
   let filtered=items.filter(x=>x.type===kind);
@@ -3548,49 +3563,63 @@ async function calc(){
   result.innerHTML='';
 
   try{
-    let finalCandidate=getCachedResult(cacheKey);
-    const calcStart=performance.now();
+    diagnosticRunMode='normal';
 
-    if(finalCandidate){
-      btn.textContent='計算 100%';
-    }else{
-      let lastProgressPaint=0;
-      finalCandidate=await optimizeAsync(exp,(msg)=>{
-        const now=performance.now();
-        if(msg.includes('100%') || now-lastProgressPaint>=250){
-          lastProgressPaint=now;
-          btn.textContent=msg;
-        }
-      });
-      setCachedResult(cacheKey,finalCandidate);
-    }
+    mixedBranchOverride=MIXED_BRANCH_NORMAL;
+    const normalStart=performance.now();
+    const finalCandidate=await optimizeAsync(exp,(msg)=>{
+      btn.textContent=`分岐7：${msg}`;
+    });
+    const normalElapsed=((performance.now()-normalStart)/1000).toFixed(2);
 
-    const elapsed=((performance.now()-calcStart)/1000).toFixed(2);
+    mixedBranchOverride=MIXED_BRANCH_VALIDATION;
+    const validationStart=performance.now();
+    const validationCandidate=await optimizeAsync(exp,(msg)=>{
+      btn.textContent=`分岐10：${msg}`;
+    });
+    const validationElapsed=((performance.now()-validationStart)/1000).toFixed(2);
+    mixedBranchOverride=null;
+
     const finalItems=restoreItems(finalCandidate);
+    const validationItems=restoreItems(validationCandidate);
     const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
+    const validationRemain=exp.map((v,i)=>v-(validationCandidate.cost?.[i]||0));
 
-    const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+    const remainHtml=`<div class="result-block"><h3>残経験点（分岐7）</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
+
+    const sameScore=Number(finalCandidate.score)===Number(validationCandidate.score);
+    const sameCost=key(finalCandidate.cost)===key(validationCandidate.cost);
+    const sameItems=JSON.stringify(finalItems)===JSON.stringify(validationItems);
+    const sameResult=sameScore&&sameCost&&sameItems;
 
     result.innerHTML=`
 <div class="result-block">
-  <h3>基本能力</h3>
+  <h3>基本能力（分岐7）</h3>
   ${resultTable(finalItems,'basic')}
 </div>
 <div class="result-block">
-  <h3>特殊能力</h3>
+  <h3>特殊能力（分岐7）</h3>
   ${resultTable(finalItems,'special')}
 </div>
 ${remainHtml}
 <div class="result-block">
-  <h3>取得順（確認用）</h3>
-  <p>最終的に残った代表ルートの取得順です。効率は、その時点で比較した査定効率です。</p>
-  ${routeTraceHtml(finalCandidate,exp)}
+  <h3>検証（分岐10）</h3>
+  <p><strong>${sameResult?'分岐7と同じ結果':'分岐7と異なる結果'}</strong></p>
+  <p>分岐7査定：${finalCandidate.score}<br>分岐10査定：${validationCandidate.score}</p>
+  ${sameResult?'':`
+  <h4>基本能力（分岐10）</h4>
+  ${resultTable(validationItems,'basic')}
+  <h4>特殊能力（分岐10）</h4>
+  ${resultTable(validationItems,'special')}
+  <h4>残経験点（分岐10）</h4>
+  <table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${validationRemain[i]}</td></tr>`).join('')}</tbody></table>`}
 </div>
 <div class="result-block">
   <h3>計算時間</h3>
-  <p>${elapsed} 秒</p>
+  <p>分岐7：${normalElapsed} 秒<br>分岐10：${validationElapsed} 秒</p>
 </div>`;
   }catch(err){
+    mixedBranchOverride=null;
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
     }else{
@@ -3637,114 +3666,10 @@ function resetAll(){
 
 
 
-
-function applyRouteCheckPreset(){
-  const academyOption=[...academy.options].find(o=>String(o.value).includes('タテレスキュア'));
-  if(!academyOption) return;
-
-  academy.value=academyOption.value;
-  updateJobs();
-
-  const jobOption=[...job.options].find(o=>String(o.value)==='僧侶');
-  if(!jobOption) return;
-  job.value=jobOption.value;
-
-  clearBasicState();
-  specialState.clear();
-  renderBasic();
-  renderSpecials();
-
-  const expPreset={
-    '筋力':500,
-    '敏捷':200,
-    '技術':600,
-    '知力':500,
-    '精神':600
-  };
-  const basicPreset={
-    '生命力':50,
-    'パワー':10,
-    '魔力':95,
-    '器用さ':10,
-    '耐久力':90,
-    '精神力':50
-  };
-  const basicOwnedPreset=['魔力','耐久力'];
-
-  const hintPreset={
-    '物理攻撃○':3,
-    '物理防御○':3,
-    '魔法防御○':3,
-    '生存本能':1,
-    '狙い撃ち':2,
-    'アクションスキル○':3,
-    'アクションスキル◎':3,
-    'ケガしにくさ○':1,
-    'ケガしにくさ◎':1,
-    '戦況分析':1
-  };
-
-  const ownedPreset=[
-    '忍耐',
-    'アクションスキル○',
-    '単体攻撃○',
-    'ケガしにくさ○'
-  ];
-
-  for(const [name,value] of Object.entries(expPreset)){
-    const input=document.getElementById('exp_'+name);
-    if(input) input.value=String(value);
-  }
-
-  for(const [name,value] of Object.entries(basicPreset)){
-    const input=document.getElementById('basic_'+name);
-    if(input) input.value=String(value);
-    basicOwned[name]=basicOwnedPreset.includes(name);
-  }
-
-  for(const [name,level] of Object.entries(hintPreset)){
-    const idx=specialNameIndex.get(String(name));
-    if(idx!=null) setSpecialHint(idx,level,true);
-  }
-  for(const name of ownedPreset){
-    const idx=specialNameIndex.get(String(name));
-    if(idx!=null) setSpecialOwned(idx,true,true);
-  }
-
-  renderBasic();
-  renderSpecials();
-
-  // 再描画後に値・取得済み状態を確実に反映。
-  for(const [name,value] of Object.entries(basicPreset)){
-    const input=document.getElementById('basic_'+name);
-    if(input) input.value=String(value);
-    basicOwned[name]=basicOwnedPreset.includes(name);
-    applyBasicVisual(name);
-  }
-
-  requestAnimationFrame(()=>{
-    for(const [name,value] of Object.entries(expPreset)){
-      const input=document.getElementById('exp_'+name);
-      if(input) input.value=String(value);
-    }
-    for(const [name,value] of Object.entries(basicPreset)){
-      const input=document.getElementById('basic_'+name);
-      if(input) input.value=String(value);
-      applyBasicVisual(name);
-    }
-    validateAllInline();
-  });
-
-  validateAllInline();
-  const result=document.getElementById('result');
-  if(result) result.textContent='確認用条件を自動入力しました。「計算する」を押してください。';
-}
-
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
-applyRouteCheckPreset();
 })();
