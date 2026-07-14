@@ -2045,7 +2045,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v11.0: Web Worker版。重い探索をpawaado_worker.jsへ移し、画面描画と分離。
+// v11.3: Web Worker本番版。1%刻みの進捗表示。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2503,7 +2503,7 @@ async function optimizeAsync(exp){
   const payload=buildWorkerPayload(exp);
 
   return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./pawaado_worker_v2.js?v=2');
+    const worker=new Worker('./pawaado_worker.js?v=20260715-progress1');
     activeCalcWorker=worker;
     activeCalcWorkerReject=reject;
 
@@ -2515,6 +2515,12 @@ async function optimizeAsync(exp){
 
     worker.onmessage=(event)=>{
       const data=event.data||{};
+
+      if(data.type==='progress'){
+        btn.textContent=String(data.message||'計算中');
+        return;
+      }
+
       if(data.type==='result'){
         finish();
         const result=data.result||{};
