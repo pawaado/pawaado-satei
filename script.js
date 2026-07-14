@@ -32,6 +32,18 @@ let cancelRequested=false;
 // wide   : Upper Bound無効＋保持上限拡大
 // life50 : Upper Bound無効＋保持上限拡大＋生命力50固定
 let diagnosticRunMode='normal';
+const MANUAL_ROUTE_TRACE={
+  reset(){
+    this.basic=[];
+    this.special=[];
+    this.baseFound=false;
+    this.baseScore=null;
+    this.baseCost=null;
+    this.finalFound=false;
+    this.firstLoss='';
+  }
+};
+MANUAL_ROUTE_TRACE.reset();
 let activeTargetConstraint='normal';
 
 class CalculationCancelledError extends Error{
@@ -1396,6 +1408,71 @@ function basicPlanEntry(name,exp){
 
   return {name,opts,priority,bestScore,milestoneEff,milestoneTarget,milestonePriority};
 }
+
+function manualTargetForBasic(name){
+  return Number(DIAGNOSTIC_MANUAL_PLAN?.basicTargets?.[name] ??
+    document.getElementById('basic_'+name)?.value ?? 1);
+}
+function findStateByCostLife(states,cost,life){
+  for(const st of states.values()){
+    if(Number(st.life)!==Number(life)) continue;
+    const c=st.cost;
+    if(c[0]===cost[0]&&c[1]===cost[1]&&c[2]===cost[2]&&c[3]===cost[3]&&c[4]===cost[4]){
+      return st;
+    }
+  }
+  return null;
+}
+function traceBasicStage(stage,entry,states,cost,life,phase){
+  if(diagnosticRunMode!=='wide') return;
+  const hit=findStateByCostLife(states,cost,life);
+  MANUAL_ROUTE_TRACE.basic.push({
+    stage,
+    ability:entry.name,
+    phase,
+    found:!!hit,
+    score:hit?Number(hit.score):null,
+    stateCount:states.size,
+    cost:cost.slice(),
+    life:Number(life)
+  });
+  if(!hit && !MANUAL_ROUTE_TRACE.firstLoss){
+    MANUAL_ROUTE_TRACE.firstLoss=`基本能力「${entry.name}」処理後（${phase}）`;
+  }
+}
+function manualSpecialNamesSet(){
+  return new Set(DIAGNOSTIC_MANUAL_PLAN?.specials||[]);
+}
+function manualOptionForGroup(group,targetNames){
+  let best=null;
+  for(const op of group.opts||[]){
+    const names=(op.items||[]).map(it=>String(it.name||''));
+    const containsTarget=names.some(n=>targetNames.has(n));
+    if(!containsTarget) continue;
+    if(!best || Number(op.score)>Number(best.score)) best=op;
+  }
+  return best;
+}
+function traceSpecialStage(gi,group,states,expected,phase,chosenLabel){
+  if(diagnosticRunMode!=='wide' || !expected?.active) return;
+  const k=key5(expected.cost[0],expected.cost[1],expected.cost[2],expected.cost[3],expected.cost[4])+
+    '|'+scopeKeyFor(expected.life,expected.bits??EMPTY_BITS);
+  const hit=states.get(k)||null;
+  MANUAL_ROUTE_TRACE.special.push({
+    group:gi+1,
+    kind:group.kind||'',
+    choice:chosenLabel||'何もしない',
+    phase,
+    found:!!hit,
+    score:hit?Number(hit.score):null,
+    stateCount:states.size,
+    cost:expected.cost.slice()
+  });
+  if(!hit && !MANUAL_ROUTE_TRACE.firstLoss){
+    MANUAL_ROUTE_TRACE.firstLoss=`特殊能力グループ${gi+1}「${chosenLabel||'何もしない'}」処理後（${phase}）`;
+  }
+}
+
 function buildBasicStates(exp){
   const mode=currentCalcMode();
   const initialLife=Number(document.getElementById('basic_生命力')?.value||1);
@@ -1421,6 +1498,10 @@ function buildBasicStates(exp){
       if(b.priority!==a.priority) return b.priority-a.priority;
       return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
     });
+
+  let manualExpectedCost=[0,0,0,0,0];
+  let manualExpectedLife=initialLife;
+  if(diagnosticRunMode==='wide') MANUAL_ROUTE_TRACE.reset();
 
   for(const entry of plan){
     const next=new Map();
@@ -1453,8 +1534,32 @@ function buildBasicStates(exp){
     }
 
     if(!next.size) continue;
+
+    if(diagnosticRunMode==='wide'){
+      const target=manualTargetForBasic(entry.name);
+      const targetOp=entry.opts.find(op=>{
+        if(!op.items?.length){
+          const current=Number(document.getElementById('basic_'+entry.name)?.value||1);
+          return Number(target)===current;
+        }
+        return Number(op.items[0]?.to)===Number(target);
+      });
+      if(targetOp){
+        manualExpectedCost=addCost(manualExpectedCost,targetOp.cost);
+        if(entry.name==='生命力' && targetOp.life!=null) manualExpectedLife=Number(targetOp.life);
+        traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,next,manualExpectedCost,manualExpectedLife,'prune前');
+      }else if(!MANUAL_ROUTE_TRACE.firstLoss){
+        MANUAL_ROUTE_TRACE.firstLoss=`基本能力「${entry.name}」の手動目標候補が未生成`;
+      }
+    }
+
     const basicStateLimit=(diagnosticRunMode==='wide'||diagnosticRunMode==='life50')?16000:6200;
     states=next.size>basicStateLimit ? prune(next,basicStateLimit,mode) : next;
+
+    if(diagnosticRunMode==='wide'){
+      traceBasicStage(MANUAL_ROUTE_TRACE.basic.length+1,entry,states,manualExpectedCost,manualExpectedLife,'prune後');
+    }
+
     if(!states.size) break;
   }
 
@@ -1464,6 +1569,13 @@ function buildBasicStates(exp){
     const ownedHp=ownedHpDependentBreakdown(st.life);
     st.ownedHpDelta=ownedHp.total;
     st.score=Math.round((st.score+ownedHp.total)*10)/10;
+  }
+
+  if(diagnosticRunMode==='wide'){
+    const base=findStateByCostLife(states,manualExpectedCost,manualExpectedLife);
+    MANUAL_ROUTE_TRACE.baseFound=!!base;
+    MANUAL_ROUTE_TRACE.baseScore=base?Number(base.score):null;
+    MANUAL_ROUTE_TRACE.baseCost=manualExpectedCost.slice();
   }
 
   return states;
@@ -1862,6 +1974,22 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   }
 
   if(states.size>STATE_LIMIT) states=prune(states,STATE_LIMIT,mode);
+
+  let manualExpected=null;
+  const manualTargetNames=manualSpecialNamesSet();
+  if(diagnosticRunMode==='wide'){
+    const manualBaseCost=MANUAL_ROUTE_TRACE.baseCost||[0,0,0,0,0];
+    const manualLife=Number(DIAGNOSTIC_MANUAL_PLAN?.basicTargets?.['生命力'] ?? initialLifeValue());
+    const base=findStateByCostLife(states,manualBaseCost,manualLife);
+    manualExpected=base ? {
+      active:true,
+      cost:base.cost.slice(),
+      score:Number(base.score),
+      life:Number(base.life),
+      bits:base.bits??EMPTY_BITS
+    } : {active:false};
+  }
+
   let bestScore=-Infinity;
   for(const st of states.values()){
     if(st.score>bestScore) bestScore=st.score;
@@ -1874,6 +2002,15 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
     throwIfCancelled();
     const group=groups[gi];
     const groupOpts=group.opts;
+
+    let manualChosen=null;
+    let manualChosenLabel='何もしない';
+    if(diagnosticRunMode==='wide' && manualExpected?.active){
+      manualChosen=manualOptionForGroup(group,manualTargetNames);
+      if(manualChosen){
+        manualChosenLabel=(manualChosen.items||[]).map(it=>String(it.name||'')).join('・');
+      }
+    }
 
     let next=new Map(states);
     let iter=0;
@@ -1970,12 +2107,42 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
       if(iter%yieldEvery===0) await yieldToBrowser();
     }
 
+    if(diagnosticRunMode==='wide' && manualExpected?.active){
+      if(manualChosen){
+        const nextBits=(manualExpected.bits??EMPTY_BITS)|(manualChosen.bits??EMPTY_BITS);
+        const nextCost=addCost(manualExpected.cost,manualChosen.cost);
+        if(leq(nextCost,exp) &&
+           ((manualExpected.bits??EMPTY_BITS)&(manualChosen.bits??EMPTY_BITS))===EMPTY_BITS &&
+           ((manualExpected.bits??EMPTY_BITS)&(manualChosen.conflictBits??EMPTY_BITS))===EMPTY_BITS){
+          manualExpected={
+            active:true,
+            cost:nextCost,
+            score:Math.round((manualExpected.score+Number(manualChosen.score||0))*10)/10,
+            life:manualExpected.life,
+            bits:nextBits
+          };
+        }else{
+          manualExpected.active=false;
+          if(!MANUAL_ROUTE_TRACE.firstLoss){
+            MANUAL_ROUTE_TRACE.firstLoss=`特殊能力グループ${gi+1}で手動案が経験点不足・重複・相互排他`;
+          }
+        }
+      }
+      if(manualExpected.active){
+        traceSpecialStage(gi,group,next,manualExpected,'prune前',manualChosenLabel);
+      }
+    }
+
     // 支配除外がほぼ発生しないため、状態数が上限を超えた時だけpruneする。
     if(next.size>STATE_LIMIT){
 
       states=prune(next,STATE_LIMIT,mode);
     }else{
       states=next;
+    }
+
+    if(diagnosticRunMode==='wide' && manualExpected?.active){
+      traceSpecialStage(gi,group,states,manualExpected,'prune後',manualChosenLabel);
     }
 
 
@@ -1996,6 +2163,12 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   let best=null;
   for(const st of states.values()){
     if(better(st,best)) best=st;
+  }
+
+  if(diagnosticRunMode==='wide' && manualExpected?.active){
+    const k=key5(manualExpected.cost[0],manualExpected.cost[1],manualExpected.cost[2],manualExpected.cost[3],manualExpected.cost[4])+
+      '|'+scopeKeyFor(manualExpected.life,manualExpected.bits??EMPTY_BITS);
+    MANUAL_ROUTE_TRACE.finalFound=states.has(k);
   }
 
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
@@ -2283,6 +2456,7 @@ function diagnosticCompareHtml(rows){
 
   return `<div class="result-block">
     <h3>不具合切り分け結果</h3>
+    <p><strong>最大の検証目標：</strong>生命力固定なしで、検証3（生命力50固定）と同等以上の内部査定を再現すること。</p>
     <p><strong>${verdict}</strong></p>
     ${cards}
   </div>`;
@@ -2485,6 +2659,33 @@ function manualPlanHtml(manual,wideResult){
     ${missing}
   </div>`;
 }
+
+function manualRouteTraceHtml(){
+  const basicRows=MANUAL_ROUTE_TRACE.basic.map(r=>
+    `<tr><td>${r.ability}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td><td>${r.cost.join(',')}</td></tr>`
+  ).join('');
+
+  const specialRows=MANUAL_ROUTE_TRACE.special.map(r=>
+    `<tr><td>${r.group}</td><td>${r.choice}</td><td>${r.phase}</td><td>${r.found?'✅ 生存':'❌ 消失'}</td><td>${r.stateCount}</td></tr>`
+  ).join('');
+
+  return `<div class="result-block">
+    <h3>手動案系ルートの生存追跡</h3>
+    <p><strong>最初に消えた箇所：</strong>${MANUAL_ROUTE_TRACE.firstLoss||'最後まで生存'}</p>
+    <p>基本能力の手動案状態：${MANUAL_ROUTE_TRACE.baseFound?'✅ 生存':'❌ 消失'}／最終状態：${MANUAL_ROUTE_TRACE.finalFound?'✅ 生存':'❌ 消失'}</p>
+
+    <details open>
+      <summary>基本能力探索</summary>
+      <table class="result-table"><thead><tr><td>能力</td><td>時点</td><td>状態</td><td>保持数</td><td>使用経験点</td></tr></thead><tbody>${basicRows||'<tr><td colspan="5">記録なし</td></tr>'}</tbody></table>
+    </details>
+
+    <details open>
+      <summary>特殊能力探索</summary>
+      <table class="result-table"><thead><tr><td>群</td><td>手動案の選択</td><td>時点</td><td>状態</td><td>保持数</td></tr></thead><tbody>${specialRows||'<tr><td colspan="5">記録なし</td></tr>'}</tbody></table>
+    </details>
+  </div>`;
+}
+
 async function calc(){
   clearCalcCaches();
   TARGET_DEBUG.reset();
@@ -2614,7 +2815,8 @@ ${remainHtml}
   <p>${elapsed} 秒（現行計算のみ）</p>
 </div>
 ${diagnosticCompareHtml(diagnosticRows)}
-${manualPlanHtml(manualPlan,verifyWide)}`;
+${manualPlanHtml(manualPlan,verifyWide)}
+${manualRouteTraceHtml()}`;
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
@@ -2743,6 +2945,27 @@ function applyTemporaryDiagnosticPreset(){
 
   renderBasic();
   renderSpecials();
+
+  // renderSpecialsや取得済み連動の後でも基本能力値が消えないよう、最後に再設定する。
+  for(const [name,value] of Object.entries(basicPreset)){
+    const input=document.getElementById('basic_'+name);
+    if(input){
+      input.value=String(value);
+      basicOwned[name]=false;
+      input.disabled=false;
+      input.readOnly=false;
+      applyBasicVisual(name);
+    }
+  }
+
+  requestAnimationFrame(()=>{
+    for(const [name,value] of Object.entries(basicPreset)){
+      const input=document.getElementById('basic_'+name);
+      if(input) input.value=String(value);
+    }
+    validateAllInline();
+  });
+
   validateAllInline();
   document.getElementById('result').textContent='検証条件を自動入力しました。「計算する」を押してください。';
 }
