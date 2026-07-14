@@ -1183,7 +1183,13 @@ function basicPruneProjectedScore(st,exp){
 }
 
 function yieldToBrowser(){
-  return new Promise(r=>setTimeout(r,0)).then(()=>{
+  return new Promise(resolve=>{
+    if(typeof requestAnimationFrame==='function'){
+      requestAnimationFrame(()=>resolve());
+    }else{
+      setTimeout(resolve,0);
+    }
+  }).then(()=>{
     throwIfCancelled();
   });
 }
@@ -2419,7 +2425,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.7: 1手評価＋上位7分岐＋見込み査定pruneの本番版。
+// v9.8: 1手評価＋上位7分岐＋見込み査定prune＋スクロール描画改善版。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2801,8 +2807,11 @@ async function optimizeMixedAsync(exp,onProgress){
     throwIfCancelled();
     const next=new Map();
     let expanded=0;
+    let lastUiYield=performance.now();
+    let processedStates=0;
 
     for(const st of states.values()){
+      processedStates++;
       const actions=mixedCandidateActions(st,exp);
       if(!actions.length){
         const k=mixedStateKey(st);
@@ -2825,16 +2834,26 @@ async function optimizeMixedAsync(exp,onProgress){
         if(better(ns,best)) best=ns;
         expanded++;
       }
+
+      // iPhone Safariで長時間メインスレッドを占有しないよう、
+      // 約12msごとに描画・スクロール処理へ制御を返す。
+      if((processedStates&31)===0 && performance.now()-lastUiYield>=12){
+        await yieldToBrowser();
+        lastUiYield=performance.now();
+      }
     }
 
     if(!expanded) break;
+
+    // prune前にも一度描画機会を作る。
+    await yieldToBrowser();
     states=next.size>stateLimit?mixedPrune(next,stateLimit,exp):next;
 
     if(onProgress){
       const pct=Math.min(99,Math.floor((step+1)/MIXED_MAX_STEPS*100));
       onProgress(`計算中 ${pct}%`);
     }
-    if((step&1)===1) await yieldToBrowser();
+    await yieldToBrowser();
   }
 
   for(const st of states.values()) if(better(st,best)) best=st;
