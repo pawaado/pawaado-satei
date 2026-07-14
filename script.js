@@ -1343,6 +1343,25 @@ function basicOptions(name,exp){
   }
   return opts;
 }
+function basicMilestoneTargets(name,current,max){
+  const targets=[];
+  const nextTen=Math.ceil((current+1)/10)*10;
+
+  // 基本は次の10刻み。
+  if(Number.isFinite(nextTen) && nextTen<=max) targets.push(nextTen);
+
+  // 最大95の能力は95も節目。
+  if(max===95 && current<95) targets.push(95);
+
+  // 最大100以上の能力は100までを節目として扱う。
+  // 110→115は査定が一定のため、115は節目に含めない。
+  if(max>=100 && current<100) targets.push(100);
+
+  return [...new Set(targets)]
+    .filter(v=>v>current && v<=max && v<=100)
+    .sort((a,b)=>a-b);
+}
+
 function basicPlanEntry(name,exp){
   const opts=basicOptions(name,exp);
   let bestEff=0;
@@ -1351,9 +1370,31 @@ function basicPlanEntry(name,exp){
     if(op.eff>bestEff) bestEff=op.eff;
     if(op.score>bestScore) bestScore=op.score;
   }
-  // 生命力は意図的に優遇しない。査定効率そのものだけを使う。
-  const priority=bestEff;
-  return {name,opts,priority,bestScore};
+
+  const current=Number(document.getElementById('basic_'+name)?.value||1);
+  const max=limits()[name];
+  let milestoneEff=0;
+  let milestoneTarget=null;
+
+  if(max!=null){
+    const targets=basicMilestoneTargets(name,current,max);
+
+    for(const target of targets){
+      const op=opts.find(x=>x.items?.length && Number(x.items[0]?.to)===Number(target));
+      if(!op) continue;
+
+      milestoneEff=Number(op.score||0)/Math.max(1,Number(op.costSum||0));
+      milestoneTarget=target;
+
+      // 最も近い節目だけで優先判定する。
+      break;
+    }
+  }
+
+  const milestonePriority=milestoneEff>=0.5;
+  const priority=milestonePriority ? Math.max(bestEff,milestoneEff)+1 : bestEff;
+
+  return {name,opts,priority,bestScore,milestoneEff,milestoneTarget,milestonePriority};
 }
 function buildBasicStates(exp){
   const mode=currentCalcMode();
@@ -1366,12 +1407,18 @@ function buildBasicStates(exp){
   const plan=basicNames
     .map(name=>basicPlanEntry(name,exp))
     .sort((a,b)=>{
+      // 次の節目までの累積査定効率が0.5以上の能力を優先。
+      if(!!a.milestonePriority!==!!b.milestonePriority){
+        return a.milestonePriority?-1:1;
+      }
+
+      // 節目優先同士は、節目効率が高い能力から。
+      if(a.milestonePriority && b.milestonePriority && b.milestoneEff!==a.milestoneEff){
+        return b.milestoneEff-a.milestoneEff;
+      }
+
+      // 節目優先でない能力は通常の最高効率順。
       if(b.priority!==a.priority) return b.priority-a.priority;
-
-      const aLife=a.name==='生命力'?1:0;
-      const bLife=b.name==='生命力'?1:0;
-      if(aLife!==bLife) return aLife-bLife;
-
       return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
     });
 
@@ -2407,7 +2454,7 @@ function manualPlanHtml(manual,wideResult){
 
   return `<div class="result-block">
     <h3>手動案・強制内部採点</h3>
-    <p>※診断版では生命力の探索優遇を削除し、同効率時は生命力を後回しにしています。査定値そのものは変更していません。</p>
+    <p>※診断版では、全基本能力について次の節目までの累積査定効率が0.5以上なら優先します。110→115は査定一定のため、115は節目に含めません。査定値そのものは変更していません。</p>
     <p><strong>${verdict}</strong></p>
     <p>内部査定：${manual.score}（検証2比 ${diff>=0?'+':''}${diff}）</p>
     <p>使用経験点：${manual.cost.join(',')}</p>
@@ -2653,7 +2700,8 @@ function applyTemporaryDiagnosticPreset(){
     'アクションスキル◎':3,
     'ケガしにくさ◎':1,
     '免疫強化':3,
-    '仲間思い':1
+    '仲間思い':1,
+    '危機察知':2
   };
   const ownedPreset=[
     '忍耐',
@@ -2661,7 +2709,6 @@ function applyTemporaryDiagnosticPreset(){
     '単体攻撃○',
     'ケガしにくさ○',
     '見切り',
-    '危機察知',
     '意志',
     '対弓使い○',
     '対キラービー○',
@@ -2676,7 +2723,11 @@ function applyTemporaryDiagnosticPreset(){
   }
   for(const [name,value] of Object.entries(basicPreset)){
     const input=document.getElementById('basic_'+name);
-    if(input) input.value=value;
+    if(input){
+      input.value=value;
+      basicOwned[name]=false;
+      applyBasicVisual(name);
+    }
   }
 
   specialState.clear();
