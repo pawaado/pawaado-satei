@@ -20,7 +20,9 @@ const document={
   getElementById(id){return __workerElement(id);},
   querySelector(){return null;},
   querySelectorAll(){return [];},
-  createElement(tag){return __workerElement('__created_'+tag+'_'+Math.random());}
+  createElement(tag){return __workerElement('__created_'+tag+'_'+Math.random());},
+  addEventListener(){},
+  removeEventListener(){}
 };
 self.document=document;
 self.Option=function(label,value){this.text=label;this.value=value??label;};
