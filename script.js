@@ -2419,10 +2419,10 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.5-check: 分岐数7本番版＋最終代表ルートの取得順・効率・候補順位表示。
+// v9.5-check-b10: 分岐数10＋前提条件自動入力＋最終代表ルートの取得順・効率・候補順位表示。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
-const MIXED_BRANCH_NORMAL=7;
+const MIXED_BRANCH_NORMAL=10;
 const MIXED_BRANCH_WIDE=11;
 const MIXED_MAX_STEPS=90;
 
