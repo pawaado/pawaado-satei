@@ -2419,12 +2419,20 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v9.0: 基本能力と特殊能力の垣根をなくした混在探索。
+// v9.1: 基本能力と特殊能力の垣根をなくした混在探索（分岐数7を維持した高速化版）。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
 const MIXED_BRANCH_WIDE=11;
 const MIXED_MAX_STEPS=90;
+
+// 混在探索高速化用。計算条件が変わるたびに初期化する。
+let mixedBasicOptionCache=new Map();
+let mixedHpDeltaCache=new Map();
+function clearMixedSearchCaches(){
+  mixedBasicOptionCache.clear();
+  mixedHpDeltaCache.clear();
+}
 
 function mixedInitialLevels(){
   const lim=limits();
@@ -2445,6 +2453,8 @@ function mixedIsAcquired(i,bits){
 function mixedBasicOption(name,from,to){
   if(to<=from) return null;
   const hint=Number(basicHints[name]||0);
+  const cacheKey=`${job.value}|${name}|${from}|${to}|${hint}`;
+  if(mixedBasicOptionCache.has(cacheKey)) return mixedBasicOptionCache.get(cacheKey);
   const t=tableFor(name);
   let c=[0,0,0,0,0],score=0,v=from;
   while(v<to){
@@ -2458,7 +2468,7 @@ function mixedBasicOption(name,from,to){
     v++;
   }
   const cs=costSum(c);
-  return {
+  const result={
     kind:'basic',
     name,
     from,
@@ -2469,9 +2479,13 @@ function mixedBasicOption(name,from,to){
     efficiency:score/Math.max(1,cs),
     items:[{type:'basic',name,from,to,idx:basicNames.indexOf(name)}]
   };
+  mixedBasicOptionCache.set(cacheKey,result);
+  return result;
 }
 function mixedHpDeltaForBits(bits,oldHp,newHp){
   if(oldHp===newHp) return 0;
+  const cacheKey=`${bitsKey(bits??EMPTY_BITS)}|${oldHp}|${newHp}`;
+  if(mixedHpDeltaCache.has(cacheKey)) return mixedHpDeltaCache.get(cacheKey);
   let delta=0;
   for(let i=0;i<D.special.length;i++){
     if(!mixedIsAcquired(i,bits)) continue;
@@ -2479,7 +2493,9 @@ function mixedHpDeltaForBits(bits,oldHp,newHp){
     if(!Number(skill?.[11]||0)) continue;
     delta+=skillScore(skill,newHp)-skillScore(skill,oldHp);
   }
-  return Math.round(delta*10)/10;
+  const result=Math.round(delta*10)/10;
+  mixedHpDeltaCache.set(cacheKey,result);
+  return result;
 }
 function mixedBasicActions(st,exp){
   const actions=[];
@@ -2583,6 +2599,7 @@ function mixedSpecialActions(st,exp){
   return out;
 }
 function mixedCandidateActions(st,exp){
+  if(st._mixedActions) return st._mixedActions;
   const all=mixedBasicActions(st,exp).concat(mixedSpecialActions(st,exp));
   all.sort((a,b)=>{
     // コツなしHP依存だけは強く後回し。
@@ -2591,6 +2608,7 @@ function mixedCandidateActions(st,exp){
     if(b.gain!==a.gain) return b.gain-a.gain;
     return a.costSum-b.costSum;
   });
+  st._mixedActions=all;
   return all;
 }
 function mixedProjectedScore(st,exp,actions=null){
@@ -2613,9 +2631,14 @@ function mixedProjectedScore(st,exp,actions=null){
 }
 function mixedPrune(states,limit,exp){
   const arr=Array.from(states.values());
+  for(const st of arr){
+    if(!Number.isFinite(st._mixedProjected)){
+      st._mixedProjected=mixedProjectedScore(st,exp,st._mixedActions||null);
+    }
+  }
   arr.sort((a,b)=>{
-    const bp=Number.isFinite(b._mixedProjected)?b._mixedProjected:mixedProjectedScore(b,exp);
-    const ap=Number.isFinite(a._mixedProjected)?a._mixedProjected:mixedProjectedScore(a,exp);
+    const bp=b._mixedProjected;
+    const ap=a._mixedProjected;
     if(bp!==ap) return bp-ap;
     if(b.score!==a.score) return b.score-a.score;
     return a.usedCost-b.usedCost;
@@ -2653,10 +2676,12 @@ function mixedApplyAction(st,op){
     choice:op.items||EMPTY_ITEMS,
     itemLen:itemLenOf(st)+(op.items?.length||0),
     usedCost:(st.usedCost??costSum(st.cost))+Number(op.costSum??costSum(op.cost)),
-    _mixedProjected:null
+    _mixedProjected:null,
+    _mixedActions:null
   };
 }
 async function optimizeMixedAsync(exp,onProgress){
+  clearMixedSearchCaches();
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2696,7 +2721,6 @@ async function optimizeMixedAsync(exp,onProgress){
 
       for(const op of selected){
         const ns=mixedApplyAction(st,op);
-        ns._mixedProjected=mixedProjectedScore(ns,exp);
         const k=mixedStateKey(ns);
         const old=next.get(k);
         if(!old||better(ns,old)) next.set(k,ns);
@@ -3329,53 +3353,6 @@ async function calc(){
     }
 
     const normalElapsed=((performance.now()-startTime)/1000).toFixed(2);
-    const diagnosticRows=[
-      diagnosticResultSummary(
-        '現行（Upper Bound有効・通常保持上限）',
-        finalCandidate,
-        normalElapsed
-      )
-    ];
-
-    diagnosticRunMode='no_ub';
-    clearCalcCaches();
-    const noUbStart=performance.now();
-    const verifyNoUb=await optimizeAsync(exp,msg=>{
-      btn.textContent='検証1/2 '+msg.replace('計算中','').trim();
-    });
-    diagnosticRows.push(diagnosticResultSummary(
-      '検証1（Upper Bound無効・通常保持上限）',
-      verifyNoUb,
-      ((performance.now()-noUbStart)/1000).toFixed(2)
-    ));
-
-    diagnosticRunMode='wide';
-    clearCalcCaches();
-    const wideStart=performance.now();
-    const verifyWide=await optimizeAsync(exp,msg=>{
-      btn.textContent='検証2/2 '+msg.replace('計算中','').trim();
-    });
-    diagnosticRows.push(diagnosticResultSummary(
-      '検証2（Upper Bound無効・保持上限拡大）',
-      verifyWide,
-      ((performance.now()-wideStart)/1000).toFixed(2)
-    ));
-
-    diagnosticRunMode='life50';
-    clearCalcCaches();
-    const life50Start=performance.now();
-    const verifyLife50=await optimizeAsync(exp,msg=>{
-      btn.textContent='検証3/3 '+msg.replace('計算中','').trim();
-    });
-    diagnosticRows.push(diagnosticResultSummary(
-      '検証3（生命力50固定・Upper Bound無効・保持上限拡大）',
-      verifyLife50,
-      ((performance.now()-life50Start)/1000).toFixed(2)
-    ));
-
-    diagnosticRunMode='normal';
-    const manualPlan=scoreManualPlan(exp);
-
     const finalItems=restoreItems(finalCandidate);
     const elapsed=normalElapsed;
     const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
@@ -3394,11 +3371,8 @@ async function calc(){
 ${remainHtml}
 <div class="result-block">
   <h3>計算時間</h3>
-  <p>${elapsed} 秒（現行計算のみ）</p>
-</div>
-${diagnosticCompareHtml(diagnosticRows)}
-${manualPlanHtml(manualPlan,verifyWide)}
-${manualRouteTraceHtml()}`;
+  <p>${elapsed} 秒</p>
+</div>`;
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
