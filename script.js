@@ -1405,10 +1405,44 @@ function basicPlanEntry(name,exp){
     }
   }
 
-  const milestonePriority=milestoneEff>=0.5;
-  const priority=milestonePriority ? Math.max(bestEff,milestoneEff)+1 : bestEff;
+  // 節目優先でない能力は、遠い将来の最高効率ではなく
+  // 「現在値→次の1」の査定効率で並べる。
+  const firstStep=opts.find(x=>x.items?.length && Number(x.items[0]?.to)===current+1);
+  const currentEff=firstStep
+    ? Number(firstStep.score||0)/Math.max(1,Number(firstStep.costSum||0))
+    : 0;
 
-  return {name,opts,priority,bestScore,milestoneEff,milestoneTarget,milestonePriority};
+  const milestonePriority=milestoneEff>=0.5;
+  const highRangePriority=current>=90 && !milestonePriority;
+
+  // 僧侶・魔法使い・魔闘士のパワーは通常区間での探索優先度を明確に下げる。
+  // ただし節目効率0.5以上、または90以上なら通常どおり優先判定する。
+  const lowPowerJob=['僧侶','魔法使い','魔闘士'].includes(job.value);
+  const roleDeprioritized=
+    name==='パワー' &&
+    lowPowerJob &&
+    !milestonePriority &&
+    !highRangePriority;
+
+  const priorityTier=milestonePriority ? 3 : (highRangePriority ? 2 : (roleDeprioritized ? 0 : 1));
+  const priorityValue=milestonePriority
+    ? milestoneEff
+    : currentEff;
+
+  return {
+    name,
+    opts,
+    priority:priorityValue,
+    priorityTier,
+    bestScore,
+    bestEff,
+    currentEff,
+    milestoneEff,
+    milestoneTarget,
+    milestonePriority,
+    highRangePriority,
+    roleDeprioritized
+  };
 }
 
 function manualTargetForBasic(name){
@@ -1545,18 +1579,19 @@ function buildBasicStates(exp){
   const plan=basicNames
     .map(name=>basicPlanEntry(name,exp))
     .sort((a,b)=>{
-      // 次の節目までの累積査定効率が0.5以上の能力を優先。
-      if(!!a.milestonePriority!==!!b.milestonePriority){
-        return a.milestonePriority?-1:1;
+      // 優先順位：
+      // 1. 次節目までの累積効率0.5以上
+      // 2. 現在値90以上
+      // 3. 現在区間（次の1）の査定効率順
+      // 4. 僧侶・魔法使い・魔闘士の通常区間パワー
+      if(b.priorityTier!==a.priorityTier){
+        return b.priorityTier-a.priorityTier;
       }
 
-      // 節目優先同士は、節目効率が高い能力から。
-      if(a.milestonePriority && b.milestonePriority && b.milestoneEff!==a.milestoneEff){
-        return b.milestoneEff-a.milestoneEff;
+      if(b.priority!==a.priority){
+        return b.priority-a.priority;
       }
 
-      // 節目優先でない能力は通常の最高効率順。
-      if(b.priority!==a.priority) return b.priority-a.priority;
       return basicNames.indexOf(a.name)-basicNames.indexOf(b.name);
     });
 
@@ -1566,10 +1601,14 @@ function buildBasicStates(exp){
       order:index+1,
       name:entry.name,
       priority:Number(entry.priority||0),
-      bestEff:Number(entry.opts.reduce((m,o)=>Math.max(m,Number(o.eff||0)),0)),
+      priorityTier:Number(entry.priorityTier||0),
+      bestEff:Number(entry.bestEff||0),
+      currentEff:Number(entry.currentEff||0),
       milestoneTarget:entry.milestoneTarget,
       milestoneEff:Number(entry.milestoneEff||0),
       milestonePriority:!!entry.milestonePriority,
+      highRangePriority:!!entry.highRangePriority,
+      roleDeprioritized:!!entry.roleDeprioritized,
       optionCount:entry.opts.length
     }));
   }
