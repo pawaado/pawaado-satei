@@ -2045,7 +2045,7 @@ async function optimizeSpecialsForLife(baseStates, exp, hp, onProgress, progress
   return best||{items:EMPTY_ITEMS,itemLen:0,score:0,cost:[0,0,0,0,0],life:null,bits:EMPTY_BITS};
 }
 
-// v11.7: Web Worker高速版。進捗率を4段階の処理表示へ変更。
+// v11.8: Web Worker高速版。進捗表示を固定の「計算中」に戻す。
 // 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
 // 同じ査定効率で比較し、上位候補へ分岐する。
 const MIXED_BRANCH_NORMAL=7;
@@ -2503,7 +2503,7 @@ async function optimizeAsync(exp){
   const payload=buildWorkerPayload(exp);
 
   return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./pawaado_worker.js?v=20260715-stage-progress');
+    const worker=new Worker('./pawaado_worker.js?v=20260715-fixed-calculating-fast');
     activeCalcWorker=worker;
     activeCalcWorkerReject=reject;
 
@@ -2515,12 +2515,6 @@ async function optimizeAsync(exp){
 
     worker.onmessage=(event)=>{
       const data=event.data||{};
-
-      if(data.type==='progress'){
-        const calcButton=document.getElementById('calcBtn');
-        if(calcButton) calcButton.textContent=String(data.message||'計算中');
-        return;
-      }
 
       if(data.type==='result'){
         finish();
@@ -2732,9 +2726,8 @@ async function calc(){
   ${resultTable(finalItems,'special')}
 </div>
 ${remainHtml}
-<div class="result-block">
-  <h3>計算時間</h3>
-  <p>${elapsed} 秒</p>
+<div class="result-block" style="padding-top:12px;padding-bottom:12px;">
+  <p style="margin:0;font-size:0.82em;color:#667085;">計算時間：${elapsed}秒</p>
 </div>`;
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
