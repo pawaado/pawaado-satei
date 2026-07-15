@@ -1,4 +1,4 @@
- /* PowerAd calculation Web Worker */
+/* PowerAd calculation Web Worker */
 self.window=self;
 importScripts('./data.js');
 
@@ -2428,7 +2428,6 @@ function mixedApplyAction(st,op){
 }
 async function optimizeMixedAsync(exp,onProgress){
   clearMixedSearchCaches();
-  if(onProgress) onProgress('計算を準備中…');
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
   const init={
@@ -2447,11 +2446,6 @@ async function optimizeMixedAsync(exp,onProgress){
     throwIfCancelled();
     const next=new Map();
     let expanded=0;
-
-    if(onProgress){
-      if(step===0) onProgress('候補を比較中…');
-      else if(step===1) onProgress('最適な組み合わせを探索中…');
-    }
 
     for(const st of states.values()){
       const actions=mixedCandidateActions(st,exp);
@@ -2483,7 +2477,6 @@ async function optimizeMixedAsync(exp,onProgress){
 
   }
 
-  if(onProgress) onProgress('結果をまとめています…');
   for(const st of states.values()) if(better(st,best)) best=st;
   best.ownedHpDelta=ownedHpDependentBreakdown(best.life).total;
   return best;
@@ -2762,9 +2755,7 @@ self.onmessage=async(event)=>{
       ? payload.exp.map(v=>Number(v||0))
       : [0,0,0,0,0];
 
-    const finalCandidate=await optimizeMixedAsync(exp,(message)=>{
-      self.postMessage({type:'progress',message});
-    });
+    const finalCandidate=await optimizeMixedAsync(exp,null);
     const items=restoreItems(finalCandidate).map(item=>({...item}));
 
     self.postMessage({
