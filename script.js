@@ -2714,6 +2714,12 @@ async function calc(){
     const finalItems=restoreItems(finalCandidate);
     const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
 
+
+    const initialScore=calcCurrentScore();
+    const finalScore=Number(finalCandidate.score||0);
+    const scoreGain=Math.round(finalScore-initialScore);
+    const scoreHtml=`<div class="result-block"><h3>査定</h3><table class="result-table"><tbody><tr><td>初期査定</td><td>${initialScore.toFixed(1)}</td></tr><tr><td>最終査定</td><td>${finalScore.toFixed(1)}</td></tr><tr><td>査定上昇量</td><td>${scoreGain}</td></tr></tbody></table></div>`;
+
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
 
     result.innerHTML=`
@@ -2725,6 +2731,7 @@ async function calc(){
   <h3>特殊能力</h3>
   ${resultTable(finalItems,'special')}
 </div>
+${scoreHtml}
 ${remainHtml}
 <div class="result-block" style="padding-top:12px;padding-bottom:12px;">
   <p style="margin:0;font-size:0.82em;color:#667085;">計算時間：${elapsed}秒</p>
