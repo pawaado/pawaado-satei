@@ -2715,9 +2715,7 @@ async function calc(){
     const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
 
 
-    const initialScore=calcCurrentScore();
-    const finalScore=Number(finalCandidate.score||0);
-    const scoreGain=Math.round(finalScore-initialScore);
+    const scoreGain=Math.round(Number(finalCandidate.score||0));
     const scoreHtml=`<div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${scoreGain}</td></tr></tbody></table></div>`;
 
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
