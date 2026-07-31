@@ -2587,7 +2587,7 @@ function resultTable(items,kind){
     filtered=mergeBasicResultItems(filtered);
   }
 
-  if(!filtered.length) return '<p>追加なし</p>';
+  if(!filtered.length) return '<p><strong>追加なし</strong></p>';
 
   const sorted=filtered.sort((a,b)=>(a.idx??0)-(b.idx??0));
   const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from}→${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
@@ -2718,7 +2718,7 @@ async function calc(){
     const initialScore=calcCurrentScore();
     const finalScore=Number(finalCandidate.score||0);
     const scoreGain=Math.round(finalScore-initialScore);
-    const scoreHtml=`<div class="result-block"><h3>査定</h3><table class="result-table"><tbody><tr><td>初期査定</td><td>${initialScore.toFixed(1)}</td></tr><tr><td>最終査定</td><td>${finalScore.toFixed(1)}</td></tr><tr><td>査定上昇量</td><td>${scoreGain}</td></tr></tbody></table></div>`;
+    const scoreHtml=`<div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${scoreGain}</td></tr></tbody></table></div>`;
 
     const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
 
