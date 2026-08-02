@@ -3,6 +3,8 @@
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
+const MAX_EXP_SAMPLES=5;
+let expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const mutualGroups=[
   ['生存本能','闘争本能'],
@@ -428,7 +430,36 @@ job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecial
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');}
-function renderExp(){document.getElementById('expInputs').innerHTML=expNames.map(n=>`<div class="exp-row"><label>${n}</label><input type="number" min="0" max="1000" id="exp_${n}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${safeId(n)}"></div></div>`).join('');}
+function sampleLabel(index){
+  return `サンプル${['①','②','③','④','⑤'][index]||index+1}`;
+}
+function syncExpSamplesFromDom(){
+  expSamples=expSamples.map((sample,index)=>{
+    const next={...sample};
+    expNames.forEach(name=>{
+      const inp=document.getElementById(`exp_${index}_${safeId(name)}`);
+      if(inp) next[name]=inp.value;
+    });
+    return next;
+  });
+}
+function renderExp(){
+  const wrap=document.getElementById('expInputs');
+  wrap.innerHTML=expSamples.map((sample,index)=>`
+    <div class="exp-sample" data-sample-index="${index}">
+      <div class="exp-sample-head">
+        <h3>${sampleLabel(index)}</h3>
+        <div class="exp-sample-actions">
+          <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${expSamples.length>=MAX_EXP_SAMPLES?'disabled':''}>サンプルを複製</button>
+          ${index>0?`<button type="button" class="secondary exp-action-btn exp-delete-btn" data-exp-action="remove" data-sample-index="${index}">削除</button>`:''}
+        </div>
+      </div>
+      <div class="exp-list">
+        ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="1000" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
+      </div>
+    </div>`).join('')+
+    `<button type="button" class="secondary add-sample-btn" data-exp-action="add" ${expSamples.length>=MAX_EXP_SAMPLES?'disabled':''}>サンプルを追加</button>`;
+}
 
 function renderBasic(){
   const wrap=document.getElementById('basicInputs');
@@ -538,6 +569,21 @@ document.addEventListener('dblclick',e=>{if(e.target.closest('button')) e.preven
 document.addEventListener('click',e=>{
   const t=e.target.closest('button'); if(!t)return;
   if(isCalculating && t.id!=='calcBtn'){ e.preventDefault(); return; }
+  const expAction=t.dataset.expAction;
+  if(expAction){
+    syncExpSamplesFromDom();
+    const index=Number(t.dataset.sampleIndex);
+    if(expAction==='add' && expSamples.length<MAX_EXP_SAMPLES){
+      expSamples.push(Object.fromEntries(expNames.map(n=>[n,''])));
+    }else if(expAction==='duplicate' && expSamples.length<MAX_EXP_SAMPLES && expSamples[index]){
+      expSamples.splice(index+1,0,{...expSamples[index]});
+    }else if(expAction==='remove' && index>0 && expSamples[index]){
+      expSamples.splice(index,1);
+    }
+    renderExp();
+    validateAllInline();
+    return;
+  }
   const kind=t.dataset.kind;
   if(kind==='basic-hint'){const name=t.dataset.name; basicHints[name]=cycleHint(basicHints[name]); applyBasicVisual(name); return;}
   if(kind==='basic-name'){
@@ -584,8 +630,8 @@ document.addEventListener('pointerdown',e=>{
   inp.blur();
 },{passive:false});
 
-function validateExpField(name){
-  const inp=document.getElementById('exp_'+name); if(!inp) return '';
+function validateExpField(sampleIndex,name){
+  const inp=document.getElementById(`exp_${sampleIndex}_${safeId(name)}`); if(!inp) return '';
   const v=inp.value;
   let msg='';
   if(v!=='' && v!=null){
@@ -593,7 +639,7 @@ function validateExpField(name){
     if(!Number.isFinite(num) || num<0) msg='経験点は0以上の値を入力してください';
     else if(num>1000) msg='経験点は1000以下の値を入力してください';
   }
-  setInlineError('err_exp_'+safeId(name),msg);
+  setInlineError(`err_exp_${sampleIndex}_${safeId(name)}`,msg);
   inp.classList.toggle('input-error',!!msg);
   return msg;
 }
@@ -610,13 +656,13 @@ function validateBasicField(name){
   inp.classList.toggle('input-error',!!msg);
   return msg;
 }
-function validateAllInline(){expNames.forEach(validateExpField); basicNames.forEach(validateBasicField);}
+function validateAllInline(){expSamples.forEach((_,i)=>expNames.forEach(n=>validateExpField(i,n))); basicNames.forEach(validateBasicField);}
 
 document.addEventListener('input',e=>{
   if(isCalculating) return;
   const inp=e.target;
   if(!inp || !inp.id) return;
-  if(inp.id.startsWith('exp_')){ validateExpField(inp.id.replace('exp_','')); return; }
+  if(inp.dataset.expName!=null){ const i=Number(inp.dataset.sampleIndex); expSamples[i][inp.dataset.expName]=inp.value; validateExpField(i,inp.dataset.expName); return; }
   if(!inp.id.startsWith('basic_')) return;
   const name=inp.id.replace('basic_','');
   validateBasicField(name);
@@ -2597,12 +2643,15 @@ function validateInputs(){
   const errs=[];
   if(!academy.value){errs.push('アカデミー及びジョブを選択してください。'); return errs;}
   if(!job.value) errs.push('ジョブを選択してください。');
-  expNames.forEach(n=>{
-    const v=document.getElementById('exp_'+n)?.value;
-    if(v==='' || v==null){errs.push(`${n}経験点を入力してください。`); return;}
-    const num=Number(v);
-    if(!Number.isFinite(num) || num<0) errs.push(`${n}経験点は0以上の値を入力してください。`);
-    if(num>1000) errs.push(`${n}経験点は1000以下の値を入力してください。`);
+  syncExpSamplesFromDom();
+  expSamples.forEach((sample,index)=>{
+    expNames.forEach(n=>{
+      const v=sample[n];
+      if(v==='' || v==null){errs.push(`${sampleLabel(index)}の${n}経験点を入力してください。`); return;}
+      const num=Number(v);
+      if(!Number.isFinite(num) || num<0) errs.push(`${sampleLabel(index)}の${n}経験点は0以上の値を入力してください。`);
+      if(num>1000) errs.push(`${sampleLabel(index)}の${n}経験点は1000以下の値を入力してください。`);
+    });
   });
   const lim=limits();
   basicNames.forEach(n=>{
@@ -2650,6 +2699,26 @@ function basicItemScore(it){
 
 
 
+function sampleResultHtml(entry,index){
+  const finalItems=restoreItems(entry.candidate);
+  const remain=entry.exp.map((v,i)=>v-(entry.candidate.cost?.[i]||0));
+  const inputSummary=expNames.map((n,i)=>`${n}${entry.exp[i]}`).join('／');
+  return `<div class="sample-result ${entry.isBest?'best-sample-result':''}">
+    <h3 class="sample-result-title">${sampleLabel(index)}${entry.isBest?' <span class="best-badge">最高</span>':''}</h3>
+    <p class="sample-input-summary">${inputSummary}</p>
+    <div class="result-block"><h3>基本能力</h3>${resultTable(finalItems,'basic')}</div>
+    <div class="result-block"><h3>特殊能力</h3>${resultTable(finalItems,'special')}</div>
+    <div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${entry.scoreGain}</td></tr></tbody></table></div>
+    <div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>
+    <div class="result-block calc-time-block"><p>計算時間：${entry.elapsed}秒</p></div>
+  </div>`;
+}
+function comparisonHtml(entries){
+  if(entries.length<2) return '';
+  const ranked=entries.slice().sort((a,b)=>b.scoreGain-a.scoreGain || a.index-b.index);
+  return `<div class="comparison-block"><h3>比較結果</h3><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabel(entry.index)}</td><td>${entry.scoreGain}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
 async function calc(){
   clearCalcCaches();
   TARGET_DEBUG.reset();
@@ -2663,11 +2732,9 @@ async function calc(){
     return;
   }
 
-  const exp=expNames.map(n=>Number(document.getElementById('exp_'+n).value||0));
-  const startTime=performance.now();
+  const sampleExps=expSamples.map(sample=>expNames.map(n=>Number(sample[n]||0)));
   const btn=document.getElementById('calcBtn');
   const cancelBtn=ensureCancelButton();
-  const cacheKey=calcCacheKey(exp);
 
   cancelRequested=false;
   isCalculating=true;
@@ -2689,51 +2756,36 @@ async function calc(){
   cancelBtn.style.setProperty('border','2px solid #1d2939','important');
   cancelBtn.style.setProperty('box-shadow','0 3px 0 rgba(16,24,40,.22)','important');
   cancelBtn.style.setProperty('filter','none','important');
-
   result.innerHTML='';
 
   try{
-    let finalCandidate=getCachedResult(cacheKey);
-    const calcStart=performance.now();
-
-    if(finalCandidate){
-      btn.textContent='計算 100%';
-    }else{
-      let lastProgressPaint=0;
-      finalCandidate=await optimizeAsync(exp,(msg)=>{
-        const now=performance.now();
-        if(msg.includes('100%') || now-lastProgressPaint>=250){
-          lastProgressPaint=now;
-          btn.textContent=msg;
-        }
+    const entries=[];
+    for(let index=0;index<sampleExps.length;index++){
+      throwIfCancelled();
+      const exp=sampleExps[index];
+      btn.textContent=`${sampleLabel(index)} 計算中`;
+      const cacheKey=calcCacheKey(exp);
+      const calcStart=performance.now();
+      let candidate=getCachedResult(cacheKey);
+      if(!candidate){
+        candidate=await optimizeAsync(exp);
+        setCachedResult(cacheKey,candidate);
+      }
+      entries.push({
+        index,
+        exp,
+        candidate,
+        scoreGain:Math.round(Number(candidate.score||0)),
+        elapsed:((performance.now()-calcStart)/1000).toFixed(2),
+        isBest:false
       });
-      setCachedResult(cacheKey,finalCandidate);
+      btn.textContent=`${index+1}/${sampleExps.length} 完了`;
+      await yieldToBrowser();
     }
 
-    const elapsed=((performance.now()-calcStart)/1000).toFixed(2);
-    const finalItems=restoreItems(finalCandidate);
-    const remain=exp.map((v,i)=>v-(finalCandidate.cost?.[i]||0));
-
-
-    const scoreGain=Math.round(Number(finalCandidate.score||0));
-    const scoreHtml=`<div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${scoreGain}</td></tr></tbody></table></div>`;
-
-    const remainHtml=`<div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>`;
-
-    result.innerHTML=`
-<div class="result-block">
-  <h3>基本能力</h3>
-  ${resultTable(finalItems,'basic')}
-</div>
-<div class="result-block">
-  <h3>特殊能力</h3>
-  ${resultTable(finalItems,'special')}
-</div>
-${scoreHtml}
-${remainHtml}
-<div class="result-block" style="padding-top:12px;padding-bottom:12px;">
-  <p style="margin:0;font-size:0.82em;color:#667085;">計算時間：${elapsed}秒</p>
-</div>`;
+    const maxScore=Math.max(...entries.map(x=>x.scoreGain));
+    entries.forEach(x=>{x.isBest=x.scoreGain===maxScore;});
+    result.innerHTML=comparisonHtml(entries)+entries.map((entry)=>sampleResultHtml(entry,entry.index)).join('');
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
@@ -2751,6 +2803,7 @@ ${remainHtml}
     job.disabled=!academy.value;
     basicNames.forEach(n=>applyBasicVisual(n));
     D.special.forEach((_,i)=>applySkillVisual(i));
+    renderExp();
     btn.disabled=false;
     btn.textContent='計算する';
     cancelBtn.disabled=false;
@@ -2761,6 +2814,7 @@ ${remainHtml}
 }
 
 function resetAll(){
+  expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
   academy.value='';
@@ -2772,6 +2826,7 @@ function resetAll(){
   specialState.clear();
   calcResultCache.clear();
 
+  renderExp();
   renderBasic();
   renderSpecials();
 

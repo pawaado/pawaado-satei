@@ -52,3 +52,38 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
   .result-block h3{font-size:18px;margin-bottom:6px}
   .result-table td{padding:7px 4px}
 }
+
+.exp-sample{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px;background:#f8fbff}
+.exp-sample-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.exp-sample-head h3{font-size:17px;margin:0}
+.exp-sample-actions{display:flex;gap:8px;justify-content:flex-end}
+.exp-action-btn,.add-sample-btn{width:auto;padding:9px 12px;border-radius:10px;font-size:13px}
+.exp-delete-btn{background:#9f1239!important}
+.add-sample-btn{display:block;margin:4px auto 0}
+.note-title-gap{margin-top:12px}
+.comparison-block{margin:4px 0 24px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#f8fbff}
+.comparison-block h3{font-size:20px;margin:0 0 8px}
+.comparison-table td:last-child{text-align:right}
+.best-row td{background:#ecfdf5}
+.sample-result{border-top:2px solid var(--line);padding-top:14px;margin-top:18px}
+.sample-result:first-of-type{border-top:0}
+.best-sample-result{border-left:4px solid #16a34a;padding-left:10px}
+.sample-result-title{font-size:22px;margin:0 0 4px}
+.best-badge{display:inline-block;font-size:.62em;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:2px 8px;vertical-align:middle}
+.sample-input-summary{margin:0 0 12px;color:var(--muted);font-size:12px;font-weight:800;line-height:1.5}
+.calc-time-block{padding-top:12px;padding-bottom:12px}
+.calc-time-block p{margin:0;font-size:.82em;color:#667085}
+@media(max-width:640px){
+  .exp-sample{padding:10px}
+  .exp-sample-head{align-items:flex-start;flex-direction:column}
+  .exp-sample-actions{width:100%;display:grid;grid-template-columns:1fr 74px}
+  .exp-sample:first-child .exp-sample-actions{grid-template-columns:1fr}
+  .exp-action-btn{width:100%;font-size:12px;padding:9px 8px}
+  .sample-input-summary{font-size:11px}
+}
+@media (orientation:landscape) and (max-height:600px){
+  .exp-sample{margin-bottom:8px;padding:10px}
+  .exp-sample-head{margin-bottom:8px}
+  .exp-sample-actions{display:flex;width:auto}
+  .exp-action-btn{width:auto}
+}
