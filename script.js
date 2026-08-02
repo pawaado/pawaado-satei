@@ -3,7 +3,7 @@
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
-const MAX_EXP_SAMPLES=5;
+const MAX_EXP_SAMPLES=6;
 let expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const mutualGroups=[
@@ -392,15 +392,6 @@ function countTargetStates(mapOrIterable){
   }
   return n;
 }
-const PROFILE={marks:new Map(),times:new Map()};
-function pStart(k){PROFILE.marks.set(k,performance.now());}
-function pEnd(k){const t=performance.now()-(PROFILE.marks.get(k)||performance.now());PROFILE.times.set(k,(PROFILE.times.get(k)||0)+t);}
-function pReset(){PROFILE.marks.clear();PROFILE.times.clear();}
-function pReport(){
-  const rows=[...PROFILE.times.entries()].map(([k,v])=>`<tr><td>${k}</td><td>${(v/1000).toFixed(3)} 秒</td></tr>`);
-  return rows.length?rows.join(""):'<tr><td colspan="2">計測なし</td></tr>';
-}
-
 
 function removeTemporaryVersionDisplay(){
   const nodes=document.querySelectorAll('body *');
@@ -431,10 +422,13 @@ job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecial
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');}
 function sampleLabel(index){
-  return `経験点パターン${['①','②','③','④','⑤'][index]||index+1}`;
+  return `経験点パターン${['①','②','③','④','⑤','⑥'][index]||index+1}`;
 }
 function sampleLabelHtml(index){
   return `経験点パターン<span class="sample-number">${index+1}</span>`;
+}
+function sampleErrorPrefix(index){
+  return expSamples.length>1 ? `${sampleLabel(index)}の` : '';
 }
 function syncExpSamplesFromDom(){
   expSamples=expSamples.map((sample,index)=>{
@@ -2654,12 +2648,12 @@ function validateInputs(){
     expNames.forEach(n=>{
       const v=sample[n];
       if(v==='' || v==null){
-        expErrs.push(`${sampleLabel(index)}の${n}経験点を入力してください。`);
+        expErrs.push(`${sampleErrorPrefix(index)}${n}経験点を入力してください。`);
         return;
       }
       const num=Number(v);
-      if(!Number.isFinite(num) || num<0) expErrs.push(`${sampleLabel(index)}の${n}経験点は0以上の値を入力してください。`);
-      if(num>1000) expErrs.push(`${sampleLabel(index)}の${n}経験点は1000以下の値を入力してください。`);
+      if(!Number.isFinite(num) || num<0) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は0以上の値を入力してください。`);
+      if(num>1000) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は1000以下の値を入力してください。`);
     });
   });
 
@@ -2703,17 +2697,7 @@ function validateInputs(){
 }
 
 
-function basicItemScore(it){
-  const table=tableFor(String(it?.name||''));
-  if(!table) return 0;
 
-  let total=0;
-  for(let v=Number(it.from);v<Number(it.to);v++){
-    const row=rowForValue(table.score,v);
-    if(row) total+=Number(row[2]||0);
-  }
-  return Math.round(total*10)/10;
-}
 
 
 
@@ -2748,7 +2732,6 @@ function sampleResultHtml(entry,index,multiple=false){
     <div class="result-block"><h3>特殊能力</h3>${resultTable(finalItems,'special')}</div>
     <div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${entry.scoreGain}</td></tr></tbody></table></div>
     <div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>
-    <div class="result-block calc-time-block"><p>計算時間：${entry.elapsed}秒</p></div>
   </div>`;
 }
 function rankedEntries(entries){
@@ -2763,7 +2746,6 @@ function comparisonHtml(entries){
 async function calc(){
   clearCalcCaches();
   TARGET_DEBUG.reset();
-  pReset();
   validateAllInline();
 
   const result=document.getElementById('result');
@@ -2806,7 +2788,6 @@ async function calc(){
       const exp=sampleExps[index];
       btn.textContent=sampleExps.length===1?'計算中':`${sampleLabel(index)} 計算中`;
       const cacheKey=calcCacheKey(exp);
-      const calcStart=performance.now();
       let candidate=getCachedResult(cacheKey);
       if(!candidate){
         candidate=await optimizeAsync(exp);
@@ -2817,7 +2798,6 @@ async function calc(){
         exp,
         candidate,
         scoreGain:Math.round(Number(candidate.score||0)),
-        elapsed:((performance.now()-calcStart)/1000).toFixed(2),
         isBest:false
       });
       btn.textContent=`${index+1}/${sampleExps.length} 完了`;
