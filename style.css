@@ -82,5 +82,5 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
 }
 
 .pattern-label{display:inline-flex;align-items:baseline;gap:.04em;font-family:inherit;font-size:inherit;font-weight:inherit;line-height:inherit;letter-spacing:inherit;vertical-align:baseline;white-space:nowrap}
-.pattern-number-svg{display:inline-block;width:1em;height:1em;flex:0 0 1em;overflow:visible;vertical-align:-.12em;color:currentColor}
+.pattern-number-svg{display:inline-block;width:1em;height:1em;flex:0 0 1em;overflow:visible;vertical-align:-.18em;color:currentColor}
 .single-sample-result{border-top:0;padding-top:0;margin-top:0}
