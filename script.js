@@ -440,6 +440,11 @@ function syncExpSamplesFromDom(){
     return next;
   });
 }
+function updateResultTitle(){
+  const el=document.getElementById('resultTitle');
+  if(!el) return;
+  el.textContent = expSamples.length>1 ? '結果（査定上昇量）' : '結果';
+}
 function renderExp(){
   const wrap=document.getElementById('expInputs');
   const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
@@ -455,6 +460,7 @@ function renderExp(){
         ${index>0?`<button type="button" class="secondary exp-action-btn exp-delete-btn" data-exp-action="remove" data-sample-index="${index}">削除</button>`:''}
       </div>
     </div>`).join('');
+  updateResultTitle();
 }
 
 function renderBasic(){
@@ -2854,6 +2860,7 @@ function resetAll(){
   calcResultCache.clear();
 
   renderExp();
+  updateResultTitle();
   renderBasic();
   renderSpecials();
 
