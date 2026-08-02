@@ -425,10 +425,10 @@ function sampleLabel(index){
   return `経験点パターン${['①','②','③','④','⑤','⑥'][index]||index+1}`;
 }
 function sampleLabelHtml(index){
-  return `経験点パターン<span class="sample-number">${['①','②','③','④','⑤','⑥'][index]||index+1}</span>`;
+  return `<span class="pattern-label">${sampleLabel(index)}</span>`;
 }
 function sampleErrorPrefix(index){
-  return expSamples.length>1 ? `${sampleLabel(index)}の` : '';
+  return expSamples.length>1 ? `${sampleLabelHtml(index)}の` : '';
 }
 function syncExpSamplesFromDom(){
   expSamples=expSamples.map((sample,index)=>{
@@ -2677,7 +2677,7 @@ function validateInputs(){
     for(let j=i+1;j<validSampleValues.length;j++){
       if(!validSampleValues[j]) continue;
       const same=validSampleValues[i].every((value,k)=>value===validSampleValues[j][k]);
-      if(same) expErrs.push(`${sampleLabel(i)}と${sampleLabel(j)}に同じ経験点が入力されています。`);
+      if(same) expErrs.push(`${sampleLabelHtml(i)}と${sampleLabelHtml(j)}に同じ経験点が入力されています。`);
     }
   }
 
