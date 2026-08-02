@@ -2646,28 +2646,49 @@ function validateInputs(){
   const errs=[];
   if(!academy.value){errs.push('アカデミー及びジョブを選択してください。'); return errs;}
   if(!job.value) errs.push('ジョブを選択してください。');
+
   syncExpSamplesFromDom();
+  const expErrs=[];
+
   expSamples.forEach((sample,index)=>{
     expNames.forEach(n=>{
       const v=sample[n];
-      if(v==='' || v==null){errs.push(`${sampleLabel(index)}の${n}経験点を入力してください。`); return;}
+      if(v==='' || v==null){
+        expErrs.push(`${sampleLabel(index)}の${n}経験点を入力してください。`);
+        return;
+      }
       const num=Number(v);
-      if(!Number.isFinite(num) || num<0) errs.push(`${sampleLabel(index)}の${n}経験点は0以上の値を入力してください。`);
-      if(num>1000) errs.push(`${sampleLabel(index)}の${n}経験点は1000以下の値を入力してください。`);
+      if(!Number.isFinite(num) || num<0) expErrs.push(`${sampleLabel(index)}の${n}経験点は0以上の値を入力してください。`);
+      if(num>1000) expErrs.push(`${sampleLabel(index)}の${n}経験点は1000以下の値を入力してください。`);
     });
   });
+
+  // 5種類すべてが入力済みで、数値として有効なパターンだけを重複判定する。
+  // 未入力欄はNumber('')で0になるため、そのまま比較すると空欄同士を重複扱いしてしまう。
   const validSampleValues=expSamples.map(sample=>{
-    const values=expNames.map(n=>Number(sample[n]));
-    return values.every(Number.isFinite) ? values : null;
+    const rawValues=expNames.map(n=>sample[n]);
+    if(rawValues.some(v=>v==='' || v==null)) return null;
+
+    const values=rawValues.map(v=>Number(v));
+    if(!values.every(v=>Number.isFinite(v) && v>=0 && v<=1000)) return null;
+    return values;
   });
+
   for(let i=0;i<validSampleValues.length;i++){
     if(!validSampleValues[i]) continue;
     for(let j=i+1;j<validSampleValues.length;j++){
       if(!validSampleValues[j]) continue;
       const same=validSampleValues[i].every((value,k)=>value===validSampleValues[j][k]);
-      if(same) errs.push(`${sampleLabel(i)}と${sampleLabel(j)}に同じ経験点が入力されています。`);
+      if(same) expErrs.push(`${sampleLabel(i)}と${sampleLabel(j)}に同じ経験点が入力されています。`);
     }
   }
+
+  errs.push(...expErrs);
+
+  // 複数パターン表示中に経験点の入力エラーがある場合は、
+  // 基本能力側の未入力エラーまで大量に並べず、まず経験点だけを案内する。
+  if(expSamples.length>1 && expErrs.length) return errs;
+
   const lim=limits();
   basicNames.forEach(n=>{
     const v=document.getElementById('basic_'+n)?.value;
