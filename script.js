@@ -2536,31 +2536,34 @@ function cleanupActiveWorker(){
   }
   activeCalcWorkerReject=null;
 }
-async function optimizeAsync(exp){
-  await yieldToBrowser();
-
+function ensureActiveCalcWorker(){
+  if(activeCalcWorker) return activeCalcWorker;
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260802-shared-cache-test');
+  return activeCalcWorker;
+}
+async function optimizeAsync(exp){
+  await yieldToBrowser();
 
   const payload=buildWorkerPayload(exp);
 
   return await new Promise((resolve,reject)=>{
-    const worker=new Worker('./pawaado_worker.js?v=20260715-fixed-calculating-fast');
-    activeCalcWorker=worker;
+    const worker=ensureActiveCalcWorker();
     activeCalcWorkerReject=reject;
 
-    const finish=()=>{
-      if(activeCalcWorker===worker) activeCalcWorker=null;
+    const finishRequest=()=>{
       if(activeCalcWorkerReject===reject) activeCalcWorkerReject=null;
-      worker.terminate();
+      worker.onmessage=null;
+      worker.onerror=null;
     };
 
     worker.onmessage=(event)=>{
       const data=event.data||{};
 
       if(data.type==='result'){
-        finish();
+        finishRequest();
         const result=data.result||{};
         const items=Array.isArray(result.items)?result.items:[];
         resolve({
@@ -2574,10 +2577,10 @@ async function optimizeAsync(exp){
           ownedHpDelta:Number(result.ownedHpDelta||0)
         });
       }else if(data.type==='cancelled'){
-        finish();
+        finishRequest();
         reject(new CalculationCancelledError());
       }else if(data.type==='error'){
-        finish();
+        finishRequest();
         const err=new Error(data.message||'Worker内で計算エラーが発生しました。');
         err.name=data.name||'WorkerError';
         reject(err);
@@ -2585,7 +2588,8 @@ async function optimizeAsync(exp){
     };
 
     worker.onerror=(event)=>{
-      finish();
+      finishRequest();
+      cleanupActiveWorker();
       reject(new Error(event.message||'Workerの読み込みまたは実行に失敗しました。'));
     };
 

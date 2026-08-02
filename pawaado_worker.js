@@ -2713,31 +2713,63 @@ function resetAll(){
 
 
 
+let __workerConfigKey='';
+function __workerPayloadConfigKey(payload){
+  const basicPart=basicNames.map(name=>[
+    name,
+    Number(payload.basicValues?.[name]||1),
+    payload.basicOwned?.[name]?1:0,
+    Number(payload.basicHints?.[name]||0)
+  ]);
+  const specialPart=(payload.specialState||[])
+    .map(([index,state])=>[
+      String(index),
+      Number(state?.hint||0),
+      Number(state?.own||0)
+    ])
+    .sort((a,b)=>Number(a[0])-Number(b[0]));
+  return JSON.stringify([
+    String(payload.academy||''),
+    String(payload.job||''),
+    basicPart,
+    specialPart
+  ]);
+}
+
 function __applyWorkerPayload(payload){
-  academy.value=String(payload.academy||'');
-  job.value=String(payload.job||'');
+  const nextConfigKey=__workerPayloadConfigKey(payload);
+  const configChanged=nextConfigKey!==__workerConfigKey;
 
-  for(const name of basicNames){
-    document.getElementById('basic_'+name).value=String(Number(payload.basicValues?.[name]||1));
-    basicOwned[name]=!!payload.basicOwned?.[name];
-    basicHints[name]=Number(payload.basicHints?.[name]||0);
+  if(configChanged){
+    academy.value=String(payload.academy||'');
+    job.value=String(payload.job||'');
+
+    for(const name of basicNames){
+      document.getElementById('basic_'+name).value=String(Number(payload.basicValues?.[name]||1));
+      basicOwned[name]=!!payload.basicOwned?.[name];
+      basicHints[name]=Number(payload.basicHints?.[name]||0);
+    }
+
+    specialState.clear();
+    for(const [index,state] of payload.specialState||[]){
+      specialState.set(String(index),{
+        hint:Number(state?.hint||0),
+        own:Number(state?.own||0)
+      });
+    }
+
+    clearCalcCaches();
+    calcResultCache.clear();
+    hpByLifeCache.clear();
+    bitsKeyCache.clear();
+    bitsKeyCache.set(EMPTY_BITS,'0');
+    scopeKeyCache.clear();
+    __workerConfigKey=nextConfigKey;
   }
 
-  specialState.clear();
-  for(const [index,state] of payload.specialState||[]){
-    specialState.set(String(index),{
-      hint:Number(state?.hint||0),
-      own:Number(state?.own||0)
-    });
-  }
-
+  // 経験点ごとの探索状態は optimizeMixedAsync 内で毎回新規作成する。
+  // 同一設定の連続計算では、候補生成など設定依存の安全なキャッシュだけを再利用する。
   cancelRequested=false;
-  clearCalcCaches();
-  calcResultCache.clear();
-  hpByLifeCache.clear();
-  bitsKeyCache.clear();
-  bitsKeyCache.set(EMPTY_BITS,'0');
-  scopeKeyCache.clear();
 }
 
 self.onmessage=async(event)=>{
