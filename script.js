@@ -424,8 +424,12 @@ function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');
 function sampleLabel(index){
   return `経験点パターン${['①','②','③','④','⑤','⑥'][index]||index+1}`;
 }
+function patternNumberSvg(index){
+  const n=Math.max(1,Math.min(6,Number(index)+1));
+  return `<svg class="pattern-number-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="12" y="12.4" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="14" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif">${n}</text></svg>`;
+}
 function sampleLabelHtml(index){
-  return `<span class="pattern-label">${sampleLabel(index)}</span>`;
+  return `<span class="pattern-label">経験点パターン${patternNumberSvg(index)}</span>`;
 }
 function sampleErrorPrefix(index){
   return expSamples.length>1 ? `${sampleLabelHtml(index)}の` : '';
