@@ -54,12 +54,12 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
 }
 
 .exp-sample{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px;background:#f8fbff}
-.exp-sample-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.exp-sample-head{margin-bottom:10px}
 .exp-sample-head h3{font-size:17px;margin:0}
-.exp-sample-actions{display:flex;gap:8px;justify-content:flex-end}
-.exp-action-btn,.add-sample-btn{width:auto;padding:9px 12px;border-radius:10px;font-size:13px}
-.exp-delete-btn{background:#9f1239!important}
-.add-sample-btn{display:block;margin:4px auto 0}
+.exp-sample .exp-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.exp-sample-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.exp-action-btn{width:100%;padding:10px 8px;border-radius:10px;font-size:13px;white-space:nowrap}
+.exp-delete-btn{grid-column:1/-1;background:#9f1239!important}
 .note-title-gap{margin-top:12px}
 .comparison-block{margin:4px 0 24px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#f8fbff}
 .comparison-block h3{font-size:20px;margin:0 0 8px}
@@ -76,17 +76,13 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
 @media(max-width:640px){
   #expInputs{display:block}
   .exp-sample{width:100%;padding:10px}
-  .exp-sample-head{align-items:stretch;flex-direction:column;gap:8px}
-  .exp-sample-actions{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:8px}
-  .exp-sample:first-child .exp-sample-actions{grid-template-columns:1fr}
-  .exp-action-btn{width:100%;font-size:12px;padding:10px 8px;white-space:nowrap}
   .exp-sample .exp-list{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
-  .add-sample-btn{width:100%;margin-top:6px}
+  .exp-sample-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+  .exp-action-btn{font-size:12px;padding:10px 6px}
   .sample-input-summary{font-size:11px}
 }
 @media (orientation:landscape) and (max-height:600px){
   .exp-sample{margin-bottom:8px;padding:10px}
   .exp-sample-head{margin-bottom:8px}
-  .exp-sample-actions{display:flex;width:auto}
-  .exp-action-btn{width:auto}
+  .exp-sample-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 }

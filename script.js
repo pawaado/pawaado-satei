@@ -431,7 +431,7 @@ job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecial
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');}
 function sampleLabel(index){
-  return `サンプル${['①','②','③','④','⑤'][index]||index+1}`;
+  return `経験点パターン${['①','②','③','④','⑤'][index]||index+1}`;
 }
 function syncExpSamplesFromDom(){
   expSamples=expSamples.map((sample,index)=>{
@@ -445,20 +445,21 @@ function syncExpSamplesFromDom(){
 }
 function renderExp(){
   const wrap=document.getElementById('expInputs');
+  const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
   wrap.innerHTML=expSamples.map((sample,index)=>`
     <div class="exp-sample" data-sample-index="${index}">
       <div class="exp-sample-head">
         <h3>${sampleLabel(index)}</h3>
-        <div class="exp-sample-actions">
-          <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${expSamples.length>=MAX_EXP_SAMPLES?'disabled':''}>サンプルを複製</button>
-          ${index>0?`<button type="button" class="secondary exp-action-btn exp-delete-btn" data-exp-action="remove" data-sample-index="${index}">削除</button>`:''}
-        </div>
       </div>
       <div class="exp-list">
         ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="1000" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
       </div>
-    </div>`).join('')+
-    `<button type="button" class="secondary add-sample-btn" data-exp-action="add" ${expSamples.length>=MAX_EXP_SAMPLES?'disabled':''}>サンプルを追加</button>`;
+      <div class="exp-sample-actions">
+        <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${limitReached?'disabled':''}>パターンを複製</button>
+        <button type="button" class="secondary exp-action-btn" data-exp-action="add" data-sample-index="${index}" ${limitReached?'disabled':''}>パターンを追加</button>
+        ${index>0?`<button type="button" class="secondary exp-action-btn exp-delete-btn" data-exp-action="remove" data-sample-index="${index}">削除</button>`:''}
+      </div>
+    </div>`).join('');
 }
 
 function renderBasic(){
@@ -574,7 +575,8 @@ document.addEventListener('click',e=>{
     syncExpSamplesFromDom();
     const index=Number(t.dataset.sampleIndex);
     if(expAction==='add' && expSamples.length<MAX_EXP_SAMPLES){
-      expSamples.push(Object.fromEntries(expNames.map(n=>[n,''])));
+      const insertAt=Number.isInteger(index) && index>=0 ? index+1 : expSamples.length;
+      expSamples.splice(insertAt,0,Object.fromEntries(expNames.map(n=>[n,''])));
     }else if(expAction==='duplicate' && expSamples.length<MAX_EXP_SAMPLES && expSamples[index]){
       expSamples.splice(index+1,0,{...expSamples[index]});
     }else if(expAction==='remove' && index>0 && expSamples[index]){
@@ -2653,6 +2655,18 @@ function validateInputs(){
       if(num>1000) errs.push(`${sampleLabel(index)}の${n}経験点は1000以下の値を入力してください。`);
     });
   });
+  const validSampleValues=expSamples.map(sample=>{
+    const values=expNames.map(n=>Number(sample[n]));
+    return values.every(Number.isFinite) ? values : null;
+  });
+  for(let i=0;i<validSampleValues.length;i++){
+    if(!validSampleValues[i]) continue;
+    for(let j=i+1;j<validSampleValues.length;j++){
+      if(!validSampleValues[j]) continue;
+      const same=validSampleValues[i].every((value,k)=>value===validSampleValues[j][k]);
+      if(same) errs.push(`${sampleLabel(i)}と${sampleLabel(j)}に同じ経験点が入力されています。`);
+    }
+  }
   const lim=limits();
   basicNames.forEach(n=>{
     const v=document.getElementById('basic_'+n)?.value;
