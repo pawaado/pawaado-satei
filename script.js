@@ -425,7 +425,7 @@ function sampleLabel(index){
   return `経験点パターン${['①','②','③','④','⑤','⑥'][index]||index+1}`;
 }
 function sampleLabelHtml(index){
-  return `経験点パターン<span class="sample-number">${index+1}</span>`;
+  return `経験点パターン<span class="sample-number">${['①','②','③','④','⑤','⑥'][index]||index+1}</span>`;
 }
 function sampleErrorPrefix(index){
   return expSamples.length>1 ? `${sampleLabel(index)}の` : '';
@@ -2541,7 +2541,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260802-shared-cache-test');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260802-shared-worker');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){

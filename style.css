@@ -81,5 +81,5 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
   .exp-sample-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
-.sample-number{display:inline-flex;align-items:center;justify-content:center;width:1.08em;height:1.08em;margin-left:.1em;border:1.5px solid currentColor;border-radius:50%;font-size:.72em;line-height:1;font-family:inherit;font-weight:800;vertical-align:.12em}
+.sample-number{display:inline;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;font-size:1em;font-weight:inherit;line-height:inherit;vertical-align:baseline}
 .single-sample-result{border-top:0;padding-top:0;margin-top:0}
