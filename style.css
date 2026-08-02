@@ -59,7 +59,10 @@ body.is-calculating button:not(#calcBtn), body.is-calculating input, body.is-cal
 .exp-delete-btn{grid-column:1/-1;background:#9f1239!important}
 .note-title-gap{margin-top:12px}
 .comparison-block{margin:4px 0 24px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#f8fbff}
-.comparison-table td:last-child{text-align:right}
+.comparison-table{width:100%;table-layout:fixed}
+.comparison-table td{vertical-align:middle}
+.comparison-table td:first-child{width:64px;white-space:nowrap}
+.comparison-table td:last-child{text-align:right;white-space:nowrap;width:88px;padding-right:8px;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
 .best-row td{background:#ecfdf5}
 .sample-result{border-top:2px solid var(--line);padding-top:14px;margin-top:18px}
 .sample-result:first-of-type{border-top:0}

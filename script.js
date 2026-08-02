@@ -422,7 +422,7 @@ job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecial
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');}
 function sampleLabel(index){
-  return `経験点パターン${['A','B','C','D','E','F'][index]||String.fromCharCode(65+index)}`;
+  return `パターン${['A','B','C','D','E','F'][index]||String.fromCharCode(65+index)}`;
 }
 function sampleLabelHtml(index){
   return `<span class="pattern-label">${sampleLabel(index)}</span>`;
