@@ -433,6 +433,9 @@ function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');
 function sampleLabel(index){
   return `経験点パターン${['①','②','③','④','⑤'][index]||index+1}`;
 }
+function sampleLabelHtml(index){
+  return `経験点パターン<span class="sample-number">${index+1}</span>`;
+}
 function syncExpSamplesFromDom(){
   expSamples=expSamples.map((sample,index)=>{
     const next={...sample};
@@ -448,9 +451,7 @@ function renderExp(){
   const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
   wrap.innerHTML=expSamples.map((sample,index)=>`
     <div class="exp-sample" data-sample-index="${index}">
-      <div class="exp-sample-head">
-        <h3>${sampleLabel(index)}</h3>
-      </div>
+      ${expSamples.length>1?`<div class="exp-sample-head"><h3>${sampleLabelHtml(index)}</h3></div>`:''}
       <div class="exp-list">
         ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="1000" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
       </div>
@@ -2713,13 +2714,15 @@ function basicItemScore(it){
 
 
 
-function sampleResultHtml(entry,index){
+function sampleResultHtml(entry,index,multiple=false){
   const finalItems=restoreItems(entry.candidate);
   const remain=entry.exp.map((v,i)=>v-(entry.candidate.cost?.[i]||0));
   const inputSummary=expNames.map((n,i)=>`${n}${entry.exp[i]}`).join('／');
-  return `<div class="sample-result ${entry.isBest?'best-sample-result':''}">
-    <h3 class="sample-result-title">${sampleLabel(index)}${entry.isBest?' <span class="best-badge">最高</span>':''}</h3>
-    <p class="sample-input-summary">${inputSummary}</p>
+  const headerHtml=multiple
+    ? `<h3 class="sample-result-title">${sampleLabelHtml(index)}${entry.isBest?' <span class="best-badge">最高</span>':''}</h3><p class="sample-input-summary">${inputSummary}</p>`
+    : '';
+  return `<div class="sample-result ${multiple&&entry.isBest?'best-sample-result':''} ${multiple?'':'single-sample-result'}">
+    ${headerHtml}
     <div class="result-block"><h3>基本能力</h3>${resultTable(finalItems,'basic')}</div>
     <div class="result-block"><h3>特殊能力</h3>${resultTable(finalItems,'special')}</div>
     <div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${entry.scoreGain}</td></tr></tbody></table></div>
@@ -2727,10 +2730,13 @@ function sampleResultHtml(entry,index){
     <div class="result-block calc-time-block"><p>計算時間：${entry.elapsed}秒</p></div>
   </div>`;
 }
+function rankedEntries(entries){
+  return entries.slice().sort((a,b)=>b.scoreGain-a.scoreGain || a.index-b.index);
+}
 function comparisonHtml(entries){
   if(entries.length<2) return '';
-  const ranked=entries.slice().sort((a,b)=>b.scoreGain-a.scoreGain || a.index-b.index);
-  return `<div class="comparison-block"><h3>比較結果</h3><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabel(entry.index)}</td><td>${entry.scoreGain}</td></tr>`).join('')}</tbody></table></div>`;
+  const ranked=rankedEntries(entries);
+  return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>${entry.scoreGain}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function calc(){
@@ -2777,7 +2783,7 @@ async function calc(){
     for(let index=0;index<sampleExps.length;index++){
       throwIfCancelled();
       const exp=sampleExps[index];
-      btn.textContent=`${sampleLabel(index)} 計算中`;
+      btn.textContent=sampleExps.length===1?'計算中':`${sampleLabel(index)} 計算中`;
       const cacheKey=calcCacheKey(exp);
       const calcStart=performance.now();
       let candidate=getCachedResult(cacheKey);
@@ -2799,7 +2805,9 @@ async function calc(){
 
     const maxScore=Math.max(...entries.map(x=>x.scoreGain));
     entries.forEach(x=>{x.isBest=x.scoreGain===maxScore;});
-    result.innerHTML=comparisonHtml(entries)+entries.map((entry)=>sampleResultHtml(entry,entry.index)).join('');
+    const multiple=entries.length>1;
+    const displayEntries=multiple?rankedEntries(entries):entries;
+    result.innerHTML=comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('');
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
