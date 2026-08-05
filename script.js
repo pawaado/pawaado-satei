@@ -2684,13 +2684,20 @@ function resultTable(items,kind){
 }
 function validateInputs(){
   const errs=[];
-  if(!academy.value){errs.push('アカデミー及びジョブを選択してください。'); return errs;}
-  if(!job.value) errs.push('ジョブを選択してください。');
+  if(!academy.value) errs.push('アカデミー及びジョブを選択してください。');
+  else if(!job.value) errs.push('ジョブを選択してください。');
 
   syncExpSamplesFromDom();
   const expErrs=[];
 
   expSamples.forEach((sample,index)=>{
+    const rawValues=expNames.map(n=>sample[n]);
+    const allBlank=rawValues.every(v=>v==='' || v==null);
+    if(allBlank){
+      expErrs.push(expSamples.length>1 ? `${sampleLabel(index)}の経験点を入力してください。` : '経験点を入力してください。');
+      return;
+    }
+
     expNames.forEach(n=>{
       const v=sample[n];
       if(v==='' || v==null){
@@ -2703,12 +2710,9 @@ function validateInputs(){
     });
   });
 
-  // 5種類すべてが入力済みで、数値として有効なパターンだけを重複判定する。
-  // 未入力欄はNumber('')で0になるため、そのまま比較すると空欄同士を重複扱いしてしまう。
   const validSampleValues=expSamples.map(sample=>{
     const rawValues=expNames.map(n=>sample[n]);
     if(rawValues.some(v=>v==='' || v==null)) return null;
-
     const values=rawValues.map(v=>Number(v));
     if(!values.every(v=>Number.isFinite(v) && v>=0 && v<=1000)) return null;
     return values;
@@ -2725,20 +2729,29 @@ function validateInputs(){
 
   errs.push(...expErrs);
 
-  // 複数パターン表示中に経験点の入力エラーがある場合は、
-  // 基本能力側の未入力エラーまで大量に並べず、まず経験点だけを案内する。
-  if(expSamples.length>1 && expErrs.length) return errs;
-
   const lim=limits();
-  basicNames.forEach(n=>{
-    const v=document.getElementById('basic_'+n)?.value;
-    if(!basicOwned[n] && (v==='' || v==null)){errs.push(`${n}を入力してください。`); return;}
-    if(v!=='' && v!=null){
-      const num=Number(v);
-      if(!Number.isFinite(num) || num<1) errs.push(`${n}は1以上の値を入力してください。`);
-      if(lim[n]!=null && num>lim[n]) errs.push(`${n}は入力上限を超えています。`);
-    }
+  const basicStates=basicNames.map(name=>{
+    const value=document.getElementById('basic_'+name)?.value;
+    return {name,value,owned:!!basicOwned[name]};
   });
+  const requiredBasics=basicStates.filter(item=>!item.owned);
+  const missingBasics=requiredBasics.filter(item=>item.value==='' || item.value==null);
+  const anyBasicValue=requiredBasics.some(item=>item.value!=='' && item.value!=null);
+
+  if(requiredBasics.length && missingBasics.length===requiredBasics.length && !anyBasicValue){
+    errs.push('基本能力を入力してください。');
+  }else{
+    requiredBasics.forEach(item=>{
+      if(item.value==='' || item.value==null){
+        errs.push(`${item.name}を入力してください。`);
+        return;
+      }
+      const num=Number(item.value);
+      if(!Number.isFinite(num) || num<1) errs.push(`${item.name}は1以上の値を入力してください。`);
+      if(lim[item.name]!=null && num>lim[item.name]) errs.push(`${item.name}は入力上限を超えています。`);
+    });
+  }
+
   return errs;
 }
 
