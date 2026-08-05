@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=rpg-mobile-v1">
+  <link rel="stylesheet" href="style.css?v=icon-polish-v1">
 </head>
 <body>
   <header class="site-header">
@@ -26,12 +26,18 @@
 
     <section class="card select-card" aria-label="アカデミーとジョブ選択">
       <label class="field-label select-field-label">
-        <span>アカデミー</span>
-        <select id="academy"></select>
+        <span class="select-label-text">アカデミー <span class="fixed-icon select-label-icon" aria-hidden="true">🏫</span></span>
+        <div class="select-control">
+          <select id="academy"></select>
+          <span class="select-game-arrow" aria-hidden="true"></span>
+        </div>
       </label>
       <label class="field-label select-field-label">
-        <span>ジョブ</span>
-        <select id="job"></select>
+        <span class="select-label-text">ジョブ <span class="fixed-icon select-label-icon" aria-hidden="true">⚔️</span></span>
+        <div class="select-control">
+          <select id="job"></select>
+          <span class="select-game-arrow" aria-hidden="true"></span>
+        </div>
       </label>
     </section>
 
@@ -98,6 +104,6 @@
   </div>
 
   <script src="data.js?v=650"></script>
-  <script src="script.js?v=rpg-mobile-v1"></script>
+  <script src="script.js?v=icon-polish-v1"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const expNames=['筋力','敏捷','技術','知力','精神'];
 const MAX_EXP_SAMPLES=6;
 let expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
+const basicIconMap={生命力:'❤️',パワー:'⚔️',魔力:'✨',器用さ:'🎯',耐久力:'🛡️',精神力:'💗'};
 const mutualGroups=[
   ['生存本能','闘争本能'],
   ['柔軟な体','頑丈な体'],
@@ -498,6 +499,11 @@ function animateResultCard(){
   card.classList.add('result-card-complete');
 }
 
+function basicNameHtml(name){
+  const icon=basicIconMap[name]||'';
+  return `<span class="ability-name-text"><span class="ability-name-label">${name}</span>${icon?`<span class="fixed-icon ability-name-icon" aria-hidden="true">${icon}</span>`:''}</span>`;
+}
+
 function renderBasic(){
   const wrap=document.getElementById('basicInputs');
   const lim=limits();
@@ -506,7 +512,7 @@ function renderBasic(){
     <div class="ability-block">
       <div class="ability-row ${basicOwned[n]?'owned':''}" data-basic="${n}">
         <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}">＋</button>
-        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}"><span class="ability-name-text">${n}</span></button>
+        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}">${basicNameHtml(n)}</button>
         <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'readonly aria-disabled="true"':''}>
       </div>
       <div class="inline-error" id="err_basic_${safeId(n)}"></div>
@@ -564,7 +570,7 @@ function applyBasicVisual(name){
   if(hintBtn) hintBtn.disabled=false;
   const btn=row.querySelector('.name-btn');
   if(btn) btn.disabled=false;
-  btn.innerHTML=`<span class="ability-name-text">${name}</span>${ownedLabel(!!basicOwned[name])}`;
+  btn.innerHTML=`${basicNameHtml(name)}${ownedLabel(!!basicOwned[name])}`;
   const inp=document.getElementById('basic_'+name);
   if(inp){
     // アカデミー／ジョブ未選択時はreadonlyにして、タップ時の案内を受け取れるようにする。
