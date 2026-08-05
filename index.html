@@ -2,64 +2,104 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#3c2415">
   <title>パワアド査定ツール</title>
-  <link rel="stylesheet" href="style.css?v=dynamic-result-title-v1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=rpg-mobile-v1">
 </head>
 <body>
-<header>
-  <h1>パワアド査定ツール</h1>
-  <button id="topResetBtn" class="secondary small">入力をリセット</button>
-</header>
-<main>
-  <section class="card select-card">
-    <label>アカデミー<select id="academy"></select></label>
-    <label>ジョブ<select id="job"></select></label>
-  </section>
-
-  <section class="card">
-    <h2>経験点</h2>
-    <div class="exp-list" id="expInputs"></div>
-  </section>
-
-  <section class="card">
-    <h2>基本能力</h2>
-    <div class="ability-list" id="basicInputs"></div>
-  </section>
-
-  <section class="card">
-    <h2>特殊能力</h2>
-    <div class="skill-list" id="specialList"></div>
-  </section>
-
-  <section class="card">
-    <div class="buttons">
-      <button id="calcBtn">計算する</button>
-      <button id="resetBtn" class="secondary">入力をリセット</button>
+  <header class="site-header">
+    <div class="wood-sign">
+      <h1>パワアド査定ツール</h1>
     </div>
-  </section>
+    <button id="usageBtn" class="usage-button" type="button" aria-haspopup="dialog" aria-controls="usageModal">
+      使い方
+    </button>
+  </header>
 
-  <section class="card">
-    <h2 id="resultTitle">結果</h2>
-    <div id="result">条件を入力して「計算する」を押してください。</div>
-  </section>
+  <main>
+    <section class="card select-card" aria-labelledby="selectTitle">
+      <div class="section-heading">
+        <h2 id="selectTitle">冒険の準備</h2>
+      </div>
+      <label class="field-label">
+        <span>アカデミー</span>
+        <select id="academy"></select>
+      </label>
+      <label class="field-label">
+        <span>ジョブ</span>
+        <select id="job"></select>
+      </label>
+    </section>
 
-  <section class="note" aria-labelledby="usageTitle">
-    <div class="note-title" id="usageTitle">【使用方法】</div>
-    <ul class="note-list">
-      <li>アカデミー、ジョブを選択し、経験点、基本能力、特殊能力を入力後、「計算する」を押すと、査定が最大となる組合せを表示します。</li>
-      <li>基本能力、特殊能力の左側の「＋」でコツレベルを設定できます。中央の名称をタップすると、基本能力は上限値、特殊能力は取得済として設定されます。</li>
-      <li>「パターンを複製」または「パターンを追加」で経験点を複数入力すると、最も査定上昇量が高いものを確認できます。</li>
-    </ul>
-    <div class="note-title note-title-gap" id="noteTitle">【注記】</div>
-    <ul class="note-list">
-      <li>基本能力の小数点以下の査定が不明等の理由から、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力は割愛しています。<span class="note-no-break">あらかじめご了承ください。</span></li>
-      <li>～攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
-      <li>不具合等がありましたら、@tam_pawaまでご連絡ください。</li>
-    </ul>
-  </section>
-</main>
-<script src="data.js?v=650"></script>
-<script src="script.js?v=dynamic-result-title-v1"></script>
+    <section class="card" aria-labelledby="expTitle">
+      <div class="section-heading section-heading-with-action">
+        <h2 id="expTitle">経験点</h2>
+        <button id="topResetBtn" class="secondary small" type="button">入力をリセット</button>
+      </div>
+      <div class="exp-list" id="expInputs"></div>
+    </section>
+
+    <section class="card" aria-labelledby="basicTitle">
+      <div class="section-heading">
+        <h2 id="basicTitle">基本能力</h2>
+      </div>
+      <div class="ability-list" id="basicInputs"></div>
+    </section>
+
+    <section class="card" aria-labelledby="specialTitle">
+      <div class="section-heading">
+        <h2 id="specialTitle">特殊能力</h2>
+      </div>
+      <div class="skill-list" id="specialList"></div>
+    </section>
+
+    <section class="action-card" aria-label="計算操作">
+      <div class="buttons">
+        <button id="resetBtn" class="secondary" type="button">入力をリセット</button>
+        <button id="calcBtn" type="button">計算する</button>
+      </div>
+    </section>
+
+    <section class="card result-card" aria-live="polite" aria-labelledby="resultTitle">
+      <div class="section-heading result-heading">
+        <h2 id="resultTitle">結果</h2>
+      </div>
+      <div id="result" class="result-content">条件を入力して「計算する」を押してください。</div>
+    </section>
+
+    <section class="note" aria-labelledby="noteTitle">
+      <div class="note-title" id="noteTitle">注記</div>
+      <ul class="note-list">
+        <li>基本能力の小数点以下の査定が不明等の理由から、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力は割愛しています。<span class="note-no-break">あらかじめご了承ください。</span></li>
+        <li>～攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
+        <li>不具合等がありましたら、@tam_pawaまでご連絡ください。</li>
+      </ul>
+    </section>
+  </main>
+
+  <div id="usageModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="usageTitle" hidden>
+    <div class="modal-backdrop" data-modal-close="true"></div>
+    <div class="modal-panel" role="document">
+      <div class="modal-header">
+        <h2 id="usageTitle">使い方</h2>
+        <button id="usageCloseBtn" class="modal-close" type="button" aria-label="使い方を閉じる">×</button>
+      </div>
+      <ol class="usage-list">
+        <li>アカデミーとジョブを選択します。</li>
+        <li>経験点、現在の基本能力、取得済みの特殊能力を入力します。</li>
+        <li>基本能力・特殊能力の左側の「＋」でコツレベルを設定できます。</li>
+        <li>中央の名称をタップすると、基本能力は上限値、特殊能力は取得済として設定されます。</li>
+        <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。</li>
+        <li>「計算する」を押すと、その直下に査定が最大となる組合せを表示します。</li>
+      </ol>
+    </div>
+  </div>
+
+  <script src="data.js?v=650"></script>
+  <script src="script.js?v=rpg-mobile-v1"></script>
 </body>
 </html>

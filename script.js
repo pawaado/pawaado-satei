@@ -420,6 +420,12 @@ academy.addEventListener('change',updateJobs);
 job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecials();});
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
+function setBasicOwnedState(name,on,{clearValueOnRelease=false}={}){
+  basicOwned[name]=!!on;
+  const inp=document.getElementById('basic_'+name);
+  if(!basicOwned[name] && clearValueOnRelease && inp) inp.value='';
+  applyBasicVisual(name);
+}
 function safeId(s){return String(s).replace(/[^a-zA-Z0-9_぀-ヿ㐀-鿿]/g,'_');}
 function sampleLabel(index){
   return `パターン${['A','B','C','D','E','F'][index]||String.fromCharCode(65+index)}`;
@@ -595,12 +601,8 @@ document.addEventListener('click',e=>{
       showAcademyJobRequired(name);
       return;
     }
-    basicOwned[name]=!basicOwned[name];
-    if(!basicOwned[name]){
-      const inp=document.getElementById('basic_'+name);
-      if(inp) inp.value='';
-    }
-    applyBasicVisual(name);
+    // 「取得済」を解除した場合は、右側の能力値も必ず空欄へ戻す。
+    setBasicOwnedState(name,!basicOwned[name],{clearValueOnRelease:true});
     return;
   }
   if(kind==='special-hint'){const i=Number(t.dataset.index); setSpecialHint(i,cycleHint(getSpecialState(i).hint)); return;}
@@ -2644,11 +2646,12 @@ function resultTable(items,kind){
     filtered=mergeBasicResultItems(filtered);
   }
 
-  if(!filtered.length) return '<p><strong>追加なし</strong></p>';
+  if(!filtered.length) return '<p class="result-empty"><strong>追加なし</strong></p>';
 
   const sorted=filtered.sort((a,b)=>(a.idx??0)-(b.idx??0));
-  const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from}→${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
-  return `<table class="result-table"><tbody>${rows}</tbody></table>`;
+  const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from} → ${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
+  const tableClass=kind==='basic'?'basic-result-table':'special-result-table';
+  return `<table class="result-table ${tableClass}"><tbody>${rows}</tbody></table>`;
 }
 function validateInputs(){
   const errs=[];
@@ -2740,12 +2743,14 @@ function sampleResultHtml(entry,index,multiple=false){
   const headerHtml=multiple
     ? `<h3 class="sample-result-title">${sampleLabelHtml(index)}${entry.isBest?' <span class="best-badge">最高</span>':''}</h3><p class="sample-input-summary">${inputSummary}</p>`
     : '';
+  const scoreText=`+${Math.abs(Number(entry.scoreGain||0))}`;
+  const remainHtml=expNames.map((n,i)=>`<div class="remain-item"><span class="remain-name">${n}</span><span class="remain-value">${remain[i]}</span></div>`).join('');
   return `<div class="sample-result ${multiple&&entry.isBest?'best-sample-result':''} ${multiple?'':'single-sample-result'}">
     ${headerHtml}
     <div class="result-block"><h3>基本能力</h3>${resultTable(finalItems,'basic')}</div>
     <div class="result-block"><h3>特殊能力</h3>${resultTable(finalItems,'special')}</div>
-    <div class="result-block"><h3>査定上昇量</h3><table class="result-table"><tbody><tr><td>${entry.scoreGain}</td></tr></tbody></table></div>
-    <div class="result-block"><h3>残経験点</h3><table class="result-table remain-table"><tbody>${expNames.map((n,i)=>`<tr><td>${n}</td><td>${remain[i]}</td></tr>`).join('')}</tbody></table></div>
+    <div class="result-block score-result-block"><h3>査定上昇量</h3><span class="score-gain">${scoreText}</span></div>
+    <div class="result-block"><h3>残経験点</h3><div class="remain-grid">${remainHtml}</div></div>
   </div>`;
 }
 function rankedEntries(entries){
@@ -2754,7 +2759,7 @@ function rankedEntries(entries){
 function comparisonHtml(entries){
   if(entries.length<2) return '';
   const ranked=rankedEntries(entries);
-  return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>${entry.scoreGain}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function calc(){
@@ -2850,6 +2855,37 @@ async function calc(){
   }
 }
 
+
+function setupUsageModal(){
+  const modal=document.getElementById('usageModal');
+  const openBtn=document.getElementById('usageBtn');
+  const closeBtn=document.getElementById('usageCloseBtn');
+  if(!modal || !openBtn || !closeBtn) return;
+
+  let previousFocus=null;
+  const openModal=()=>{
+    previousFocus=document.activeElement;
+    modal.hidden=false;
+    document.body.classList.add('modal-open');
+    closeBtn.focus();
+  };
+  const closeModal=()=>{
+    if(modal.hidden) return;
+    modal.hidden=true;
+    document.body.classList.remove('modal-open');
+    if(previousFocus && typeof previousFocus.focus==='function') previousFocus.focus();
+  };
+
+  openBtn.addEventListener('click',openModal);
+  closeBtn.addEventListener('click',closeModal);
+  modal.addEventListener('click',e=>{
+    if(e.target?.dataset?.modalClose==='true') closeModal();
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape' && !modal.hidden) closeModal();
+  });
+}
+
 function resetAll(){
   expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
@@ -2877,6 +2913,7 @@ document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
+setupUsageModal();
 removeTemporaryVersionDisplay();
 initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
