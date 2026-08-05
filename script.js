@@ -484,9 +484,18 @@ function applyCurrentJobTheme(){
   const cls=jobClassMap[job.value];
   if(cls) document.body.classList.add(`theme-${cls}`);
 }
-function renderErrorBox(messages,title='入力内容を確認してください。'){
+function renderErrorBox(messages){
   const items=(messages||[]).map(msg=>`<li>${msg}</li>`).join('');
-  return `<div class="error-box"><div class="error-box-title">${title}</div><ul class="error-box-list">${items}</ul></div>`;
+  return `<div class="error-box"><ul class="error-box-list">${items}</ul></div>`;
+}
+
+function animateResultCard(){
+  const card=document.querySelector('.result-card');
+  if(!card) return;
+  card.classList.remove('result-card-complete');
+  // 同じ条件で再計算した場合でもアニメーションを再実行する。
+  void card.offsetWidth;
+  card.classList.add('result-card-complete');
 }
 
 function renderBasic(){
@@ -2848,13 +2857,14 @@ async function calc(){
     const multiple=entries.length>1;
     const displayEntries=multiple?rankedEntries(entries):entries;
     result.innerHTML=comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('');
+    animateResultCard();
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
       result.innerHTML=`<div class="result-block"><p>計算をキャンセルしました。</p><p>条件を変更して、もう一度「計算する」を押してください。</p></div>`;
     }else{
       const name=err?.name||'Error';
       const message=err?.message||'原因不明のエラーです';
-      result.innerHTML=renderErrorBox([name,message],'計算中にエラーが発生しました。');
+      result.innerHTML=renderErrorBox(['計算中にエラーが発生しました。',name,message]);
       console.error(err);
     }
   }finally{
