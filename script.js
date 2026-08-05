@@ -2736,7 +2736,8 @@ function validateInputs(){
   });
   const requiredBasics=basicStates.filter(item=>!item.owned);
   const missingBasics=requiredBasics.filter(item=>item.value==='' || item.value==null);
-  const anyBasicValue=requiredBasics.some(item=>item.value!=='' && item.value!=null);
+  // 上限値への到達などで「取得済」扱いになった能力も、入力済みとして数える。
+  const anyBasicValue=basicStates.some(item=>item.owned || (item.value!=='' && item.value!=null));
 
   if(requiredBasics.length && missingBasics.length===requiredBasics.length && !anyBasicValue){
     errs.push('基本能力を入力してください。');
