@@ -14,6 +14,15 @@ const mutualGroups=[
 ];
 const jobsByAcademy={};
 D.academies.forEach(r=>{(jobsByAcademy[r[0]]??=[]).push(r[1]);});
+const jobClassMap={
+  '剣士':'job-swordsman',
+  '重戦士':'job-heavy',
+  '弓使い':'job-archer',
+  '魔法使い':'job-mage',
+  '僧侶':'job-priest',
+  '魔闘士':'job-spellblade'
+};
+const orderedJobNames=Object.keys(jobClassMap);
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
 const specialList=document.getElementById('specialList');
@@ -414,10 +423,10 @@ function updateJobs(){
   job.innerHTML=''; job.add(opt('ジョブを選択',''));
   jobs.forEach(j=>job.add(opt(j)));
   job.disabled=!academy.value;
-  clearBasicState(); renderBasic(); renderSpecials();
+  clearBasicState(); renderBasic(); renderSpecials(); applyCurrentJobTheme();
 }
 academy.addEventListener('change',updateJobs);
-job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecials();});
+job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();});
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function setBasicOwnedState(name,on,{clearValueOnRelease=false}={}){
@@ -467,6 +476,17 @@ function renderExp(){
       </div>
     </div>`).join('');
   updateResultTitle();
+}
+
+
+function applyCurrentJobTheme(){
+  document.body.classList.remove(...Object.values(jobClassMap).map(cls=>`theme-${cls}`));
+  const cls=jobClassMap[job.value];
+  if(cls) document.body.classList.add(`theme-${cls}`);
+}
+function renderErrorBox(messages,title='入力内容を確認してください。'){
+  const items=(messages||[]).map(msg=>`<li>${msg}</li>`).join('');
+  return `<div class="error-box"><div class="error-box-title">${title}</div><ul class="error-box-list">${items}</ul></div>`;
 }
 
 function renderBasic(){
@@ -2770,7 +2790,7 @@ async function calc(){
   const result=document.getElementById('result');
   const errs=validateInputs();
   if(errs.length){
-    result.innerHTML=`<div class="error-box">${errs.map(e=>`<p>⚠️ ${e}</p>`).join('')}</div>`;
+    result.innerHTML=renderErrorBox(errs);
     return;
   }
 
@@ -2834,7 +2854,7 @@ async function calc(){
     }else{
       const name=err?.name||'Error';
       const message=err?.message||'原因不明のエラーです';
-      result.innerHTML=`<div class="error-box"><p>⚠️ 計算中にエラーが発生しました。</p><p>${name}</p><p>${message}</p></div>`;
+      result.innerHTML=renderErrorBox([name,message],'計算中にエラーが発生しました。');
       console.error(err);
     }
   }finally{
@@ -2903,6 +2923,7 @@ function resetAll(){
   updateResultTitle();
   renderBasic();
   renderSpecials();
+  applyCurrentJobTheme();
 
   document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
 }

@@ -19,8 +19,11 @@
       使い方
     </button>
   </header>
-
   <main>
+    <div class="top-action-row">
+      <button id="topResetBtn" class="secondary top-reset-button" type="button">入力をリセット</button>
+    </div>
+
     <section class="card select-card" aria-labelledby="selectTitle">
       <div class="section-heading">
         <h2 id="selectTitle">冒険の準備</h2>
@@ -36,9 +39,8 @@
     </section>
 
     <section class="card" aria-labelledby="expTitle">
-      <div class="section-heading section-heading-with-action">
+      <div class="section-heading">
         <h2 id="expTitle">経験点</h2>
-        <button id="topResetBtn" class="secondary small" type="button">入力をリセット</button>
       </div>
       <div class="exp-list" id="expInputs"></div>
     </section>
@@ -59,8 +61,8 @@
 
     <section class="action-card" aria-label="計算操作">
       <div class="buttons">
-        <button id="resetBtn" class="secondary" type="button">入力をリセット</button>
         <button id="calcBtn" type="button">計算する</button>
+        <button id="resetBtn" class="secondary" type="button">入力をリセット</button>
       </div>
     </section>
 
@@ -69,15 +71,6 @@
         <h2 id="resultTitle">結果</h2>
       </div>
       <div id="result" class="result-content">条件を入力して「計算する」を押してください。</div>
-    </section>
-
-    <section class="note" aria-labelledby="noteTitle">
-      <div class="note-title" id="noteTitle">注記</div>
-      <ul class="note-list">
-        <li>基本能力の小数点以下の査定が不明等の理由から、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力は割愛しています。<span class="note-no-break">あらかじめご了承ください。</span></li>
-        <li>～攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
-        <li>不具合等がありましたら、@tam_pawaまでご連絡ください。</li>
-      </ul>
     </section>
   </main>
 
@@ -90,12 +83,20 @@
       </div>
       <ol class="usage-list">
         <li>アカデミーとジョブを選択します。</li>
-        <li>経験点、現在の基本能力、取得済みの特殊能力を入力します。</li>
+        <li>経験点、現在の基本能力、取得済の特殊能力を入力します。</li>
         <li>基本能力・特殊能力の左側の「＋」でコツレベルを設定できます。</li>
         <li>中央の名称をタップすると、基本能力は上限値、特殊能力は取得済として設定されます。</li>
         <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。</li>
-        <li>「計算する」を押すと、その直下に査定が最大となる組合せを表示します。</li>
+        <li>「計算する」を押すと、査定が最大となる組合せを表示します。</li>
       </ol>
+      <div class="usage-note-block">
+        <h3>注記</h3>
+        <ul class="usage-note-list">
+          <li>基本能力の小数点以下の査定が不明等の理由から、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力は割愛しています。あらかじめご了承ください。</li>
+          <li>～攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
+          <li>不具合等がありましたら、@tam_pawaまでご連絡ください。</li>
+        </ul>
+      </div>
     </div>
   </div>
 
