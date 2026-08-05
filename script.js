@@ -6,7 +6,7 @@ const expNames=['筋力','敏捷','技術','知力','精神'];
 const MAX_EXP_SAMPLES=6;
 let expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
-const basicIconMap={生命力:'❤️',パワー:'⚔️',魔力:'✨',器用さ:'🎯',耐久力:'🛡️',精神力:'💗'};
+const basicIconMap={生命力:'❤️',パワー:'⚔️',魔力:'✨',器用さ:'🎯',精神力:'🔥'};
 const mutualGroups=[
   ['生存本能','闘争本能'],
   ['柔軟な体','頑丈な体'],
@@ -500,8 +500,14 @@ function animateResultCard(){
 }
 
 function basicNameHtml(name){
-  const icon=basicIconMap[name]||'';
-  return `<span class="ability-name-text"><span class="ability-name-label">${name}</span>${icon?`<span class="fixed-icon ability-name-icon" aria-hidden="true">${icon}</span>`:''}</span>`;
+  let iconHtml='';
+  if(name==='耐久力'){
+    iconHtml=`<svg class="ability-name-svg durability-shield-icon" viewBox="0 0 32 36" aria-hidden="true" focusable="false"><path d="M16 2.5 28 7v9.2c0 8.2-5.2 14-12 17.3C9.2 30.2 4 24.4 4 16.2V7z" fill="#1f4f7a" stroke="#173852" stroke-width="2" stroke-linejoin="round"/><path d="M16 5.6 24.8 9v7c0 6.1-3.6 10.7-8.8 13.6-5.2-2.9-8.8-7.5-8.8-13.6V9z" fill="#dceaf4" stroke="#7fa9c7" stroke-width="1.4"/><path d="M16 5.6v24" stroke="#4d83aa" stroke-width="2"/><path d="M8.4 11.2 16 8.5l7.6 2.7" fill="none" stroke="#ffffff" stroke-width="1.3" opacity=".9"/></svg>`;
+  }else{
+    const icon=basicIconMap[name]||'';
+    if(icon) iconHtml=`<span class="fixed-icon ability-name-icon" aria-hidden="true">${icon}</span>`;
+  }
+  return `<span class="ability-name-text"><span class="ability-name-label">${name}</span>${iconHtml}</span>`;
 }
 
 function renderBasic(){
