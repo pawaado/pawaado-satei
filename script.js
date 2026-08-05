@@ -596,6 +596,10 @@ document.addEventListener('click',e=>{
       return;
     }
     basicOwned[name]=!basicOwned[name];
+    if(!basicOwned[name]){
+      const inp=document.getElementById('basic_'+name);
+      if(inp) inp.value='';
+    }
     applyBasicVisual(name);
     return;
   }
