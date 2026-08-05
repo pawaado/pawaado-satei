@@ -230,7 +230,7 @@ main{
 .select-field-label>.select-label-text{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-family:"Kaisei Decol",serif;font-size:clamp(19px,5.3vw,24px);font-weight:700;line-height:1.18;color:var(--theme-accent-dark);letter-spacing:.02em;text-shadow:0 1px 0 rgba(255,255,255,.92),0 2px 0 rgba(66,34,13,.17),0 3px 5px rgba(66,34,13,.10)}
 .select-label-icon{display:inline-flex;align-items:center;justify-content:center;font-size:.9em;transform:translateY(-1px);filter:drop-shadow(0 1px 0 rgba(255,255,255,.65)) drop-shadow(0 1px 1px rgba(70,38,15,.18))}
 .select-label-svg{display:block;width:1.08em;height:1.08em;flex:0 0 1.08em;overflow:visible;filter:drop-shadow(0 1px 0 rgba(255,255,255,.72)) drop-shadow(0 1px 1px rgba(70,38,15,.24))}
-.job-helmet-icon{transform:translateY(-1px)}
+.job-helmet-icon{width:1.18em;height:1.18em;flex-basis:1.18em;transform:translateY(-1px)}
 select,input{
   width:100%;
   min-height:50px;

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=icon-polish-v2">
+  <link rel="stylesheet" href="style.css?v=icon-polish-v3">
 </head>
 <body>
   <header class="site-header">
@@ -33,7 +33,28 @@
         </div>
       </label>
       <label class="field-label select-field-label">
-        <span class="select-label-text">ジョブ <svg class="select-label-svg job-helmet-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M6.5 15.2C6.5 9.1 10.7 4.5 16 4.5s9.5 4.6 9.5 10.7v2.6h-19z" fill="#e2a437" stroke="#5b3516" stroke-width="2"/><path d="M9 17.2h14v5.3c0 2.3-1.7 4.1-4 4.1h-1.4v-6.4h-3.2v6.4H13c-2.3 0-4-1.8-4-4.1z" fill="#b97820" stroke="#5b3516" stroke-width="2" stroke-linejoin="round"/><path d="M7.2 15.3h17.6" stroke="#fff0a9" stroke-width="1.5" opacity=".9"/><path d="M13.2 12.2h5.6" stroke="#6b3b15" stroke-width="1.7" stroke-linecap="round"/><path d="M16 5v5.2" stroke="#fff1ab" stroke-width="1.4" opacity=".7"/></svg></span>
+        <span class="select-label-text">ジョブ <svg class="select-label-svg job-helmet-icon" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="jobHelmGold" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#fff0a8"/>
+              <stop offset=".38" stop-color="#e4a337"/>
+              <stop offset=".72" stop-color="#bf741b"/>
+              <stop offset="1" stop-color="#8a470d"/>
+            </linearGradient>
+            <linearGradient id="jobHelmDark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#5a3010"/>
+              <stop offset="1" stop-color="#261309"/>
+            </linearGradient>
+          </defs>
+          <path d="M6.5 17C6.5 8.7 11.2 3.8 18 3.8S29.5 8.7 29.5 17v2.2h-23z" fill="url(#jobHelmGold)" stroke="#5b3516" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M16.2 4.3h3.6l1.1 13h-5.8z" fill="#f6c85c" stroke="#6a3a13" stroke-width="1.3"/>
+          <path d="M5.5 16.5h25v5.1h-25z" fill="url(#jobHelmGold)" stroke="#5b3516" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M10.5 20.4h15v5.4l-4.2 2.4h-6.6l-4.2-2.4z" fill="url(#jobHelmDark)" stroke="#4a270d" stroke-width="1.5"/>
+          <path d="M6.8 20.2h5v10l-4.2-2.4zM24.2 20.2h5v7.6L25 30.2z" fill="url(#jobHelmGold)" stroke="#5b3516" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M16.7 19h2.6v10.1L18 31l-1.3-1.9z" fill="#d99427" stroke="#5b3516" stroke-width="1.2"/>
+          <path d="M9.2 10.5c2.2-3 5.2-4.6 8.8-4.6" fill="none" stroke="#fff4bd" stroke-width="1.7" stroke-linecap="round" opacity=".95"/>
+          <path d="M7.5 18h21" stroke="#fff1a6" stroke-width="1.3" opacity=".85"/>
+        </svg></span>
         <div class="select-control">
           <select id="job"></select>
           <span class="select-game-arrow" aria-hidden="true"></span>
@@ -104,6 +125,6 @@
   </div>
 
   <script src="data.js?v=650"></script>
-  <script src="script.js?v=icon-polish-v2"></script>
+  <script src="script.js?v=icon-polish-v3"></script>
 </body>
 </html>
