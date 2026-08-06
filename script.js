@@ -485,8 +485,14 @@ function applyCurrentJobTheme(){
   const cls=jobClassMap[job.value];
   if(cls) document.body.classList.add(`theme-${cls}`);
 }
+function formatErrorMessage(message){
+  return String(message??'').replace(
+    /入力してください。/g,
+    '<span class="error-no-break">入力してください。</span>'
+  );
+}
 function renderErrorBox(messages){
-  const items=(messages||[]).map(msg=>`<li>${msg}</li>`).join('');
+  const items=(messages||[]).map(msg=>`<li>${formatErrorMessage(msg)}</li>`).join('');
   return `<div class="error-box"><ul class="error-box-list">${items}</ul></div>`;
 }
 

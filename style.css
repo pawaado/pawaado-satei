@@ -487,6 +487,7 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .error-box{border:2px solid #b2473c;background:linear-gradient(180deg,#fff7f2,#ffe9e1);color:#6f241f;border-radius:13px;padding:11px 14px 10px;font-family:"Kaisei Decol",serif;font-weight:700;line-height:1.55;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55),0 3px 8px rgba(101,30,24,.08)}
 .error-box-list{list-style:none;margin:0;padding:0}
 .error-box-list li{position:relative;margin:4px 0;padding-left:1.05em;font-family:"Kaisei Decol",serif;font-size:14px;font-weight:700;line-height:1.5;word-break:normal;line-break:strict;text-wrap:pretty}
+.error-no-break{white-space:nowrap}
 .error-box-list li::before{content:"・";position:absolute;left:0;top:0;color:#8a251f}
 .error-box p{margin:5px 0}
 .calculating{font-weight:800;color:#51351f}
