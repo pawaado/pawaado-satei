@@ -338,6 +338,7 @@ input.input-error{border-color:#b12f28;background:#fff1ea}
 .ability-name-label{white-space:nowrap}
 .ability-name-icon{display:inline-flex;align-items:center;justify-content:center;min-width:1.1em;font-size:1.02em;transform:translateY(-1px);filter:drop-shadow(0 1px 0 rgba(255,255,255,.68)) drop-shadow(0 1px 1px rgba(69,38,15,.16))}
 .ability-name-svg{display:block;width:1.12em;height:1.22em;flex:0 0 1.12em;overflow:visible;filter:drop-shadow(0 1px 0 rgba(255,255,255,.72)) drop-shadow(0 1px 1px rgba(38,66,88,.24))}
+.magic-wand-icon{width:1.18em;height:1.28em;flex-basis:1.18em;transform:translateY(-1px)}
 .durability-shield-icon{transform:translateY(-1px)}
 .skill-row.owned .name-btn,.ability-row.owned .name-btn{background:linear-gradient(180deg,#e8f5d9,#c8e4b8)}
 .ability-value{

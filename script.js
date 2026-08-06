@@ -6,7 +6,7 @@ const expNames=['筋力','敏捷','技術','知力','精神'];
 const MAX_EXP_SAMPLES=6;
 let expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
-const basicIconMap={生命力:'❤️',パワー:'⚔️',魔力:'✨',器用さ:'🎯',精神力:'🔥'};
+const basicIconMap={生命力:'❤️',パワー:'⚔️',器用さ:'🎯',精神力:'🔥'};
 const mutualGroups=[
   ['生存本能','闘争本能'],
   ['柔軟な体','頑丈な体'],
@@ -518,7 +518,9 @@ function animateResultCard(){
 
 function basicNameHtml(name){
   let iconHtml='';
-  if(name==='耐久力'){
+  if(name==='魔力'){
+    iconHtml=`<svg class="ability-name-svg magic-wand-icon" viewBox="0 0 32 36" aria-hidden="true" focusable="false"><defs><linearGradient id="magicWandShaft" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9a642c"/><stop offset=".48" stop-color="#633817"/><stop offset="1" stop-color="#351b0d"/></linearGradient><linearGradient id="magicWandGem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8f4ff"/><stop offset=".45" stop-color="#6db7e9"/><stop offset="1" stop-color="#315d9a"/></linearGradient></defs><path d="M8.1 31.2 19.7 13.1" fill="none" stroke="#43220e" stroke-width="5.4" stroke-linecap="round"/><path d="M8.1 31.2 19.7 13.1" fill="none" stroke="url(#magicWandShaft)" stroke-width="3.6" stroke-linecap="round"/><path d="m18.3 15.2 3.1 2" fill="none" stroke="#d39a32" stroke-width="2" stroke-linecap="round"/><path d="M18.5 13.8c-1.9-3.1-1.1-6.7 1.7-8.6 1.1-.8 2.4-1.2 3.8-1.2-.6 1.2-.8 2.5-.4 3.7.4 1.3 1.3 2.3 2.5 3-1.6 2.6-4.9 3.9-7.6 3.1Z" fill="#d79b2d" stroke="#6b3a12" stroke-width="1.5" stroke-linejoin="round"/><path d="m21.9 6.2 3.2 3.8-3.6 2.8-3.2-3.8z" fill="url(#magicWandGem)" stroke="#284d7a" stroke-width="1.2" stroke-linejoin="round"/><path d="M21 7.2 23.6 10" fill="none" stroke="#f4fbff" stroke-width="1" stroke-linecap="round" opacity=".9"/><path d="M6.8 30.2 9.2 33" fill="none" stroke="#d39a32" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+  }else if(name==='耐久力'){
     iconHtml=`<svg class="ability-name-svg durability-shield-icon" viewBox="0 0 32 36" aria-hidden="true" focusable="false"><path d="M16 2.5 28 7v9.2c0 8.2-5.2 14-12 17.3C9.2 30.2 4 24.4 4 16.2V7z" fill="#1f4f7a" stroke="#173852" stroke-width="2" stroke-linejoin="round"/><path d="M16 5.6 24.8 9v7c0 6.1-3.6 10.7-8.8 13.6-5.2-2.9-8.8-7.5-8.8-13.6V9z" fill="#dceaf4" stroke="#7fa9c7" stroke-width="1.4"/><path d="M16 5.6v24" stroke="#4d83aa" stroke-width="2"/><path d="M8.4 11.2 16 8.5l7.6 2.7" fill="none" stroke="#ffffff" stroke-width="1.3" opacity=".9"/></svg>`;
   }else{
     const icon=basicIconMap[name]||'';
