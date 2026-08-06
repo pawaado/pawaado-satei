@@ -486,7 +486,18 @@ function applyCurrentJobTheme(){
   if(cls) document.body.classList.add(`theme-${cls}`);
 }
 function formatErrorMessage(message){
-  return String(message??'').replace(
+  const text=String(message??'');
+
+  // 経験点の上限エラーは「1000以下の値を」までを1行目にし、
+  // 「入力してください。」を必ず次の行から表示する。
+  if(text.includes('1000以下の値を入力してください。')){
+    return text.replace(
+      /1000以下の値を入力してください。/g,
+      '1000以下の値を<br><span class="error-no-break">入力してください。</span>'
+    );
+  }
+
+  return text.replace(
     /入力してください。/g,
     '<span class="error-no-break">入力してください。</span>'
   );
