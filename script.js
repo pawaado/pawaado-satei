@@ -2778,7 +2778,11 @@ function validateInputs(){
 
   errs.push(...expErrs);
 
-  if(hasAcademyJob()){
+  if(!hasAcademyJob()){
+    // 基本能力はアカデミー・ジョブ両方の選択後に入力可能になるため、
+    // 未選択時は個別項目ではなくまとめて未入力を案内する。
+    errs.push('基本能力を入力してください。');
+  }else{
     const lim=limits();
     const basicStates=basicNames.map(name=>{
       const value=document.getElementById('basic_'+name)?.value;
