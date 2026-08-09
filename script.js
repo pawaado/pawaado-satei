@@ -549,9 +549,9 @@ function renderBasic(){
   wrap.innerHTML=basicNames.map(n=>`
     <div class="ability-block">
       <div class="ability-row ${basicOwned[n]?'owned':''}" data-basic="${n}">
-        <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}">＋</button>
-        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}">${basicNameHtml(n)}</button>
-        <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'readonly aria-disabled="true"':''}>
+        <button type="button" class="hint-btn" data-kind="basic-hint" data-name="${n}" ${disabled?'disabled aria-disabled="true"':''}>＋</button>
+        <button type="button" class="name-btn" data-kind="basic-name" data-name="${n}" ${disabled?'disabled aria-disabled="true"':''}>${basicNameHtml(n)}</button>
+        <input class="ability-value" type="number" min="1" ${lim[n]?`max="${lim[n]}"`:''} id="basic_${n}" inputmode="numeric" autocomplete="off" ${disabled?'disabled aria-disabled="true"':''}>
       </div>
       <div class="inline-error" id="err_basic_${safeId(n)}"></div>
     </div>`).join('');
@@ -605,16 +605,22 @@ function applyBasicVisual(name){
   setHintBtn(row.querySelector('.hint-btn'),basicHints[name]||0);
   row.classList.toggle('owned',!!basicOwned[name]);
   const hintBtn=row.querySelector('.hint-btn');
-  if(hintBtn) hintBtn.disabled=false;
+  if(hintBtn){
+    hintBtn.disabled=disabled;
+    hintBtn.setAttribute('aria-disabled',disabled?'true':'false');
+  }
   const btn=row.querySelector('.name-btn');
-  if(btn) btn.disabled=false;
-  btn.innerHTML=`${basicNameHtml(name)}${ownedLabel(!!basicOwned[name])}`;
+  if(btn){
+    btn.disabled=disabled;
+    btn.setAttribute('aria-disabled',disabled?'true':'false');
+    btn.innerHTML=`${basicNameHtml(name)}${ownedLabel(!!basicOwned[name])}`;
+  }
   const inp=document.getElementById('basic_'+name);
   if(inp){
-    // アカデミー／ジョブ未選択時はreadonlyにして、タップ時の案内を受け取れるようにする。
-    // 取得済みで固定された能力だけは従来どおりdisabledにする。
-    inp.disabled=!!basicOwned[name];
-    inp.readOnly=disabled;
+    // アカデミーとジョブが揃うまでは、基本能力は完全に操作不可。
+    // 両方選択後は従来どおり入力でき、取得済み能力のみ固定する。
+    inp.disabled=disabled || !!basicOwned[name];
+    inp.readOnly=false;
     inp.setAttribute('aria-disabled',(disabled || !!basicOwned[name])?'true':'false');
     inp.classList.toggle('locked',disabled || !!basicOwned[name]);
     if(basicOwned[name] && lim[name]!=null) inp.value=lim[name];
@@ -667,13 +673,10 @@ document.addEventListener('click',e=>{
     return;
   }
   const kind=t.dataset.kind;
-  if(kind==='basic-hint'){const name=t.dataset.name; basicHints[name]=cycleHint(basicHints[name]); applyBasicVisual(name); return;}
+  if(kind==='basic-hint'){if(!hasAcademyJob()) return; const name=t.dataset.name; basicHints[name]=cycleHint(basicHints[name]); applyBasicVisual(name); return;}
   if(kind==='basic-name'){
     const name=t.dataset.name;
-    if(!hasAcademyJob()){
-      showAcademyJobRequired(name);
-      return;
-    }
+    if(!hasAcademyJob()) return;
     // 「取得済」を解除した場合は、右側の能力値も必ず空欄へ戻す。
     setBasicOwnedState(name,!basicOwned[name],{clearValueOnRelease:true});
     return;
@@ -684,33 +687,6 @@ document.addEventListener('click',e=>{
 
 
 function setInlineError(id,msg){const el=document.getElementById(id); if(el) el.textContent=msg||'';}
-function showAcademyJobRequired(name){
-  const msg=!academy.value
-    ? 'アカデミー、ジョブを選択してください'
-    : 'ジョブを選択してください';
-  setInlineError('err_basic_'+safeId(name),msg);
-  const inp=document.getElementById('basic_'+name);
-  if(inp) inp.classList.add('input-error');
-}
-
-// 未選択時の数値欄はreadonlyにしてタップを受け取り、
-// 数値欄または基本能力名のタップ時に選択を促すメッセージを表示する。
-// 左側の「＋」はアカデミー・ジョブ未選択時でもコツ入力に使える。
-document.addEventListener('pointerdown',e=>{
-  const nameBtn=e.target.closest?.('button[data-kind="basic-name"]');
-  if(nameBtn && !hasAcademyJob()){
-    e.preventDefault();
-    showAcademyJobRequired(nameBtn.dataset.name);
-    return;
-  }
-
-  const inp=e.target.closest?.('input[id^="basic_"]');
-  if(!inp || hasAcademyJob()) return;
-  e.preventDefault();
-  const name=inp.id.replace('basic_','');
-  showAcademyJobRequired(name);
-  inp.blur();
-},{passive:false});
 
 function validateExpField(sampleIndex,name){
   const inp=document.getElementById(`exp_${sampleIndex}_${safeId(name)}`); if(!inp) return '';
@@ -2773,28 +2749,30 @@ function validateInputs(){
 
   errs.push(...expErrs);
 
-  const lim=limits();
-  const basicStates=basicNames.map(name=>{
-    const value=document.getElementById('basic_'+name)?.value;
-    return {name,value,owned:!!basicOwned[name]};
-  });
-  const requiredBasics=basicStates.filter(item=>!item.owned);
-  const missingBasics=requiredBasics.filter(item=>item.value==='' || item.value==null);
-  // 上限値への到達などで「取得済」扱いになった能力も、入力済みとして数える。
-  const anyBasicValue=basicStates.some(item=>item.owned || (item.value!=='' && item.value!=null));
-
-  if(requiredBasics.length && missingBasics.length===requiredBasics.length && !anyBasicValue){
-    errs.push('基本能力を入力してください。');
-  }else{
-    requiredBasics.forEach(item=>{
-      if(item.value==='' || item.value==null){
-        errs.push(`${item.name}を入力してください。`);
-        return;
-      }
-      const num=Number(item.value);
-      if(!Number.isFinite(num) || num<1) errs.push(`${item.name}は1以上の値を入力してください。`);
-      if(lim[item.name]!=null && num>lim[item.name]) errs.push(`${item.name}は入力上限を超えています。`);
+  if(hasAcademyJob()){
+    const lim=limits();
+    const basicStates=basicNames.map(name=>{
+      const value=document.getElementById('basic_'+name)?.value;
+      return {name,value,owned:!!basicOwned[name]};
     });
+    const requiredBasics=basicStates.filter(item=>!item.owned);
+    const missingBasics=requiredBasics.filter(item=>item.value==='' || item.value==null);
+    // 上限値への到達などで「取得済」扱いになった能力も、入力済みとして数える。
+    const anyBasicValue=basicStates.some(item=>item.owned || (item.value!=='' && item.value!=null));
+
+    if(requiredBasics.length && missingBasics.length===requiredBasics.length && !anyBasicValue){
+      errs.push('基本能力を入力してください。');
+    }else{
+      requiredBasics.forEach(item=>{
+        if(item.value==='' || item.value==null){
+          errs.push(`${item.name}を入力してください。`);
+          return;
+        }
+        const num=Number(item.value);
+        if(!Number.isFinite(num) || num<1) errs.push(`${item.name}は1以上の値を入力してください。`);
+        if(lim[item.name]!=null && num>lim[item.name]) errs.push(`${item.name}は入力上限を超えています。`);
+      });
+    }
   }
 
   return errs;

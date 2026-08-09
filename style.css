@@ -232,22 +232,25 @@ main{
 .select-label-svg{display:block;width:1.08em;height:1.08em;flex:0 0 1.08em;overflow:visible;filter:drop-shadow(0 1px 0 rgba(255,255,255,.72)) drop-shadow(0 1px 1px rgba(70,38,15,.24))}
 .job-helmet-icon{width:1.18em;height:1.18em;flex-basis:1.18em;transform:translateY(-1px)}
 
-/* 入力順を視覚化：未選択でまだ使えない欄だけを控えめに薄くする */
-.select-field-label,.select-field-label .select-label-text,.select-field-label .select-control,
-.basic-card .section-heading,.basic-card .ability-row{
+/* 入力順を視覚化：セクション自体は通常表示のまま、操作できない部品だけを薄くする */
+.select-field-label .select-control,
+.basic-card .ability-row{
   transition:opacity .2s ease,filter .2s ease,color .2s ease,box-shadow .2s ease;
 }
-.select-field-label.is-locked .select-label-text,
+/* アカデミー未選択時：ジョブ見出し・兜は通常表示、セレクト部分だけ薄くする */
 .select-field-label.is-locked .select-control{
   opacity:.58;
   filter:saturate(.5);
 }
 .select-field-label.is-locked select{cursor:not-allowed}
-.basic-card.is-locked .section-heading,
+/* アカデミー／ジョブが揃うまでは、基本能力の見出し・外枠は通常表示で6行だけ薄くする */
 .basic-card.is-locked .ability-row{
   opacity:.58;
   filter:saturate(.5);
+  pointer-events:none;
 }
+.basic-card.is-locked .hint-btn:disabled,
+.basic-card.is-locked .name-btn:disabled{opacity:1;filter:none;cursor:not-allowed}
 select,input{
   width:100%;
   min-height:50px;
