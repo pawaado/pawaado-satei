@@ -306,6 +306,7 @@ input.input-error{border-color:#b12f28;background:#fff1ea}
 .exp-row .inline-error{font-size:10px}
 .exp-sample-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:11px}
 .exp-action-btn{min-height:44px;padding:9px 6px;border-radius:9px;font-size:13px;white-space:nowrap}
+.exp-action-btn[data-exp-action="duplicate"]:disabled,.exp-action-btn[data-exp-action="add"]:disabled{opacity:.46;filter:saturate(.45) brightness(1.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 2px 0 rgba(50,27,13,.45);}
 .exp-delete-btn{grid-column:1/-1;background:linear-gradient(180deg,#a94a3f,#7b2823)!important}
 .pattern-label{display:inline;font:inherit;white-space:nowrap}
 

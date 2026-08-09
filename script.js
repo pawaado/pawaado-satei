@@ -474,21 +474,44 @@ function updateResultTitle(){
   if(!el) return;
   el.textContent = expSamples.length>1 ? '結果（査定上昇量）' : '結果';
 }
+function isExpSampleReady(sample){
+  if(!sample) return false;
+  return expNames.every(name=>{
+    const value=sample[name];
+    if(value==='' || value==null) return false;
+    const num=Number(value);
+    return Number.isFinite(num) && num>=0 && num<=1000;
+  });
+}
+function updateExpActionStates(sampleIndex){
+  const ready=isExpSampleReady(expSamples[sampleIndex]);
+  const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
+  document.querySelectorAll(`.exp-action-btn[data-sample-index="${sampleIndex}"]`).forEach(btn=>{
+    const action=btn.dataset.expAction;
+    if(action==='duplicate' || action==='add'){
+      btn.disabled=!ready || limitReached;
+      btn.setAttribute('aria-disabled',btn.disabled?'true':'false');
+    }
+  });
+}
 function renderExp(){
   const wrap=document.getElementById('expInputs');
   const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
-  wrap.innerHTML=expSamples.map((sample,index)=>`
+  wrap.innerHTML=expSamples.map((sample,index)=>{
+    const actionsLocked=!isExpSampleReady(sample) || limitReached;
+    return `
     <div class="exp-sample" data-sample-index="${index}">
       ${expSamples.length>1?`<div class="exp-sample-head"><h3>${sampleLabelHtml(index)}</h3></div>`:''}
       <div class="exp-list">
         ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="1000" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
       </div>
       <div class="exp-sample-actions">
-        <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${limitReached?'disabled':''}>パターンを複製</button>
-        <button type="button" class="secondary exp-action-btn" data-exp-action="add" data-sample-index="${index}" ${limitReached?'disabled':''}>パターンを追加</button>
+        <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${actionsLocked?'disabled aria-disabled="true"':'aria-disabled="false"'}>パターンを複製</button>
+        <button type="button" class="secondary exp-action-btn" data-exp-action="add" data-sample-index="${index}" ${actionsLocked?'disabled aria-disabled="true"':'aria-disabled="false"'}>パターンを追加</button>
         ${index>0?`<button type="button" class="secondary exp-action-btn exp-delete-btn" data-exp-action="remove" data-sample-index="${index}">削除</button>`:''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   updateResultTitle();
 }
 
@@ -720,7 +743,13 @@ document.addEventListener('input',e=>{
   if(isCalculating) return;
   const inp=e.target;
   if(!inp || !inp.id) return;
-  if(inp.dataset.expName!=null){ const i=Number(inp.dataset.sampleIndex); expSamples[i][inp.dataset.expName]=inp.value; validateExpField(i,inp.dataset.expName); return; }
+  if(inp.dataset.expName!=null){
+    const i=Number(inp.dataset.sampleIndex);
+    expSamples[i][inp.dataset.expName]=inp.value;
+    validateExpField(i,inp.dataset.expName);
+    updateExpActionStates(i);
+    return;
+  }
   if(!inp.id.startsWith('basic_')) return;
   const name=inp.id.replace('basic_','');
   validateBasicField(name);
