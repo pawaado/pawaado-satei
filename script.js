@@ -2910,7 +2910,7 @@ async function calc(){
         index,
         exp,
         candidate,
-        scoreGain:Math.round(Number(candidate.score||0)),
+        scoreGain:Math.floor(Number(candidate.score||0)),
         isBest:false
       });
       btn.textContent=`${index+1}/${sampleExps.length} 完了`;
