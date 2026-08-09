@@ -231,6 +231,23 @@ main{
 .select-label-icon{display:inline-flex;align-items:center;justify-content:center;font-size:.9em;transform:translateY(-1px);filter:drop-shadow(0 1px 0 rgba(255,255,255,.65)) drop-shadow(0 1px 1px rgba(70,38,15,.18))}
 .select-label-svg{display:block;width:1.08em;height:1.08em;flex:0 0 1.08em;overflow:visible;filter:drop-shadow(0 1px 0 rgba(255,255,255,.72)) drop-shadow(0 1px 1px rgba(70,38,15,.24))}
 .job-helmet-icon{width:1.18em;height:1.18em;flex-basis:1.18em;transform:translateY(-1px)}
+
+/* 入力順を視覚化：未選択でまだ使えない欄だけを控えめに薄くする */
+.select-field-label,.select-field-label .select-label-text,.select-field-label .select-control,
+.basic-card .section-heading,.basic-card .ability-row{
+  transition:opacity .2s ease,filter .2s ease,color .2s ease,box-shadow .2s ease;
+}
+.select-field-label.is-locked .select-label-text,
+.select-field-label.is-locked .select-control{
+  opacity:.58;
+  filter:saturate(.5);
+}
+.select-field-label.is-locked select{cursor:not-allowed}
+.basic-card.is-locked .section-heading,
+.basic-card.is-locked .ability-row{
+  opacity:.58;
+  filter:saturate(.5);
+}
 select,input{
   width:100%;
   min-height:50px;

@@ -419,15 +419,28 @@ function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]
 function hasAcademyJob(){return !!academy.value && !!job.value;}
 function limits(){const r=academyRows()[0]; const m={}; basicNames.forEach((n,i)=>m[n]=r?Number(r[i+2]):null); return m;}
 function initAcademies(){academy.innerHTML='';academy.add(opt('アカデミーを選択',''));Object.keys(jobsByAcademy).forEach(a=>academy.add(opt(a)));updateJobs();}
+function updateInputAvailabilityUI(){
+  const jobField=document.getElementById('jobFieldLabel');
+  const basicCard=document.getElementById('basicCard');
+  const academyMissing=!academy.value;
+  const basicLocked=!hasAcademyJob();
+
+  if(jobField) jobField.classList.toggle('is-locked',academyMissing);
+  if(basicCard) basicCard.classList.toggle('is-locked',basicLocked);
+}
 function updateJobs(){
   const jobs=jobsByAcademy[academy.value]||[];
   job.innerHTML=''; job.add(opt('ジョブを選択',''));
   jobs.forEach(j=>job.add(opt(j)));
   job.disabled=!academy.value;
+  updateInputAvailabilityUI();
   clearBasicState(); renderBasic(); renderSpecials(); applyCurrentJobTheme();
 }
 academy.addEventListener('change',updateJobs);
-job.addEventListener('change',()=>{clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();});
+job.addEventListener('change',()=>{
+  updateInputAvailabilityUI();
+  clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
+});
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function setBasicOwnedState(name,on,{clearValueOnRelease=false}={}){

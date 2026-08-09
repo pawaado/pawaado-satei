@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=magic-wand-v8">
+  <link rel="stylesheet" href="style.css?v=locked-states-v9">
 </head>
 <body>
   <header class="site-header">
@@ -32,7 +32,7 @@
           <span class="select-game-arrow" aria-hidden="true"></span>
         </div>
       </label>
-      <label class="field-label select-field-label">
+      <label id="jobFieldLabel" class="field-label select-field-label">
         <span class="select-label-text">ジョブ <svg class="select-label-svg job-helmet-icon" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id="jobHelmGold" x1="0" y1="0" x2="1" y2="1">
@@ -69,7 +69,7 @@
       <div class="exp-list" id="expInputs"></div>
     </section>
 
-    <section class="card" aria-labelledby="basicTitle">
+    <section id="basicCard" class="card basic-card" aria-labelledby="basicTitle">
       <div class="section-heading">
         <h2 id="basicTitle">基本能力</h2>
       </div>
@@ -125,6 +125,6 @@
   </div>
 
   <script src="data.js?v=650"></script>
-  <script src="script.js?v=magic-wand-v8"></script>
+  <script src="script.js?v=locked-states-v9"></script>
 </body>
 </html>
