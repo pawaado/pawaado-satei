@@ -1,0 +1,88 @@
+name: Migrate academy data to single source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migrate-single-data.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move academy master data into data.js
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          data_path = Path('data.js')
+          master_path = Path('academy_master.js')
+          runtime_path = Path('academy_runtime.js')
+          index_path = Path('index.html')
+          workflow_path = Path('.github/workflows/migrate-single-data.yml')
+
+          data = data_path.read_text(encoding='utf-8')
+          master = master_path.read_text(encoding='utf-8')
+          index = index_path.read_text(encoding='utf-8')
+
+          # academy_master.js の先頭に置いていた数値マスターだけを抽出し、
+          # data.js の PAWAADO_DATA 配下へ移す。これ以降、査定・必要経験点・
+          # 上限・取得条件などの数値の正本は data.js だけにする。
+          start_token = '  const MASTER='
+          end_token = '\n\n  global.PAWAADO_ACADEMY_MASTER=MASTER;'
+          start = master.index(start_token) + len(start_token)
+          end = master.index(end_token, start)
+          master_expr = master[start:end].strip()
+          if master_expr.endswith(';'):
+              master_expr = master_expr[:-1]
+
+          marker = '// ===== 追加アカデミー（数値データの正本） ====='
+          if marker not in data:
+              data = data.rstrip() + f'''\n\n{marker}\n// 新アカデミー追加時も、査定・必要経験点・能力上限・取得条件などの数値はここへ集約する。\n// academy_runtime.js はこのデータを読むだけで、数値データを持たない。\nwindow.PAWAADO_DATA.academyMaster = {master_expr};\n'''
+          data_path.write_text(data, encoding='utf-8')
+
+          # 旧 academy_master.js は「データ＋処理」が混在していたため、
+          # 数値部分を取り除いて academy_runtime.js に改名する。
+          old_block_start = master.index(start_token)
+          old_block_end = master.index(end_token, old_block_start) + len(end_token)
+          replacement = '''  // 数値データは data.js が唯一の正本。\n  // Workerとして直接起動された場合だけ、先に本体Workerを読み込んでdata.jsを初期化する。\n  const __academyWorkerBoot=(typeof document==='undefined' && typeof global.importScripts==='function');\n  if(__academyWorkerBoot && !global.PAWAADO_DATA){\n    global.window=global;\n    global.importScripts('./pawaado_worker.js?v=academy-runtime-base-20260904-2');\n  }\n  const MASTER=global.PAWAADO_DATA?.academyMaster;\n  if(!MASTER) return;\n  global.PAWAADO_ACADEMY_MASTER=MASTER;'''
+          runtime = master[:old_block_start] + replacement + master[old_block_end:]
+          runtime = runtime.replace('追加アカデミー統合マスター', '追加アカデミー共通ランタイム')
+          runtime = runtime.replace('今後、新アカデミーが追加されても専用JSを増やさず、この1ファイルへ追記する。\n * 査定・必要経験点・取得条件など、見返したい数値はできるだけこの先頭のMASTERへ集約する。',
+                                    '数値データは data.js に一本化し、このファイルは追加アカデミー共通の表示・計算処理だけを担当する。\n * 今後、新アカデミーが増えてもアカデミー別JSは増やさない。')
+          runtime = runtime.replace("global.importScripts('./pawaado_worker.js?v=academy-master-base-20260904-1');",
+                                    "if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=academy-runtime-base-20260904-2');")
+          runtime = runtime.replace('academy_master.js', 'academy_runtime.js')
+          runtime = runtime.replace('__academyMasterDataPatched', '__academyRuntimeDataApplied')
+          runtime = runtime.replace('__academyMasterUiPatched', '__academyRuntimeUiPatched')
+          runtime_path.write_text(runtime, encoding='utf-8')
+          master_path.unlink()
+
+          index = index.replace('data.js?v=650', 'data.js?v=20260904-single-source-1')
+          index = index.replace('academy_master.js?v=20260904-1', 'academy_runtime.js?v=20260904-single-source-1')
+          index = index.replace('script.js?v=academy-master-v1', 'script.js?v=academy-runtime-v1')
+          index_path.write_text(index, encoding='utf-8')
+
+          # 一時移行Workflowは実行後に自分自身を削除する。
+          if workflow_path.exists():
+              workflow_path.unlink()
+          PY
+
+      - name: Commit migrated structure
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "アカデミーデータをdata.jsへ一本化"
+          git push
