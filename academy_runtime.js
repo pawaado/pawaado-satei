@@ -279,50 +279,56 @@
         document.body.classList.add('theme-job-dual');
       }else document.body.classList.remove('theme-job-dual');
     }
-    function dualRow(){return document.querySelector(`.skill-row[data-index="${DUAL_INDEX}"]`);}
+    function dualBaseRow(){return document.querySelector(`.skill-row[data-index="${DUAL_INDEX}"]`);}
+    function clearDualLevelRows(){document.querySelectorAll('.dual-attack-row[data-dual-level]').forEach(row=>row.remove());}
 
-    function renderDualRow(){
-      const row=dualRow();
-      if(!row) return;
-      if(!isDual()){
-        if(row.style.display!=='none') row.style.display='none';
-        return;
-      }
-      if(row.style.display==='none') row.style.display='';
-      row.classList.add('dual-attack-row');
-      if(!row.querySelector('.dual-hint-btn')){
+    function renderDualRows(){
+      const base=dualBaseRow();
+      if(!base) return;
+      clearDualLevelRows();
+      // data.js上のダミー行は計算用識別子としてだけ残し、画面では専用Lv行に置き換える。
+      base.style.display='none';
+      if(!isDual()) return;
+
+      const maxShown=Math.min(DUAL.maxLevel,dualLevel>=DUAL.maxLevel?DUAL.maxLevel:dualLevel+1);
+      let anchor=base;
+      for(let level=DUAL.initialLevel+1;level<=maxShown;level++){
+        const owned=level<=dualLevel;
+        const row=document.createElement('div');
+        row.className=`skill-row dual-attack-row${owned?' owned':''}`;
+        row.dataset.dualLevel=String(level);
         row.innerHTML=`
-          <button type="button" class="hint-btn dual-hint-btn" data-dual-action="hint" aria-label="通常攻撃のコツレベルを設定する">＋</button>
-          <button type="button" class="name-btn dual-level-label" data-dual-action="acquire" aria-label="通常攻撃の次レベルを取得する"></button>
-          <div class="dual-level-error" role="alert" aria-live="polite"></div>`;
+          <button type="button" class="hint-btn dual-hint-btn" data-dual-action="hint" aria-label="通常攻撃のコツレベルを設定する">${dualHint>0?`Lv${dualHint}`:'＋'}</button>
+          <button type="button" class="name-btn dual-level-label" data-dual-action="acquire" aria-label="通常攻撃Lv${level}${owned?'の取得済みを解除する':'を取得する'}">
+            <span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv${level}</span></span>${owned?'<span class="owned-label">✓取得済</span>':''}
+          </button>
+          <div class="dual-level-error" role="alert" aria-live="polite">${(!owned && level===dualLevel+1)?dualError:''}</div>`;
+        anchor.insertAdjacentElement('afterend',row);
+        anchor=row;
       }
-      const maxed=dualLevel>=DUAL.maxLevel;
-      const shownLevel=nextDualLevel();
-      row.classList.toggle('owned',maxed);
-      const hint=row.querySelector('.dual-hint-btn');
-      if(hint){hint.textContent=dualHint>0?`Lv${dualHint}`:'＋';hint.classList.toggle('has-hint',dualHint>0);}
-      const label=row.querySelector('.dual-level-label');
-      if(label){
-        label.dataset.dualLevel=String(shownLevel);
-        label.setAttribute('aria-disabled','false');
-        const labelHtml=`<span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv${shownLevel}</span></span>${maxed?'<span class="owned-label">✓取得済</span>':''}`;
-        if(label.innerHTML!==labelHtml) label.innerHTML=labelHtml;
-      }
-      const error=row.querySelector('.dual-level-error');
-      if(error&&error.textContent!==dualError) error.textContent=dualError;
     }
 
-    function setDualLevel(next){dualLevel=Math.max(DUAL.initialLevel,Math.min(DUAL.maxLevel,Number(next)||DUAL.initialLevel));dualError='';renderDualRow();}
-    function tryAcquireNext(){
-      if(dualLevel>=DUAL.maxLevel){
-        setDualLevel(DUAL.maxLevel-1);
+    function setDualLevel(next){
+      dualLevel=Math.max(DUAL.initialLevel,Math.min(DUAL.maxLevel,Number(next)||DUAL.initialLevel));
+      dualError='';
+      renderDualRows();
+    }
+    function tryAcquireLevel(level){
+      const target=Number(level);
+      if(target<=dualLevel){
+        // 下位Lvを解除したら、その上位Lvもまとめて解除する。
+        setDualLevel(target-1);
         return;
       }
-      const next=dualLevel+1;
-      const req=requiredDex(next);
+      if(target!==dualLevel+1 || target>DUAL.maxLevel) return;
+      const req=requiredDex(target);
       const dex=dexValue();
-      if(dex<req){dualError=`取得条件を満たしていません（器用さ${req}以上が必要です）。`;renderDualRow();return;}
-      setDualLevel(next);
+      if(dex<req){
+        dualError=`取得条件を満たしていません（器用さ${req}以上が必要です）。`;
+        renderDualRows();
+        return;
+      }
+      setDualLevel(target);
     }
 
     document.addEventListener('click',event=>{
@@ -331,19 +337,23 @@
       if(button.id==='resetBtn'||button.id==='topResetBtn'){
         dualLevel=DUAL.initialLevel;dualHint=0;dualError='';return;
       }
-      const row=button.closest(`.skill-row[data-index="${DUAL_INDEX}"]`);
+      const row=button.closest('.dual-attack-row[data-dual-level]');
       if(row){
         event.preventDefault();event.stopImmediatePropagation();
         const action=button.dataset.dualAction;
-        if(action==='hint'){cycleDualHint();dualError='';renderDualRow();}
-        else if(action==='acquire') tryAcquireNext();
+        const level=Number(row.dataset.dualLevel||0);
+        if(action==='hint'){
+          cycleDualHint();dualError='';renderDualRows();
+        }else if(action==='acquire'){
+          tryAcquireLevel(level);
+        }
         return;
       }
       if(button.id==='calcBtn'&&isDual()&&!currentLevelIsValid()){
         event.preventDefault();event.stopImmediatePropagation();
         const req=requiredDex(dualLevel);
         dualError=`取得条件を満たしていません（通常攻撃Lv${dualLevel}には器用さ${req}以上が必要です）。`;
-        renderDualRow();
+        renderDualRows();
         const result=document.getElementById('result');
         if(result) result.innerHTML=`<div class="error-box"><ul class="error-box-list"><li>${dualError}</li></ul></div>`;
       }
@@ -355,14 +365,14 @@
           const req=requiredDex(dualLevel);
           dualError=`取得条件を満たしていません（通常攻撃Lv${dualLevel}には器用さ${req}以上が必要です）。`;
         }else dualError='';
-        renderDualRow();
+        renderDualRows();
       }
     });
 
     function afterSelectionChange(){
       syncAcademyOptionLabels();syncJobLabel();syncTheme();
       if(!isDual()){dualLevel=DUAL.initialLevel;dualHint=0;dualError='';}
-      setTimeout(()=>{syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRow();},0);
+      setTimeout(()=>{syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRows();},0);
     }
     academyEl()?.addEventListener('change',afterSelectionChange);
     jobEl()?.addEventListener('change',afterSelectionChange);
@@ -371,10 +381,15 @@
     const observer=new MutationObserver(()=>{
       if(queued) return;
       queued=true;
-      queueMicrotask(()=>{queued=false;syncJobLabel();syncTheme();renderDualRow();});
+      queueMicrotask(()=>{
+        queued=false;
+        observer.disconnect();
+        syncJobLabel();syncTheme();renderDualRows();
+        if(specialList) observer.observe(specialList,{childList:true});
+      });
     });
     const specialList=document.getElementById('specialList');
-    // specialList直下の再描画だけを監視する。subtree監視は双剣士行自身の更新を拾って無限ループになるため使わない。
+    // 通常の特殊能力一覧が再描画された時だけ拾い、専用Lv行の再構築中は監視を止める。
     if(specialList) observer.observe(specialList,{childList:true});
 
     // 通常の計算Workerを、この同じ academy_runtime.js のWorkerモードへ差し替える。
@@ -382,7 +397,7 @@
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-expfix-1':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-stack-2':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
@@ -400,7 +415,7 @@
       global.Worker=WrappedWorker;
     }
 
-    syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRow();
+    syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRows();
   }
 
   // data反映はscript.jsより前に済ませ、UIフックだけページ読込完了後に開始する。
