@@ -12,7 +12,7 @@
   const __academyWorkerBoot=(typeof document==='undefined' && typeof global.importScripts==='function');
   if(__academyWorkerBoot && !global.PAWAADO_DATA){
     global.window=global;
-    global.importScripts('./pawaado_worker.js?v=academy-runtime-base-20260904-2');
+    global.importScripts('./pawaado_worker.js?v=20260904-dual-job-1');
   }
   const MASTER=global.PAWAADO_DATA?.academyMaster;
   if(!MASTER) return;
@@ -70,7 +70,7 @@
   // =========================
   if(isWorker){
     global.window=global;
-    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=academy-runtime-base-20260904-2');
+    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-dual-job-1');
     const baseHandler=global.onmessage;
     const nativePostMessage=global.postMessage.bind(global);
     const D=global.PAWAADO_DATA;
@@ -367,7 +367,7 @@
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-3':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-job-1':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);

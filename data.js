@@ -2,7 +2,7 @@
 // 査定・必要経験点・能力上限・取得条件の数値は原則この data.js に集約。
 window.PAWAADO_DATA = {
   "academies": [
-    // ブートレインの内部名「弓使い」は、画面上では「双剣士」と表示します。
+    // ブートレインの双剣士は独立ジョブとして登録。
     [
       "ブートレインアカデミー",
       "剣士",
@@ -35,7 +35,7 @@ window.PAWAADO_DATA = {
     ],
     [
       "ブートレインアカデミー",
-      "弓使い",
+      "双剣士",
       110,
       115,
       60,
@@ -4420,7 +4420,7 @@ window.PAWAADO_DATA = {
         "name": "ブートレインアカデミー",
         "newest": true,
         "dualAttack": {
-          "internalJob": "弓使い",
+          "internalJob": "双剣士",
           "displayJob": "双剣士",
           "skillName": "通常攻撃(双剣士)",
           "initialLevel": 1,

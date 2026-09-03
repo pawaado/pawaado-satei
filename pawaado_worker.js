@@ -1,6 +1,6 @@
 /* PowerAd calculation Web Worker */
 self.window=self;
-importScripts('./data.js');
+importScripts('./data.js?v=20260904-dual-job-1');
 
 const __workerElements=new Map();
 function __workerElement(id){
@@ -660,8 +660,8 @@ document.addEventListener('input',e=>{
   }
 });
 
-function jobScoreIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
-function fixedAddIndex(){if(['剣士','弓使い','重戦士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
+function jobScoreIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
+function fixedAddIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
 function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return Math.round((fixed+hp*rate)*10)/10;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
 
 function initialLifeValue(){
@@ -710,7 +710,7 @@ function currentHpForLife(life){
 function parseRange(r){const m=String(r).match(/(\d+)→(\d+)/); return m?{a:Number(m[1]),b:Number(m[2])}:null;}
 function tableFor(name){
   if(name==='生命力') return {cost:D.life,score:D.life};
-  if(name==='パワー') return {cost:D.powerCost,score:['剣士','弓使い','重戦士'].includes(job.value)?D.powerPhysicalScore:D.powerMagicScore};
+  if(name==='パワー') return {cost:D.powerCost,score:['剣士','弓使い','重戦士','双剣士'].includes(job.value)?D.powerPhysicalScore:D.powerMagicScore};
   if(name==='魔力') return {cost:D.magicCost,score:['魔闘士','魔法使い','僧侶'].includes(job.value)?D.magicMagicScore:D.magicPhysicalScore};
   if(name==='器用さ') return {cost:D.dexCost,score:D.dexScore};
   if(name==='耐久力') return {cost:D.staminaCost,score:D.staminaScore};
