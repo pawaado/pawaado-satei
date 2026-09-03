@@ -18,6 +18,8 @@
 
     /* iPhoneのnative selectでは表示幅や改行制御が弱いので、アカデミーとジョブは自前メニューで統一表示する。 */
     .custom-select-control{position:relative;z-index:20}
+    .custom-select-control.is-open{z-index:3000}
+    .select-field-label.custom-select-open{position:relative;z-index:3000}
     .custom-native-select{
       position:absolute!important;
       inset:0!important;
@@ -234,9 +236,12 @@
         if(!native||!button||!text||!menu) return null;
 
         const control=button.closest('.custom-select-control');
+        const field=control?.closest('.select-field-label');
         const closeMenu=()=>{
           menu.hidden=true;
           button.setAttribute('aria-expanded','false');
+          control?.classList.remove('is-open');
+          field?.classList.remove('custom-select-open');
         };
         const isDisabled=()=>button.disabled||native.disabled;
         const syncState=()=>{
@@ -266,8 +271,25 @@
           e.preventDefault();
           e.stopPropagation();
           if(isDisabled()) return;
-          if(menu.hidden){rebuildMenu();menu.hidden=false;button.setAttribute('aria-expanded','true');}
-          else closeMenu();
+          if(menu.hidden){
+            document.querySelectorAll('.custom-select-menu').forEach(otherMenu=>{
+              if(otherMenu!==menu) otherMenu.hidden=true;
+            });
+            document.querySelectorAll('.custom-select-button[aria-expanded="true"]').forEach(otherButton=>{
+              if(otherButton!==button) otherButton.setAttribute('aria-expanded','false');
+            });
+            document.querySelectorAll('.custom-select-control.is-open').forEach(other=>{
+              if(other!==control) other.classList.remove('is-open');
+            });
+            document.querySelectorAll('.select-field-label.custom-select-open').forEach(other=>{
+              if(other!==field) other.classList.remove('custom-select-open');
+            });
+            rebuildMenu();
+            control?.classList.add('is-open');
+            field?.classList.add('custom-select-open');
+            menu.hidden=false;
+            button.setAttribute('aria-expanded','true');
+          }else closeMenu();
         });
         menu.addEventListener('click',e=>{
           const item=e.target.closest('.custom-select-option');
