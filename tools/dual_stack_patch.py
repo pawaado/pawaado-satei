@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 
+# trigger after workflow registration
 VERSION='20260904-dual-stack-2'
 
 p=Path('academy_runtime.js')
