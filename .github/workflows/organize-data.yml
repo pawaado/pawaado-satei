@@ -1,4 +1,4 @@
-name: Organize data single source
+name: Finalize data organization
 on:
   push:
     paths:
@@ -6,135 +6,17 @@ on:
 permissions:
   contents: write
 jobs:
-  organize:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Move all numeric data into normal data tables
-        shell: bash
+      - name: Bump browser cache and remove temporary workflow
         run: |
-          cat > /tmp/organize.js <<'NODE'
-          const fs=require('fs');
-          global.window={};
-          eval(fs.readFileSync('data.js','utf8'));
-          const D=window.PAWAADO_DATA;
-
-          function upsert(table,row){
-            const key=String(row[0]);
-            const i=table.findIndex(r=>String(r[0])===key);
-            if(i>=0) table[i]=row; else table.push(row);
-          }
-
-          // アカデミー上限は data.js 冒頭の academies を正本にする。
-          const A='ブートレインアカデミー';
-          D.academies=D.academies.filter(r=>r[0]!==A);
-          D.academies.unshift(
-            [A,'剣士',105,105,60,90,95,95],
-            [A,'重戦士',120,70,65,65,115,115],
-            [A,'魔法使い',95,65,115,105,75,95],
-            [A,'弓使い',110,115,60,120,100,95]
-          );
-
-          // 生命力：既存テーブルへ直接統合。査定＝HP増加量。
-          upsert(D.life,['100→105',450,90,90,0,0,18,90]);
-          upsert(D.life,['105→109',360,90,100,0,0,30,90]);
-          upsert(D.life,['109→110',125,125,100,0,0,30,90]);
-          upsert(D.life,['110→119',810,90,100,0,0,30,90]);
-          upsert(D.life,['119→120',125,125,100,0,0,30,90]);
-
-          // 基礎HPも既存 hp テーブルへ直接統合。
-          const hpMap=new Map(D.hp.map(r=>[Number(r[0]),Number(r[1])]));
-          let hp=hpMap.get(105) || 3120;
-          for(let v=106;v<=109;v++){hp+=90;hpMap.set(v,hp);}
-          hp+=125; hpMap.set(110,hp);
-          for(let v=111;v<=119;v++){hp+=90;hpMap.set(v,hp);}
-          hp+=125; hpMap.set(120,hp);
-          D.hp=[...hpMap.entries()].sort((a,b)=>a[0]-b[0]);
-
-          // 魔力
-          upsert(D.magicCost,['110→115',0,50,0,120,40]);
-          upsert(D.magicMagicScore,['110→115',580,116]);
-
-          // 器用さ
-          upsert(D.dexCost,['115→119',0,60,120,30,0]);
-          upsert(D.dexCost,['119→120',0,60,120,30,0]);
-          upsert(D.dexScore,['115→119',384,96]);
-          upsert(D.dexScore,['119→120',108,108]);
-
-          // 耐久力
-          upsert(D.staminaCost,['105→109',20,110,50,0,0]);
-          upsert(D.staminaCost,['109→110',20,110,50,0,0]);
-          upsert(D.staminaCost,['110→115',20,110,50,0,0]);
-          upsert(D.staminaScore,['105→109',304,76]);
-          upsert(D.staminaScore,['109→110',93,93]);
-          upsert(D.staminaScore,['110→115',380,76]);
-
-          // 精神力
-          upsert(D.mentalCost,['100→109',0,0,0,60,120]);
-          upsert(D.mentalCost,['109→110',0,0,0,60,120]);
-          upsert(D.mentalCost,['110→115',0,0,0,60,120]);
-          upsert(D.mentalScore,['100→109',684,76]);
-          upsert(D.mentalScore,['109→110',93,93]);
-          upsert(D.mentalScore,['110→115',380,76]);
-
-          // 通常攻撃(双剣士)は特殊能力配列の最後に正式登録。
-          D.special=D.special.filter(s=>String(s[1])!=='通常攻撃(双剣士)');
-          const maxId=Math.max(0,...D.special.map(s=>Number(s[0])||0));
-          D.special.push([maxId+1,'通常攻撃(双剣士)',null,0,0,0,0,0,0,0,0,0,0,0,0,'双剣士専用。Lv1は初期取得済。Lv2以降は器用さ条件を満たして順番に取得。']);
-
-          // 追加アカデミー用メタ情報。数値の正本は上の通常テーブルのみ。
-          D.academyMaster={
-            academies:[{
-              name:A,
-              newest:true,
-              dualAttack:{
-                internalJob:'弓使い',
-                displayJob:'双剣士',
-                skillName:'通常攻撃(双剣士)',
-                initialLevel:1,
-                maxLevel:6,
-                levels:{
-                  2:{reqDex:60,cost:[500,300,500,0,0],score:1000},
-                  3:{reqDex:70,cost:[0,400,600,0,0],score:400},
-                  4:{reqDex:80,cost:[0,500,700,0,0],score:400},
-                  5:{reqDex:90,cost:[800,600,800,0,0],score:900},
-                  6:{reqDex:100,cost:[0,700,900,0,0],score:800}
-                }
-              }
-            }]
-          };
-
-          let out='// パワアド査定ツール 数値データ正本\n// 査定・必要経験点・能力上限・取得条件の数値は原則この data.js に集約。\nwindow.PAWAADO_DATA = '+JSON.stringify(D,null,2)+';\n';
-          out=out.replace('"academies": [\n','"academies": [\n    // ブートレインの内部名「弓使い」は、画面上では「双剣士」と表示します。\n');
-          fs.writeFileSync('data.js',out);
-          NODE
-          node /tmp/organize.js
-
-      - name: Make runtime read numeric data instead of patching it
-        shell: python
-        run: |
-          from pathlib import Path
-          p=Path('academy_runtime.js')
-          s=p.read_text()
-
-          start="""    for(const academyDef of MASTER.academies){\n      for(const jobDef of academyDef.jobs){\n        upsertAcademy(D,academyDef.name,jobDef.internal,jobDef.limits);\n      }\n    }\n\n"""
-          s=s.replace(start,'')
-
-          old="""    // 生命力：査定値＝基礎HP増加量。既存100→105も1あたり+90へ補正。\n    const life100=D.life.find(r=>String(r[0])==='100→105');\n    if(life100){life100[1]=450;life100[2]=90;}\n\n    const ex=BOOTRAIN.basicExtensions;\n    ex.life.forEach(r=>upsertRange(D.life,r));\n    ex.magicCost.forEach(r=>upsertRange(D.magicCost,r));\n    ex.magicMagicScore.forEach(r=>upsertRange(D.magicMagicScore,r));\n    ex.dexCost.forEach(r=>upsertRange(D.dexCost,r));\n    ex.dexScore.forEach(r=>upsertRange(D.dexScore,r));\n    ex.staminaCost.forEach(r=>upsertRange(D.staminaCost,r));\n    ex.staminaScore.forEach(r=>upsertRange(D.staminaScore,r));\n    ex.mentalCost.forEach(r=>upsertRange(D.mentalCost,r));\n    ex.mentalScore.forEach(r=>upsertRange(D.mentalScore,r));\n\n    // 基礎HP（生命力査定と同値で増加）\n    const hpMap=new Map((D.hp||[]).map(r=>[Number(r[0]),Number(r[1])]));\n    let hp=hpMap.get(105);\n    if(!Number.isFinite(hp)) hp=3120;\n    const hpIncrements=[];\n    for(let v=106;v<=109;v++) hpIncrements.push([v,90]);\n    hpIncrements.push([110,125]);\n    for(let v=111;v<=119;v++) hpIncrements.push([v,90]);\n    hpIncrements.push([120,125]);\n    for(const [value,inc] of hpIncrements){hp+=inc;hpMap.set(value,hp);}\n    D.hp=[...hpMap.entries()].sort((a,b)=>a[0]-b[0]);\n\n"""
-          s=s.replace(old,"    // 基本能力の査定・必要経験点・HPは data.js の通常テーブルをそのまま使用する。\n\n")
-
-          s=s.replace("BOOTRAIN.jobs.find(j=>j.display==='双剣士').internal","DUAL.internalJob")
-          s=s.replace("const DUAL_LABEL='双剣士';","const DUAL_LABEL=DUAL.displayJob||'双剣士';")
-          s=s.replace("'./academy_runtime.js?v=20260904-1'","'./academy_runtime.js?v=20260904-3'")
-          p.write_text(s)
-
-      - name: Commit organized data
-        run: |
+          sed -i 's/data.js?v=20260904-single-source-1/data.js?v=20260904-organized-2/' index.html
+          sed -i 's/academy_runtime.js?v=20260904-single-source-1/academy_runtime.js?v=20260904-organized-2/' index.html
+          git rm .github/workflows/organize-data.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data.js academy_runtime.js
-          git commit -m '基本能力拡張と双剣士通常攻撃をdata.jsへ整理'
+          git add index.html
+          git commit -m 'data.js整理後のキャッシュ更新'
           git push
