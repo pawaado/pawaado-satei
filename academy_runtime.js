@@ -41,12 +41,6 @@
     if(!D || D.__academyRuntimeDataApplied) return;
     Object.defineProperty(D,'__academyRuntimeDataApplied',{value:true,writable:true,configurable:true,enumerable:false});
 
-    for(const academyDef of MASTER.academies){
-      for(const jobDef of academyDef.jobs){
-        upsertAcademy(D,academyDef.name,jobDef.internal,jobDef.limits);
-      }
-    }
-
     // newest=true のアカデミーを選択肢の先頭へ。
     const newestNames=MASTER.academies.filter(a=>a.newest).map(a=>a.name);
     const newestRows=[];
@@ -56,32 +50,7 @@
     }
     D.academies.splice(0,D.academies.length,...newestRows,...otherRows);
 
-    // 生命力：査定値＝基礎HP増加量。既存100→105も1あたり+90へ補正。
-    const life100=D.life.find(r=>String(r[0])==='100→105');
-    if(life100){life100[1]=450;life100[2]=90;}
-
-    const ex=BOOTRAIN.basicExtensions;
-    ex.life.forEach(r=>upsertRange(D.life,r));
-    ex.magicCost.forEach(r=>upsertRange(D.magicCost,r));
-    ex.magicMagicScore.forEach(r=>upsertRange(D.magicMagicScore,r));
-    ex.dexCost.forEach(r=>upsertRange(D.dexCost,r));
-    ex.dexScore.forEach(r=>upsertRange(D.dexScore,r));
-    ex.staminaCost.forEach(r=>upsertRange(D.staminaCost,r));
-    ex.staminaScore.forEach(r=>upsertRange(D.staminaScore,r));
-    ex.mentalCost.forEach(r=>upsertRange(D.mentalCost,r));
-    ex.mentalScore.forEach(r=>upsertRange(D.mentalScore,r));
-
-    // 基礎HP（生命力査定と同値で増加）
-    const hpMap=new Map((D.hp||[]).map(r=>[Number(r[0]),Number(r[1])]));
-    let hp=hpMap.get(105);
-    if(!Number.isFinite(hp)) hp=3120;
-    const hpIncrements=[];
-    for(let v=106;v<=109;v++) hpIncrements.push([v,90]);
-    hpIncrements.push([110,125]);
-    for(let v=111;v<=119;v++) hpIncrements.push([v,90]);
-    hpIncrements.push([120,125]);
-    for(const [value,inc] of hpIncrements){hp+=inc;hpMap.set(value,hp);}
-    D.hp=[...hpMap.entries()].sort((a,b)=>a[0]-b[0]);
+    // 基本能力の査定・必要経験点・HPは data.js の通常テーブルをそのまま使用する。
 
     // 双剣士専用「通常攻撃」のUI用ダミー行。実計算はこのファイルのWorker部で行う。
     let dualIndex=D.special.findIndex(s=>String(s[1])===DUAL.skillName);
@@ -91,7 +60,7 @@
     }
     Object.defineProperty(D,'__dualAttackIndex',{value:dualIndex,writable:true,configurable:true,enumerable:false});
     Object.defineProperty(D,'__bootrainAcademyName',{value:BOOTRAIN.name,writable:true,configurable:true,enumerable:false});
-    Object.defineProperty(D,'__dualInternalJob',{value:BOOTRAIN.jobs.find(j=>j.display==='双剣士').internal,writable:true,configurable:true,enumerable:false});
+    Object.defineProperty(D,'__dualInternalJob',{value:DUAL.internalJob,writable:true,configurable:true,enumerable:false});
   }
 
   const isWorker=(typeof document==='undefined' && typeof global.importScripts==='function');
@@ -107,7 +76,7 @@
     const D=global.PAWAADO_DATA;
     applyMasterData(D);
 
-    const INTERNAL_DUAL_JOB=BOOTRAIN.jobs.find(j=>j.display==='双剣士').internal;
+    const INTERNAL_DUAL_JOB=DUAL.internalJob;
 
     function add5(a,b){return [0,1,2,3,4].map(i=>Number(a[i]||0)+Number(b[i]||0));}
     function leq5(a,b){return [0,1,2,3,4].every(i=>Number(a[i]||0)<=Number(b[i]||0));}
@@ -255,8 +224,8 @@
     global.__academyRuntimeUiPatched=true;
 
     const ACADEMY=BOOTRAIN.name;
-    const INTERNAL_DUAL_JOB=BOOTRAIN.jobs.find(j=>j.display==='双剣士').internal;
-    const DUAL_LABEL='双剣士';
+    const INTERNAL_DUAL_JOB=DUAL.internalJob;
+    const DUAL_LABEL=DUAL.displayJob||'双剣士';
     const DUAL_INDEX=Number(D.__dualAttackIndex);
     let dualLevel=DUAL.initialLevel;
     let dualHint=0;
@@ -398,7 +367,7 @@
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-1':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-3':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
