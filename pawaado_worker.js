@@ -1,6 +1,6 @@
 /* PowerAd calculation Web Worker */
 self.window=self;
-importScripts('./data.js?v=20260904-dual-job-1');
+importScripts('./data.js?v=20260904-range-compact-1');
 
 const __workerElements=new Map();
 function __workerElement(id){

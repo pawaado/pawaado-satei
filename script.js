@@ -2632,7 +2632,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260802-shared-worker');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260904-range-compact-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){

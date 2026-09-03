@@ -12,7 +12,7 @@
   const __academyWorkerBoot=(typeof document==='undefined' && typeof global.importScripts==='function');
   if(__academyWorkerBoot && !global.PAWAADO_DATA){
     global.window=global;
-    global.importScripts('./pawaado_worker.js?v=20260904-dual-job-1');
+    global.importScripts('./pawaado_worker.js?v=20260904-range-compact-1');
   }
   const MASTER=global.PAWAADO_DATA?.academyMaster;
   if(!MASTER) return;
@@ -70,7 +70,7 @@
   // =========================
   if(isWorker){
     global.window=global;
-    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-dual-job-1');
+    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-range-compact-1');
     const baseHandler=global.onmessage;
     const nativePostMessage=global.postMessage.bind(global);
     const D=global.PAWAADO_DATA;
