@@ -51,7 +51,7 @@
     if(!a||!j) return;
     if(a.value===ACADEMY){
       for(const option of j.options){
-        if(option.value===INTERNAL_DUAL_JOB) option.textContent=DUAL_LABEL;
+        if(option.value===INTERNAL_DUAL_JOB && option.textContent!==DUAL_LABEL) option.textContent=DUAL_LABEL;
       }
     }
   }
@@ -69,10 +69,10 @@
     const row=dualRow();
     if(!row) return;
     if(!isDual()){
-      row.style.display='none';
+      if(row.style.display!=='none') row.style.display='none';
       return;
     }
-    row.style.display='';
+    if(row.style.display==='none') row.style.display='';
     row.classList.add('dual-attack-row');
     row.classList.toggle('owned',dualLevel>1);
 
@@ -86,18 +86,21 @@
     }
 
     const label=row.querySelector('.dual-level-label');
-    if(label) label.innerHTML=`<span class="dual-level-text"><span>通常攻撃(双剣士)</span><span class="dual-level-badge">Lv${dualLevel}</span></span>`;
+    if(label && (label.dataset.dualLevel!==String(dualLevel) || !label.querySelector('.dual-level-badge'))){
+      label.dataset.dualLevel=String(dualLevel);
+      label.innerHTML=`<span class="dual-level-text"><span>通常攻撃(双剣士)</span><span class="dual-level-badge">Lv${dualLevel}</span></span>`;
+    }
     const minus=row.querySelector('.dual-level-minus');
     const plus=row.querySelector('.dual-level-plus');
-    if(minus) minus.disabled=dualLevel<=1;
-    if(plus) plus.disabled=dualLevel>=6;
+    if(minus && minus.disabled!==(dualLevel<=1)) minus.disabled=dualLevel<=1;
+    if(plus && plus.disabled!==(dualLevel>=6)) plus.disabled=dualLevel>=6;
     const error=row.querySelector('.dual-level-error');
-    if(error) error.textContent=dualError;
+    if(error && error.textContent!==dualError) error.textContent=dualError;
   }
 
   function syncInternalHint(oldLevel,newLevel){
     const row=dualRow();
-    const btn=row?.querySelector('.dual-internal-hint');
+    const btn=row?.querySelector('.dual-internal-hint') || row?.querySelector('.hint-btn');
     if(!btn) return;
     const from=(oldLevel-1)%6;
     const to=(newLevel-1)%6;
@@ -179,10 +182,7 @@
   function afterSelectionChange(){
     syncJobLabel();
     syncTheme();
-    if(!isDual()){
-      dualLevel=1;
-      dualError='';
-    }
+    if(!isDual() && dualLevel!==1) setDualLevel(1);
     setTimeout(()=>{syncJobLabel();syncTheme();renderDualRow();},0);
   }
   academyEl()?.addEventListener('change',afterSelectionChange);
@@ -209,7 +209,7 @@
     function WrappedWorker(url,options){
       const raw=String(url||'');
       const rewritten=raw.includes('pawaado_worker.js')
-        ? './bootrain_worker_loader.js?v=20260903-2'
+        ? './bootrain_worker_loader.js?v=20260903-3'
         : url;
       const worker=new NativeWorker(rewritten,options);
       if(raw.includes('pawaado_worker.js')){
