@@ -295,7 +295,8 @@
       if(label){
         label.dataset.dualLevel=String(shownLevel);
         label.setAttribute('aria-disabled',maxed?'true':'false');
-        label.innerHTML=`<span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv${shownLevel}</span></span>${maxed?'<span class="owned-label">✓取得済</span>':''}`;
+        const labelHtml=`<span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv${shownLevel}</span></span>${maxed?'<span class="owned-label">✓取得済</span>':''}`;
+        if(label.innerHTML!==labelHtml) label.innerHTML=labelHtml;
       }
       const error=row.querySelector('.dual-level-error');
       if(error&&error.textContent!==dualError) error.textContent=dualError;
@@ -360,14 +361,15 @@
       queueMicrotask(()=>{queued=false;syncJobLabel();syncTheme();renderDualRow();});
     });
     const specialList=document.getElementById('specialList');
-    if(specialList) observer.observe(specialList,{childList:true,subtree:true});
+    // specialList直下の再描画だけを監視する。subtree監視は双剣士行自身の更新を拾って無限ループになるため使わない。
+    if(specialList) observer.observe(specialList,{childList:true});
 
     // 通常の計算Workerを、この同じ academy_runtime.js のWorkerモードへ差し替える。
     const NativeWorker=global.Worker;
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-job-1':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-freeze-1':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
