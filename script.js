@@ -27,6 +27,13 @@ const jobClassMap={
 const orderedJobNames=Object.keys(jobClassMap);
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
+const DEFAULT_EXP_LIMIT=1000;
+const BOOTRAIN_EXP_LIMITS={筋力:1300,敏捷:1200,技術:1400,知力:1300,精神:1200};
+function expLimit(name){
+  return academy?.value==='ブートレインアカデミー'
+    ? Number(BOOTRAIN_EXP_LIMITS[name]||DEFAULT_EXP_LIMIT)
+    : DEFAULT_EXP_LIMIT;
+}
 const specialList=document.getElementById('specialList');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
@@ -437,7 +444,7 @@ function updateJobs(){
   updateInputAvailabilityUI();
   clearBasicState(); renderBasic(); renderSpecials(); applyCurrentJobTheme();
 }
-academy.addEventListener('change',updateJobs);
+academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInline();});
 job.addEventListener('change',()=>{
   updateInputAvailabilityUI();
   clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
@@ -481,7 +488,7 @@ function isExpSampleReady(sample){
     const value=sample[name];
     if(value==='' || value==null) return false;
     const num=Number(value);
-    return Number.isFinite(num) && num>=0 && num<=1000;
+    return Number.isFinite(num) && num>=0 && num<=expLimit(name);
   });
 }
 function updateExpActionStates(sampleIndex){
@@ -504,7 +511,7 @@ function renderExp(){
     <div class="exp-sample" data-sample-index="${index}">
       ${expSamples.length>1?`<div class="exp-sample-head"><h3>${sampleLabelHtml(index)}</h3></div>`:''}
       <div class="exp-list">
-        ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="1000" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
+        ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="${expLimit(name)}" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
       </div>
       <div class="exp-sample-actions">
         <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${actionsLocked?'disabled aria-disabled="true"':'aria-disabled="false"'}>パターンを複製</button>
@@ -524,16 +531,12 @@ function applyCurrentJobTheme(){
 }
 function formatErrorMessage(message){
   const text=String(message??'');
-
-  // 経験点の上限エラーは「1000以下の値を」までを1行目にし、
-  // 「入力してください。」を必ず次の行から表示する。
-  if(text.includes('1000以下の値を入力してください。')){
+  if(/\d+以下の値を入力してください。/.test(text)){
     return text.replace(
-      /1000以下の値を入力してください。/g,
-      '1000以下の値を<br><span class="error-no-break">入力してください。</span>'
+      /(\d+以下の値を)入力してください。/g,
+      '$1<br><span class="error-no-break">入力してください。</span>'
     );
   }
-
   return text.replace(
     /入力してください。/g,
     '<span class="error-no-break">入力してください。</span>'
@@ -718,8 +721,9 @@ function validateExpField(sampleIndex,name){
   let msg='';
   if(v!=='' && v!=null){
     const num=Number(v);
+    const max=expLimit(name);
     if(!Number.isFinite(num) || num<0) msg='経験点は0以上の値を入力してください';
-    else if(num>1000) msg='経験点は1000以下の値を入力してください';
+    else if(num>max) msg=`経験点は${max}以下の値を入力してください`;
   }
   setInlineError(`err_exp_${sampleIndex}_${safeId(name)}`,msg);
   inp.classList.toggle('input-error',!!msg);
@@ -823,7 +827,7 @@ function tableFor(name){
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
 function key5(c0,c1,c2,c3,c4){
-  return String(((((c0*1001+c1)*1001+c2)*1001+c3)*1001+c4));
+  return String(((((c0*1501+c1)*1501+c2)*1501+c3)*1501+c4));
 }
 function key(c){return key5(c[0],c[1],c[2],c[3],c[4]);}
 function stateKey(st){
@@ -2755,8 +2759,9 @@ function validateInputs(){
         return;
       }
       const num=Number(v);
+      const max=expLimit(n);
       if(!Number.isFinite(num) || num<0) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は0以上の値を入力してください。`);
-      if(num>1000) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は1000以下の値を入力してください。`);
+      if(num>max) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は${max}以下の値を入力してください。`);
     });
   });
 
@@ -2764,7 +2769,7 @@ function validateInputs(){
     const rawValues=expNames.map(n=>sample[n]);
     if(rawValues.some(v=>v==='' || v==null)) return null;
     const values=rawValues.map(v=>Number(v));
-    if(!values.every(v=>Number.isFinite(v) && v>=0 && v<=1000)) return null;
+    if(!values.every((v,i)=>Number.isFinite(v) && v>=0 && v<=expLimit(expNames[i]))) return null;
     return values;
   });
 

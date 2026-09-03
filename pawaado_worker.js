@@ -719,7 +719,7 @@ function tableFor(name){
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
 function key5(c0,c1,c2,c3,c4){
-  return String(((((c0*1001+c1)*1001+c2)*1001+c3)*1001+c4));
+  return String(((((c0*1501+c1)*1501+c2)*1501+c3)*1501+c4));
 }
 function key(c){return key5(c[0],c[1],c[2],c[3],c[4]);}
 function stateKey(st){

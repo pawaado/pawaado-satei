@@ -12,7 +12,7 @@
   const __academyWorkerBoot=(typeof document==='undefined' && typeof global.importScripts==='function');
   if(__academyWorkerBoot && !global.PAWAADO_DATA){
     global.window=global;
-    global.importScripts('./pawaado_worker.js?v=20260904-range-compact-1');
+    global.importScripts('./pawaado_worker.js?v=20260904-exp1400-1');
   }
   const MASTER=global.PAWAADO_DATA?.academyMaster;
   if(!MASTER) return;
@@ -63,14 +63,14 @@
     Object.defineProperty(D,'__dualInternalJob',{value:DUAL.internalJob,writable:true,configurable:true,enumerable:false});
   }
 
-  const isWorker=(typeof document==='undefined' && typeof global.importScripts==='function');
+  const isWorker=__academyWorkerBoot;
 
   // =========================
   // Worker側：追加アカデミー計算
   // =========================
   if(isWorker){
     global.window=global;
-    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-range-compact-1');
+    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-exp1400-1');
     const baseHandler=global.onmessage;
     const nativePostMessage=global.postMessage.bind(global);
     const D=global.PAWAADO_DATA;
@@ -244,7 +244,7 @@
 
     function academyEl(){return document.getElementById('academy');}
     function jobEl(){return document.getElementById('job');}
-    function noWrapAcademyLabel(text){return String(text||'').replace(/\u2060/g,'').split('').join('\u2060');}
+    function noWrapAcademyLabel(text){const plain=String(text||'').replace(/\u2060/g,'');return plain==='タテレスキュアアカデミー'?'タテレスキュア\u2060アカデミー':plain;}
     function syncAcademyOptionLabels(){
       const a=academyEl();
       if(!a) return;
@@ -304,7 +304,7 @@
       const label=row.querySelector('.dual-level-label');
       if(label){
         label.dataset.dualLevel=String(shownLevel);
-        label.setAttribute('aria-disabled',maxed?'true':'false');
+        label.setAttribute('aria-disabled','false');
         const labelHtml=`<span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv${shownLevel}</span></span>${maxed?'<span class="owned-label">✓取得済</span>':''}`;
         if(label.innerHTML!==labelHtml) label.innerHTML=labelHtml;
       }
@@ -314,7 +314,10 @@
 
     function setDualLevel(next){dualLevel=Math.max(DUAL.initialLevel,Math.min(DUAL.maxLevel,Number(next)||DUAL.initialLevel));dualError='';renderDualRow();}
     function tryAcquireNext(){
-      if(dualLevel>=DUAL.maxLevel) return;
+      if(dualLevel>=DUAL.maxLevel){
+        setDualLevel(DUAL.maxLevel-1);
+        return;
+      }
       const next=dualLevel+1;
       const req=requiredDex(next);
       const dex=dexValue();
@@ -379,7 +382,7 @@
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-academy-menu-1':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-expfix-1':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
