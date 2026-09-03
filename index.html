@@ -335,6 +335,27 @@
       document.addEventListener('keydown',e=>{if(e.key==='Escape') customSelects.forEach(item=>item.closeMenu());});
       syncAllCustomSelects();
 
+      /* 経験点上限エラーはスマホで読みやすいよう「上限xxxx」に短縮表示する。 */
+      const expInputsRoot=document.getElementById('expInputs');
+      const compactExpErrors=()=>{
+        if(!expInputsRoot) return;
+        expInputsRoot.querySelectorAll('.exp-row').forEach(row=>{
+          const input=row.querySelector('input[type="number"][data-exp-name]');
+          const error=row.querySelector('.inline-error');
+          if(!input||!error) return;
+          const value=Number(input.value);
+          const max=Number(input.max);
+          if(input.value!=='' && Number.isFinite(value) && Number.isFinite(max) && value>max){
+            if(error.textContent!==`上限${max}`) error.textContent=`上限${max}`;
+          }
+        });
+      };
+      if(expInputsRoot){
+        expInputsRoot.addEventListener('input',()=>queueMicrotask(compactExpErrors));
+        new MutationObserver(()=>queueMicrotask(compactExpErrors)).observe(expInputsRoot,{childList:true,subtree:true,characterData:true});
+        compactExpErrors();
+      }
+
       /* 計算開始直後の誤タップでキャンセルしないよう、最初の0.4秒だけ受付を止める。 */
       const calcBtn=document.getElementById('calcBtn');
       calcBtn?.addEventListener('click',()=>{
