@@ -55,3 +55,4 @@ function renderBasic(){"""
           git add index.html script.js
           git diff --cached --quiet || git commit -m '装飾アイコンを外して表示をシンプル化'
           git push
+# trigger
