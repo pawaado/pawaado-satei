@@ -262,6 +262,9 @@
       });
       academy.addEventListener('change',()=>queueMicrotask(syncAll));
       new MutationObserver(()=>queueMicrotask(syncAll)).observe(academy,{childList:true,subtree:true,characterData:true});
+      for(const id of ['resetBtn','topResetBtn']){
+        document.getElementById(id)?.addEventListener('click',()=>queueMicrotask(syncAll));
+      }
       document.addEventListener('click',e=>{if(!e.target.closest('.academy-select-control')) closeMenu();});
       document.addEventListener('keydown',e=>{if(e.key==='Escape') closeMenu();});
       syncAll();
