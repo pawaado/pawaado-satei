@@ -19,8 +19,6 @@ jobs:
           from pathlib import Path
           import re
 
-          # iPhoneのネイティブselectメニューで長いアカデミー名が改行されないように、
-          # 表示ラベルへ不可視のWord Joinerを入れる。option.valueは変更しない。
           p=Path('academy_runtime.js')
           s=p.read_text()
           anchor="""    function academyEl(){return document.getElementById('academy');}\n    function jobEl(){return document.getElementById('job');}\n"""
@@ -35,7 +33,6 @@ jobs:
           s=s.replace("./academy_runtime.js?v=20260904-dual-freeze-1", "./academy_runtime.js?v=20260904-academy-menu-1")
           p.write_text(s)
 
-          # ネイティブメニュー側でも収まりやすいようにアカデミーだけ少し小さくし、左揃えを明示。
           p=Path('style.css')
           s=p.read_text()
           css="""
