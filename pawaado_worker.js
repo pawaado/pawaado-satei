@@ -34,6 +34,14 @@ self.Option=function(label,value){this.text=label;this.value=value??label;};
 // v8.0 高精度専用：安全な総経験点Upper Boundを追加。査定条件・保持上限・候補集合は変更なし。
 // Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
 const D=window.PAWAADO_DATA;
+const ACADEMY_MASTER=D.academyMaster||{academies:[]};
+const BOOTRAIN_MASTER=(ACADEMY_MASTER.academies||[]).find(a=>a.name==='ブートレインアカデミー')||null;
+const DUAL_MASTER=BOOTRAIN_MASTER?.dualAttack||null;
+const DUAL_SKILL_INDEX=DUAL_MASTER?D.special.findIndex(s=>String(s[1])===String(DUAL_MASTER.skillName)):-1;
+let workerDualEnabled=false;
+let workerDualLevel=Number(DUAL_MASTER?.initialLevel||1);
+let workerDualHint=0;
+self.__PAWAADO_INTEGRATED_DUAL__=true;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const mutualGroups=[
@@ -2095,7 +2103,7 @@ function mixedLevelsKey(levels){
   return levels.map(v=>Number(v).toString(36)).join('.');
 }
 function mixedStateKey(st){
-  return key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS);
+  return key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36));
 }
 function mixedIsAcquired(i,bits){
   return specialOwned(i) || (((bits??EMPTY_BITS)&specialBit(i))!==EMPTY_BITS);
@@ -2177,6 +2185,51 @@ function mixedBasicActions(st,exp){
   }
   return actions;
 }
+function mixedDualAction(st,exp){
+  if(!workerDualEnabled||!DUAL_MASTER||DUAL_SKILL_INDEX<0) return null;
+  const fromLevel=Number(st.dualLevel??workerDualLevel);
+  const toLevel=fromLevel+1;
+  if(toLevel>Number(DUAL_MASTER.maxLevel||fromLevel)) return null;
+  const def=DUAL_MASTER.levels?.[toLevel];
+  if(!def) return null;
+
+  const dexIndex=basicNames.indexOf('器用さ');
+  const currentDex=Number(st.levels[dexIndex]||1);
+  const reqDex=Number(def.reqDex||0);
+  let targetDex=currentDex;
+  let cost=(def.cost||[0,0,0,0,0]).map(v=>costAfter(Number(v||0),workerDualHint,false));
+  let gain=Number(def.score||0);
+  const items=[];
+
+  if(currentDex<reqDex){
+    const dexOp=mixedBasicOption('器用さ',currentDex,reqDex);
+    if(!dexOp) return null;
+    cost=addCost(cost,dexOp.cost);
+    gain+=Number(dexOp.score||0);
+    items.push(...(dexOp.items||EMPTY_ITEMS));
+    targetDex=reqDex;
+  }
+
+  const finalCost=addCost(st.cost,cost);
+  if(!leq(finalCost,exp)) return null;
+  items.push({type:'special',idx:DUAL_SKILL_INDEX,name:`${DUAL_MASTER.skillName} Lv${toLevel}`,dualLevel:toLevel});
+  const cs=costSum(cost);
+  return {
+    kind:'dual',
+    name:`${DUAL_MASTER.skillName} Lv${toLevel}`,
+    fromLevel,
+    toLevel,
+    toDex:targetDex,
+    cost,
+    costSum:cs,
+    gain,
+    score:gain,
+    efficiency:gain/Math.max(1,cs),
+    items,
+    bits:EMPTY_BITS
+  };
+}
+
 function mixedSpecialActionsAtHp(st,exp,hp){
   const actions=[];
   const used=new Set();
@@ -2286,6 +2339,8 @@ function mixedCandidateActions(st,exp){
 
   // 通常候補で一度順位を作る。
   const normalActions=basicActions.concat(currentSpecials.filter(op=>!op.isHpDependent));
+  const dualAction=mixedDualAction(st,exp);
+  if(dualAction) normalActions.push(dualAction);
   normalActions.sort(mixedActionSort);
 
   // 分岐上限内に生命力候補が入るか判定。
@@ -2399,6 +2454,7 @@ function mixedApplyAction(st,op){
   const levels=st.levels.slice();
   let life=st.life;
   let bits=st.bits??EMPTY_BITS;
+  let dualLevel=st.dualLevel;
 
   if(op.kind==='basic'){
     const bi=basicNames.indexOf(op.name);
@@ -2408,6 +2464,10 @@ function mixedApplyAction(st,op){
     levels[0]=op.to;
     life=op.to;
     bits|=(op.bits??specialItemsBits(op.items));
+  }else if(op.kind==='dual'){
+    const dexIndex=basicNames.indexOf('器用さ');
+    if(Number(op.toDex)>Number(levels[dexIndex])) levels[dexIndex]=Number(op.toDex);
+    dualLevel=Number(op.toLevel);
   }else{
     bits|=(op.bits??specialItemsBits(op.items));
   }
@@ -2418,6 +2478,7 @@ function mixedApplyAction(st,op){
     life,
     levels,
     bits,
+    dualLevel,
     prev:st,
     choice:op.items||EMPTY_ITEMS,
     itemLen:itemLenOf(st)+(op.items?.length||0),
@@ -2432,7 +2493,8 @@ async function optimizeMixedAsync(exp,onProgress){
   const initialLife=levels[0];
   const init={
     cost:[0,0,0,0,0],score:0,life:initialLife,levels,
-    bits:EMPTY_BITS,prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
+    bits:EMPTY_BITS,dualLevel:workerDualEnabled?workerDualLevel:null,
+    prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
   };
   let states=new Map([[mixedStateKey(init),init]]);
   let best=init;
@@ -2461,6 +2523,9 @@ async function optimizeMixedAsync(exp,onProgress){
       // 経験点の偏りで有望手を落とさないよう、最高査定値候補も1件追加。
       const maxGain=actions.reduce((m,o)=>!m||o.gain>m.gain?o:m,null);
       if(maxGain&&!selected.includes(maxGain)) selected.push(maxGain);
+      // 双剣士通常攻撃は器用さ条件込みの専用候補として必ず比較対象に残す。
+      const dualChoice=actions.find(o=>o.kind==='dual');
+      if(dualChoice&&!selected.includes(dualChoice)) selected.push(dualChoice);
 
       for(const op of selected){
         const ns=mixedApplyAction(st,op);
@@ -2715,6 +2780,11 @@ function resetAll(){
 
 let __workerConfigKey='';
 function __workerPayloadConfigKey(payload){
+  const dualPart=[
+    payload.isDualSwordsman?1:0,
+    Number(payload.dualAttackLevel||DUAL_MASTER?.initialLevel||1),
+    Number(payload.dualAttackHint||0)
+  ];
   const basicPart=basicNames.map(name=>[
     name,
     Number(payload.basicValues?.[name]||1),
@@ -2731,12 +2801,19 @@ function __workerPayloadConfigKey(payload){
   return JSON.stringify([
     String(payload.academy||''),
     String(payload.job||''),
+    dualPart,
     basicPart,
     specialPart
   ]);
 }
 
 function __applyWorkerPayload(payload){
+  workerDualEnabled=!!payload.isDualSwordsman || (
+    String(payload.academy||'')===String(BOOTRAIN_MASTER?.name||'') &&
+    String(payload.job||'')===String(DUAL_MASTER?.internalJob||'')
+  );
+  workerDualLevel=Math.max(Number(DUAL_MASTER?.initialLevel||1),Math.min(Number(DUAL_MASTER?.maxLevel||1),Number(payload.dualAttackLevel||DUAL_MASTER?.initialLevel||1)));
+  workerDualHint=Math.max(0,Math.min(5,Number(payload.dualAttackHint||0)));
   const nextConfigKey=__workerPayloadConfigKey(payload);
   const configChanged=nextConfigKey!==__workerConfigKey;
 
@@ -2772,6 +2849,26 @@ function __applyWorkerPayload(payload){
   cancelRequested=false;
 }
 
+function collapseDualResultItems(items){
+  if(!workerDualEnabled||!DUAL_MASTER) return items;
+  const dualItems=(items||[]).filter(it=>it?.type==='special'&&Number.isFinite(Number(it.dualLevel)));
+  if(!dualItems.length) return items;
+  const levels=dualItems.map(it=>Number(it.dualLevel)).sort((a,b)=>a-b);
+  const first=levels[0],last=levels[levels.length-1];
+  const label=first===last?`Lv${last}`:`Lv${first}→Lv${last}`;
+  const combined={type:'special',idx:DUAL_SKILL_INDEX,name:`${DUAL_MASTER.skillName} ${label}`};
+  const out=[];
+  let inserted=false;
+  for(const item of items||[]){
+    if(item?.type==='special'&&Number.isFinite(Number(item.dualLevel))){
+      if(!inserted){out.push(combined);inserted=true;}
+      continue;
+    }
+    out.push(item);
+  }
+  return out;
+}
+
 self.onmessage=async(event)=>{
   const data=event.data||{};
   if(data.type==='cancel'){
@@ -2787,8 +2884,13 @@ self.onmessage=async(event)=>{
       ? payload.exp.map(v=>Number(v||0))
       : [0,0,0,0,0];
 
+    if(workerDualEnabled&&DUAL_MASTER&&workerDualLevel>Number(DUAL_MASTER.initialLevel||1)){
+      const dex=Number(payload.basicValues?.['器用さ']||1);
+      const req=Number(DUAL_MASTER.levels?.[workerDualLevel]?.reqDex||0);
+      if(dex<req) throw new Error(`取得条件を満たしていません（通常攻撃Lv${workerDualLevel}には器用さ${req}以上が必要です）。`);
+    }
     const finalCandidate=await optimizeMixedAsync(exp,null);
-    const items=restoreItems(finalCandidate).map(item=>({...item}));
+    const items=collapseDualResultItems(restoreItems(finalCandidate).map(item=>({...item})));
 
     self.postMessage({
       type:'result',

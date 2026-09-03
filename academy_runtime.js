@@ -12,7 +12,7 @@
   const __academyWorkerBoot=(typeof document==='undefined' && typeof global.importScripts==='function');
   if(__academyWorkerBoot && !global.PAWAADO_DATA){
     global.window=global;
-    global.importScripts('./pawaado_worker.js?v=20260904-exp1400-1');
+    global.importScripts('./pawaado_worker.js?v=20260904-integrated-dual-1');
   }
   const MASTER=global.PAWAADO_DATA?.academyMaster;
   if(!MASTER) return;
@@ -70,7 +70,7 @@
   // =========================
   if(isWorker){
     global.window=global;
-    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-exp1400-1');
+    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=20260904-integrated-dual-1');
     const baseHandler=global.onmessage;
     const nativePostMessage=global.postMessage.bind(global);
     const D=global.PAWAADO_DATA;
@@ -143,6 +143,7 @@
     }
 
     global.onmessage=async(event)=>{
+      if(global.__PAWAADO_INTEGRATED_DUAL__) return baseHandler(event);
       const data=event.data||{};
       if(data.type==='cancel') return baseHandler(event);
       if(data.type!=='calculate') return baseHandler(event);
@@ -244,7 +245,7 @@
 
     function academyEl(){return document.getElementById('academy');}
     function jobEl(){return document.getElementById('job');}
-    function noWrapAcademyLabel(text){const plain=String(text||'').replace(/\u2060/g,'');return plain==='タテレスキュアアカデミー'?'タテレスキュア\u2060アカデミー':plain;}
+    function noWrapAcademyLabel(text){const plain=String(text||'').replace(/\u2060/g,'');return plain==='タテレスキュアアカデミー'?'タテレスキュア アカデミー':plain;}
     function syncAcademyOptionLabels(){
       const a=academyEl();
       if(!a) return;
@@ -397,7 +398,7 @@
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-stack-2':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-integrated-dual-1':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
