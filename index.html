@@ -10,11 +10,34 @@
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=20260904-academy-menu-1">
   <style>
-    /* 表示だけシンプル化。アイコンの生成コード・配色・SVG設定は削除せず保持する。 */
+    /* 装飾アイコンは非表示。元の設定は残しているので必要なら戻せる。 */
     .select-label-icon,
     .select-label-svg,
     .ability-name-icon,
     .ability-name-svg{display:none!important}
+
+    /* 選択中アカデミーのシンボル。リセットボタンの左だけに控えめに表示する。 */
+    .academy-symbol{
+      display:none;
+      width:64px;
+      height:48px;
+      flex:0 0 64px;
+      align-items:center;
+      justify-content:center;
+      margin-right:8px;
+      color:#26211d;
+      filter:drop-shadow(0 2px 0 rgba(255,255,255,.45)) drop-shadow(0 2px 2px rgba(54,31,15,.18));
+      pointer-events:none;
+    }
+    .academy-symbol.is-visible{display:flex}
+    .academy-symbol svg{display:block;width:60px;height:44px;overflow:visible}
+    .academy-symbol[data-academy="ブートレインアカデミー"]{color:#1c1c1b}
+    .academy-symbol[data-academy="カジナイトアカデミー"]{color:#4a2a18}
+    .academy-symbol[data-academy="タテレスキュアアカデミー"]{color:#334859}
+    @media(max-width:370px){
+      .academy-symbol{width:55px;flex-basis:55px;margin-right:6px}
+      .academy-symbol svg{width:52px;height:40px}
+    }
   </style>
 </head>
 <body>
@@ -28,6 +51,7 @@
   </header>
   <main>
     <div class="top-action-row">
+      <span id="academySymbol" class="academy-symbol" aria-hidden="true"></span>
       <button id="topResetBtn" class="secondary top-reset-button" type="button">入力をリセット</button>
     </div>
 
@@ -134,5 +158,33 @@
   <script src="data.js?v=20260904-range-compact-1"></script>
   <script src="academy_runtime.js?v=20260904-academy-menu-1"></script>
   <script src="script.js?v=20260904-range-compact-1"></script>
+  <script>
+    (function(){
+      const academy=document.getElementById('academy');
+      const symbol=document.getElementById('academySymbol');
+      if(!academy||!symbol) return;
+
+      const train=`<svg viewBox="0 0 72 50" role="img"><g fill="currentColor"><circle cx="22" cy="39" r="6"/><circle cx="47" cy="39" r="6"/><circle cx="59" cy="39" r="4.8"/><path d="M9 35h55v5H9zM14 27h37c7 0 12 3 15 8H14zM20 11h20v17H20zM23 6h14v6H23zM42 17h12v11H42zM14 19h7v9h-7zM8 30h8v5H8zM53 27h9l5 8H53z"/><path d="M21 10c0-5 4-8 8-8h5v4h-5c-2 0-4 2-4 4z"/><circle cx="28" cy="20" r="4" fill="#f5e6bd"/></g><g fill="currentColor" opacity=".88"><circle cx="37" cy="5" r="4"/><circle cx="44" cy="3" r="5"/><circle cx="51" cy="6" r="4"/></g></svg>`;
+      const hammer=`<svg viewBox="0 0 72 50" role="img"><g fill="currentColor"><path d="M16 9 39 4l8 10-23 7z"/><path d="m34 18 7-5 22 29-7 5z"/><path d="M12 7 20 4l5 7-8 3z" opacity=".82"/></g></svg>`;
+      const rescue=`<svg viewBox="0 0 72 50" role="img"><g fill="currentColor"><path d="M20 8h26v8H20zM24 16h18v22H24zM16 38h34v5H16z"/><path d="M33 1 47 8H19z"/><path d="M49 18c8 2 13 7 13 15 0 9-6 14-13 17-7-3-13-8-13-17 0-8 5-13 13-15z" opacity=".96"/><path d="M46 25h6v5h5v6h-5v5h-6v-5h-5v-6h5z" fill="#f5e6bd"/></g></svg>`;
+
+      function render(){
+        const value=academy.value||'';
+        symbol.dataset.academy=value;
+        let html='';
+        if(value==='ブートレインアカデミー') html=train;
+        else if(value==='カジナイトアカデミー') html=hammer;
+        else if(value==='タテレスキュアアカデミー') html=rescue;
+        symbol.innerHTML=html;
+        symbol.classList.toggle('is-visible',!!html);
+      }
+
+      academy.addEventListener('change',render);
+      document.getElementById('topResetBtn')?.addEventListener('click',()=>setTimeout(render,0));
+      document.getElementById('resetBtn')?.addEventListener('click',()=>setTimeout(render,0));
+      window.addEventListener('load',()=>setTimeout(render,0),{once:true});
+      setTimeout(render,0);
+    })();
+  </script>
 </body>
 </html>
