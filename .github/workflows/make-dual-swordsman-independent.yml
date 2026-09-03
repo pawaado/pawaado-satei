@@ -7,7 +7,6 @@ permissions:
   contents: write
 jobs:
   update:
-    if: github.event.head_commit.message != 'cleanup: remove dual swordsman migration workflow'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +15,6 @@ jobs:
         run: |
           from pathlib import Path
 
-          # data.js: ブートレインの双剣士を独立ジョブ名で保持する
           p=Path('data.js')
           s=p.read_text()
           s=s.replace('// ブートレインの内部名「弓使い」は、画面上では「双剣士」と表示します。','// ブートレインの双剣士は独立ジョブとして登録。')
@@ -30,7 +28,6 @@ jobs:
           s=s.replace('"internalJob": "弓使い"','"internalJob": "双剣士"',1)
           p.write_text(s)
 
-          # script.js: 双剣士を正式な物理職として扱う
           p=Path('script.js')
           s=p.read_text()
           if "'双剣士':'job-dual'" not in s:
@@ -38,21 +35,18 @@ jobs:
           s=s.replace("['剣士','弓使い','重戦士'].includes(job.value)", "['剣士','弓使い','重戦士','双剣士'].includes(job.value)")
           p.write_text(s)
 
-          # Worker側も同じく双剣士を正式な物理職として扱う
           p=Path('pawaado_worker.js')
           s=p.read_text()
           s=s.replace("importScripts('./data.js');", "importScripts('./data.js?v=20260904-dual-job-1');", 1)
           s=s.replace("['剣士','弓使い','重戦士'].includes(job.value)", "['剣士','弓使い','重戦士','双剣士'].includes(job.value)")
           p.write_text(s)
 
-          # runtimeのWorkerキャッシュを更新
           p=Path('academy_runtime.js')
           s=p.read_text()
           s=s.replace("./pawaado_worker.js?v=academy-runtime-base-20260904-2", "./pawaado_worker.js?v=20260904-dual-job-1")
           s=s.replace("./academy_runtime.js?v=20260904-3", "./academy_runtime.js?v=20260904-dual-job-1")
           p.write_text(s)
 
-          # ブラウザキャッシュ更新
           p=Path('index.html')
           s=p.read_text()
           s=s.replace('data.js?v=20260904-organized-2','data.js?v=20260904-dual-job-1')
