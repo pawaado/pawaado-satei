@@ -1,63 +1,21 @@
 /*
- * パワアド：追加アカデミー統合マスター
+ * パワアド：追加アカデミー共通ランタイム
  *
- * 今後、新アカデミーが追加されても専用JSを増やさず、この1ファイルへ追記する。
- * 査定・必要経験点・取得条件など、見返したい数値はできるだけこの先頭のMASTERへ集約する。
+ * 数値データは data.js に一本化し、このファイルは追加アカデミー共通の表示・計算処理だけを担当する。
+ * 今後、新アカデミーが増えてもアカデミー別JSは増やさない。
  */
 (function(global){
   'use strict';
 
-  const MASTER={
-    academies:[
-      {
-        name:'ブートレインアカデミー',
-        newest:true,
-        jobs:[
-          {display:'剣士',internal:'剣士',limits:{生命力:105,パワー:105,魔力:60,器用さ:90,耐久力:95,精神力:95}},
-          {display:'重戦士',internal:'重戦士',limits:{生命力:120,パワー:70,魔力:65,器用さ:65,耐久力:115,精神力:115}},
-          {display:'魔法使い',internal:'魔法使い',limits:{生命力:95,パワー:65,魔力:115,器用さ:105,耐久力:75,精神力:95}},
-          // 計算上は既存の物理職ロジックを使うため internal は「弓使い」。画面表示だけ「双剣士」。
-          {display:'双剣士',internal:'弓使い',limits:{生命力:110,パワー:115,魔力:60,器用さ:120,耐久力:100,精神力:95}}
-        ],
-
-        // 双剣士「通常攻撃」。Lv1はジョブ選択時点で取得済み。
-        dualAttack:{
-          skillName:'通常攻撃(双剣士)',
-          initialLevel:1,
-          maxLevel:6,
-          // reqDex = そのLvを取得するために必要な器用さ
-          // cost = [筋力, 敏捷, 技術, 知力, 精神]、score = 査定
-          levels:{
-            2:{reqDex:60, cost:[500,300,500,0,0],score:1000},
-            3:{reqDex:70, cost:[0,400,600,0,0],score:400},
-            4:{reqDex:80, cost:[0,500,700,0,0],score:400},
-            5:{reqDex:90, cost:[800,600,800,0,0],score:900},
-            6:{reqDex:100,cost:[0,700,900,0,0],score:800}
-          }
-        },
-
-        // ブートレインで必要になった基本能力の拡張データ。
-        // cost配列は元データの並びに合わせる。
-        basicExtensions:{
-          life:[
-            ['105→109',360,90,100,0,0,30,90],
-            ['109→110',125,125,100,0,0,30,90],
-            ['110→119',810,90,100,0,0,30,90],
-            ['119→120',125,125,100,0,0,30,90]
-          ],
-          magicCost:[['110→115',0,50,0,120,40]],
-          magicMagicScore:[['110→115',580,116]],
-          dexCost:[['115→119',0,60,120,30,0],['119→120',0,60,120,30,0]],
-          dexScore:[['115→119',384,96],['119→120',108,108]],
-          staminaCost:[['105→109',20,110,50,0,0],['109→110',20,110,50,0,0],['110→115',20,110,50,0,0]],
-          staminaScore:[['105→109',304,76],['109→110',93,93],['110→115',380,76]],
-          mentalCost:[['100→109',0,0,0,60,120],['109→110',0,0,0,60,120],['110→115',0,0,0,60,120]],
-          mentalScore:[['100→109',684,76],['109→110',93,93],['110→115',380,76]]
-        }
-      }
-    ]
-  };
-
+  // 数値データは data.js が唯一の正本。
+  // Workerとして直接起動された場合だけ、先に本体Workerを読み込んでdata.jsを初期化する。
+  const __academyWorkerBoot=(typeof document==='undefined' && typeof global.importScripts==='function');
+  if(__academyWorkerBoot && !global.PAWAADO_DATA){
+    global.window=global;
+    global.importScripts('./pawaado_worker.js?v=academy-runtime-base-20260904-2');
+  }
+  const MASTER=global.PAWAADO_DATA?.academyMaster;
+  if(!MASTER) return;
   global.PAWAADO_ACADEMY_MASTER=MASTER;
 
   const BOOTRAIN=MASTER.academies.find(a=>a.name==='ブートレインアカデミー');
@@ -80,8 +38,8 @@
   }
 
   function applyMasterData(D){
-    if(!D || D.__academyMasterDataPatched) return;
-    Object.defineProperty(D,'__academyMasterDataPatched',{value:true,writable:true,configurable:true,enumerable:false});
+    if(!D || D.__academyRuntimeDataApplied) return;
+    Object.defineProperty(D,'__academyRuntimeDataApplied',{value:true,writable:true,configurable:true,enumerable:false});
 
     for(const academyDef of MASTER.academies){
       for(const jobDef of academyDef.jobs){
@@ -143,7 +101,7 @@
   // =========================
   if(isWorker){
     global.window=global;
-    global.importScripts('./pawaado_worker.js?v=academy-master-base-20260904-1');
+    if(!global.PAWAADO_DATA) global.importScripts('./pawaado_worker.js?v=academy-runtime-base-20260904-2');
     const baseHandler=global.onmessage;
     const nativePostMessage=global.postMessage.bind(global);
     const D=global.PAWAADO_DATA;
@@ -293,8 +251,8 @@
   applyMasterData(D);
 
   function initBrowserUi(){
-    if(!D || global.__academyMasterUiPatched) return;
-    global.__academyMasterUiPatched=true;
+    if(!D || global.__academyRuntimeUiPatched) return;
+    global.__academyRuntimeUiPatched=true;
 
     const ACADEMY=BOOTRAIN.name;
     const INTERNAL_DUAL_JOB=BOOTRAIN.jobs.find(j=>j.display==='双剣士').internal;
@@ -435,12 +393,12 @@
     const specialList=document.getElementById('specialList');
     if(specialList) observer.observe(specialList,{childList:true,subtree:true});
 
-    // 通常の計算Workerを、この同じ academy_master.js のWorkerモードへ差し替える。
+    // 通常の計算Workerを、この同じ academy_runtime.js のWorkerモードへ差し替える。
     const NativeWorker=global.Worker;
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_master.js?v=20260904-1':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-1':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
