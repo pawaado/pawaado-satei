@@ -1,0 +1,191 @@
+name: Compact basic data ranges
+on:
+  push:
+    paths:
+      - '.github/workflows/compact-basic-ranges.yml'
+permissions:
+  contents: write
+jobs:
+  compact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Compact equivalent ranges and correct life 100-105 cost
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          global.window={};
+          eval(fs.readFileSync('data.js','utf8'));
+          const D=window.PAWAADO_DATA;
+          const before=JSON.parse(JSON.stringify(D));
+
+          function replaceRanges(tableName,keys,newRow){
+            const table=D[tableName];
+            if(!Array.isArray(table)) throw new Error(`${tableName} がありません`);
+            const indices=keys.map(k=>table.findIndex(r=>String(r[0])===k));
+            if(indices.some(i=>i<0)) throw new Error(`${tableName}: ${keys.join(',')} の対象行が見つかりません`);
+            const insertAt=Math.min(...indices);
+            const keep=table.filter(r=>!keys.includes(String(r[0])));
+            keep.splice(insertAt,0,newRow);
+            D[tableName]=keep;
+          }
+
+          // 生命力：100→105の必要経験点を訂正し、同一条件の105→109と統合。
+          // 1上昇あたり：査定90 / 筋力100 / 敏捷0 / 技術0 / 知力30 / 精神90
+          replaceRanges('life',['100→105','105→109'],['100→109',810,90,100,0,0,30,90]);
+
+          // 必要経験点：同一単価の連続区間を統合。
+          replaceRanges('magicCost',['100→110','110→115'],['100→115',0,50,0,120,40]);
+          replaceRanges('dexCost',['100→115','115→119','119→120'],['100→120',0,60,120,30,0]);
+          replaceRanges('staminaCost',['90→95','95→99'],['90→99',10,56,26,0,0]);
+          replaceRanges('staminaCost',['100→105','105→109','109→110','110→115'],['100→115',20,110,50,0,0]);
+          replaceRanges('mentalCost',['90→95','95→99'],['90→99',0,0,0,32,60]);
+          replaceRanges('mentalCost',['100→109','109→110','110→115'],['100→115',0,0,0,60,120]);
+
+          // 査定：1上昇あたりの査定が同一の連続区間を統合。
+          replaceRanges('dexScore',['110→115','115→119'],['110→119',864,96]);
+          replaceRanges('staminaScore',['100→105','105→109'],['100→109',684,76]);
+
+          function parseRange(text){
+            const m=String(text).match(/(\d+)→(\d+)/);
+            return m?{a:Number(m[1]),b:Number(m[2])}:null;
+          }
+          function rowForValue(table,value){
+            for(const row of table||[]){
+              const r=parseRange(row[0]);
+              if(r && value>=r.a && value<r.b) return row;
+            }
+            return null;
+          }
+          function same(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+          function assert(cond,msg){if(!cond) throw new Error(msg);}
+
+          // 統合しただけの区間は、計算で参照する1ポイント単位の値が変更されていないことを確認。
+          const unchangedCostTables=['magicCost','dexCost','staminaCost','mentalCost'];
+          for(const name of unchangedCostTables){
+            for(let v=1;v<120;v++){
+              const a=rowForValue(before[name],v), b=rowForValue(D[name],v);
+              if(!a && !b) continue;
+              assert(!!a===!!b,`${name} ${v}: 範囲有無が変化`);
+              assert(same(a.slice(1),b.slice(1)),`${name} ${v}: 必要経験点が変化`);
+            }
+          }
+          for(const name of ['dexScore','staminaScore']){
+            for(let v=1;v<120;v++){
+              const a=rowForValue(before[name],v), b=rowForValue(D[name],v);
+              if(!a && !b) continue;
+              assert(!!a===!!b,`${name} ${v}: 範囲有無が変化`);
+              assert(Number(a[2])===Number(b[2]),`${name} ${v}: 1ポイント査定が変化`);
+            }
+          }
+
+          // 生命力は100→105の必要経験点訂正だけが意図した計算変更。
+          for(let v=1;v<120;v++){
+            const b=rowForValue(D.life,v);
+            assert(!!b,`life ${v}: 範囲欠落`);
+            const calc=[Number(b[2]),...b.slice(3,8).map(Number)];
+            if(v>=100 && v<109){
+              assert(same(calc,[90,100,0,0,30,90]),`life ${v}: 訂正値が不正`);
+            }else{
+              const a=rowForValue(before.life,v);
+              const old=[Number(a[2]),...a.slice(3,8).map(Number)];
+              assert(same(calc,old),`life ${v}: 意図しない変更`);
+            }
+          }
+
+          // 範囲重複チェック。
+          const rangeTables=['life','magicCost','magicMagicScore','magicPhysicalScore','dexCost','dexScore','staminaCost','staminaScore','mentalCost','mentalScore','powerCost','powerPhysicalScore','powerMagicScore'];
+          for(const name of rangeTables){
+            const ranges=(D[name]||[]).map(r=>({key:r[0],...parseRange(r[0])})).filter(r=>Number.isFinite(r.a)&&Number.isFinite(r.b)).sort((x,y)=>x.a-y.a||x.b-y.b);
+            for(let i=1;i<ranges.length;i++) assert(ranges[i-1].b<=ranges[i].a,`${name}: 範囲重複 ${ranges[i-1].key} / ${ranges[i].key}`);
+          }
+
+          // 全アカデミー・全ジョブについて、上限まで必要経験点/査定の参照行が存在することを確認。
+          const physical=new Set(['剣士','弓使い','重戦士','双剣士']);
+          const magicJobs=new Set(['魔闘士','魔法使い','僧侶']);
+          const basics=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
+          function tablesFor(name,job){
+            if(name==='生命力') return [D.life,D.life];
+            if(name==='パワー') return [D.powerCost,physical.has(job)?D.powerPhysicalScore:D.powerMagicScore];
+            if(name==='魔力') return [D.magicCost,magicJobs.has(job)?D.magicMagicScore:D.magicPhysicalScore];
+            if(name==='器用さ') return [D.dexCost,D.dexScore];
+            if(name==='耐久力') return [D.staminaCost,D.staminaScore];
+            if(name==='精神力') return [D.mentalCost,D.mentalScore];
+          }
+          for(const row of D.academies){
+            const [academy,job,...limits]=row;
+            basics.forEach((name,i)=>{
+              const max=Number(limits[i]);
+              const [cost,score]=tablesFor(name,job);
+              for(let v=1;v<max;v++){
+                assert(rowForValue(cost,v),`${academy}/${job}/${name}: ${v} の必要経験点が欠落`);
+                assert(rowForValue(score,v),`${academy}/${job}/${name}: ${v} の査定が欠落`);
+              }
+            });
+          }
+
+          // 双剣士まわりの整合性。
+          assert(D.academies.some(r=>r[0]==='ブートレインアカデミー'&&r[1]==='双剣士'),'ブートレイン双剣士が未登録');
+          assert(!D.academies.some(r=>r[0]==='ブートレインアカデミー'&&r[1]==='弓使い'),'ブートレインに弓使い偽装が残存');
+          const dual=D.academyMaster?.academies?.find(a=>a.name==='ブートレインアカデミー')?.dualAttack;
+          assert(dual?.internalJob==='双剣士','dualAttack.internalJob が双剣士ではない');
+          assert(D.special?.at(-1)?.[1]==='通常攻撃(双剣士)','特殊能力末尾が通常攻撃(双剣士)ではない');
+
+          let out='// パワアド査定ツール 数値データ正本\n// 査定・必要経験点・能力上限・取得条件の数値は原則この data.js に集約。\nwindow.PAWAADO_DATA = '+JSON.stringify(D,null,2)+';\n';
+          out=out.replace('  "academies": [\n','  "academies": [\n    // ブートレインの双剣士は独立ジョブとして登録。\n');
+          fs.writeFileSync('data.js',out);
+          console.log('range compaction + integrity validation OK');
+          NODE
+
+      - name: Refresh worker and browser cache versions
+        shell: python
+        run: |
+          from pathlib import Path
+          version='20260904-range-compact-1'
+
+          p=Path('pawaado_worker.js')
+          s=p.read_text()
+          import re
+          s=re.sub(r"importScripts\('\./data\.js\?v=[^']+'\);", f"importScripts('./data.js?v={version}');", s, count=1)
+          p.write_text(s)
+
+          p=Path('script.js')
+          s=p.read_text()
+          s=re.sub(r"new Worker\('\./pawaado_worker\.js\?v=[^']+'\)", f"new Worker('./pawaado_worker.js?v={version}')", s, count=1)
+          p.write_text(s)
+
+          p=Path('academy_runtime.js')
+          s=p.read_text()
+          s=re.sub(r"\./pawaado_worker\.js\?v=[A-Za-z0-9._-]+", f"./pawaado_worker.js?v={version}", s)
+          p.write_text(s)
+
+          p=Path('index.html')
+          s=p.read_text()
+          s=re.sub(r'data\.js\?v=[^\"]+',f'data.js?v={version}',s)
+          s=re.sub(r'academy_runtime\.js\?v=[^\"]+',f'academy_runtime.js?v={version}',s)
+          s=re.sub(r'script\.js\?v=[^\"]+',f'script.js?v={version}',s)
+          p.write_text(s)
+
+      - name: Syntax checks
+        shell: bash
+        run: |
+          node --check data.js
+          node --check script.js
+          node --check pawaado_worker.js
+          node --check academy_runtime.js
+          grep -q '"100→109"' data.js
+          grep -q '"100→120"' data.js
+          grep -q '"110→119"' data.js
+          grep -q '"100→115"' data.js
+
+      - name: Commit compacted data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data.js script.js pawaado_worker.js academy_runtime.js index.html
+          git commit -m '基本能力データ区間を統合して整合性確認'
+          git push
