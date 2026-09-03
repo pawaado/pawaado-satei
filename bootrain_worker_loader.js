@@ -5,12 +5,13 @@ const __nativePostMessage=self.postMessage.bind(self);
 
 // pawaado_worker.jsが読み込んだPAWAADO_DATAを同じオブジェクトのまま拡張する。
 // 計算関数内のconst Dもこのオブジェクトを参照しているため、以降の計算に反映される。
-importScripts('./bootrain_data_patch.js?v=20260903-2');
+importScripts('./bootrain_data_patch.js?v=20260904-1');
 
 const D=self.PAWAADO_DATA;
 const ACADEMY='ブートレインアカデミー';
 const INTERNAL_DUAL_JOB='弓使い';
 const DUAL_REQ={2:60,3:70,4:80,5:90,6:100};
+const SPECIAL_DISCOUNT=[0,.5,.6,.7,.8,.9];
 const DUAL_UPGRADES={
   2:{cost:[500,300,500,0,0],score:1000},
   3:{cost:[0,400,600,0,0],score:400},
@@ -34,6 +35,11 @@ function discountedBasicCost(value,hint){
   const rate=Math.max(0,Math.min(5,Number(hint||0)))*0.02;
   return Math.floor(Number(value||0)*(1-rate));
 }
+function discountedSpecialCost(value,hint){
+  const lv=Math.max(0,Math.min(5,Number(hint||0)));
+  const rate=Number(SPECIAL_DISCOUNT[lv]||0);
+  return Math.floor(Number(value||0)*(1-rate));
+}
 function dexRaise(from,to,hint){
   let cost=[0,0,0,0,0];
   let score=0;
@@ -47,13 +53,13 @@ function dexRaise(from,to,hint){
   }
   return {cost,score};
 }
-function dualUpgrade(fromLevel,toLevel){
+function dualUpgrade(fromLevel,toLevel,hint){
   let cost=[0,0,0,0,0];
   let score=0;
   for(let lv=fromLevel+1;lv<=toLevel;lv++){
     const def=DUAL_UPGRADES[lv];
     if(!def) continue;
-    cost=add5(cost,def.cost);
+    cost=add5(cost,def.cost.map(v=>discountedSpecialCost(v,hint)));
     score+=Number(def.score||0);
   }
   return {cost,score};
@@ -102,6 +108,7 @@ self.onmessage=async(event)=>{
     const originalExp=Array.isArray(payload.exp)?payload.exp.map(v=>Number(v||0)):[0,0,0,0,0];
     const currentDex=Number(payload.basicValues?.['器用さ']||1);
     const currentLevel=Math.max(1,Math.min(6,Number(payload.dualAttackLevel||1)));
+    const dualHint=Math.max(0,Math.min(5,Number(payload.dualAttackHint||0)));
 
     if(currentLevel>maxValidLevel(currentDex)){
       const req=Number(DUAL_REQ[currentLevel]||0);
@@ -116,7 +123,7 @@ self.onmessage=async(event)=>{
       const forcedDex=Math.max(currentDex,req);
       const dexPart=dexRaise(currentDex,forcedDex,dexHint);
       if(!dexPart) continue;
-      const dualPart=dualUpgrade(currentLevel,target);
+      const dualPart=dualUpgrade(currentLevel,target,dualHint);
       const mandatoryCost=add5(dexPart.cost,dualPart.cost);
       if(!leq5(mandatoryCost,originalExp)) continue;
 
@@ -137,10 +144,12 @@ self.onmessage=async(event)=>{
       }
       items.push(...(Array.isArray(base.items)?base.items.map(x=>({...x})):[]));
       if(target>currentLevel){
+        const firstAcquired=currentLevel+1;
+        const levelText=target===firstAcquired?`Lv${target}`:`Lv${firstAcquired}→Lv${target}`;
         items.push({
           type:'special',
           idx:Number(D.__dualAttackIndex),
-          name:`通常攻撃(双剣士) Lv${currentLevel}→Lv${target}`
+          name:`通常攻撃(双剣士) ${levelText}`
         });
       }
 
