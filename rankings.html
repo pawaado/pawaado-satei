@@ -130,10 +130,6 @@
     td.name-cell{font-weight:600}
     tr.basic td.name-cell{background:#e7f4fa;color:#285269}
     tr.special td.name-cell{background:#fff3cf;color:#5a3c10}
-    tr.top1 td{background:#ffe7a3}
-    tr.top2 td{background:#efefef}
-    tr.top3 td{background:#f2d4b9}
-    tr.top1 td.name-cell,tr.top2 td.name-cell,tr.top3 td.name-cell{color:#3c2a1d}
     tr.negative td{color:#a52f2f}
     .notes{
       margin-top:16px;
@@ -364,9 +360,8 @@
       title.textContent=`${group} 査定効率ランキング`;
       let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要総経験点</th><th>査定</th></tr></thead><tbody>';
       for(const item of items){
-        const top=item.rank<=3?` top${item.rank}`:'';
         const neg=item.score<0?' negative':'';
-        html+=`<tr class="${item.type}${top}${neg}"><td>${item.rank}</td><td class="name-cell">${item.ability}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.exp,2)}</td><td>${fmt(item.score,2)}</td></tr>`;
+        html+=`<tr class="${item.type}${neg}"><td>${item.rank}</td><td class="name-cell">${item.ability}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.exp,2)}</td><td>${fmt(item.score,2)}</td></tr>`;
       }
       html+='</tbody></table>';
       root.innerHTML=html;
