@@ -244,6 +244,16 @@
 
     function academyEl(){return document.getElementById('academy');}
     function jobEl(){return document.getElementById('job');}
+    function noWrapAcademyLabel(text){return String(text||'').replace(/\u2060/g,'').split('').join('\u2060');}
+    function syncAcademyOptionLabels(){
+      const a=academyEl();
+      if(!a) return;
+      for(const option of a.options){
+        if(!option.value) continue;
+        const label=noWrapAcademyLabel(option.value);
+        if(option.textContent!==label) option.textContent=label;
+      }
+    }
     function isDual(){return academyEl()?.value===ACADEMY && jobEl()?.value===INTERNAL_DUAL_JOB;}
     function dexValue(){const n=Number(document.getElementById('basic_器用さ')?.value);return Number.isFinite(n)?n:0;}
     function requiredDex(level){return Number(DUAL.levels[level]?.reqDex||0);}
@@ -347,9 +357,9 @@
     });
 
     function afterSelectionChange(){
-      syncJobLabel();syncTheme();
+      syncAcademyOptionLabels();syncJobLabel();syncTheme();
       if(!isDual()){dualLevel=DUAL.initialLevel;dualHint=0;dualError='';}
-      setTimeout(()=>{syncJobLabel();syncTheme();renderDualRow();},0);
+      setTimeout(()=>{syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRow();},0);
     }
     academyEl()?.addEventListener('change',afterSelectionChange);
     jobEl()?.addEventListener('change',afterSelectionChange);
@@ -369,7 +379,7 @@
     if(typeof NativeWorker==='function'){
       function WrappedWorker(url,options){
         const raw=String(url||'');
-        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-dual-freeze-1':url;
+        const rewritten=raw.includes('pawaado_worker.js')?'./academy_runtime.js?v=20260904-academy-menu-1':url;
         const worker=new NativeWorker(rewritten,options);
         if(raw.includes('pawaado_worker.js')){
           const nativePost=worker.postMessage.bind(worker);
@@ -387,7 +397,7 @@
       global.Worker=WrappedWorker;
     }
 
-    syncJobLabel();syncTheme();renderDualRow();
+    syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRow();
   }
 
   // data反映はscript.jsより前に済ませ、UIフックだけページ読込完了後に開始する。

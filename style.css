@@ -682,3 +682,7 @@ select,input,button{max-width:100%}
 /* アイコン追加後も縦画面で横方向にはみ出さないための最終ガード */
 .site-header,main,.card,.action-card,.select-control,.ability-row,.skill-row{max-width:100%}
 img,svg,canvas{max-width:100%}
+
+/* アカデミー選択肢：iPhoneのネイティブメニューでも長い名称を1行・左揃えで表示 */
+#academy,#academy option{font-size:15px;text-align:left}
+#academy option{white-space:nowrap}
