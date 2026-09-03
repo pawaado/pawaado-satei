@@ -8,25 +8,19 @@
   const DUAL_LABEL='双剣士';
   const DUAL_INDEX=Number(D.__dualAttackIndex);
   const DUAL_REQ={2:60,3:70,4:80,5:90,6:100};
-  let dualLevel=1;
+  let dualLevel=1; // 双剣士はLv1を初期取得済。
+  let dualHint=0;
   let dualError='';
-  let syncingInternalHint=false;
 
   // 双剣士：画像の衣装に合わせた濃紺＋青緑。魔法使いの青より暗く、緑側へずらす。
   const style=document.createElement('style');
   style.textContent=`
     body.theme-job-dual{--theme-accent:#174b63;--theme-accent-light:#55a7b7;--theme-accent-pale:#dceff1;--theme-accent-dark:#103746;--theme-line:rgba(16,55,70,.34);--theme-glow:rgba(23,75,99,.20)}
-    .dual-attack-row{display:grid!important;grid-template-columns:48px minmax(0,1fr) 48px;align-items:stretch}
-    .dual-attack-row .dual-level-btn{width:48px;min-width:48px;min-height:52px;padding:4px;border:0;border-radius:0;background:linear-gradient(180deg,#fff4d6,#ecd398);box-shadow:none;color:#4b2b17;font-size:22px;text-shadow:none}
-    .dual-attack-row .dual-level-btn:first-child{border-right:2px solid #5b3418}
-    .dual-attack-row .dual-level-btn:last-of-type{border-left:2px solid #5b3418}
-    .dual-attack-row .dual-level-btn:disabled{opacity:.42}
-    .dual-attack-row .name-btn{border-right:0!important;justify-content:flex-start!important}
+    .dual-attack-row .name-btn{justify-content:flex-start!important}
     .dual-level-text{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .dual-level-badge{display:inline-flex;align-items:center;justify-content:center;min-width:42px;padding:3px 7px;border:1px solid var(--theme-accent-dark);border-radius:999px;background:var(--theme-accent-pale);color:var(--theme-accent-dark);font-size:12px;font-weight:900}
     .dual-level-error{grid-column:1/-1;margin:0;padding:7px 10px 8px;border-top:1px solid rgba(178,71,60,.35);background:#fff0eb;color:#8a251f;font-size:13px;font-weight:800;line-height:1.45}
     .dual-level-error:empty{display:none}
-    .dual-internal-hint{display:none!important}
   `;
   document.head.appendChild(style);
 
@@ -45,6 +39,8 @@
     return lv;
   }
   function currentLevelIsValid(){return dualLevel<=maxValidDualLevel(dexValue());}
+  function nextDualLevel(){return dualLevel>=6?6:dualLevel+1;}
+  function cycleDualHint(){dualHint=dualHint>=5?0:dualHint+1;}
 
   function syncJobLabel(){
     const a=academyEl(),j=jobEl();
@@ -74,51 +70,38 @@
     }
     if(row.style.display==='none') row.style.display='';
     row.classList.add('dual-attack-row');
-    row.classList.toggle('owned',dualLevel>1);
 
-    if(!row.querySelector('.dual-level-plus')){
+    if(!row.querySelector('.dual-hint-btn')){
       row.innerHTML=`
-        <button type="button" class="dual-level-btn dual-level-minus" data-dual-action="minus" aria-label="通常攻撃レベルを1下げる">−</button>
-        <button type="button" class="name-btn dual-level-label" data-dual-action="plus" aria-label="通常攻撃の次レベルを取得する"></button>
-        <button type="button" class="dual-level-btn dual-level-plus" data-dual-action="plus" aria-label="通常攻撃の次レベルを取得する">＋</button>
-        <button type="button" class="hint-btn dual-internal-hint" data-kind="special-hint" data-index="${DUAL_INDEX}" tabindex="-1" aria-hidden="true"></button>
+        <button type="button" class="hint-btn dual-hint-btn" data-dual-action="hint" aria-label="通常攻撃のコツレベルを設定する">＋</button>
+        <button type="button" class="name-btn dual-level-label" data-dual-action="acquire" aria-label="通常攻撃の次レベルを取得する"></button>
         <div class="dual-level-error" role="alert" aria-live="polite"></div>`;
     }
 
-    const label=row.querySelector('.dual-level-label');
-    if(label && (label.dataset.dualLevel!==String(dualLevel) || !label.querySelector('.dual-level-badge'))){
-      label.dataset.dualLevel=String(dualLevel);
-      label.innerHTML=`<span class="dual-level-text"><span>通常攻撃(双剣士)</span><span class="dual-level-badge">Lv${dualLevel}</span></span>`;
+    const maxed=dualLevel>=6;
+    const shownLevel=nextDualLevel();
+    row.classList.toggle('owned',maxed);
+
+    const hint=row.querySelector('.dual-hint-btn');
+    if(hint){
+      hint.textContent=dualHint>0?`Lv${dualHint}`:'＋';
+      hint.classList.toggle('has-hint',dualHint>0);
     }
-    const minus=row.querySelector('.dual-level-minus');
-    const plus=row.querySelector('.dual-level-plus');
-    if(minus && minus.disabled!==(dualLevel<=1)) minus.disabled=dualLevel<=1;
-    if(plus && plus.disabled!==(dualLevel>=6)) plus.disabled=dualLevel>=6;
+
+    const label=row.querySelector('.dual-level-label');
+    if(label){
+      label.dataset.dualLevel=String(shownLevel);
+      label.setAttribute('aria-disabled',maxed?'true':'false');
+      label.innerHTML=`<span class="dual-level-text"><span>通常攻撃(双剣士)</span><span class="dual-level-badge">Lv${shownLevel}</span></span>${maxed?'<span class="owned-label">✓取得済</span>':''}`;
+    }
+
     const error=row.querySelector('.dual-level-error');
     if(error && error.textContent!==dualError) error.textContent=dualError;
   }
 
-  function syncInternalHint(oldLevel,newLevel){
-    const row=dualRow();
-    const btn=row?.querySelector('.dual-internal-hint') || row?.querySelector('.hint-btn');
-    if(!btn) return;
-    const from=(oldLevel-1)%6;
-    const to=(newLevel-1)%6;
-    let clicks=(to-from+6)%6;
-    syncingInternalHint=true;
-    try{
-      while(clicks-->0) btn.click();
-    }finally{
-      syncingInternalHint=false;
-    }
-  }
-
   function setDualLevel(next){
-    next=Math.max(1,Math.min(6,Number(next)||1));
-    const old=dualLevel;
-    dualLevel=next;
+    dualLevel=Math.max(1,Math.min(6,Number(next)||1));
     dualError='';
-    syncInternalHint(old,next);
     renderDualRow();
   }
   function tryAcquireNext(){
@@ -141,17 +124,23 @@
 
     if(button.id==='resetBtn' || button.id==='topResetBtn'){
       dualLevel=1;
+      dualHint=0;
       dualError='';
       return;
     }
 
     const row=button.closest(`.skill-row[data-index="${DUAL_INDEX}"]`);
-    if(row && !syncingInternalHint){
+    if(row){
       event.preventDefault();
       event.stopImmediatePropagation();
       const action=button.dataset.dualAction;
-      if(action==='minus') setDualLevel(dualLevel-1);
-      else if(action==='plus') tryAcquireNext();
+      if(action==='hint'){
+        cycleDualHint();
+        dualError='';
+        renderDualRow();
+      }else if(action==='acquire'){
+        tryAcquireNext();
+      }
       return;
     }
 
@@ -182,7 +171,11 @@
   function afterSelectionChange(){
     syncJobLabel();
     syncTheme();
-    if(!isDual() && dualLevel!==1) setDualLevel(1);
+    if(!isDual()){
+      dualLevel=1;
+      dualHint=0;
+      dualError='';
+    }
     setTimeout(()=>{syncJobLabel();syncTheme();renderDualRow();},0);
   }
   academyEl()?.addEventListener('change',afterSelectionChange);
@@ -203,20 +196,20 @@
   const specialList=document.getElementById('specialList');
   if(specialList) observer.observe(specialList,{childList:true,subtree:true});
 
-  // 計算Workerだけ専用ラッパーへ差し替え、現在の通常攻撃Lvをpayloadへ追加する。
+  // 計算Workerだけ専用ラッパーへ差し替え、現在Lvと通常攻撃のコツLvをpayloadへ追加する。
   const NativeWorker=window.Worker;
   if(typeof NativeWorker==='function'){
     function WrappedWorker(url,options){
       const raw=String(url||'');
       const rewritten=raw.includes('pawaado_worker.js')
-        ? './bootrain_worker_loader.js?v=20260903-3'
+        ? './bootrain_worker_loader.js?v=20260904-1'
         : url;
       const worker=new NativeWorker(rewritten,options);
       if(raw.includes('pawaado_worker.js')){
         const nativePost=worker.postMessage.bind(worker);
         worker.postMessage=function(message,transfer){
           if(message?.type==='calculate' && message.payload){
-            message={...message,payload:{...message.payload,dualAttackLevel:dualLevel,isDualSwordsman:isDual()}};
+            message={...message,payload:{...message.payload,dualAttackLevel:dualLevel,dualAttackHint:dualHint,isDualSwordsman:isDual()}};
           }
           return transfer===undefined?nativePost(message):nativePost(message,transfer);
         };
