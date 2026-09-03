@@ -1,0 +1,120 @@
+name: Fix dual attack and Bootrain exp limits v3
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-dual-exp-ui-20260904c.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          VERSION='20260904-dual-expfix-1'
+          WORKER_VERSION='20260904-exp1400-1'
+
+          p=Path('index.html'); s=p.read_text()
+          s=re.sub(r'\n\s*/\* 選択中アカデミーのシンボル。.*?@media\(max-width:370px\)\{.*?\n\s*\}\n','\n',s,count=1,flags=re.S)
+          s=s.replace('      <span id="academySymbol" class="academy-symbol" aria-hidden="true"></span>\n','')
+          marker="""  <script>\n    (function(){\n      const academy=document.getElementById('academy');\n      const symbol=document.getElementById('academySymbol');"""
+          start=s.find(marker)
+          if start>=0:
+              end=s.find('  </script>',start)
+              if end<0: raise SystemExit('academy symbol inline script end not found')
+              s=s[:start]+s[end+len('  </script>'):]
+          s=re.sub(r'academy_runtime\.js\?v=[^\"]+',f'academy_runtime.js?v={VERSION}',s)
+          s=re.sub(r'script\.js\?v=[^\"]+',f'script.js?v={VERSION}',s)
+          p.write_text(s)
+
+          p=Path('academy_runtime.js'); s=p.read_text()
+          old="const isWorker=(typeof document==='undefined' && typeof global.importScripts==='function');"
+          assert old in s
+          s=s.replace(old,'const isWorker=__academyWorkerBoot;',1)
+          s=re.sub(r'pawaado_worker\.js\?v=[^\'\"]+',f'pawaado_worker.js?v={WORKER_VERSION}',s)
+          old="function noWrapAcademyLabel(text){return String(text||'').replace(/\\u2060/g,'').split('').join('\\u2060');}"
+          new="function noWrapAcademyLabel(text){const plain=String(text||'').replace(/\\u2060/g,'');return plain==='タテレスキュアアカデミー'?'タテレスキュア\\u2060アカデミー':plain;}"
+          assert old in s
+          s=s.replace(old,new,1)
+          old="""    function tryAcquireNext(){\n      if(dualLevel>=DUAL.maxLevel) return;\n      const next=dualLevel+1;"""
+          new="""    function tryAcquireNext(){\n      if(dualLevel>=DUAL.maxLevel){\n        setDualLevel(DUAL.maxLevel-1);\n        return;\n      }\n      const next=dualLevel+1;"""
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace("label.setAttribute('aria-disabled',maxed?'true':'false');","label.setAttribute('aria-disabled','false');",1)
+          s=re.sub(r'academy_runtime\.js\?v=[^\'\"]+',f'academy_runtime.js?v={VERSION}',s)
+          p.write_text(s)
+
+          p=Path('script.js'); s=p.read_text()
+          anchor="""const academy=document.getElementById('academy');\nconst job=document.getElementById('job');"""
+          insert="""const academy=document.getElementById('academy');\nconst job=document.getElementById('job');\nconst DEFAULT_EXP_LIMIT=1000;\nconst BOOTRAIN_EXP_LIMITS={筋力:1300,敏捷:1200,技術:1400,知力:1300,精神:1200};\nfunction expLimit(name){\n  return academy?.value==='ブートレインアカデミー'\n    ? Number(BOOTRAIN_EXP_LIMITS[name]||DEFAULT_EXP_LIMIT)\n    : DEFAULT_EXP_LIMIT;\n}"""
+          assert anchor in s
+          s=s.replace(anchor,insert,1)
+          assert "academy.addEventListener('change',updateJobs);" in s
+          s=s.replace("academy.addEventListener('change',updateJobs);","academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInline();});",1)
+          assert "return Number.isFinite(num) && num>=0 && num<=1000;" in s
+          s=s.replace("return Number.isFinite(num) && num>=0 && num<=1000;","return Number.isFinite(num) && num>=0 && num<=expLimit(name);",1)
+          assert 'max="1000" id="exp_${index}_${safeId(name)}"' in s
+          s=s.replace('max="1000" id="exp_${index}_${safeId(name)}"','max="${expLimit(name)}" id="exp_${index}_${safeId(name)}"',1)
+          old="""    const num=Number(v);\n    if(!Number.isFinite(num) || num<0) msg='経験点は0以上の値を入力してください';\n    else if(num>1000) msg='経験点は1000以下の値を入力してください';"""
+          new="""    const num=Number(v);\n    const max=expLimit(name);\n    if(!Number.isFinite(num) || num<0) msg='経験点は0以上の値を入力してください';\n    else if(num>max) msg=`経験点は${max}以下の値を入力してください`;"""
+          assert old in s
+          s=s.replace(old,new,1)
+          old="""      const num=Number(v);\n      if(!Number.isFinite(num) || num<0) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は0以上の値を入力してください。`);\n      if(num>1000) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は1000以下の値を入力してください。`);"""
+          new="""      const num=Number(v);\n      const max=expLimit(n);\n      if(!Number.isFinite(num) || num<0) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は0以上の値を入力してください。`);\n      if(num>max) expErrs.push(`${sampleErrorPrefix(index)}${n}経験点は${max}以下の値を入力してください。`);"""
+          assert old in s
+          s=s.replace(old,new,1)
+          assert "if(!values.every(v=>Number.isFinite(v) && v>=0 && v<=1000)) return null;" in s
+          s=s.replace("if(!values.every(v=>Number.isFinite(v) && v>=0 && v<=1000)) return null;","if(!values.every((v,i)=>Number.isFinite(v) && v>=0 && v<=expLimit(expNames[i]))) return null;",1)
+          pattern=r"function formatErrorMessage\(message\)\{.*?\n\}\nfunction renderErrorBox"
+          repl="""function formatErrorMessage(message){\n  const text=String(message??'');\n  if(/\\d+以下の値を入力してください。/.test(text)){\n    return text.replace(\n      /(\\d+以下の値を)入力してください。/g,\n      '$1<br><span class=\"error-no-break\">入力してください。</span>'\n    );\n  }\n  return text.replace(\n    /入力してください。/g,\n    '<span class=\"error-no-break\">入力してください。</span>'\n  );\n}\nfunction renderErrorBox"""
+          s,n=re.subn(pattern,lambda m:repl,s,count=1,flags=re.S); assert n==1
+          old="function key5(c0,c1,c2,c3,c4){\n  return String(((((c0*1001+c1)*1001+c2)*1001+c3)*1001+c4));\n}"
+          new="function key5(c0,c1,c2,c3,c4){\n  return String(((((c0*1501+c1)*1501+c2)*1501+c3)*1501+c4));\n}"
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('pawaado_worker.js'); s=p.read_text(); assert old in s
+          s=s.replace(old,new,1); p.write_text(s)
+      - name: Checks
+        run: |
+          node --check script.js
+          node --check academy_runtime.js
+          node --check pawaado_worker.js
+          python - <<'PY'
+          from pathlib import Path
+          i=Path('index.html').read_text(); a=Path('academy_runtime.js').read_text(); s=Path('script.js').read_text(); w=Path('pawaado_worker.js').read_text()
+          assert 'academySymbol' not in i and 'const train=' not in i
+          assert 'const isWorker=__academyWorkerBoot;' in a
+          assert 'setDualLevel(DUAL.maxLevel-1);' in a
+          assert "タテレスキュア\\u2060アカデミー" in a
+          assert '筋力:1300,敏捷:1200,技術:1400,知力:1300,精神:1200' in s
+          assert 'c0*1501' in s and 'c0*1501' in w
+          print('static checks OK')
+          PY
+      - name: Dual worker regression test
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={console,setTimeout,clearTimeout,Promise,Map,Set,BigInt,Math,Number,String,Array,Object,JSON,Date,Error,RegExp,Uint32Array,Float64Array};
+          ctx.self=ctx;ctx.globalThis=ctx;ctx.window=ctx;ctx.performance={now:()=>Date.now()};ctx._posts=[];ctx.postMessage=m=>ctx._posts.push(m);
+          vm.createContext(ctx);
+          ctx.importScripts=(...urls)=>{for(const u of urls){const f=String(u).split('?')[0].replace(/^\.\//,'');vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});}};
+          vm.runInContext(fs.readFileSync('academy_runtime.js','utf8'),ctx,{filename:'academy_runtime.js'});
+          if(typeof ctx.onmessage!=='function') throw new Error('worker handler missing');
+          const basics={生命力:110,パワー:115,魔力:60,器用さ:70,耐久力:100,精神力:95};
+          const owned={生命力:true,パワー:true,魔力:true,器用さ:true,耐久力:true,精神力:true};
+          const hints={生命力:0,パワー:0,魔力:0,器用さ:0,耐久力:0,精神力:0};
+          (async()=>{await ctx.onmessage({data:{type:'calculate',payload:{academy:'ブートレインアカデミー',job:'双剣士',exp:[500,300,500,0,0],basicValues:basics,basicOwned:owned,basicHints:hints,specialState:[],dualAttackLevel:1,dualAttackHint:0,isDualSwordsman:true}}});const msg=ctx._posts.at(-1);if(!msg||msg.type!=='result')throw new Error(JSON.stringify(msg));const score=Number(msg.result?.score||0);const names=(msg.result?.items||[]).map(x=>String(x.name||''));if(score<1000||!names.some(n=>n.includes('通常攻撃(双剣士) Lv2')))throw new Error('Lv2 missing '+score+' '+names.join(','));console.log('dual regression OK',score,names.join(' / '));})().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Commit fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html academy_runtime.js script.js pawaado_worker.js
+          git diff --cached --quiet || git commit -m '双剣士計算とブートレイン経験点上限を修正'
+          git push
