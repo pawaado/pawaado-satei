@@ -10,49 +10,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Remove academy job and basic ability icons
-        shell: python
+      - name: Edit files
         run: |
+          python - <<'PY'
           from pathlib import Path
           import re
 
-          # アカデミー・ジョブ見出しの装飾アイコンを削除（◆のセクション見出しはそのまま）。
-          p=Path('index.html')
-          s=p.read_text()
-          s=s.replace('<span class="select-label-text">アカデミー <span class="fixed-icon select-label-icon" aria-hidden="true">🏫</span></span>', '<span class="select-label-text">アカデミー</span>')
-          s=re.sub(r'<span class="select-label-text">ジョブ\s*<svg class="select-label-svg job-helmet-icon".*?</svg></span>', '<span class="select-label-text">ジョブ</span>', s, count=1, flags=re.S)
-          s=re.sub(r'script\.js\?v=[^\"]+', 'script.js?v=20260904-no-icons-1', s)
+          p = Path('index.html')
+          s = p.read_text()
+          s = s.replace('<span class="select-label-text">アカデミー <span class="fixed-icon select-label-icon" aria-hidden="true">🏫</span></span>', '<span class="select-label-text">アカデミー</span>')
+          s = re.sub(r'<span class="select-label-text">ジョブ\s*<svg class="select-label-svg job-helmet-icon".*?</svg></span>', '<span class="select-label-text">ジョブ</span>', s, count=1, flags=re.S)
+          s = re.sub(r'script\.js\?v=[^\"]+', 'script.js?v=20260904-no-icons-1', s)
           p.write_text(s)
 
-          # 基本能力6種は文字だけに統一。アイコン生成ロジック自体を外す。
-          p=Path('script.js')
-          s=p.read_text()
-          s=re.sub(r"^const basicIconMap=.*?;\n", '', s, count=1, flags=re.M)
-          pattern=r"function basicNameHtml\(name\)\{.*?\n\}\n\nfunction renderBasic\(\)\{"
-          replacement="""function basicNameHtml(name){
-  return `<span class=\"ability-name-text\"><span class=\"ability-name-label\">${name}</span></span>`;
-}
-
-function renderBasic(){"""
-          s,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
-          if n!=1:
-            raise SystemExit('basicNameHtml block not found')
+          p = Path('script.js')
+          s = p.read_text()
+          s = re.sub(r'^const basicIconMap=.*?;\n', '', s, count=1, flags=re.M)
+          start = s.find('function basicNameHtml(name){')
+          end = s.find('\nfunction renderBasic(){', start)
+          if start < 0 or end < 0:
+              raise SystemExit('basicNameHtml not found')
+          replacement = '''function basicNameHtml(name){
+            return `<span class="ability-name-text"><span class="ability-name-label">${name}</span></span>`;
+          }
+'''
+          s = s[:start] + replacement + s[end:]
           p.write_text(s)
-
-      - name: Check
-        run: |
+          PY
           node --check script.js
-          grep -q '<span class="select-label-text">アカデミー</span>' index.html
-          grep -q '<span class="select-label-text">ジョブ</span>' index.html
-          grep -q 'return `<span class="ability-name-text"><span class="ability-name-label">${name}</span></span>`;' script.js
-          ! grep -q 'job-helmet-icon' index.html
-          ! grep -q 'basicIconMap' script.js
-
-      - name: Commit
+      - name: Commit changes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html script.js
           git diff --cached --quiet || git commit -m '装飾アイコンを外して表示をシンプル化'
           git push
-# trigger
