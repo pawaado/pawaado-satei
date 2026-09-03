@@ -12,11 +12,7 @@
     :root{
       --ink:#3d2818;
       --brown:#4b2b17;
-      --gold:#b77a28;
-      --line:#b58a52;
-      --cream:#fffaf0;
-      --paper:#fffdf7;
-      --blue:#174b63;
+      --line:#4d9ec0;
     }
     *{box-sizing:border-box}
     body{
@@ -73,19 +69,11 @@
       text-decoration:none;
       box-shadow:inset 0 1px 0 rgba(255,255,255,.15);
     }
-    main{max-width:820px;margin:0 auto;padding:20px 14px 48px}
-    .intro-card,.ranking-card{
-      background:rgba(255,253,247,.94);
-      border:3px solid #9d6e36;
-      border-radius:18px;
-      box-shadow:inset 0 0 0 3px rgba(255,255,255,.6),0 3px 0 rgba(105,69,30,.13);
-    }
-    .intro-card{padding:15px 16px;margin-bottom:16px}
-    .intro-card p{margin:0;font-size:13px;line-height:1.75;color:#6a5545}
+    main{max-width:820px;margin:0 auto;padding:18px 14px 48px}
     .tabs{
       display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:6px;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:7px;
       margin-bottom:14px;
       position:sticky;
       top:0;
@@ -104,8 +92,19 @@
       font-weight:800;
       white-space:nowrap;
     }
-    .tab[aria-selected="true"]{color:#fff;border-color:#233f50;background:linear-gradient(180deg,#2f708b,#174b63);box-shadow:0 2px 0 rgba(31,57,72,.18)}
-    .ranking-card{overflow:hidden}
+    .tab[aria-selected="true"]{
+      color:#fff;
+      border-color:#233f50;
+      background:linear-gradient(180deg,#2f708b,#174b63);
+      box-shadow:0 2px 0 rgba(31,57,72,.18)
+    }
+    .ranking-card{
+      overflow:hidden;
+      background:rgba(255,253,247,.94);
+      border:3px solid #9d6e36;
+      border-radius:18px;
+      box-shadow:inset 0 0 0 3px rgba(255,255,255,.6),0 3px 0 rgba(105,69,30,.13);
+    }
     .ranking-head{
       padding:14px 16px 12px;
       background:linear-gradient(180deg,#6f3b20,#4b2917);
@@ -116,12 +115,13 @@
     .ranking-head .count{font-size:11px;opacity:.82;margin-top:4px}
     .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;min-width:590px}
-    col.rank{width:58px} col.name{width:auto} col.eff{width:102px} col.exp{width:120px} col.score{width:86px}
-    th,td{border:1px solid #4d9ec0;padding:9px 8px;vertical-align:middle}
+    col.rank{width:58px}
+    col.name{width:auto}
+    col.eff{width:102px}
+    col.exp{width:120px}
+    col.score{width:86px}
+    th,td{border:1px solid var(--line);padding:9px 8px;vertical-align:middle}
     th{
-      position:sticky;
-      top:55px;
-      z-index:10;
       background:#a84834;
       color:#fff;
       font-size:13px;
@@ -134,32 +134,33 @@
     td.name-cell{font-weight:600}
     tr.basic td.name-cell{background:#e7f4fa;color:#285269}
     tr.special td.name-cell{background:#fff3cf;color:#5a3c10}
-    tr.top1 td{background:#ffe7a3;font-weight:800}
-    tr.top2 td{background:#efefef;font-weight:800}
-    tr.top3 td{background:#f2d4b9;font-weight:800}
+    tr.top1 td{background:#ffe7a3}
+    tr.top2 td{background:#efefef}
+    tr.top3 td{background:#f2d4b9}
     tr.top1 td.name-cell,tr.top2 td.name-cell,tr.top3 td.name-cell{color:#3c2a1d}
     tr.negative td{color:#a52f2f}
     .notes{
       margin-top:16px;
-      padding:13px 15px;
+      padding:15px 16px;
       border:2px solid #b6905d;
       border-radius:14px;
       background:rgba(255,250,238,.88);
       font-size:12px;
-      line-height:1.7;
+      line-height:1.75;
       color:#6a5545;
     }
-    .notes strong{color:#4b2b17}
+    .notes h3{margin:0 0 7px;color:#4b2b17;font-size:14px}
+    .notes ul{margin:0;padding-left:1.25em}
+    .notes li+li{margin-top:3px}
     .error{padding:30px 18px;text-align:center;color:#9b2d2d;font-weight:700}
     @media(max-width:560px){
       .site-header{padding:14px 10px 12px}
       .wood-sign{padding:14px 64px 14px 14px}
       h1{font-size:21px}
       .back-link{right:16px;min-width:54px;min-height:44px;padding:7px 10px;font-size:13px}
-      main{padding:14px 8px 42px}
+      main{padding:12px 8px 42px}
       .tabs{gap:4px}
-      .tab{font-size:12px;padding:9px 2px}
-      .intro-card{padding:12px}
+      .tab{font-size:11.5px;padding:9px 2px}
     }
   </style>
 </head>
@@ -168,31 +169,32 @@
     <div class="wood-sign"><h1>査定効率ランキング</h1></div>
     <a class="back-link" href="./">戻る</a>
   </header>
-  <main>
-    <section class="intro-card">
-      <p>基本能力と特殊能力を混ぜて、<strong>査定効率（査定 ÷ 必要総経験点）</strong>の高い順に掲載しています。コツなしで計算しています。</p>
-    </section>
 
+  <main>
     <nav class="tabs" aria-label="職種分類">
-      <button class="tab" type="button" data-group="物理職" aria-selected="true">物理職</button>
-      <button class="tab" type="button" data-group="双剣士" aria-selected="false">双剣士</button>
+      <button class="tab" type="button" data-group="物理職・双剣士" aria-selected="true">物理職・双剣士</button>
       <button class="tab" type="button" data-group="魔法職" aria-selected="false">魔法職</button>
       <button class="tab" type="button" data-group="僧侶" aria-selected="false">僧侶</button>
     </nav>
 
     <section class="ranking-card">
       <div class="ranking-head">
-        <h2 id="rankingTitle">物理職</h2>
+        <h2 id="rankingTitle">物理職・双剣士</h2>
         <div id="rankingCount" class="count"></div>
       </div>
       <div id="rankingRoot" class="table-wrap" aria-live="polite"></div>
     </section>
 
-    <div class="notes">
-      <strong>計算条件</strong><br>
-      基本能力は、存在するアカデミーの最大上限まで掲載しています。HP依存能力は生命力80（基礎HP1410）で参考計算しています。通常攻撃(双剣士) Lv2～Lv6は各Lvへの追加経験点・追加査定で計算し、器用さ条件を満たすための基本能力上昇コストは含みません。<br>
-      <strong>その他：</strong>職業別査定が0の特殊能力はランキング対象外。マイナス査定は掲載しています。
-    </div>
+    <section class="notes">
+      <h3>備考</h3>
+      <ul>
+        <li>基本能力は存在するアカデミーの最大上限で掲載しています。</li>
+        <li>基本能力の小数点以下の査定は不明のため、実際の査定効率とわずかに異なる可能性があります。</li>
+        <li>HP依存特殊能力は生命力90（HP1925）で計算しています。</li>
+        <li>通常攻撃(双剣士)Lv2〜6は各Lvへの追加経験点、追加査定で計算し、取得条件を満たすための基本能力上昇コストは含みません。</li>
+        <li>査定が0の特殊能力は掲載していません。</li>
+      </ul>
+    </section>
   </main>
 
   <script src="data.js?v=20260904-range-compact-1"></script>
@@ -210,25 +212,28 @@
     }
 
     const groupDefs={
-      '物理職':{jobs:['剣士','重戦士','弓使い'],scoreIndex:8,fixedIndex:12},
-      '双剣士':{jobs:['双剣士'],scoreIndex:8,fixedIndex:12},
-      '魔法職':{jobs:['魔法使い','魔闘士'],scoreIndex:9,fixedIndex:13},
-      '僧侶':{jobs:['僧侶'],scoreIndex:10,fixedIndex:14}
+      '物理職・双剣士':{jobs:['剣士','重戦士','弓使い','双剣士'],scoreIndex:8,fixedIndex:12,dual:true},
+      '魔法職':{jobs:['魔法使い','魔闘士'],scoreIndex:9,fixedIndex:13,dual:false},
+      '僧侶':{jobs:['僧侶'],scoreIndex:10,fixedIndex:14,dual:false}
     };
+
     const abilityDefs=[
       {name:'生命力',academyIndex:2,cost:'life',score:'life'},
-      {name:'パワー',academyIndex:3,cost:'powerCost',scoreByGroup:g=>(g==='物理職'||g==='双剣士')?'powerPhysicalScore':'powerMagicScore'},
+      {name:'パワー',academyIndex:3,cost:'powerCost',scoreByGroup:g=>g==='物理職・双剣士'?'powerPhysicalScore':'powerMagicScore'},
       {name:'魔力',academyIndex:4,cost:'magicCost',scoreByGroup:g=>(g==='魔法職'||g==='僧侶')?'magicMagicScore':'magicPhysicalScore'},
       {name:'器用さ',academyIndex:5,cost:'dexCost',score:'dexScore'},
       {name:'耐久力',academyIndex:6,cost:'staminaCost',score:'staminaScore'},
       {name:'精神力',academyIndex:7,cost:'mentalCost',score:'mentalScore'}
     ];
+
     const baseCuts=[1,10,20,30,40,50,60,70,80,90,95,100,110,120];
+    const referenceHp=1925;
 
     function rangeOf(label){
       const m=String(label||'').match(/(\d+)→(\d+)/);
       return m?{a:Number(m[1]),b:Number(m[2])}:null;
     }
+
     function rowForValue(table,value){
       if(!Array.isArray(table)) return null;
       for(const row of table){
@@ -237,15 +242,6 @@
       }
       return null;
     }
-    function hpAtLife(life){
-      let hp=0;
-      for(const row of D.hp||[]){
-        const lv=Number(row[0]);
-        if(lv<=life) hp=Number(row[1]||0);
-      }
-      return hp;
-    }
-    const referenceHp=hpAtLife(80)||1410;
 
     function maximaFor(group){
       const jobs=groupDefs[group].jobs;
@@ -256,6 +252,7 @@
       }
       return out;
     }
+
     function costStep(abilityName,table,value){
       const hit=rowForValue(table,value);
       if(!hit) return null;
@@ -268,6 +265,7 @@
       }
       return vec;
     }
+
     function scoreStep(table,value){
       const hit=rowForValue(table,value);
       if(!hit) return null;
@@ -276,11 +274,14 @@
       if(!Number.isFinite(total)||width<=0) return null;
       return total/width;
     }
+
     function basicItem(def,from,to,group){
       const costTable=D[def.cost];
       const scoreKey=def.scoreByGroup?def.scoreByGroup(group):def.score;
       const scoreTable=D[scoreKey];
-      let vec=[0,0,0,0,0],score=0;
+      let vec=[0,0,0,0,0];
+      let score=0;
+
       for(let v=from;v<to;v++){
         const stepCost=costStep(def.name,costTable,v);
         const stepScore=scoreStep(scoreTable,v);
@@ -288,21 +289,26 @@
         for(let i=0;i<5;i++) vec[i]+=stepCost[i];
         score+=stepScore;
       }
+
       const exp=vec.reduce((a,b)=>a+b,0);
       if(exp<=0) return null;
       return {ability:`${def.name} ${from}→${to}`,eff:score/exp,exp,score,type:'basic'};
     }
+
     function basicItems(group){
       const maxes=maximaFor(group);
       const items=[];
+
       for(const def of abilityDefs){
         const max=Number(maxes[def.name]||0);
         if(max<=1) continue;
         const cuts=baseCuts.filter(v=>v<=max);
         if(cuts[0]!==1) cuts.unshift(1);
         if(cuts[cuts.length-1]!==max) cuts.push(max);
+
         for(let i=0;i<cuts.length-1;i++){
-          const from=cuts[i],to=cuts[i+1];
+          const from=cuts[i];
+          const to=cuts[i+1];
           if(to<=from) continue;
           const item=basicItem(def,from,to,group);
           if(item) items.push(item);
@@ -310,30 +316,40 @@
       }
       return items;
     }
-    function specialScore(row,group,hp){
+
+    function specialScore(row,group){
       const def=groupDefs[group];
       const rate=Number(row[11]||0);
       if(rate){
         const fixed=Number(row[def.fixedIndex]||0);
-        return Math.round((fixed+hp*rate)*10)/10;
+        return Math.round((fixed+referenceHp*rate)*10)/10;
       }
       const raw=row[def.scoreIndex];
       if(raw==='HP依存') return 0;
       return Number(raw||0);
     }
+
     function specialItems(group){
       const items=[];
+
       for(const row of D.special||[]){
         const name=String(row[1]||'');
         if(name==='通常攻撃(双剣士)') continue;
-        const score=specialScore(row,group,referenceHp);
+        const score=specialScore(row,group);
         if(score===0) continue;
         const exp=[3,4,5,6,7].reduce((s,i)=>s+Number(row[i]||0),0);
         if(exp<=0) continue;
         const hpDep=Number(row[11]||0)!==0;
-        items.push({ability:name+(hpDep?' ※HP依存':''),eff:score/exp,exp,score,type:'special'});
+        items.push({
+          ability:name+(hpDep?' ※HP依存':''),
+          eff:score/exp,
+          exp,
+          score,
+          type:'special'
+        });
       }
-      if(group==='双剣士'){
+
+      if(groupDefs[group].dual){
         const masters=D.academyMaster?.academies||[];
         const dual=masters.map(a=>a?.dualAttack).find(Boolean);
         if(dual?.levels){
@@ -342,46 +358,80 @@
             const exp=(d.cost||[]).reduce((s,n)=>s+Number(n||0),0);
             const score=Number(d.score||0);
             if(exp>0&&score!==0){
-              items.push({ability:`通常攻撃(双剣士) Lv${lv}`,eff:score/exp,exp,score,type:'special'});
+              items.push({
+                ability:`通常攻撃(双剣士) Lv${lv}`,
+                eff:score/exp,
+                exp,
+                score,
+                type:'special'
+              });
             }
           });
         }
       }
+
       return items;
     }
+
     function allItems(group){
       const items=[...basicItems(group),...specialItems(group)];
       items.sort((a,b)=>{
         const ae=Number.isFinite(a.eff)?a.eff:-Infinity;
         const be=Number.isFinite(b.eff)?b.eff:-Infinity;
-        return be-ae;
+        if(be!==ae) return be-ae;
+        if(b.score!==a.score) return b.score-a.score;
+        return a.exp-b.exp;
       });
       return items.map((x,i)=>({...x,rank:i+1}));
     }
-    const cache={};
+
     function fmt(value,digits=3){
       const n=Number(value);
-      if(!Number.isFinite(n)) return '—';
+      if(!Number.isFinite(n)) return '';
       if(Math.abs(n-Math.round(n))<1e-9) return String(Math.round(n));
       return n.toFixed(digits).replace(/0+$/,'').replace(/\.$/,'');
     }
+
     function render(group){
-      const items=cache[group]||(cache[group]=allItems(group));
+      const items=allItems(group);
       title.textContent=`${group} 査定効率ランキング`;
       count.textContent=`${items.length}項目`;
-      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要総経験点</th><th>査定</th></tr></thead><tbody>';
-      for(const item of items){
-        const top=item.rank<=3?` top${item.rank}`:'';
-        const neg=item.score<0?' negative':'';
-        html+=`<tr class="${item.type}${top}${neg}"><td>${item.rank}</td><td class="name-cell">${item.ability}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.exp,2)}</td><td>${fmt(item.score,2)}</td></tr>`;
-      }
-      html+='</tbody></table>';
-      root.innerHTML=html;
-      tabs.forEach(t=>t.setAttribute('aria-selected',String(t.dataset.group===group)));
-      window.scrollTo({top:0,behavior:'instant'});
+
+      const rows=items.map(item=>{
+        const classes=[item.type];
+        if(item.rank===1) classes.push('top1');
+        if(item.rank===2) classes.push('top2');
+        if(item.rank===3) classes.push('top3');
+        if(item.eff<0) classes.push('negative');
+        return `<tr class="${classes.join(' ')}">
+          <td>${item.rank}</td>
+          <td class="name-cell">${item.ability}</td>
+          <td>${fmt(item.eff,3)}</td>
+          <td>${fmt(item.exp,0)}</td>
+          <td>${fmt(item.score,2)}</td>
+        </tr>`;
+      }).join('');
+
+      root.innerHTML=`<table>
+        <colgroup>
+          <col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score">
+        </colgroup>
+        <thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要総経験点</th><th>査定</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+      root.scrollLeft=0;
     }
-    tabs.forEach(tab=>tab.addEventListener('click',()=>render(tab.dataset.group)));
-    render('物理職');
+
+    tabs.forEach(tab=>{
+      tab.addEventListener('click',()=>{
+        tabs.forEach(t=>t.setAttribute('aria-selected','false'));
+        tab.setAttribute('aria-selected','true');
+        render(tab.dataset.group);
+        window.scrollTo({top:document.querySelector('.tabs').offsetTop,behavior:'auto'});
+      });
+    });
+
+    render('物理職・双剣士');
   })();
   </script>
 </body>
