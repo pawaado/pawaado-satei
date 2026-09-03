@@ -26,3 +26,4 @@ jobs:
           git add pawaado_worker.js academy_runtime.js index.html
           git diff --cached --quiet || git commit -m '双剣士通常攻撃を一体探索して計算を高速化'
           git push
+# rerun 2
