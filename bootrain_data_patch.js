@@ -27,6 +27,11 @@
   upsertAcademy('魔法使い',[95,65,115,105,75,95]);
   upsertAcademy(dualInternalJob,[110,115,60,120,100,95]);
 
+  // 最新アカデミーなので選択肢の一番上へ。
+  const bootrainRows=D.academies.filter(r=>r[0]===academyName);
+  const otherAcademyRows=D.academies.filter(r=>r[0]!==academyName);
+  D.academies.splice(0,D.academies.length,...bootrainRows,...otherAcademyRows);
+
   // 生命力：査定値＝基礎HP増加量。
   // 既存100→105もHP増加（1あたり+90）と一致するよう査定値だけ補正する。
   const life100=D.life.find(r=>String(r[0])==='100→105');
@@ -85,7 +90,7 @@
   const dualSkillName='通常攻撃(双剣士)';
   let dualIndex=D.special.findIndex(s=>String(s[1])===dualSkillName);
   if(dualIndex<0){
-    D.special.push([999,dualSkillName,null,0,0,0,0,0,0,0,0,0,0,0,0,'双剣士専用。左のLvは現在の通常攻撃Lv。']);
+    D.special.push([999,dualSkillName,null,0,0,0,0,0,0,0,0,0,0,0,0,'双剣士専用。Lv1は初期取得済で、Lv2以降を順番に取得する。']);
     dualIndex=D.special.length-1;
   }
   Object.defineProperty(D,'__dualAttackIndex',{value:dualIndex,writable:true,configurable:true,enumerable:false});
