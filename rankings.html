@@ -106,13 +106,6 @@
     }
     .tab[aria-selected="true"]{color:#fff;border-color:#233f50;background:linear-gradient(180deg,#2f708b,#174b63);box-shadow:0 2px 0 rgba(31,57,72,.18)}
     .ranking-card{overflow:hidden}
-    .ranking-head{
-      padding:14px 16px 12px;
-      background:linear-gradient(180deg,#6f3b20,#4b2917);
-      color:#fff7df;
-      border-bottom:2px solid #2d180d;
-    }
-    .ranking-head h2{margin:0;font-family:"Kaisei Decol",serif;font-size:22px}
     .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;min-width:590px}
     col.rank{width:58px} col.name{width:auto} col.eff{width:102px} col.exp{width:120px} col.score{width:86px}
@@ -170,9 +163,6 @@
     </nav>
 
     <section class="ranking-card">
-      <div class="ranking-head">
-        <h2 id="rankingTitle">物理職</h2>
-      </div>
       <div id="rankingRoot" class="table-wrap" aria-live="polite"></div>
     </section>
 
@@ -192,7 +182,6 @@
   (()=>{
     const D=window.PAWAADO_DATA;
     const root=document.getElementById('rankingRoot');
-    const title=document.getElementById('rankingTitle');
     const tabs=[...document.querySelectorAll('.tab')];
 
     if(!D){
@@ -357,7 +346,6 @@
     }
     function render(group){
       const items=cache[group]||(cache[group]=allItems(group));
-      title.textContent=`${group} 査定効率ランキング`;
       let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要総経験点</th><th>査定</th></tr></thead><tbody>';
       for(const item of items){
         const neg=item.score<0?' negative':'';
