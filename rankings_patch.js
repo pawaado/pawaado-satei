@@ -13,7 +13,7 @@
   const healingHeart=(D.special||[]).find(row=>String(row?.[1])==='癒やしの心');
   if(healingHeart){
     healingHeart[14]=90;
-    healingHeart[15]='剣士等・魔法職は基礎HP×1%。僧侶は90+基礎HP×1%。小数第2位四捨入';
+    healingHeart[15]='剣士等・魔法職は基礎HP×1%。僧侶は90+基礎HP×1%。小数第2位四捨五入';
   }
 
   const noteList=document.querySelector('.notes ul');
