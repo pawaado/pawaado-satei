@@ -110,7 +110,8 @@
       .extra-resistance-add{width:100%}
       .resistance-impact-marker{display:inline-block;margin-left:.45em;color:#98651d;font-size:11px;font-weight:800;white-space:nowrap;vertical-align:middle}
       @media(max-width:620px){
-        .extra-resistance-row{grid-template-columns:1fr 1fr 74px 38px;gap:5px}
+        .extra-resistance-row{grid-template-columns:minmax(0,1fr) 82px 38px;gap:5px}
+        .extra-resistance-source{grid-column:1/-1}
         .extra-resistance-row input,.extra-resistance-row select{font-size:13px;padding:6px}
         .extra-resistance-remove{min-width:38px;min-height:40px}
       }
