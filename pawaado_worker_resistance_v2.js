@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20260916-resistance-base-3',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20260916-resistance-base-4',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
