@@ -20,10 +20,13 @@
   if(noteList){
     const items=[...noteList.querySelectorAll('li')];
     if(items[1]) items[1].textContent='基本能力の小数点以下の査定が不明であることなどから、実際の査定効率と異なる可能性があります。';
-    if(![...noteList.querySelectorAll('li')].some(li=>li.textContent.includes('他の耐性に影響する特殊能力等を持たない状態'))){
-      const li=document.createElement('li');
-      li.textContent='耐性に影響する特殊能力は、他の耐性に影響する特殊能力等を持たない状態で単独取得した場合で計算しています。';
-      items[1]?.insertAdjacentElement('afterend',li);
+    let resistanceNote=[...noteList.querySelectorAll('li')].find(li=>li.textContent.trim().startsWith('耐性に影響する特殊能力は'));
+    if(!resistanceNote){
+      resistanceNote=document.createElement('li');
+      items[1]?.insertAdjacentElement('afterend',resistanceNote);
+    }
+    if(resistanceNote){
+      resistanceNote.textContent='耐性に影響する特殊能力は、他の耐性に影響する特殊能力等を持たず、単独取得した場合で計算しています。';
     }
   }
 
