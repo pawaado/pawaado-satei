@@ -51,7 +51,6 @@ def load_fixed(extras=False):
     for n,v in EXP.items(): dispatch_value(f'exp_0_{n}',v)
     for n,v in BASIC.items(): dispatch_value(f'basic_{n}',v)
 
-    # コツLvは表示行の＋ボタンを必要回数クリック。
     for name,lv in HINTS.items():
         ok=driver.execute_script("""
           const target=arguments[0], count=arguments[1];
@@ -65,7 +64,6 @@ def load_fixed(extras=False):
         if not ok: raise RuntimeError('hint row not found: '+name)
 
     if extras:
-        # 超特殊能力A: 物理20%、B: 物理10%。デフォルト選択は物理攻撃耐性。
         driver.execute_script("""
           const first=document.querySelector('#extraResistanceList .extra-resistance-value');
           first.value='20';
@@ -82,7 +80,7 @@ def run_case(label,extras=False):
     load_fixed(extras)
     before=driver.find_element('id','result').text
     t0=time.perf_counter()
-    driver.find_element('id','calcBtn').click()
+    driver.execute_script("document.getElementById('calcBtn').click()")
     wait.until(lambda d: (
         d.execute_script("return !document.getElementById('calcBtn').disabled") and
         '査定上昇量' in d.find_element('id','result').text and
@@ -93,9 +91,8 @@ def run_case(label,extras=False):
     m=re.search(r'査定上昇量\s*\+?([0-9.]+)',text)
     score=m.group(1) if m else 'N/A'
     print(f'BENCH {label}: {elapsed:.3f}s score={score}')
-    # 精度比較用に選択特殊能力も出す。
     lines=[x.strip() for x in text.splitlines() if x.strip()]
-    print('RESULT',label,' | '.join(lines[:30]))
+    print('RESULT',label,' | '.join(lines[:40]))
     return elapsed,score,text
 
 try:
