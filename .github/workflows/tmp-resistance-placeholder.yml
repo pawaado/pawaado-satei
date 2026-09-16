@@ -1,0 +1,35 @@
+name: tmp-resistance-placeholder
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-resistance-placeholder.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add resistance placeholder
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('resistance_patch.js')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("const options=resistanceTypes.map(type=>`<option value=\"${type}\">${type}</option>`).join('');", "const options='<option value=\"\">耐性を選択</option>'+resistanceTypes.map(type=>`<option value=\"${type}\">${type}</option>`).join('');")
+          s=s.replace('<span class="extra-resistance-type-text">${resistanceTypes[0]}</span>', '<span class="extra-resistance-type-text">耐性を選択</span>')
+          s=s.replace("text.textContent=selected?.textContent||resistanceTypes[0];", "text.textContent=selected?.textContent||'耐性を選択';")
+          # If a value is entered while the resistance type is still the placeholder, show a clear error.
+          old="""    const value=Number(raw);\n    const valid=Number.isFinite(value)&&value>0;\n    row.classList.toggle('is-invalid',!valid);\n    if(valid){\n      input.removeAttribute('aria-invalid');\n      if(error) error.hidden=true;\n    }else{\n      input.setAttribute('aria-invalid','true');\n      if(error) error.hidden=!showMessage;\n    }\n    return valid;"""
+          new="""    const type=row?.querySelector('.extra-resistance-type')?.value||'';\n    const value=Number(raw);\n    const typeValid=resistanceTypes.includes(type);\n    const valueValid=Number.isFinite(value)&&value>0;\n    const valid=typeValid&&valueValid;\n    row.classList.toggle('is-invalid',!valid);\n    if(valid){\n      input.removeAttribute('aria-invalid');\n      if(error) error.hidden=true;\n    }else{\n      input.setAttribute('aria-invalid','true');\n      if(error){\n        error.textContent=!typeValid?'耐性を選択してください。':'耐性値は0より大きい数値で入力してください。';\n        error.hidden=!showMessage;\n      }\n    }\n    return valid;"""
+          if old not in s:
+              raise SystemExit('validation block not found')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add resistance_patch.js
+          git commit -m 'Add resistance selection placeholder'
+          git push
