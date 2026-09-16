@@ -699,3 +699,13 @@ img,svg,canvas{max-width:100%}
   background:linear-gradient(180deg,#f0fbfc,#cce8ee);
   color:#27434c;
 }
+
+
+/* skill-plus-blue-20260916 */
+/* 特殊能力の未取得行は水色系で統一。左の＋も同系色にして茶金との混在感をなくす。 */
+.skill-row:not(.owned) .hint-btn{
+  border-right-color:#4e8290;
+  color:#f4fdff;
+  background:linear-gradient(180deg,#5f9eac,#376f7d);
+  text-shadow:0 1px 0 #234a55;
+}
