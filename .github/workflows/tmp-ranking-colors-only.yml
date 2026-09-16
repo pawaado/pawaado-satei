@@ -1,0 +1,28 @@
+name: tmp-ranking-colors-only
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-ranking-colors-only.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set ranking category colors only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('rankings.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('tr.basic td.name-cell{background:#e7f4fa;color:#285269}','tr.basic td.name-cell{background:#fff1c7;color:#5a3c10}',1)
+          s=s.replace('tr.special td.name-cell{background:#fff3cf;color:#5a3c10}','tr.special td.name-cell{background:#dff1f6;color:#285a68}',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rankings.html
+          git commit -m 'Set ranking basic gold and special blue'
+          git push
