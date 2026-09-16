@@ -28,23 +28,46 @@
   }
 
   const style=document.createElement('style');
-  style.textContent='.ranking-resistance-marker{display:inline-block;margin-left:.4em;color:#98651d;font-size:10px;font-weight:800;white-space:nowrap}';
+  style.textContent=`
+    .ranking-note-marker{
+      display:inline-block;
+      margin-left:.4em;
+      color:#98651d;
+      font-size:10px;
+      font-weight:800;
+      white-space:nowrap;
+      vertical-align:middle;
+    }
+  `;
   document.head.appendChild(style);
 
   const root=document.getElementById('rankingRoot');
   const mark=()=>{
     if(!root) return;
     root.querySelectorAll('tr.special td.name-cell').forEach(cell=>{
-      if(cell.querySelector('.ranking-resistance-marker')) return;
-      const text=cell.textContent.trim();
-      const name=[...resistanceImpactSkills].find(skill=>text===skill || text.startsWith(skill+' '));
-      if(!name) return;
-      const marker=document.createElement('span');
-      marker.className='ranking-resistance-marker';
-      marker.textContent='※耐性影響';
-      cell.appendChild(marker);
+      if(cell.dataset.noteMarkersReady==='1') return;
+      let text=cell.textContent.trim();
+      const hpDependent=text.includes('※HP依存');
+      text=text.replace(/\s*※HP依存/g,'').replace(/\s*※耐性影響/g,'').trim();
+
+      cell.textContent=text;
+      if(hpDependent){
+        const hp=document.createElement('span');
+        hp.className='ranking-note-marker ranking-hp-marker';
+        hp.textContent='※HP依存';
+        cell.appendChild(hp);
+      }
+
+      if(resistanceImpactSkills.has(text)){
+        const resistance=document.createElement('span');
+        resistance.className='ranking-note-marker ranking-resistance-marker';
+        resistance.textContent='※耐性影響';
+        cell.appendChild(resistance);
+      }
+      cell.dataset.noteMarkersReady='1';
     });
   };
+
   if(root){
     new MutationObserver(()=>queueMicrotask(mark)).observe(root,{childList:true,subtree:true});
     queueMicrotask(mark);
