@@ -16,6 +16,7 @@ jobs:
           python-version: '3.12'
       - run: pip install selenium
       - run: |
+          python3 tmp_variant_patch.py
           python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/pawaado-http.log 2>&1 &
           sleep 1
           python3 tmp_benchmark.py
