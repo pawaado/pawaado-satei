@@ -1,12 +1,14 @@
 (() => {
   'use strict';
 
+  const PATCH_VERSION='20260916-resistance-4';
   const resistanceTypes = [
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
     'アクションスキル耐性','ダメージ状態異常耐性','弱体化状態異常耐性','行動不能状態異常耐性'
   ];
 
+  window.__PAWAADO_RESISTANCE_PATCH_VERSION__=PATCH_VERSION;
   window.PAWAADO_EFFECT_RULES = Object.freeze({
     resistanceScorePerPercent: Object.freeze({
       '物理攻撃耐性':70,'魔法攻撃耐性':70,'必殺技耐性':33,'全体攻撃耐性':50,'単体攻撃耐性':70,
@@ -43,6 +45,7 @@
       group.querySelectorAll('.extra-resistance-row').forEach(row=>{
         const type=row.querySelector('.extra-resistance-type')?.value||'';
         const raw=row.querySelector('.extra-resistance-value')?.value;
+        // 未入力は0扱い。0以下の明示入力はバリデーション側で止める。
         if(raw==='' || raw==null || !resistanceTypes.includes(type)) return;
         const value=Number(raw);
         if(!Number.isFinite(value) || value<=0) return;
@@ -63,6 +66,7 @@
     }
   }
 
+  // script.js の最終結果キャッシュにも超特殊能力の耐性条件を含める。
   const NativeMap=window.Map;
   const trackedMaps=[];
   function calcCacheKeyWithResistance(key){
@@ -132,28 +136,36 @@
     return false;
   }
 
+  // Safariを含め、Native Worker の subclass 挙動に依存しないよう
+  // factoryで耐性対応Workerへ確実に差し替え、postMessageもインスタンス側で包む。
   const NativeWorker=window.Worker;
   if(typeof NativeWorker==='function'){
-    class ResistanceWorker extends NativeWorker{
-      constructor(url,options){
-        const text=String(url||'');
-        const next=/pawaado_worker\.js(?:\?|$)/.test(text)
-          ? './pawaado_worker_resistance.js?v=20260916-resistance-3'
-          : url;
-        super(next,options);
-      }
-      postMessage(message,transfer){
+    function ResistanceWorker(url,options){
+      const text=String(url||'');
+      const next=/pawaado_worker\.js(?:\?|$)/.test(text)
+        ? `./pawaado_worker_resistance_v2.js?v=${PATCH_VERSION}`
+        : url;
+      const worker=new NativeWorker(next,options);
+      const nativePost=worker.postMessage.bind(worker);
+      worker.postMessage=function(message,transfer){
         let nextMessage=message;
         if(message && message.type==='calculate'){
           nextMessage={
             ...message,
-            payload:{...(message.payload||{}),extraResistances:getExtraResistances()}
+            payload:{
+              ...(message.payload||{}),
+              extraResistances:getExtraResistances(),
+              resistancePatchVersion:PATCH_VERSION
+            }
           };
         }
-        if(arguments.length>=2) return super.postMessage(nextMessage,transfer);
-        return super.postMessage(nextMessage);
-      }
+        if(arguments.length>=2) return nativePost(nextMessage,transfer);
+        return nativePost(nextMessage);
+      };
+      return worker;
     }
+    ResistanceWorker.prototype=NativeWorker.prototype;
+    Object.setPrototypeOf(ResistanceWorker,NativeWorker);
     window.Worker=ResistanceWorker;
   }
 
@@ -168,8 +180,15 @@
       .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
       .extra-resistance-type-control.is-open{z-index:4000}
       .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}
-      .extra-resistance-type-control .custom-select-menu{font-size:14px}
-      .extra-resistance-type-control .custom-select-option{font-size:14px;min-height:44px}
+      .extra-resistance-type-control .custom-select-menu{
+        left:0;
+        right:auto;
+        width:min(340px,calc(100vw - 48px));
+        min-width:min(300px,calc(100vw - 48px));
+        max-width:calc(100vw - 32px);
+        font-size:14px;
+      }
+      .extra-resistance-type-control .custom-select-option{font-size:14px;min-height:44px;white-space:nowrap}
       .extra-resistance-value-wrap{width:100%;min-width:0;height:52px;min-height:52px;border:2px solid #b58a52;border-radius:10px;background:linear-gradient(180deg,#fffdf4,#fff2ce);color:var(--ink);box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;overflow:hidden;box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7)}
       .extra-resistance-value{width:100%;min-width:0;height:48px;border:0!important;outline:0!important;background:transparent!important;color:var(--ink);padding:7px 4px 7px 8px!important;text-align:right;font:inherit;font-variant-numeric:tabular-nums;box-shadow:none!important;-webkit-appearance:none;appearance:textfield;caret-color:#5a371d}
       .extra-resistance-value:focus,.extra-resistance-value:focus-visible{outline:0!important;box-shadow:none!important}
@@ -187,6 +206,8 @@
         .extra-resistance-group{padding:9px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 38px;gap:5px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
+        .extra-resistance-type-control .custom-select-menu{width:min(340px,calc(100vw - 36px));min-width:min(300px,calc(100vw - 36px))}
+        .extra-resistance-type-control .custom-select-option{font-size:14px}
         .extra-resistance-value{font-size:14px}
         .extra-resistance-remove,.extra-resistance-remove-placeholder{width:38px;min-width:38px}
       }
