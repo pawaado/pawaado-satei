@@ -1,0 +1,39 @@
+name: tmp-cache-bust
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ github.event.head_commit.message == 'Run worker cache bust' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump worker cache versions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('resistance_patch.js')
+          s=p.read_text(encoding='utf-8')
+          old="const PATCH_VERSION='20260916-resistance-5';"
+          new="const PATCH_VERSION='20260916-resistance-6';"
+          if old not in s:
+              raise SystemExit('resistance_patch version string not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          p=Path('pawaado_worker_resistance_v2.js')
+          s=p.read_text(encoding='utf-8')
+          old="./pawaado_worker.js?v=20260916-resistance-base-3"
+          new="./pawaado_worker.js?v=20260916-resistance-base-4"
+          if old not in s:
+              raise SystemExit('worker base version string not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-cache-bust.yml
+          git add resistance_patch.js pawaado_worker_resistance_v2.js
+          git commit -m "Refresh optimized worker cache versions"
+          git push origin HEAD:main
