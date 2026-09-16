@@ -26,7 +26,7 @@
       items[1]?.insertAdjacentElement('afterend',resistanceNote);
     }
     if(resistanceNote){
-      resistanceNote.textContent='耐性に影響する特殊能力は、他の耐性に影響する特殊能力等を持たず、単独取得した場合で計算しています。';
+      resistanceNote.textContent='耐性に影響する特殊能力は、他の耐性に影響する特殊能力を持たず、単独取得した場合で計算しています。';
     }
   }
 
