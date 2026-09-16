@@ -1,21 +1,21 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260916-resistance-4';
-  const resistanceTypes = [
+  const PATCH_VERSION='20260916-resistance-5';
+  const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
     'アクションスキル耐性','ダメージ状態異常耐性','弱体化状態異常耐性','行動不能状態異常耐性'
   ];
 
   window.__PAWAADO_RESISTANCE_PATCH_VERSION__=PATCH_VERSION;
-  window.PAWAADO_EFFECT_RULES = Object.freeze({
-    resistanceScorePerPercent: Object.freeze({
+  window.PAWAADO_EFFECT_RULES=Object.freeze({
+    resistanceScorePerPercent:Object.freeze({
       '物理攻撃耐性':70,'魔法攻撃耐性':70,'必殺技耐性':33,'全体攻撃耐性':50,'単体攻撃耐性':70,
       '火属性耐性':70,'風属性耐性':70,'水属性耐性':70,'無属性耐性':70,'列攻撃耐性':50,
       'アクションスキル耐性':18,'ダメージ状態異常耐性':20,'弱体化状態異常耐性':20,'行動不能状態異常耐性':20
     }),
-    multiplierScorePerPercent: Object.freeze({
+    multiplierScorePerPercent:Object.freeze({
       physical:Object.freeze({physicalAttack:45,magicAttack:0,hpRecovery:0,normalAttackHpRecovery:0,actionRecovery:0,rowHpRecovery:0,finisherHpRecovery:0}),
       magic:Object.freeze({physicalAttack:0,magicAttack:45,hpRecovery:0,normalAttackHpRecovery:0,actionRecovery:0,rowHpRecovery:0,finisherHpRecovery:0}),
       priest:Object.freeze({physicalAttack:0,magicAttack:4.5,hpRecovery:45,normalAttackHpRecovery:13,actionRecovery:12,rowHpRecovery:33,finisherHpRecovery:22})
@@ -34,8 +34,7 @@
   }
 
   function groupSourceName(group){
-    const index=Number(group?.dataset?.groupIndex||0);
-    return `超特殊能力${abilityLetter(index)}`;
+    return `超特殊能力${abilityLetter(Number(group?.dataset?.groupIndex||0))}`;
   }
 
   function getExtraResistances(){
@@ -45,10 +44,10 @@
       group.querySelectorAll('.extra-resistance-row').forEach(row=>{
         const type=row.querySelector('.extra-resistance-type')?.value||'';
         const raw=row.querySelector('.extra-resistance-value')?.value;
-        // 未入力は0扱い。0以下の明示入力はバリデーション側で止める。
-        if(raw==='' || raw==null || !resistanceTypes.includes(type)) return;
+        // 未入力は0扱い。
+        if(raw===''||raw==null||!resistanceTypes.includes(type)) return;
         const value=Number(raw);
-        if(!Number.isFinite(value) || value<=0) return;
+        if(!Number.isFinite(value)||value<=0) return;
         out.push({name,type,value});
       });
     });
@@ -57,45 +56,38 @@
   window.__PAWAADO_GET_EXTRA_RESISTANCES__=getExtraResistances;
 
   function resistanceSignature(){
-    try{
-      return getExtraResistances()
-        .map(row=>`${row.name}:${row.type}:${Number(row.value)}`)
-        .join('|');
-    }catch(_){
-      return '';
-    }
+    return getExtraResistances()
+      .map(row=>`${row.name}:${row.type}:${Number(row.value)}`)
+      .join('|');
   }
 
-  // script.js の最終結果キャッシュにも超特殊能力の耐性条件を含める。
+  // script.jsの結果キャッシュに耐性入力も含める。
   const NativeMap=window.Map;
   const trackedMaps=[];
-  function calcCacheKeyWithResistance(key){
-    if(typeof key==='string' && key.includes('||')){
-      return `${key}||extraResistance:${resistanceSignature()}`;
-    }
-    return key;
+  function cacheKeyWithResistance(key){
+    return typeof key==='string'&&key.includes('||')
+      ? `${key}||extraResistance:${resistanceSignature()}`
+      : key;
   }
   class TrackedMap extends NativeMap{
     constructor(iterable){
       super();
       trackedMaps.push(this);
-      if(iterable){
-        for(const [key,value] of iterable) this.set(key,value);
-      }
+      if(iterable) for(const [key,value] of iterable) this.set(key,value);
     }
-    get(key){return super.get(calcCacheKeyWithResistance(key));}
-    set(key,value){return super.set(calcCacheKeyWithResistance(key),value);}
-    has(key){return super.has(calcCacheKeyWithResistance(key));}
-    delete(key){return super.delete(calcCacheKeyWithResistance(key));}
+    get(key){return super.get(cacheKeyWithResistance(key));}
+    set(key,value){return super.set(cacheKeyWithResistance(key),value);}
+    has(key){return super.has(cacheKeyWithResistance(key));}
+    delete(key){return super.delete(cacheKeyWithResistance(key));}
   }
   Object.setPrototypeOf(TrackedMap,NativeMap);
   window.Map=TrackedMap;
 
   function clearDetectedResultCaches(){
     for(const map of trackedMaps){
-      if(!map || map.size===0) continue;
+      if(!map||map.size===0) continue;
       for(const key of map.keys()){
-        if(typeof key==='string' && key.includes('||extraResistance:')){
+        if(typeof key==='string'&&key.includes('||extraResistance:')){
           map.clear();
           break;
         }
@@ -108,14 +100,14 @@
     const error=row?.querySelector('.extra-resistance-error');
     if(!input) return true;
     const raw=input.value;
-    if(raw==='' || raw==null){
+    if(raw===''||raw==null){
       row.classList.remove('is-invalid');
       input.removeAttribute('aria-invalid');
       if(error) error.hidden=true;
       return true;
     }
     const value=Number(raw);
-    const valid=Number.isFinite(value) && value>0;
+    const valid=Number.isFinite(value)&&value>0;
     row.classList.toggle('is-invalid',!valid);
     if(valid){
       input.removeAttribute('aria-invalid');
@@ -128,29 +120,48 @@
   }
 
   function validateAllResistanceValues(){
-    const rows=[...document.querySelectorAll('.extra-resistance-row')];
-    const invalid=rows.filter(row=>!validateResistanceValue(row,true));
+    const invalid=[...document.querySelectorAll('.extra-resistance-row')]
+      .filter(row=>!validateResistanceValue(row,true));
     if(!invalid.length) return true;
     invalid[0].scrollIntoView({behavior:'smooth',block:'center'});
     invalid[0].querySelector('.extra-resistance-value')?.focus({preventScroll:true});
     return false;
   }
 
-  // Safariを含め、Native Worker の subclass 挙動に依存しないよう
-  // factoryで耐性対応Workerへ確実に差し替え、postMessageもインスタンス側で包む。
+  // script.jsはWorkerを1個保持するため、外側はProxy Workerとして保持し、
+  // calculateごとに耐性対応Workerを新規作成する。これでSafariの古いWorker/キャッシュを跨がない。
   const NativeWorker=window.Worker;
   if(typeof NativeWorker==='function'){
-    function ResistanceWorker(url,options){
-      const text=String(url||'');
-      const next=/pawaado_worker\.js(?:\?|$)/.test(text)
-        ? `./pawaado_worker_resistance_v2.js?v=${PATCH_VERSION}`
-        : url;
-      const worker=new NativeWorker(next,options);
-      const nativePost=worker.postMessage.bind(worker);
-      worker.postMessage=function(message,transfer){
-        let nextMessage=message;
-        if(message && message.type==='calculate'){
-          nextMessage={
+    function ResistanceWorkerProxy(_url,options){
+      let inner=null;
+      let terminated=false;
+      const proxy={
+        onmessage:null,
+        onerror:null,
+        postMessage(message,transfer){
+          if(terminated) return;
+          if(message?.type==='cancel'){
+            if(inner){
+              if(arguments.length>=2) inner.postMessage(message,transfer);
+              else inner.postMessage(message);
+            }
+            return;
+          }
+          if(message?.type!=='calculate'){
+            if(inner){
+              if(arguments.length>=2) inner.postMessage(message,transfer);
+              else inner.postMessage(message);
+            }
+            return;
+          }
+
+          if(inner) inner.terminate();
+          const signature=encodeURIComponent(resistanceSignature()||'none');
+          inner=new NativeWorker(`./pawaado_worker_resistance_v2.js?v=${PATCH_VERSION}&r=${signature}`,options);
+          inner.onmessage=event=>proxy.onmessage?.call(proxy,event);
+          inner.onerror=event=>proxy.onerror?.call(proxy,event);
+
+          const nextMessage={
             ...message,
             payload:{
               ...(message.payload||{}),
@@ -158,15 +169,39 @@
               resistancePatchVersion:PATCH_VERSION
             }
           };
-        }
-        if(arguments.length>=2) return nativePost(nextMessage,transfer);
-        return nativePost(nextMessage);
+          if(arguments.length>=2) inner.postMessage(nextMessage,transfer);
+          else inner.postMessage(nextMessage);
+        },
+        terminate(){
+          terminated=true;
+          if(inner) inner.terminate();
+          inner=null;
+        },
+        addEventListener(type,listener,opts){
+          if(type==='message'){
+            const prev=proxy.onmessage;
+            proxy.onmessage=function(event){prev?.call(proxy,event);listener.call(proxy,event);};
+          }else if(type==='error'){
+            const prev=proxy.onerror;
+            proxy.onerror=function(event){prev?.call(proxy,event);listener.call(proxy,event);};
+          }
+        },
+        removeEventListener(){},
+        dispatchEvent(){return false;}
       };
-      return worker;
+      return proxy;
     }
-    ResistanceWorker.prototype=NativeWorker.prototype;
-    Object.setPrototypeOf(ResistanceWorker,NativeWorker);
-    window.Worker=ResistanceWorker;
+    ResistanceWorkerProxy.prototype=NativeWorker.prototype;
+    try{Object.setPrototypeOf(ResistanceWorkerProxy,NativeWorker);}catch(_){ }
+    try{
+      Object.defineProperty(window,'Worker',{
+        configurable:true,
+        writable:true,
+        value:ResistanceWorkerProxy
+      });
+    }catch(_){
+      window.Worker=ResistanceWorkerProxy;
+    }
   }
 
   function addStyles(){
@@ -181,10 +216,9 @@
       .extra-resistance-type-control.is-open{z-index:4000}
       .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}
       .extra-resistance-type-control .custom-select-menu{
-        left:0;
-        right:auto;
-        width:min(340px,calc(100vw - 48px));
-        min-width:min(300px,calc(100vw - 48px));
+        left:0;right:auto;
+        width:min(240px,calc(100vw - 48px));
+        min-width:min(230px,calc(100vw - 48px));
         max-width:calc(100vw - 32px);
         font-size:14px;
       }
@@ -206,7 +240,7 @@
         .extra-resistance-group{padding:9px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 38px;gap:5px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
-        .extra-resistance-type-control .custom-select-menu{width:min(340px,calc(100vw - 36px));min-width:min(300px,calc(100vw - 36px))}
+        .extra-resistance-type-control .custom-select-menu{width:min(240px,calc(100vw - 36px));min-width:min(230px,calc(100vw - 36px))}
         .extra-resistance-type-control .custom-select-option{font-size:14px}
         .extra-resistance-value{font-size:14px}
         .extra-resistance-remove,.extra-resistance-remove-placeholder{width:38px;min-width:38px}
@@ -295,9 +329,7 @@
           menu.hidden=false;
           control.classList.add('is-open');
           button.setAttribute('aria-expanded','true');
-        }else{
-          close();
-        }
+        }else close();
       });
       select.addEventListener('change',sync);
       sync();
@@ -339,6 +371,7 @@
     const specialList=document.getElementById('specialList');
     const specialCard=specialList?.closest('section.card');
     if(!specialCard) return;
+
     const section=document.createElement('section');
     section.id='extraResistanceCard';
     section.className='card';
@@ -371,6 +404,7 @@
         clearDetectedResultCaches();
         return;
       }
+
       const addSame=event.target.closest('.extra-resistance-same-add');
       if(addSame){
         const rows=addSame.closest('.extra-resistance-group')?.querySelector('.extra-resistance-group-rows');
@@ -379,6 +413,7 @@
         clearDetectedResultCaches();
         return;
       }
+
       const remove=event.target.closest('.extra-resistance-remove');
       if(remove){
         const list=document.getElementById('extraResistanceList');
@@ -386,9 +421,8 @@
         const group=remove.closest('.extra-resistance-group');
         const rows=group?.querySelectorAll('.extra-resistance-row')||[];
         const groups=list?.querySelectorAll('.extra-resistance-group')||[];
-        if(rows.length>1){
-          row?.remove();
-        }else if(groups.length>1){
+        if(rows.length>1) row?.remove();
+        else if(groups.length>1){
           group?.remove();
           renumberResistanceGroups();
         }
