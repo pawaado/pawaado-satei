@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20260916-resistance-base-2',{cache:'no-store'});
+    const response=await fetch('./pawaado_worker.js?v=20260916-resistance-base-3',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -24,6 +24,8 @@ const RESISTANCE_SCORE_RATES=Object.freeze({
   'アクションスキル耐性':18,'ダメージ状態異常耐性':20,'弱体化状態異常耐性':20,'行動不能状態異常耐性':20
 });
 const resistanceScoreCache=new Map();
+const staticResistanceScoreCache=new Map();
+let resistanceRelevantMaskCache=null;
 const RESISTANCE_PAIR_SOURCES=Object.freeze([
   Object.freeze({lower:'物理防御○',upper:'物理防御◎',type:'物理攻撃耐性',lowerValue:2,upperValue:4,source:'物理防御'}),
   Object.freeze({lower:'魔法防御○',upper:'魔法防御◎',type:'魔法攻撃耐性',lowerValue:2,upperValue:4,source:'魔法防御'}),
@@ -75,6 +77,16 @@ const STATIC_RESISTANCE_EFFECTS=Object.freeze({
 });
 function hasResistanceEffectName(name){
   return Object.prototype.hasOwnProperty.call(STATIC_RESISTANCE_EFFECTS,String(name||''));
+}
+function resistanceRelevantMask(){
+  if(resistanceRelevantMaskCache!==null) return resistanceRelevantMaskCache;
+  let mask=EMPTY_BITS;
+  for(const name of Object.keys(STATIC_RESISTANCE_EFFECTS)){
+    const index=specialNameIndex.get(name)??-1;
+    if(index>=0) mask|=specialBit(index);
+  }
+  resistanceRelevantMaskCache=mask;
+  return mask;
 }
 function normalizeExtraResistances(rows){
   const out=[];
@@ -142,7 +154,8 @@ function resistanceSourcesForBits(bits){
   return byType;
 }
 function resistanceScoreForBits(bits){
-  const cacheKey=bits??EMPTY_BITS;
+  // 耐性に無関係な特殊能力ビットは捨ててキャッシュを共有する。
+  const cacheKey=(bits??EMPTY_BITS)&resistanceRelevantMask();
   if(resistanceScoreCache.has(cacheKey)) return resistanceScoreCache.get(cacheKey);
   let total=0;
   const byType=resistanceSourcesForBits(cacheKey);
@@ -156,7 +169,12 @@ function resistanceScoreForBits(bits){
   resistanceScoreCache.set(cacheKey,total);
   return total;
 }
-function staticResistanceScoreForItems(items){
+function staticResistanceScoreForItems(items,relevantBits=null){
+  const cacheKey=relevantBits===null
+    ? (specialItemsBits(items||[])&resistanceRelevantMask())
+    : relevantBits;
+  const cached=staticResistanceScoreCache.get(cacheKey);
+  if(cached!==undefined) return cached;
   let total=0;
   for(const item of items||[]){
     if(item?.type!=='special') continue;
@@ -165,12 +183,17 @@ function staticResistanceScoreForItems(items){
       total+=truncateScore(Number(value)*Number(RESISTANCE_SCORE_RATES[type]||0));
     }
   }
+  staticResistanceScoreCache.set(cacheKey,total);
   return total;
 }
 function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
-  const nonResistance=Number(staticScore||0)-staticResistanceScoreForItems(items);
+  const relevantMask=resistanceRelevantMask();
+  const opRelevant=(opBits??EMPTY_BITS)&relevantMask;
+  // 30個の耐性影響能力を含まない候補は従来査定をそのまま返す。
+  if(opRelevant===EMPTY_BITS) return Number(staticScore||0);
+  const nonResistance=Number(staticScore||0)-staticResistanceScoreForItems(items,opRelevant);
   const before=resistanceScoreForBits(beforeBits??EMPTY_BITS);
-  const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|(opBits??EMPTY_BITS));
+  const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|opRelevant);
   return Math.round((nonResistance+(after-before))*10)/10;
 }
 // --- end resistance-aware scoring patch v2 ---`;
