@@ -16,7 +16,10 @@ jobs:
           python-version: '3.12'
       - run: pip install selenium
       - run: |
-          python3 tmp_variant_patch.py
+          cp pawaado_worker.js /tmp/pawaado_worker.base.js
           python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/pawaado-http.log 2>&1 &
           sleep 1
-          python3 tmp_benchmark.py
+          VARIANT=baseline python3 tmp_precision_benchmark.py
+          cp /tmp/pawaado_worker.base.js pawaado_worker.js
+          python3 tmp_variant_patch.py
+          VARIANT=optimized python3 tmp_precision_benchmark.py
