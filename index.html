@@ -99,6 +99,18 @@
     .custom-select-option.is-selected{font-weight:800;background:rgba(255,255,255,.10)}
     .custom-select-option.is-selected::before{content:'✓';display:inline-block;width:1.6em;margin-right:2px}
     .custom-select-option:not(.is-selected)::before{content:'';display:inline-block;width:1.6em;margin-right:2px}
+
+    /* 必須入力が揃うまでは計算ボタンをジョブ未選択時と同様に無効表示 */
+    #calcBtn:disabled{
+      color:#8d8173!important;
+      background:linear-gradient(180deg,#fbf6e9,#eadfca)!important;
+      border-color:#bca582!important;
+      box-shadow:inset 0 2px 4px rgba(86,49,15,.08),0 1px 0 rgba(255,255,255,.7)!important;
+      text-shadow:none!important;
+      filter:none!important;
+      opacity:1!important;
+      cursor:default;
+    }
   </style>
 </head>
 <body>
@@ -184,7 +196,7 @@
 
     <section class="action-card" aria-label="計算操作">
       <div class="buttons">
-        <button id="calcBtn" type="button">計算する</button>
+        <button id="calcBtn" type="button" disabled>計算する</button>
         <button id="resetBtn" class="secondary" type="button">入力をリセット</button>
       </div>
     </section>
@@ -382,5 +394,36 @@
     })();
   </script>
 
+
+  <script>
+  (()=>{
+    const calcBtn=document.getElementById('calcBtn');
+    const academy=document.getElementById('academy');
+    const job=document.getElementById('job');
+    const expRoot=document.getElementById('expInputs');
+    const basicRoot=document.getElementById('basicInputs');
+    if(!calcBtn||!academy||!job||!expRoot||!basicRoot) return;
+
+    const filled=input=>String(input?.value??'').trim()!=='';
+    const requiredReady=()=>{
+      const expInputs=[...expRoot.querySelectorAll('input')];
+      const basicInputs=[...basicRoot.querySelectorAll('input[id^="basic_"]')];
+      return !!academy.value && !!job.value &&
+        expInputs.length>0 && expInputs.every(filled) &&
+        basicInputs.length===6 && basicInputs.every(filled);
+    };
+    const syncCalcButton=()=>{
+      if(calcBtn.textContent!=='計算する') return;
+      calcBtn.disabled=!requiredReady();
+    };
+
+    document.addEventListener('input',syncCalcButton,true);
+    document.addEventListener('change',()=>setTimeout(syncCalcButton,0),true);
+    document.addEventListener('click',()=>setTimeout(syncCalcButton,0),true);
+    new MutationObserver(()=>setTimeout(syncCalcButton,0)).observe(expRoot,{childList:true,subtree:true});
+    new MutationObserver(()=>setTimeout(syncCalcButton,0)).observe(basicRoot,{childList:true,subtree:true});
+    syncCalcButton();
+  })();
+  </script>
 </body>
 </html>
