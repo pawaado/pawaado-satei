@@ -106,15 +106,21 @@
       if(error) error.hidden=true;
       return true;
     }
+    const type=row?.querySelector('.extra-resistance-type')?.value||'';
     const value=Number(raw);
-    const valid=Number.isFinite(value)&&value>0;
+    const typeValid=resistanceTypes.includes(type);
+    const valueValid=Number.isFinite(value)&&value>0;
+    const valid=typeValid&&valueValid;
     row.classList.toggle('is-invalid',!valid);
     if(valid){
       input.removeAttribute('aria-invalid');
       if(error) error.hidden=true;
     }else{
       input.setAttribute('aria-invalid','true');
-      if(error) error.hidden=!showMessage;
+      if(error){
+        error.textContent=!typeValid?'耐性を選択してください。':'耐性値は0より大きい数値で入力してください。';
+        error.hidden=!showMessage;
+      }
     }
     return valid;
   }
@@ -250,7 +256,7 @@
   }
 
   function resistanceRowHtml(removable=false){
-    const options=resistanceTypes.map(type=>`<option value="${type}">${type}</option>`).join('');
+    const options='<option value="">耐性を選択</option>'+resistanceTypes.map(type=>`<option value="${type}">${type}</option>`).join('');
     const removeControl=removable
       ? '<button type="button" class="secondary extra-resistance-remove" aria-label="この耐性を削除">×</button>'
       : '<span class="extra-resistance-remove-placeholder" aria-hidden="true"></span>';
@@ -258,7 +264,7 @@
       <div class="extra-resistance-type-control custom-select-control">
         <select class="extra-resistance-type custom-native-select" tabindex="-1" aria-hidden="true">${options}</select>
         <button type="button" class="custom-select-button extra-resistance-type-button" aria-haspopup="listbox" aria-expanded="false">
-          <span class="extra-resistance-type-text">${resistanceTypes[0]}</span>
+          <span class="extra-resistance-type-text">耐性を選択</span>
         </button>
         <span class="select-game-arrow" aria-hidden="true"></span>
         <div class="custom-select-menu extra-resistance-type-menu" role="listbox" hidden></div>
@@ -317,7 +323,7 @@
       };
       const sync=()=>{
         const selected=select.options[select.selectedIndex];
-        text.textContent=selected?.textContent||resistanceTypes[0];
+        text.textContent=selected?.textContent||'耐性を選択';
         rebuild();
       };
       button.addEventListener('click',event=>{
