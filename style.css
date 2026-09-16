@@ -686,26 +686,3 @@ img,svg,canvas{max-width:100%}
 /* アカデミー選択肢：iPhoneのネイティブメニューでも長い名称を1行・左揃えで表示 */
 #academy,#academy option{font-size:15px;text-align:left}
 #academy option{white-space:nowrap}
-
-
-/* category-color-preview-20260916 */
-/* 通常の特殊能力はゲーム画面を意識した淡い水色。取得済みの緑表示は従来どおり。 */
-.skill-row:not(.owned){
-  border-color:#4e8290;
-  background:#d7edf2;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 2px 3px rgba(45,92,105,.14);
-}
-.skill-row:not(.owned) .name-btn{
-  background:linear-gradient(180deg,#f0fbfc,#cce8ee);
-  color:#27434c;
-}
-
-
-/* skill-plus-blue-20260916 */
-/* 特殊能力の未取得行は水色系で統一。左の＋も同系色にして茶金との混在感をなくす。 */
-.skill-row:not(.owned) .hint-btn{
-  border-right-color:#4e8290;
-  color:#f4fdff;
-  background:linear-gradient(180deg,#5f9eac,#376f7d);
-  text-shadow:0 1px 0 #234a55;
-}
