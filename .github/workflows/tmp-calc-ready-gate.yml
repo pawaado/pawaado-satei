@@ -1,0 +1,37 @@
+name: tmp-calc-ready-gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-calc-ready-gate.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate calculate button until required inputs are complete
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          s=s.replace('<button id="calcBtn" type="button">計算する</button>', '<button id="calcBtn" type="button" disabled>計算する</button>', 1)
+
+          css='''\n    /* 必須入力が揃うまでは計算ボタンをジョブ未選択時と同様に無効表示 */\n    #calcBtn:disabled{\n      color:#8d8173!important;\n      background:linear-gradient(180deg,#fbf6e9,#eadfca)!important;\n      border-color:#bca582!important;\n      box-shadow:inset 0 2px 4px rgba(86,49,15,.08),0 1px 0 rgba(255,255,255,.7)!important;\n      text-shadow:none!important;\n      filter:none!important;\n      opacity:1!important;\n      cursor:default;\n    }\n'''
+          if '#calcBtn:disabled{' not in s:
+              s=s.replace('  </style>', css+'  </style>', 1)
+
+          gate='''\n  <script>\n  (()=>{\n    const calcBtn=document.getElementById('calcBtn');\n    const academy=document.getElementById('academy');\n    const job=document.getElementById('job');\n    const expRoot=document.getElementById('expInputs');\n    const basicRoot=document.getElementById('basicInputs');\n    if(!calcBtn||!academy||!job||!expRoot||!basicRoot) return;\n\n    const filled=input=>String(input?.value??'').trim()!=='';\n    const requiredReady=()=>{\n      const expInputs=[...expRoot.querySelectorAll('input')];\n      const basicInputs=[...basicRoot.querySelectorAll('input[id^="basic_"]')];\n      return !!academy.value && !!job.value &&\n        expInputs.length>0 && expInputs.every(filled) &&\n        basicInputs.length===6 && basicInputs.every(filled);\n    };\n    const syncCalcButton=()=>{\n      if(calcBtn.textContent!=='計算する') return;\n      calcBtn.disabled=!requiredReady();\n    };\n\n    document.addEventListener('input',syncCalcButton,true);\n    document.addEventListener('change',()=>setTimeout(syncCalcButton,0),true);\n    document.addEventListener('click',()=>setTimeout(syncCalcButton,0),true);\n    new MutationObserver(()=>setTimeout(syncCalcButton,0)).observe(expRoot,{childList:true,subtree:true});\n    new MutationObserver(()=>setTimeout(syncCalcButton,0)).observe(basicRoot,{childList:true,subtree:true});\n    syncCalcButton();\n  })();\n  </script>\n'''
+          if 'const requiredReady=()=>{' not in s:
+              s=s.replace('</body>', gate+'</body>', 1)
+
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Disable calculate button until required inputs are complete'
+          git push
