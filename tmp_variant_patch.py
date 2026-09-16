@@ -19,6 +19,18 @@ function clearMixedSearchCaches(){
 if old_cache not in s: raise SystemExit('cache block not found')
 s=s.replace(old_cache,new_cache,1)
 
+old_key="""function mixedStateKey(st){
+  return key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36));
+}"""
+new_key="""function mixedStateKey(st){
+  if(st._mixedStateKey!==undefined&&st._mixedStateKey!==null) return st._mixedStateKey;
+  const value=key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36));
+  st._mixedStateKey=value;
+  return value;
+}"""
+if old_key not in s: raise SystemExit('mixedStateKey block not found')
+s=s.replace(old_key,new_key,1)
+
 start=s.index('function mixedSpecialActionsAtHp(st,exp,hp){')
 out_marker='  const out=[];\n  for(const op0 of actions){'
 out_pos=s.index(out_marker,start)
@@ -87,6 +99,31 @@ function mixedSpecialActionsAtHp(st,exp,hp){
 '''
 s=s[:start]+new_prefix+s[out_pos:]
 
+# Feasibility checks are hot paths; avoid allocating temporary cost arrays only to compare them.
+old_special="""    const nc=addCost(st.cost,op0.cost);
+    if(!leq(nc,exp)) continue;
+
+    const cs=op0.costSum??costSum(op0.cost);"""
+new_special="""    if(st.cost[0]+op0.cost[0]>exp[0]||st.cost[1]+op0.cost[1]>exp[1]||
+       st.cost[2]+op0.cost[2]>exp[2]||st.cost[3]+op0.cost[3]>exp[3]||
+       st.cost[4]+op0.cost[4]>exp[4]) continue;
+
+    const cs=op0.costSum??costSum(op0.cost);"""
+if old_special not in s: raise SystemExit('special feasibility block not found')
+s=s.replace(old_special,new_special,1)
+
+old_basic="""      const nc=addCost(st.cost,op.cost);
+      if(!leq(nc,exp)) continue;
+
+      let gain=op.score;"""
+new_basic="""      if(st.cost[0]+op.cost[0]>exp[0]||st.cost[1]+op.cost[1]>exp[1]||
+         st.cost[2]+op.cost[2]>exp[2]||st.cost[3]+op.cost[3]>exp[3]||
+         st.cost[4]+op.cost[4]>exp[4]) continue;
+
+      let gain=op.score;"""
+if old_basic not in s: raise SystemExit('basic feasibility block not found')
+s=s.replace(old_basic,new_basic,1)
+
 old_final=r'''  const all=normalActions.concat(hpActions);
   all.sort(mixedActionSort);
 
@@ -110,9 +147,7 @@ old_final=r'''  const all=normalActions.concat(hpActions);
 
   st._mixedActions=deduped;
   return deduped;'''
-new_final=r'''  // 各生成経路は互いに一意なので、重い文字列signatureによるdedupは不要。
-  // HP依存追加がなければnormalActionsは既にsort済み。
-  const all=hpActions.length?normalActions.concat(hpActions):normalActions;
+new_final=r'''  const all=hpActions.length?normalActions.concat(hpActions):normalActions;
   if(hpActions.length) all.sort(mixedActionSort);
   st._mixedActions=all;
   return all;'''
@@ -120,4 +155,4 @@ if old_final not in s: raise SystemExit('candidate finalization block not found'
 s=s.replace(old_final,new_final,1)
 
 p.write_text(s,encoding='utf-8')
-print('temporary template + lean-finalization patch applied')
+print('temporary cached-template/key/allocation patch applied')
