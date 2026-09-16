@@ -2087,13 +2087,22 @@ const MIXED_MAX_STEPS=90;
 // 混在探索高速化用。計算条件が変わるたびに初期化する。
 let mixedBasicOptionCache=new Map();
 let mixedHpDeltaCache=new Map();
+let mixedSpecialTemplateCache=new Map();
+let mixedLimitsCache=null;
+let mixedHpDependentMetaCache=null;
 function clearMixedSearchCaches(){
   mixedBasicOptionCache.clear();
   mixedHpDeltaCache.clear();
+  mixedSpecialTemplateCache.clear();
+  mixedLimitsCache=null;
+}
+function mixedLimits(){
+  if(mixedLimitsCache===null) mixedLimitsCache=limits();
+  return mixedLimitsCache;
 }
 
 function mixedInitialLevels(){
-  const lim=limits();
+  const lim=mixedLimits();
   return basicNames.map(name=>{
     const cur=Number(document.getElementById('basic_'+name)?.value||1);
     return basicOwned[name] && lim[name]!=null ? Number(lim[name]) : cur;
@@ -2103,7 +2112,10 @@ function mixedLevelsKey(levels){
   return levels.map(v=>Number(v).toString(36)).join('.');
 }
 function mixedStateKey(st){
-  return key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36));
+  if(st._mixedStateKey!==undefined&&st._mixedStateKey!==null) return st._mixedStateKey;
+  const value=key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36));
+  st._mixedStateKey=value;
+  return value;
 }
 function mixedIsAcquired(i,bits){
   return specialOwned(i) || (((bits??EMPTY_BITS)&specialBit(i))!==EMPTY_BITS);
@@ -2140,15 +2152,28 @@ function mixedBasicOption(name,from,to){
   mixedBasicOptionCache.set(cacheKey,result);
   return result;
 }
+function mixedHpDependentMeta(){
+  if(mixedHpDependentMetaCache) return mixedHpDependentMetaCache;
+  const indices=[];
+  let mask=EMPTY_BITS;
+  for(let i=0;i<D.special.length;i++){
+    if(!Number(D.special[i]?.[11]||0)) continue;
+    indices.push(i);
+    mask|=specialBit(i);
+  }
+  mixedHpDependentMetaCache={indices,mask};
+  return mixedHpDependentMetaCache;
+}
 function mixedHpDeltaForBits(bits,oldHp,newHp){
   if(oldHp===newHp) return 0;
-  const cacheKey=`${bitsKey(bits??EMPTY_BITS)}|${oldHp}|${newHp}`;
+  const meta=mixedHpDependentMeta();
+  const relevantBits=(bits??EMPTY_BITS)&meta.mask;
+  const cacheKey=`${bitsKey(relevantBits)}|${oldHp}|${newHp}`;
   if(mixedHpDeltaCache.has(cacheKey)) return mixedHpDeltaCache.get(cacheKey);
   let delta=0;
-  for(let i=0;i<D.special.length;i++){
-    if(!mixedIsAcquired(i,bits)) continue;
+  for(const i of meta.indices){
+    if(!mixedIsAcquired(i,relevantBits)) continue;
     const skill=D.special[i];
-    if(!Number(skill?.[11]||0)) continue;
     delta+=skillScore(skill,newHp)-skillScore(skill,oldHp);
   }
   const result=Math.round(delta*10)/10;
@@ -2157,7 +2182,7 @@ function mixedHpDeltaForBits(bits,oldHp,newHp){
 }
 function mixedBasicActions(st,exp){
   const actions=[];
-  const lim=limits();
+  const lim=mixedLimits();
   for(let bi=0;bi<basicNames.length;bi++){
     const name=basicNames[bi];
     const from=Number(st.levels[bi]);
@@ -2171,8 +2196,9 @@ function mixedBasicActions(st,exp){
     for(const to of [...new Set(targets)]){
       const op=mixedBasicOption(name,from,to);
       if(!op) continue;
-      const nc=addCost(st.cost,op.cost);
-      if(!leq(nc,exp)) continue;
+      if(st.cost[0]+op.cost[0]>exp[0]||st.cost[1]+op.cost[1]>exp[1]||
+         st.cost[2]+op.cost[2]>exp[2]||st.cost[3]+op.cost[3]>exp[3]||
+         st.cost[4]+op.cost[4]>exp[4]) continue;
 
       let gain=op.score;
       if(name==='生命力'){
@@ -2230,49 +2256,66 @@ function mixedDualAction(st,exp){
   };
 }
 
-function mixedSpecialActionsAtHp(st,exp,hp){
-  const actions=[];
+function mixedSpecialTemplatesAtHp(hp){
+  const key=String(hp);
+  const cached=mixedSpecialTemplateCache.get(key);
+  if(cached!==undefined) return cached;
+  const templates=[];
   const used=new Set();
-
-  // ○/◎ペア
   for(let i=0;i<D.special.length;i++){
     if(used.has(i)) continue;
     const ui=upperIndex(i),li=lowerIndex(i);
-    if(li>=0) continue;
-    if(ui<0) continue;
+    if(li>=0||ui<0) continue;
     used.add(i); used.add(ui);
-
-    const lowerOwned=mixedIsAcquired(i,st.bits);
-    const upperOwned=mixedIsAcquired(ui,st.bits);
-    if(upperOwned) continue;
-
-    if(!lowerOwned){
+    if(specialOwned(ui)) continue;
+    const lowerBit=specialBit(i),upperBit=specialBit(ui);
+    if(!specialOwned(i)){
       const lower=itemForSpecialIndex(i,hp,false);
       const upper=itemForSpecialIndex(ui,hp,true);
-      if(lower) actions.push({...lower,kind:'special'});
-      if(upper) actions.push({...upper,kind:'special'});
+      const upperOnly=itemForSpecialIndex(ui,hp,false);
+      if(lower) templates.push({op:{...lower,kind:'special'},mode:1,lowerBit,upperBit});
+      if(upper) templates.push({op:{...upper,kind:'special'},mode:1,lowerBit,upperBit});
+      if(upperOnly) templates.push({op:{...upperOnly,kind:'special'},mode:2,lowerBit,upperBit});
     }else{
       const upperOnly=itemForSpecialIndex(ui,hp,false);
-      if(upperOnly) actions.push({...upperOnly,kind:'special'});
+      if(upperOnly) templates.push({op:{...upperOnly,kind:'special'},mode:3,lowerBit,upperBit});
     }
   }
-
-  // 相互排他
   for(const names of mutualGroups){
     const idxs=names.map(n=>specialNameIndex.get(String(n))??-1).filter(i=>i>=0);
     idxs.forEach(i=>used.add(i));
-    if(idxs.some(i=>mixedIsAcquired(i,st.bits))) continue;
+    if(idxs.some(i=>specialOwned(i))) continue;
+    let groupMask=EMPTY_BITS;
+    for(const i of idxs) groupMask|=specialBit(i);
     for(const i of idxs){
       const op=itemForSpecialIndex(i,hp,false);
-      if(op) actions.push({...op,kind:'special'});
+      if(op) templates.push({op:{...op,kind:'special'},mode:4,groupMask});
     }
   }
-
-  // 単独
   for(let i=0;i<D.special.length;i++){
-    if(used.has(i)||isUpperSpecial(i)||mixedIsAcquired(i,st.bits)) continue;
+    if(used.has(i)||isUpperSpecial(i)||specialOwned(i)) continue;
     const op=itemForSpecialIndex(i,hp,false);
-    if(op) actions.push({...op,kind:'special'});
+    if(op) templates.push({op:{...op,kind:'special'},mode:5,bit:specialBit(i)});
+  }
+  mixedSpecialTemplateCache.set(key,templates);
+  return templates;
+}
+function mixedSpecialActionsAtHp(st,exp,hp){
+  const actions=[];
+  const active=st.bits??EMPTY_BITS;
+  for(const t of mixedSpecialTemplatesAtHp(hp)){
+    if(t.mode===1){
+      if((active&(t.lowerBit|t.upperBit))!==EMPTY_BITS) continue;
+    }else if(t.mode===2){
+      if((active&t.lowerBit)===EMPTY_BITS||(active&t.upperBit)!==EMPTY_BITS) continue;
+    }else if(t.mode===3){
+      if((active&t.upperBit)!==EMPTY_BITS) continue;
+    }else if(t.mode===4){
+      if((active&t.groupMask)!==EMPTY_BITS) continue;
+    }else if(t.mode===5){
+      if((active&t.bit)!==EMPTY_BITS) continue;
+    }
+    actions.push(t.op);
   }
 
   const out=[];
@@ -2281,8 +2324,9 @@ function mixedSpecialActionsAtHp(st,exp,hp){
     const conflict=op0.conflictBits??conflictBitsFor(opBits);
     if(((st.bits??EMPTY_BITS)&opBits)!==EMPTY_BITS) continue;
     if(((st.bits??EMPTY_BITS)&conflict)!==EMPTY_BITS) continue;
-    const nc=addCost(st.cost,op0.cost);
-    if(!leq(nc,exp)) continue;
+    if(st.cost[0]+op0.cost[0]>exp[0]||st.cost[1]+op0.cost[1]>exp[1]||
+       st.cost[2]+op0.cost[2]>exp[2]||st.cost[3]+op0.cost[3]>exp[3]||
+       st.cost[4]+op0.cost[4]>exp[4]) continue;
 
     const cs=op0.costSum??costSum(op0.cost);
     const eff=Number(op0.score||0)/Math.max(1,cs);
@@ -2336,77 +2380,71 @@ function mixedCandidateActions(st,exp){
   const basicActions=mixedBasicActions(st,exp);
   const currentHp=currentHpForLife(st.levels[0]);
   const currentSpecials=mixedSpecialActionsAtHp(st,exp,currentHp);
-
-  // 通常候補で一度順位を作る。
-  const normalActions=basicActions.concat(currentSpecials.filter(op=>!op.isHpDependent));
+  const normalActions=basicActions.slice();
+  const currentHpActions=[];
+  for(const op of currentSpecials){
+    if(op.isHpDependent) currentHpActions.push(op);
+    else normalActions.push(op);
+  }
   const dualAction=mixedDualAction(st,exp);
   if(dualAction) normalActions.push(dualAction);
   normalActions.sort(mixedActionSort);
 
-  // 分岐上限内に生命力候補が入るか判定。
   const branch=MIXED_BRANCH_NORMAL;
-  const normalTop=normalActions.slice(0,branch);
-  const lifeTopActions=normalTop.filter(op=>op.kind==='basic'&&op.name==='生命力');
+  const lifeTopActions=[];
+  for(let i=0;i<normalActions.length&&i<branch;i++){
+    const op=normalActions[i];
+    if(op.kind==='basic'&&op.name==='生命力') lifeTopActions.push(op);
+  }
 
-  const hpActions=[];
-
+  let all;
   if(!lifeTopActions.length){
-    // 生命力が上位にない場合：
-    // 現在HPで評価したHP依存特殊能力のうち、全候補上位に入るものだけ残す。
-    const merged=normalActions.concat(currentSpecials.filter(op=>op.isHpDependent));
-    merged.sort(mixedActionSort);
-    const cutoff=merged.slice(0,branch);
-    for(const op of cutoff){
-      if(op.isHpDependent) hpActions.push(op);
+    if(!currentHpActions.length){
+      all=normalActions;
+    }else{
+      const merged=normalActions.concat(currentHpActions);
+      merged.sort(mixedActionSort);
+      const selectedHp=new Set();
+      for(let i=0;i<merged.length&&i<branch;i++){
+        if(merged[i].isHpDependent) selectedHp.add(merged[i]);
+      }
+      if(!selectedHp.size){
+        all=normalActions;
+      }else{
+        all=[];
+        for(const op of merged){
+          if(!op.isHpDependent||selectedHp.has(op)) all.push(op);
+        }
+      }
     }
   }else{
-    // 生命力が上位にある場合：
-    // 生命力単体はそのまま残し、上昇後HPでHP依存特殊能力を再評価。
-    // 効率が上位に入るセット候補のみ追加する。
+    const hpActions=[];
     for(const lifeOp of lifeTopActions){
       const futureHp=currentHpForLife(lifeOp.to);
       const futureState={...st,levels:st.levels.slice()};
       futureState.levels[0]=lifeOp.to;
       const futureSpecials=mixedSpecialActionsAtHp(futureState,exp,futureHp)
         .filter(op=>op.isHpDependent);
-
       const setCandidates=[];
       for(const hpOp of futureSpecials){
         const combinedCost=addCost(st.cost,addCost(lifeOp.cost,hpOp.cost));
         if(!leq(combinedCost,exp)) continue;
         setCandidates.push(mixedBuildLifeHpSetAction(st,lifeOp,hpOp));
       }
-
-      const comparison=normalActions.concat(setCandidates);
-      comparison.sort(mixedActionSort);
-      const topSets=comparison.slice(0,branch).filter(op=>op.kind==='life_hp_set');
-      hpActions.push(...topSets);
+      if(setCandidates.length){
+        const comparison=normalActions.concat(setCandidates);
+        comparison.sort(mixedActionSort);
+        for(let i=0;i<comparison.length&&i<branch;i++){
+          if(comparison[i].kind==='life_hp_set') hpActions.push(comparison[i]);
+        }
+      }
     }
+    all=hpActions.length?normalActions.concat(hpActions):normalActions;
+    if(hpActions.length) all.sort(mixedActionSort);
   }
 
-  const all=normalActions.concat(hpActions);
-  all.sort(mixedActionSort);
-
-  // 同じ候補を重複登録しない。
-  const deduped=[];
-  const seen=new Set();
-  for(const op of all){
-    const sig=[
-      op.kind,
-      op.name||'',
-      op.from??'',
-      op.to??'',
-      key(op.cost),
-      bitsKey(op.bits??EMPTY_BITS),
-      (op.items||EMPTY_ITEMS).map(x=>`${x.type}:${x.name}:${x.from??''}:${x.to??''}`).join('|')
-    ].join('#');
-    if(seen.has(sig)) continue;
-    seen.add(sig);
-    deduped.push(op);
-  }
-
-  st._mixedActions=deduped;
-  return deduped;
+  st._mixedActions=all;
+  return all;
 }
 function mixedProjectedScore(st,exp,actions=null){
   const candidates=actions||mixedCandidateActions(st,exp);
