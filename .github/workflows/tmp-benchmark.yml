@@ -8,11 +8,15 @@ jobs:
   bench:
     if: ${{ !contains(github.event.head_commit.message, 'Remove temporary benchmark') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install selenium
       - run: |
-          echo '=== optimizer functions ==='
-          grep -nE 'function .*([Oo]pt|mixed|prune|candidate)|const .*([Oo]pt|mixed|prune|candidate)' pawaado_worker.js | head -n 200 || true
-          echo '=== async/search references ==='
-          grep -nE 'optimize|mixedCandidate|prune|beam|upper|state|candidate' pawaado_worker.js | tail -n 260 || true
+          python3 tmp_variant_patch.py
+          python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/pawaado-http.log 2>&1 &
+          sleep 1
+          python3 tmp_benchmark.py
