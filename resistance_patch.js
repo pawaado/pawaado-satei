@@ -64,6 +64,41 @@
     return `超特殊能力${abilityLetter(index)}`;
   }
 
+  function validateResistanceValue(row,showMessage=true){
+    const input=row?.querySelector('.extra-resistance-value');
+    const error=row?.querySelector('.extra-resistance-error');
+    if(!input) return true;
+    const raw=input.value;
+    if(raw==='' || raw==null){
+      row.classList.remove('is-invalid');
+      input.removeAttribute('aria-invalid');
+      if(error) error.hidden=true;
+      return true;
+    }
+    const value=Number(raw);
+    const valid=Number.isFinite(value) && value>0;
+    row.classList.toggle('is-invalid',!valid);
+    if(valid){
+      input.removeAttribute('aria-invalid');
+      if(error) error.hidden=true;
+    }else{
+      input.setAttribute('aria-invalid','true');
+      if(error) error.hidden=!showMessage;
+    }
+    return valid;
+  }
+
+  function validateAllResistanceValues(){
+    const rows=[...document.querySelectorAll('.extra-resistance-row')];
+    const invalid=rows.filter(row=>!validateResistanceValue(row,true));
+    if(invalid.length){
+      invalid[0].scrollIntoView({behavior:'smooth',block:'center'});
+      invalid[0].querySelector('.extra-resistance-value')?.focus({preventScroll:true});
+      return false;
+    }
+    return true;
+  }
+
   function getExtraResistances(){
     const out=[];
     document.querySelectorAll('.extra-resistance-group').forEach(group=>{
@@ -73,7 +108,7 @@
         const raw=row.querySelector('.extra-resistance-value')?.value;
         if(raw==='' || raw==null || !resistanceTypes.includes(type)) return;
         const value=Number(raw);
-        if(!Number.isFinite(value) || value===0) return;
+        if(!Number.isFinite(value) || value<=0) return;
         out.push({name,type,value});
       });
     });
@@ -109,42 +144,48 @@
   function addStyles(){
     const style=document.createElement('style');
     style.textContent=`
-      .extra-resistance-help{margin:0 0 12px;color:#6a5545;font-size:13px;line-height:1.6}
       .extra-resistance-list{display:grid;gap:12px}
       .extra-resistance-group{padding:11px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
       .extra-resistance-group-title{margin:0 0 9px;color:#5a371d;font-size:14px;font-weight:800}
       .extra-resistance-group-rows{display:grid;gap:8px}
-      .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) 116px 42px;gap:7px;align-items:center}
-      .extra-resistance-row select,.extra-resistance-value-wrap{width:100%;min-width:0;min-height:44px;border:2px solid #b58a52;border-radius:9px;background:#fffdf7;color:var(--ink);font:inherit}
+      .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px;gap:7px;align-items:center}
+      .extra-resistance-row select,.extra-resistance-value-wrap{width:100%;min-width:0;height:52px;min-height:52px;border:2px solid #b58a52;border-radius:9px;background:#fffdf7;color:var(--ink);font:inherit;box-sizing:border-box}
       .extra-resistance-row select{padding:7px 8px}
       .extra-resistance-value-wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;overflow:hidden}
-      .extra-resistance-value{width:100%;min-width:0;height:40px;border:0!important;outline:0;background:transparent!important;color:var(--ink);padding:7px 4px 7px 8px!important;text-align:right;font:inherit;font-variant-numeric:tabular-nums;box-shadow:none!important}
-      .extra-resistance-unit{padding:0 9px 0 4px;color:#6a4a2d;font-weight:800;line-height:1}
-      .extra-resistance-remove{min-width:42px;min-height:42px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
+      .extra-resistance-value{width:100%;min-width:0;height:48px;border:0!important;outline:0;background:transparent!important;color:var(--ink);padding:7px 4px 7px 8px!important;text-align:right;font:inherit;font-variant-numeric:tabular-nums;box-shadow:none!important}
+      .extra-resistance-unit{padding:0 10px 0 4px;color:#6a4a2d;font-weight:800;line-height:1}
+      .extra-resistance-remove,.extra-resistance-remove-placeholder{width:42px;height:52px;min-width:42px;min-height:52px}
+      .extra-resistance-remove{padding:4px;border-radius:9px;font-size:20px;line-height:1}
+      .extra-resistance-remove-placeholder{display:block}
+      .extra-resistance-error{grid-column:1/-1;margin:-2px 0 1px;color:#a52f2f;font-size:12px;font-weight:700;line-height:1.45}
+      .extra-resistance-row.is-invalid .extra-resistance-value-wrap{border-color:#a52f2f;box-shadow:0 0 0 1px rgba(165,47,47,.12)}
       .extra-resistance-group-actions{margin-top:9px}
-      .extra-resistance-same-add{width:100%;min-height:40px;font-size:13px}
       .extra-resistance-actions{margin-top:12px}
-      .extra-resistance-add{width:100%}
+      .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
         .extra-resistance-group{padding:9px}
-        .extra-resistance-row{grid-template-columns:minmax(0,1fr) 104px 38px;gap:5px}
+        .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 38px;gap:5px}
         .extra-resistance-row select{font-size:13px;padding:6px}
         .extra-resistance-value{font-size:14px}
-        .extra-resistance-remove{min-width:38px;min-height:40px}
+        .extra-resistance-remove,.extra-resistance-remove-placeholder{width:38px;min-width:38px}
       }
     `;
     document.head.appendChild(style);
   }
 
-  function resistanceRowHtml(){
+  function resistanceRowHtml(removable=false){
     const options=resistanceTypes.map(type=>`<option value="${type}">${type}</option>`).join('');
+    const removeControl=removable
+      ? '<button type="button" class="secondary extra-resistance-remove" aria-label="この耐性を削除">×</button>'
+      : '<span class="extra-resistance-remove-placeholder" aria-hidden="true"></span>';
     return `<div class="extra-resistance-row">
       <select class="extra-resistance-type" aria-label="耐性の種類">${options}</select>
       <label class="extra-resistance-value-wrap">
-        <input class="extra-resistance-value" type="number" step="0.1" inputmode="decimal" aria-label="耐性の数値（パーセント）">
+        <input class="extra-resistance-value" type="number" min="0.1" step="0.1" inputmode="decimal" aria-label="耐性の数値（パーセント）">
         <span class="extra-resistance-unit" aria-hidden="true">%</span>
       </label>
-      <button type="button" class="secondary extra-resistance-remove" aria-label="この耐性を削除">×</button>
+      ${removeControl}
+      <p class="extra-resistance-error" hidden>0より大きい耐性値を入力してください。</p>
     </div>`;
   }
 
@@ -152,7 +193,7 @@
     const letter=abilityLetter(index);
     return `<div class="extra-resistance-group" data-group-index="${index}">
       <div class="extra-resistance-group-title">超特殊能力${letter}</div>
-      <div class="extra-resistance-group-rows">${resistanceRowHtml()}</div>
+      <div class="extra-resistance-group-rows">${resistanceRowHtml(index>0)}</div>
       <div class="extra-resistance-group-actions">
         <button type="button" class="secondary extra-resistance-same-add">＋超特殊能力${letter}の耐性を追加</button>
       </div>
@@ -188,13 +229,20 @@
     section.setAttribute('aria-labelledby','extraResistanceTitle');
     section.innerHTML=`
       <div class="section-heading"><h2 id="extraResistanceTitle">超特殊能力の耐性</h2></div>
-      <p class="extra-resistance-help">超特殊能力により所持している耐性を入力してください。</p>
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
       <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add">＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
 
-    section.addEventListener('input',()=>clearDetectedResultCaches());
-    section.addEventListener('change',()=>clearDetectedResultCaches());
+    section.addEventListener('input',event=>{
+      const row=event.target.closest('.extra-resistance-row');
+      if(event.target.matches('.extra-resistance-value')) validateResistanceValue(row,true);
+      clearDetectedResultCaches();
+    });
+    section.addEventListener('change',event=>{
+      const row=event.target.closest('.extra-resistance-row');
+      if(event.target.matches('.extra-resistance-value')) validateResistanceValue(row,true);
+      clearDetectedResultCaches();
+    });
     section.addEventListener('click',event=>{
       const addAbility=event.target.closest('#addExtraResistanceBtn');
       if(addAbility){
@@ -207,7 +255,7 @@
 
       const addSame=event.target.closest('.extra-resistance-same-add');
       if(addSame){
-        addSame.closest('.extra-resistance-group')?.querySelector('.extra-resistance-group-rows')?.insertAdjacentHTML('beforeend',resistanceRowHtml());
+        addSame.closest('.extra-resistance-group')?.querySelector('.extra-resistance-group-rows')?.insertAdjacentHTML('beforeend',resistanceRowHtml(true));
         clearDetectedResultCaches();
         return;
       }
@@ -224,11 +272,6 @@
         }else if(groups.length>1){
           group?.remove();
           renumberResistanceGroups();
-        }else{
-          const type=row?.querySelector('.extra-resistance-type');
-          const value=row?.querySelector('.extra-resistance-value');
-          if(type) type.selectedIndex=0;
-          if(value) value.value='';
         }
         clearDetectedResultCaches();
       }
@@ -238,7 +281,7 @@
   function updateUsageText(){
     const usageItems=[...document.querySelectorAll('.usage-list li')];
     if(usageItems[1]){
-      usageItems[1].textContent='経験点、現在の基本能力、取得済の特殊能力、超特殊能力の耐性を入力します。';
+      usageItems[1].textContent='経験点、現在の基本能力、取得済の特殊能力、超特殊能力の耐性（通常攻撃耐性、被ダメージ耐性を除く）を入力します。';
     }
     const firstNote=document.querySelector('.usage-note-list li');
     if(firstNote){
@@ -249,6 +292,12 @@
   addStyles();
   injectResistanceUi();
   updateUsageText();
+
+  document.getElementById('calcBtn')?.addEventListener('click',event=>{
+    if(validateAllResistanceValues()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },true);
 
   for(const id of ['resetBtn','topResetBtn']){
     document.getElementById(id)?.addEventListener('click',()=>queueMicrotask(resetResistanceRows));
