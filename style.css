@@ -686,3 +686,6 @@ img,svg,canvas{max-width:100%}
 /* アカデミー選択肢：iPhoneのネイティブメニューでも長い名称を1行・左揃えで表示 */
 #academy,#academy option{font-size:15px;text-align:left}
 #academy option{white-space:nowrap}
+
+/* アカデミー選択までは経験点の入力をロックする。 */
+#expInputs input:disabled{background:#e3dac7;color:#6f5c48;opacity:.62;cursor:not-allowed;}

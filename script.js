@@ -483,7 +483,7 @@ function updateResultTitle(){
   el.textContent = expSamples.length>1 ? '結果（査定上昇量）' : '結果';
 }
 function isExpSampleReady(sample){
-  if(!sample) return false;
+  if(!academy.value || !sample) return false;
   return expNames.every(name=>{
     const value=sample[name];
     if(value==='' || value==null) return false;
@@ -503,6 +503,7 @@ function updateExpActionStates(sampleIndex){
   });
 }
 function renderExp(){
+  const inputsLocked=!academy.value;
   const wrap=document.getElementById('expInputs');
   const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
   wrap.innerHTML=expSamples.map((sample,index)=>{
@@ -511,7 +512,7 @@ function renderExp(){
     <div class="exp-sample" data-sample-index="${index}">
       ${expSamples.length>1?`<div class="exp-sample-head"><h3>${sampleLabelHtml(index)}</h3></div>`:''}
       <div class="exp-list">
-        ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="${expLimit(name)}" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
+        ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" max="${expLimit(name)}" id="exp_${index}_${safeId(name)}" data-exp-name="${name}" data-sample-index="${index}" ${inputsLocked?'disabled aria-disabled="true"':''} value="${sample[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_exp_${index}_${safeId(name)}"></div></div>`).join('')}
       </div>
       <div class="exp-sample-actions">
         <button type="button" class="secondary exp-action-btn" data-exp-action="duplicate" data-sample-index="${index}" ${actionsLocked?'disabled aria-disabled="true"':'aria-disabled="false"'}>パターンを複製</button>
