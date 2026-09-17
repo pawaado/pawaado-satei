@@ -180,8 +180,8 @@
     </section>
   </main>
 
-  <script src="data.js?v=20260904-range-compact-1"></script>
-  <script src="rankings_patch.js?v=20260916-resistance-1"></script>
+  <script src="data.js?v=20260918-skills-1"></script>
+  <script src="rankings_patch.js?v=20260918-skills-1"></script>
   <script>
   (()=>{
     const D=window.PAWAADO_DATA;
@@ -333,11 +333,13 @@
       return items;
     }
     function allItems(group){
-      const items=[...basicItems(group),...specialItems(group)];
+      const items=[...basicItems(group),...specialItems(group)].map((item,gameOrder)=>({...item,gameOrder}));
       items.sort((a,b)=>{
         const ae=Number.isFinite(a.eff)?a.eff:-Infinity;
         const be=Number.isFinite(b.eff)?b.eff:-Infinity;
-        return be-ae;
+        if(Math.abs(be-ae)>1e-12) return be-ae;
+        if(Math.abs(b.score-a.score)>1e-9) return b.score-a.score;
+        return a.gameOrder-b.gameOrder;
       });
       return items.map((x,i)=>({...x,rank:i+1}));
     }

@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20260916-resistance-base-4',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20260918-skills-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -32,6 +32,9 @@ const RESISTANCE_PAIR_SOURCES=Object.freeze([
   Object.freeze({lower:'ケガしにくさ○',upper:'ケガしにくさ◎',types:['物理攻撃耐性','魔法攻撃耐性'],lowerValue:1,upperValue:2,source:'ケガしにくさ'})
 ]);
 const RESISTANCE_DIRECT_EFFECTS=Object.freeze({
+  '局所防衛':[['単体攻撃耐性',1]],
+  '再生学':[['アクションスキル耐性',4]],
+  '生命管理':[['ダメージ状態異常耐性',2]],
   '体幹':[['物理攻撃耐性',1]],
   '魔力制御':[['魔法攻撃耐性',1]],
   '柔軟な体':[['物理攻撃耐性',4]],
@@ -62,6 +65,9 @@ const RESISTANCE_DIRECT_EFFECTS=Object.freeze({
 const STATIC_RESISTANCE_EFFECTS=Object.freeze({
   '物理防御○':[['物理攻撃耐性',2]],'物理防御◎':[['物理攻撃耐性',2]],
   '魔法防御○':[['魔法攻撃耐性',2]],'魔法防御◎':[['魔法攻撃耐性',2]],
+  '局所防衛':[['単体攻撃耐性',1]],
+  '再生学':[['アクションスキル耐性',4]],
+  '生命管理':[['ダメージ状態異常耐性',2]],
   '体幹':[['物理攻撃耐性',1]],'魔力制御':[['魔法攻撃耐性',1]],
   '柔軟な体':[['物理攻撃耐性',4]],'無心の構え':[['魔法攻撃耐性',4]],
   '火耐性':[['火属性耐性',2]],'風耐性':[['風属性耐性',2]],'水耐性':[['水属性耐性',2]],'無耐性':[['無属性耐性',2]],
@@ -189,7 +195,7 @@ function staticResistanceScoreForItems(items,relevantBits=null){
 function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
   const relevantMask=resistanceRelevantMask();
   const opRelevant=(opBits??EMPTY_BITS)&relevantMask;
-  // 30個の耐性影響能力を含まない候補は従来査定をそのまま返す。
+  // 耐性影響能力を含まない候補は従来査定をそのまま返す。
   if(opRelevant===EMPTY_BITS) return Number(staticScore||0);
   const nonResistance=Number(staticScore||0)-staticResistanceScoreForItems(items,opRelevant);
   const before=resistanceScoreForBits(beforeBits??EMPTY_BITS);
