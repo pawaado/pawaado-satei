@@ -769,9 +769,16 @@ document.addEventListener('input',e=>{
   }
 });
 
+// 査定の端数は全項目を合算した最後にだけ切り捨てる。
+// 整数境界付近の二進浮動小数点誤差だけを補正する。
+function finalizeScore(value){
+  const score=Number(value||0);
+  const nearest=Math.round(score);
+  return Math.floor(Math.abs(score-nearest)<1e-9?nearest:score);
+}
 function jobScoreIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
 function fixedAddIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
-function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return Math.round((fixed+hp*rate)*10)/10;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
+function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
 
 function initialLifeValue(){
   return Number(document.getElementById('basic_生命力')?.value||1);
@@ -790,7 +797,7 @@ function ownedHpDependentBreakdown(life){
 
     const before=skillScore(skill,baseHp);
     const after=skillScore(skill,finalHp);
-    const delta=Math.round((after-before)*10)/10;
+    const delta=after-before;
     if(delta===0) continue;
 
     rows.push({
@@ -799,7 +806,7 @@ function ownedHpDependentBreakdown(life){
       after,
       delta
     });
-    total=Math.round((total+delta)*10)/10;
+    total=total+delta;
   }
 
   return {baseHp,finalHp,total,rows};
@@ -1606,7 +1613,7 @@ function buildBasicStates(exp){
   for(const st of states.values()){
     const ownedHp=ownedHpDependentBreakdown(st.life);
     st.ownedHpDelta=ownedHp.total;
-    st.score=Math.round((st.score+ownedHp.total)*10)/10;
+    st.score=st.score+ownedHp.total;
   }
 
 
@@ -2257,7 +2264,7 @@ function mixedHpDeltaForBits(bits,oldHp,newHp){
     if(!Number(skill?.[11]||0)) continue;
     delta+=skillScore(skill,newHp)-skillScore(skill,oldHp);
   }
-  const result=Math.round(delta*10)/10;
+  const result=delta;
   mixedHpDeltaCache.set(cacheKey,result);
   return result;
 }
@@ -2373,7 +2380,7 @@ function mixedBuildLifeHpSetAction(st,lifeOp,hpOp){
   const totalCost=addCost(lifeOp.cost,hpOp.cost);
   const lifeGain=Number(lifeOp.gain||0);
   const hpGain=Number(hpOp.gain||0);
-  const totalGain=Math.round((lifeGain+hpGain)*10)/10;
+  const totalGain=lifeGain+hpGain;
   const totalCostSum=costSum(totalCost);
   return {
     kind:'life_hp_set',
@@ -2528,7 +2535,7 @@ function mixedApplyAction(st,op){
 
   return {
     cost:nc,
-    score:Math.round((Number(st.score||0)+Number(op.gain||0))*10)/10,
+    score:Number(st.score||0)+Number(op.gain||0),
     life,
     levels,
     bits,
@@ -2637,7 +2644,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260904-range-compact-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20260921-total-score-floor-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -2921,7 +2928,7 @@ async function calc(){
         index,
         exp,
         candidate,
-        scoreGain:Math.floor(Number(candidate.score||0)),
+        scoreGain:finalizeScore(candidate.score),
         isBest:false
       });
       btn.textContent=`${index+1}/${sampleExps.length} 完了`;

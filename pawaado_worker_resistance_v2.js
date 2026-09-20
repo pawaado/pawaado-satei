@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20260918-skills-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20260921-total-score-floor-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -112,12 +112,6 @@ function ceilResistanceTenth(percent){
   if(Math.abs(scaled-nearest)<1e-9) return nearest/10;
   return Math.ceil(scaled)/10;
 }
-function truncateScore(value){
-  if(!Number.isFinite(value)) return 0;
-  const nearest=Math.round(value);
-  if(Math.abs(value-nearest)<1e-9) return nearest;
-  return Math.trunc(value);
-}
 function addResistanceSource(byType,type,sourceName,value){
   if(!Object.prototype.hasOwnProperty.call(RESISTANCE_SCORE_RATES,type)) return;
   if(!Number.isFinite(Number(value))||Number(value)===0) return;
@@ -170,7 +164,7 @@ function resistanceScoreForBits(bits){
     for(const value of sources.values()) remaining*=1-Number(value)/100;
     const rawPercent=(1-remaining)*100;
     const displayed=ceilResistanceTenth(rawPercent);
-    total+=truncateScore(displayed*Number(RESISTANCE_SCORE_RATES[type]||0));
+    total+=displayed*Number(RESISTANCE_SCORE_RATES[type]||0);
   }
   resistanceScoreCache.set(cacheKey,total);
   return total;
@@ -186,7 +180,7 @@ function staticResistanceScoreForItems(items,relevantBits=null){
     if(item?.type!=='special') continue;
     const name=String(D.special?.[Number(item.idx)]?.[1]||item.name||'');
     for(const [type,value] of STATIC_RESISTANCE_EFFECTS[name]||[]){
-      total+=truncateScore(Number(value)*Number(RESISTANCE_SCORE_RATES[type]||0));
+      total+=Number(value)*Number(RESISTANCE_SCORE_RATES[type]||0);
     }
   }
   staticResistanceScoreCache.set(cacheKey,total);
@@ -200,7 +194,7 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
   const nonResistance=Number(staticScore||0)-staticResistanceScoreForItems(items,opRelevant);
   const before=resistanceScoreForBits(beforeBits??EMPTY_BITS);
   const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|opRelevant);
-  return Math.round((nonResistance+(after-before))*10)/10;
+  return nonResistance+(after-before);
 }
 // --- end resistance-aware scoring patch v2 ---`;
 
@@ -213,8 +207,8 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
 
     source=replaceOnce(
       source,
-      `function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return Math.round((fixed+hp*rate)*10)/10;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}`,
-      `function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){let fixed=Number(s[fixedAddIndex()]||0); if(String(s[1])==='癒やしの心'&&job.value==='僧侶') fixed=90; return Math.round((fixed+hp*rate)*10)/10;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}`,
+      `function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}`,
+      `function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){let fixed=Number(s[fixedAddIndex()]||0); if(String(s[1])==='癒やしの心'&&job.value==='僧侶') fixed=90; return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}`,
       '癒しの心 score correction'
     );
 

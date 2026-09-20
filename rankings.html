@@ -180,7 +180,7 @@
     </section>
   </main>
 
-  <script src="data.js?v=20260918-skills-1"></script>
+  <script src="data.js?v=20260921-total-score-floor-1"></script>
   <script src="rankings_patch.js?v=20260918-skills-1"></script>
   <script>
   (()=>{
@@ -298,7 +298,7 @@
       const rate=Number(row[11]||0);
       if(rate){
         const fixed=Number(row[def.fixedIndex]||0);
-        return Math.round((fixed+hp*rate)*10)/10;
+        return fixed+hp*rate;
       }
       const raw=row[def.scoreIndex];
       if(raw==='HP依存') return 0;
