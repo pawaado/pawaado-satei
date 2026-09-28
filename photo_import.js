@@ -213,13 +213,17 @@
   }
   function levelByImage(image,cell){
     const [x,y]=cell.rect;
-    // Lv表記は能力名の右下にはみ出して描画されるため、セル内だけを切ると数字が欠ける。
-    // 右下を広めに取り、最下段にある右端の数字を形で判定する（Lvは1/2のみ）。
-    const components=glyphComponents(image,[x+83,y+25,55,35],100)
-      .filter(c=>c.y>=15&&c.h>=10)
+    // Lv数字はセル右下にあり、実画像では切り出し上端から約5〜7pxの位置に出る。
+    // 以前の y>=15 条件で数字そのものを除外していたため、専用のlevelRectで右端の数字を拾う。
+    const rect=cell.levelRect||[x+83,y+23,55,28];
+    const components=glyphComponents(image,rect,100)
+      .filter(c=>c.h>=10&&c.x>=8)
       .sort((a,b)=>a.x-b.x);
     if(!components.length)return null;
     const digit=components[components.length-1];
+    const matched=classifyGlyph(digit,HYBRID_LEVEL_MASKS,.23);
+    if(matched)return Number(matched);
+    // テンプレートが僅かに外れても、このゲームのLv1/2は横幅が大きく異なるので補助判定する。
     if(digit.w<=11)return 1;
     if(digit.w>=12&&digit.w<=18)return 2;
     return null;
