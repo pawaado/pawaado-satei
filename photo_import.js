@@ -8,10 +8,10 @@
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])];
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
-  const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize=s=>String(s).normalize('NFKC').replace(/\s/g,'').replace(/[〇◯]/g,'○');
+  const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
   const section=document.createElement('section'); section.className='card photo-card';
   section.innerHTML=`<h2>スクショから入力</h2><p>①左上に「能力アップ」と表示される画面（基本能力・特殊能力・必殺技・ジョブチェンジのどれでも可）と、②「能力データ」画面を選んでください。特殊能力の続きも追加できます。</p>
     <label class="photo-picker">ゲームのスクショを選ぶ<input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
