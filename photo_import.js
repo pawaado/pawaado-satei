@@ -70,7 +70,16 @@
     const language=digits?'eng':'jpn';if(workerLanguage!==language){await w.reinitialize(language);workerLanguage=language;}
     await w.setParameters({tessedit_pageseg_mode:digits||single?'7':'6',tessedit_char_whitelist:digits?'0123456789':'',preserve_interword_spaces:'1'});
     let input=canvasCrop(image,rect,1);
-    if(!digits&&(!single||threshold)){const ctx=input.getContext('2d'),im=ctx.getImageData(0,0,input.width,input.height);for(let i=0;i<im.data.length;i+=4){const black=white?Math.min(im.data[i],im.data[i+1],im.data[i+2])>150:Math.max(im.data[i],im.data[i+1],im.data[i+2])<170;im.data[i]=im.data[i+1]=im.data[i+2]=black?0:255;}ctx.putImageData(im,0,0);}
+    const inputCtx=input.getContext('2d'),inputData=inputCtx.getImageData(0,0,input.width,input.height);
+    if(digits){
+      // The game uses outlined numerals. Removing colour prevents 5 from being read as 3/9.
+      for(let i=0;i<inputData.data.length;i+=4){const y=Math.round(inputData.data[i]*0.299+inputData.data[i+1]*0.587+inputData.data[i+2]*0.114);inputData.data[i]=inputData.data[i+1]=inputData.data[i+2]=y;}
+      inputCtx.putImageData(inputData,0,0);
+    }else if(!single||threshold){
+      const limit=typeof threshold==='number'?threshold:170;
+      for(let i=0;i<inputData.data.length;i+=4){const black=white?Math.min(inputData.data[i],inputData.data[i+1],inputData.data[i+2])>150:Math.max(inputData.data[i],inputData.data[i+1],inputData.data[i+2])<limit;inputData.data[i]=inputData.data[i+1]=inputData.data[i+2]=black?0:255;}
+      inputCtx.putImageData(inputData,0,0);
+    }
     const big=document.createElement('canvas');big.width=input.width*3+40;big.height=input.height*3+40;const ctx=big.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,big.width,big.height);ctx.drawImage(input,20,20,input.width*3,input.height*3);
     let {data}=await w.recognize(big);
     if(digits&&(!/^\d{1,4}$/.test(data.text.trim())||data.confidence<40)){
@@ -90,6 +99,29 @@
   function distance(a,b){
     let prev=Array.from({length:b.length+1},(_,i)=>i);
     for(let i=0;i<a.length;i++){const next=[i+1];for(let j=0;j<b.length;j++)next.push(Math.min(next[j]+1,prev[j+1]+1,prev[j]+(a[i]===b[j]?0:1)));prev=next;}return prev[b.length];
+  }
+  const PAIR_STEMS=[...new Set(GENERIC_SPECIAL_NAMES.filter(n=>/[○◎]$/.test(normalize(n))).map(n=>normalize(n).slice(0,-1)))];
+  function cleanCellText(text){
+    return normalize(text).replace(/[|｜「」『』【】=。、,，:：;；!！?？]/g,'').replace(/^[\-―—]+|[\-―—]+$/g,'');
+  }
+  function fuzzyBest(text,names,stripTrailing=false){
+    let clean=cleanCellText(text);
+    if(stripTrailing)clean=clean.replace(/[○◎O0@①②③④⑤⑥⑦⑧⑨⑩A-Za-z0-9]+$/g,'');
+    if(!clean)return null;
+    const ranked=names.map(name=>{const n=normalize(name);return {name,d:clean.includes(n)||n.includes(clean)&&clean.length>=Math.max(2,n.length-1)?Math.abs(n.length-clean.length):distance(n,clean)};}).sort((a,b)=>a.d-b.d);
+    const best=ranked[0],second=ranked[1];if(!best)return null;
+    const len=normalize(best.name).length,limit=len<=2?1:len<=5?2:3;
+    return best.d<=limit&&(!second||best.d<second.d)?best:null;
+  }
+  function pairStemFromText(text){
+    const best=fuzzyBest(text,PAIR_STEMS,true);return best?.name||'';
+  }
+  function jobFromText(raw){
+    const cleaned=cleanCellText(raw).replace(/ジョブ/g,'');
+    const exact=JOBS.find(j=>cleaned.includes(normalize(j)));if(exact)return {job:exact,candidate:false,raw};
+    const ranked=JOBS.map(job=>({job,d:distance(normalize(job),cleaned)})).sort((a,b)=>a.d-b.d);
+    const best=ranked[0],second=ranked[1],limit=cleaned.length>=3?2:1;
+    return best&&best.d<=limit&&(!second||best.d<second.d)?{job:best.job,candidate:true,raw}:{job:'',candidate:false,raw};
   }
   function findSpecials(text){
     const lines=text.split(/\n/).map(normalize);
@@ -135,38 +167,59 @@
     const anchor=bands.find(([a,b])=>b-a>=32);if(!anchor)return [];
     const cells=[];
     for(let y=anchor[0];y+39<=537;y+=50)for(let col=0;col<4;col++){
-      const x=[713,852,990,1128][col];let colored=0;
-      for(let yy=y+5;yy<y+35;yy++)for(let xx=x+3;xx<x+127;xx+=8){const i=(yy*1536+xx)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];if((b>r+25&&g>r+10)||(r>b+65&&g>b+35))colored++;}
+      const x=[713,852,990,1128][col];let colored=0,yellow=0;
+      for(let yy=y+5;yy<y+35;yy++)for(let xx=x+3;xx<x+127;xx+=8){const i=(yy*1536+xx)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];if((b>r+25&&g>r+10)||(r>b+65&&g>b+35))colored++;if(r>175&&g>125&&b<120&&r>b+65&&g>b+35)yellow++;}
       // Long names such as 対ウンディーネ and 無頼漢の教え need almost the full cell width.
-      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:Math.round((y-anchor[0])/50)+1,col:col+1});
+      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:Math.round((y-anchor[0])/50)+1,col:col+1,superCell:yellow>18});
     }
     return cells;
   }
-  function cellAbility(text){
+  function cellAbility(text,markHint='',superCell=false){
     const normalized=normalize(text);
+    const pairStem=pairStemFromText(text);
+    if(pairStem&&markHint&&D.special.some(s=>normalize(s[1])===pairStem+markHint))return {...findSpecials(pairStem+markHint),candidate:true};
     const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
-    // Tesseract often reads the double-circle ◎ as a circled digit. Treat that pattern as ◎,
-    // while plain O/0/〇/◯ remains handled as ○ below.
     if(marked){const upper=marked[1]+'◎';if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
-    const clean=normalized.replace(/[O0〇◯]$/,'○').replace(/^[火水風無]攻撃$/,'〜攻撃');
+    // One-character 烈 is especially prone to 珠/科/杏/吾 in this game font.
+    if(superCell&&SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/.test(cleanCellText(text)))return {...findSpecials('烈'),candidate:true};
+    const clean=cleanCellText(normalized.replace(/[O0〇◯]$/,'○')).replace(/^[火水風無]攻撃$/,'〜攻撃');
     const exact=findSpecials(clean);
     if(!exact.unknown.length&&(exact.specials.length||exact.supers.length))return {...exact,candidate:false};
-    const names=[...GENERIC_SPECIAL_NAMES,...SUPER_NAMES];
-    // Never guess ○ versus ◎ from a damaged symbol.
-    const hasMark=/[○◎]$/.test(clean);
-    const ranked=names.filter(n=>n.length>=2&&(!/[○◎]$/.test(n)||hasMark&&n.endsWith(clean.slice(-1)))).map(name=>({name,d:distance(normalize(name),clean)})).sort((a,b)=>a.d-b.d);
-    const best=ranked[0];
-    if(best&&best.d<=Math.max(1,Math.floor(clean.length/4))&&(!ranked[1]||best.d<ranked[1].d))return {...findSpecials(best.name),candidate:true};
+    const names=[...GENERIC_SPECIAL_NAMES,...SUPER_NAMES].filter(n=>n.length>=2);
+    const best=fuzzyBest(clean,names,false);
+    if(best){
+      // Without a symbol hint, never silently swap ○ and ◎.
+      if(/[○◎]$/.test(normalize(best.name))&&!/[○◎]$/.test(clean))return {specials:[],supers:[],unknown:[clean],candidate:false};
+      return {...findSpecials(best.name),candidate:true};
+    }
     return {specials:[],supers:[],unknown:[clean],candidate:false};
+  }
+  async function abilityMarkHint(image,cell,rawTexts=[]){
+    const joined=rawTexts.map(normalize).join('');
+    if(/[◎①②③④⑤⑥⑦⑧⑨⑩@]/.test(joined))return '◎';
+    const [x,y,w,h]=cell.rect;let sawCircle=/[○〇◯O]/.test(joined);
+    for(const offset of [88,98]){
+      const width=Math.min(48,w-offset);if(width<=10)continue;
+      const t=(await textAt(image,[x+offset,y,width,h],false,false,true)).text;
+      const n=normalize(t);
+      if(/[◎①②③④⑤⑥⑦⑧⑨⑩@]/.test(n))return '◎';
+      if(/[○〇◯O]/.test(n))sawCircle=true;
+    }
+    return sawCircle?'○':'';
   }
   async function readAbilityCells(image,index){
     const result={specials:[],supers:[],warnings:[]};
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
     const missed=[],candidates=[];
     for(const cell of cells){
-      let raw=(await textAt(image,cell.rect,false,false,true)).text;let parsed=cellAbility(raw);
-      if(parsed.unknown.length||parsed.candidate){const retry=(await textAt(image,cell.rect,false,false,true,true)).text;const alternative=cellAbility(retry);if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}}
-      if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw);
+      const first=(await textAt(image,cell.rect,false,false,true)).text;
+      const retry=(await textAt(image,cell.rect,false,false,true,120)).text;
+      const stem=pairStemFromText(first)||pairStemFromText(retry);
+      const markHint=stem?await abilityMarkHint(image,cell,[first,retry]):'';
+      let raw=first,parsed=cellAbility(first,markHint,cell.superCell);
+      const alternative=cellAbility(retry,markHint,cell.superCell);
+      if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}
+      if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
         if(D.superResistances[entry.name]){const t=(await textAt(image,cell.levelRect,true)).text;entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;}
@@ -181,24 +234,19 @@
     return result;
   }
   async function jobOf(image){
-    const crops=[[650,12,250,48],[685,22,190,34]];
-    const ordered=JOBS.slice().sort((a,b)=>normalize(b).length-normalize(a).length);
+    const crops=[[675,18,205,40],[685,22,190,34],[650,12,250,48]];
     for(const rect of crops){
-      for(const [white,threshold] of [[true,false],[false,true]]){
+      for(const [white,threshold] of [[false,false],[true,false],[false,120]]){
         const raw=(await textAt(image,rect,false,white,true,threshold)).text;
-        const cleaned=normalize(raw).replace(/[|｜]/g,'').replace(/ジョブ/g,'');
-        const exact=ordered.find(j=>cleaned.includes(normalize(j)));if(exact)return {job:exact,candidate:false,raw};
-        const ranked=ordered.map(job=>({job,d:distance(normalize(job),cleaned)})).sort((a,b)=>a.d-b.d);
-        if(ranked[0]&&ranked[0].d<=1&&(!ranked[1]||ranked[0].d<ranked[1].d))return {job:ranked[0].job,candidate:true,raw};
+        const matched=jobFromText(raw);if(matched.job)return matched;
       }
     }
-    // Old reference is only a fallback after OCR, so 双剣士 is never collapsed to 剣士 first.
     if(await matchesTemplate(image,'swordsman',[685,22,165,32]))return {job:'剣士',candidate:false,raw:''};
     return {job:'',candidate:false,raw:''};
   }
   async function readImages(images){
     const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],warnings:[],dataScreens:0,abilityUpScreens:0};
-    const modalBasic={};
+    const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     function mergeField(target,key,value,label){
       if(value==null||value==='')return;
       if(target[key]!=null&&target[key]!==''&&target[key]!==value){target[key]=null;out.warnings.push(label+'の読み取り値が一致しません。画像の数値を確認して入力してください。');}
@@ -211,7 +259,7 @@
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
         const values=await numericRow(image,BASICS.map((_,j)=>[267+72.5*j,508,45,26]));
-        BASICS.forEach((n,j)=>{if(values[j]!=null)modalBasic[n]=values[j];});
+        BASICS.forEach((n,j)=>{if(values[j]!=null)modalBasicSamples[n].push(values[j]);});
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         out.warnings.push(...result.warnings);
@@ -230,7 +278,11 @@
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
-    for(const n of BASICS)out.basic[n]=modalBasic[n]??null;
+    for(const n of BASICS){
+      const samples=modalBasicSamples[n],counts=new Map();for(const v of samples)counts.set(v,(counts.get(v)||0)+1);
+      const ranked=[...counts.entries()].sort((a,b)=>b[1]-a[1]);out.basic[n]=ranked[0]?.[0]??null;
+      if(ranked.length>1&&ranked[0][1]===ranked[1][1])out.warnings.push(n+'の読み取り値が画像間で一致しません。確認してください。');
+    }
     // 双剣士専用通常攻撃は通常の特殊能力とは別管理。Lv1は academy_runtime.js の initialLevel で自動取得済み。
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();for(const s of out.supers){const old=superMap.get(s.name);if(old&&old.level!=null&&s.level!=null&&old.level!==s.level){s.level=null;out.warnings.push(s.name+'のLvを確認してください。');}else if(old?.level!=null&&s.level==null)s.level=old.level;superMap.set(s.name,s);}out.supers=[...superMap.values()];
@@ -247,7 +299,7 @@
       <div class="photo-review-grid"><label>アカデミー<select id="photoAcademy">${options(ACADEMIES,data.academy)}</select></label><label>ジョブ<select id="photoJob">${options(JOBS,data.job)}</select></label></div>
       <h3>所持経験点</h3><div class="photo-review-grid">${EXPS.map((n,i)=>`<label>${n}<input id="photoExp${i}" type="number" min="0" inputmode="numeric" value="${data.exp[n]??''}"></label>`).join('')}</div>
       <h3>基本能力</h3><p class="photo-note">「能力データ」画面の数値を使用しています。</p><div class="photo-review-grid">${BASICS.map((n,i)=>`<label>${n}<input id="photoBasic${i}" type="number" min="1" inputmode="numeric" value="${data.basic[n]??''}"></label>`).join('')}</div>
-      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?'双剣士専用の通常攻撃はLv1が初期取得済みです。Lv2以降は通常の特殊能力とは別に、器用さ条件を満たして順番に取得します。':''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
+      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?'<strong>双剣士専用 通常攻撃 Lv1：取得済み</strong><br>Lv2以降は通常の特殊能力とは別に、器用さ条件と経験点を満たして順番に取得します。':''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
       <h3>取得済み超特殊能力</h3><p class="photo-note">上位能力に対応する◎・○は自動で取得済みにします。耐性のある能力はLvを選択してください。</p>
       <div id="photoSupers">${data.supers.map(s=>superRow(s)).join('')}</div><button id="photoAddSuper" class="secondary" type="button">＋超特殊能力を追加</button>
       <label class="photo-confirm"><input id="photoConfirmed" type="checkbox">特殊能力の続きも含め、読み取り結果を確認しました</label>
@@ -291,5 +343,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText};
 })();
