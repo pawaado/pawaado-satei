@@ -343,25 +343,47 @@
     return sawCircle?'○':'';
   }
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[]};
+    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null};
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
     const missed=[],candidates=[];
     for(const cell of cells){
-      const first=(await textAt(image,cell.rect,false,false,true)).text;
-      const firstStem=pairStemFromText(first);
-      let preliminary=cellAbility(first,'',cell.superCell),retry='';
-      if(firstStem||preliminary.unknown.length||preliminary.candidate)retry=(await textAt(image,cell.rect,false,false,true,120)).text;
-      const stem=firstStem||pairStemFromText(retry);
-      const markHint=stem?await abilityMarkHint(image,cell,[first,retry]):'';
-      let raw=first,parsed=cellAbility(first,markHint,cell.superCell);
-      if(retry){
-        const alternative=cellAbility(retry,markHint,cell.superCell);
-        if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}
+      // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
+      const visualName=abilityByImage(image,cell);
+      if(visualName===DUAL_NORMAL_ATTACK){
+        result.dualAttackLevel=Math.max(result.dualAttackLevel||0,1);
+        if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName);
+        continue;
       }
+
+      let raw='',markHint='',parsed;
+      if(visualName){
+        raw='[image] '+visualName;
+        parsed=cellAbility(visualName,'',cell.superCell);
+      }else{
+        const first=(await textAt(image,cell.rect,false,false,true)).text;
+        const firstStem=pairStemFromText(first);
+        let preliminary=cellAbility(first,'',cell.superCell),retry='';
+        if(firstStem||preliminary.unknown.length||preliminary.candidate)retry=(await textAt(image,cell.rect,false,false,true,120)).text;
+        const stem=firstStem||pairStemFromText(retry);
+        markHint=stem?await abilityMarkHint(image,cell,[first,retry]):'';
+        raw=first;parsed=cellAbility(first,markHint,cell.superCell);
+        if(retry){
+          const alternative=cellAbility(retry,markHint,cell.superCell);
+          if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}
+        }
+      }
+
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
-        if(D.superResistances[entry.name]){const t=(await textAt(image,cell.levelRect,true)).text;entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;}
+        if(D.superResistances[entry.name]){
+          const visualLevel=levelByImage(image,cell);
+          if(visualLevel!=null)entry.level=visualLevel;
+          else{
+            const t=(await textAt(image,cell.levelRect,true)).text;
+            entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
+          }
+        }
         result.supers.push(entry);
       }
       const where=`${cell.row}段目・左から${cell.col}番目`;
@@ -373,6 +395,8 @@
     return result;
   }
   async function jobOf(image){
+    const visual=dualJobByImage(image);
+    if(visual)return {job:visual,candidate:false,raw:'[image] '+visual};
     const crops=[[675,18,205,40],[685,22,190,34],[650,12,250,48]];
     for(const rect of crops){
       for(const [white,threshold] of [[false,false],[true,false],[false,120]]){
@@ -384,7 +408,7 @@
     return {job:'',candidate:false,raw:''};
   }
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     function mergeField(target,key,value,label){
       if(value==null||value==='')return;
@@ -397,10 +421,14 @@
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
-        const values=await numericRow(image,BASICS.map((_,j)=>[267+72.5*j,508,45,26]));
+        const imageValues=BASICS.map((_,j)=>basicByImage(image,j));
+        const needsOcr=imageValues.map((v,j)=>v==null?j:-1).filter(j=>j>=0);
+        const ocrValues=needsOcr.length?await numericRow(image,needsOcr.map(j=>[267+72.5*j,508,45,26])):[];
+        const values=imageValues.slice();needsOcr.forEach((j,k)=>{values[j]=ocrValues[k];});
         BASICS.forEach((n,j)=>{if(values[j]!=null)modalBasicSamples[n].push(values[j]);});
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
+        if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
         out.warnings.push(...result.warnings);
       }else{
         // Job and EXP live in the common header of every 能力アップ tab.
@@ -422,7 +450,13 @@
       const ranked=[...counts.entries()].sort((a,b)=>b[1]-a[1]);out.basic[n]=ranked[0]?.[0]??null;
       if(ranked.length>1&&ranked[0][1]===ranked[1][1])out.warnings.push(n+'の読み取り値が画像間で一致しません。確認してください。');
     }
-    // 双剣士専用通常攻撃は通常の特殊能力とは別管理。Lv1は academy_runtime.js の initialLevel で自動取得済み。
+    // 双剣士専用通常攻撃は通常の特殊能力とは別管理。
+    // 専用Lv1の画像を拾えた場合はジョブ判定の補助にも使う。
+    if(out.dualAttackLevel!=null){
+      if(!out.job)out.job='双剣士';
+      else if(out.job!=='双剣士')out.warnings.push('双剣士専用の通常攻撃を検出しました。ジョブを確認してください。');
+    }
+    if(out.job==='双剣士'&&out.dualAttackLevel==null)out.dualAttackLevel=1;
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();for(const s of out.supers){const old=superMap.get(s.name);if(old&&old.level!=null&&s.level!=null&&old.level!==s.level){s.level=null;out.warnings.push(s.name+'のLvを確認してください。');}else if(old?.level!=null&&s.level==null)s.level=old.level;superMap.set(s.name,s);}out.supers=[...superMap.values()];
     for(const entry of out.supers)if(D.superResistances[entry.name]&&entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを選んでください。');
@@ -438,7 +472,7 @@
       <div class="photo-review-grid"><label>アカデミー<select id="photoAcademy">${options(ACADEMIES,data.academy)}</select></label><label>ジョブ<select id="photoJob">${options(JOBS,data.job)}</select></label></div>
       <h3>所持経験点</h3><div class="photo-review-grid">${EXPS.map((n,i)=>`<label>${n}<input id="photoExp${i}" type="number" min="0" inputmode="numeric" value="${data.exp[n]??''}"></label>`).join('')}</div>
       <h3>基本能力</h3><p class="photo-note">「能力データ」画面の数値を使用しています。</p><div class="photo-review-grid">${BASICS.map((n,i)=>`<label>${n}<input id="photoBasic${i}" type="number" min="1" inputmode="numeric" value="${data.basic[n]??''}"></label>`).join('')}</div>
-      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?'<strong>双剣士専用 通常攻撃 Lv1：取得済み</strong><br>Lv2以降は通常の特殊能力とは別に、器用さ条件と経験点を満たして順番に取得します。':''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
+      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?`<strong>双剣士専用 通常攻撃 Lv${data.dualAttackLevel||1}：取得済み</strong><br>通常の「通常攻撃○／◎」とは別能力です。Lv2以降は器用さ条件と経験点を満たして順番に取得します。`:''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
       <h3>取得済み超特殊能力</h3><p class="photo-note">上位能力に対応する◎・○は自動で取得済みにします。耐性のある能力はLvを選択してください。</p>
       <div id="photoSupers">${data.supers.map(s=>superRow(s)).join('')}</div><button id="photoAddSuper" class="secondary" type="button">＋超特殊能力を追加</button>
       <label class="photo-confirm"><input id="photoConfirmed" type="checkbox">特殊能力の続きも含め、読み取り結果を確認しました</label>
@@ -458,7 +492,7 @@
       try{
         if(!el('photoConfirmed').checked)throw new Error('読み取り結果を確認し、チェックを入れてください。');
         const number=id=>el(id).value===''?null:Number(el(id).value);
-        const result={academy:el('photoAcademy').value,job:el('photoJob').value,exp:Object.fromEntries(EXPS.map((n,i)=>[n,number('photoExp'+i)])),basic:Object.fromEntries(BASICS.map((n,i)=>[n,number('photoBasic'+i)])),specials:[...box.querySelectorAll('[data-photo-special]:checked')].map(e=>D.special[Number(e.dataset.photoSpecial)][1]),supers:[]};
+        const result={academy:el('photoAcademy').value,job:el('photoJob').value,exp:Object.fromEntries(EXPS.map((n,i)=>[n,number('photoExp'+i)])),basic:Object.fromEntries(BASICS.map((n,i)=>[n,number('photoBasic'+i)])),specials:[...box.querySelectorAll('[data-photo-special]:checked')].map(e=>D.special[Number(e.dataset.photoSpecial)][1]),supers:[],dualAttackLevel:data.dualAttackLevel||(el('photoJob').value==='双剣士'?1:null)};
         for(const row of el('photoSupers').children){const name=row.querySelector('.photo-super-name').value,level=Number(row.querySelector('.photo-super-level').value);if(!name)throw new Error('超特殊能力の名前を選択してください。');const def=D.superResistances[name];if(def&&![1,2].includes(level))throw new Error('耐性のある超特殊能力のLvを選択してください。');if(result.supers.some(s=>s.name===name))throw new Error('超特殊能力が重複しています。');if(def?.job&&def.job!==result.job)throw new Error(name+'は'+def.job+'専用です。');result.supers.push({name,level:def?level:null});}
         window.__PAWAADO_IMPORT_PHOTO__(result);
         status('反映しました。下のコツLvを入力して「計算する」を押してください。');
