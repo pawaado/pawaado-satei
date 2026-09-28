@@ -22,8 +22,8 @@
     '対魔闘士○':'AAAAAAAAAAAAAAAAAAAAAAGMGAABAAAAAYz/P8ED8AAD/P8/wQO4AAD8/z/f9xgAA/z/L9/2CAABvP8/wQYYAgHM/z/BAxgCA9z9P8/j+AI=',
     '対魔法使い◎':'AAAAAAAAAAAAAAAAAAAAACGDAEAQAAcAMZ/n+f5gGYB/n+P7mGY5QB+f5mN8QzDAd5/n+3zDIAA3n+bRfMMggjmf5/FwealCe5/v+f55EII='
   };
-  // 同じ数字でも「能力データ」と「能力アップ」では描画サイズが少し違うため、
-  // 実画像から複数テンプレートを持つ。7/8など未登録字形はOCRへフォールバックする。
+  // 基本能力の数字はOCRを使わず、実画像の数字テンプレート比較だけで判定する。
+  // 未登録・曖昧な字形は空欄＋警告にして、OCRへはフォールバックしない。
   const HYBRID_DIGIT_MASKS={
     '0':['H4H4P8OO8G4G4G4H4H4H4G8G8GO+H8BA'],
     '1':['APAPB/////APAPAPAPAPAPAPAPAPAPAP','APAPA/D/////A/A/A/A/A/A/A/A/A/AP','A8A8D/P/////A/A/A/A/A/A/A/A/A/A8'],
@@ -173,10 +173,42 @@
     }).sort((a,b)=>a.d-b.d);
     return ranked[0]&&ranked[0].d<=limit&&(!ranked[1]||ranked[1].d-ranked[0].d>=.025)?ranked[0].value:'';
   }
-  function basicByImage(image,index){
-    const x=[270,342,415,488,560,632][index],components=glyphComponents(image,[x,505,45,30],90).filter(c=>c.y>=5);
+  function classifyBasicDigit(component){
+    const glyph=normalizeGlyph(component.mask,component.w,component.h);
+
+    // 5 と 3 は輪郭が近いので、まず上半分の左右バランスで5を先に分離する。
+    const leftMid=(()=>{
+      let hit=0,total=0;
+      for(let y=3;y<8;y++)for(let x=0;x<4;x++){hit+=glyph[y*12+x];total++;}
+      return total?hit/total:0;
+    })();
+    const rightMid=(()=>{
+      let hit=0,total=0;
+      for(let y=3;y<8;y++)for(let x=8;x<12;x++){hit+=glyph[y*12+x];total++;}
+      return total?hit/total:0;
+    })();
+    if(component.w>=8&&leftMid>=.65&&rightMid<=.35)return '5';
+
+    const ranked=Object.entries(HYBRID_DIGIT_MASKS).map(([value,encoded])=>{
+      const variants=Array.isArray(encoded)?encoded:[encoded];
+      return {value,d:Math.min(...variants.map(e=>maskDistance(glyph,decodeMask(e,12*16))))};
+    }).sort((a,b)=>a.d-b.d);
+
+    // 曖昧なら推測せず空欄にする。基本能力ではOCRを使わない。
+    if(!ranked[0]||ranked[0].d>.16)return '';
+    if(ranked[1]&&ranked[1].d-ranked[0].d<.025)return '';
+    return ranked[0].value;
+  }
+
+  function basicByImageStrict(image,index){
+    const x=[270,342,415,488,560,632][index];
+    const components=glyphComponents(image,[x,505,45,30],90)
+      .filter(c=>c.y>=5&&c.h>=10&&c.area>=18)
+      .sort((a,b)=>a.x-b.x);
+
+    // 能力データ画面の基本能力は、このレイアウトでは2桁表示。
     if(components.length!==2)return null;
-    const digits=components.map(c=>classifyGlyph(c,HYBRID_DIGIT_MASKS,.18));
+    const digits=components.map(classifyBasicDigit);
     return digits.every(Boolean)?Number(digits.join('')):null;
   }
   function levelByImage(image,cell){
@@ -450,11 +482,12 @@
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
-        const imageValues=BASICS.map((_,j)=>basicByImage(image,j));
-        const needsOcr=imageValues.map((v,j)=>v==null?j:-1).filter(j=>j>=0);
-        const ocrValues=needsOcr.length?await numericRow(image,needsOcr.map(j=>[267+72.5*j,508,45,26])):[];
-        const values=imageValues.slice();needsOcr.forEach((j,k)=>{values[j]=ocrValues[k];});
-        BASICS.forEach((n,j)=>{if(values[j]!=null)modalBasicSamples[n].push(values[j]);});
+        // 基本能力6種は画像比較のみ。OCRフォールバックはしない。
+        const values=BASICS.map((_,j)=>basicByImageStrict(image,j));
+        BASICS.forEach((n,j)=>{
+          if(values[j]!=null)modalBasicSamples[n].push(values[j]);
+          else out.warnings.push(`${i+1}枚目：${n}を画像比較で読み取れませんでした。基本能力を確認してください。`);
+        });
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
@@ -557,5 +590,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit};
 })();
