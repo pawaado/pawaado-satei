@@ -9,6 +9,32 @@
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])];
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
+
+  // OCRだけに依存しないハイブリッド認識。
+  // 提供済みの実ゲーム画像から、誤読しやすい文字列・数字を「黒画素の形」として登録している。
+  // 未登録の能力は従来OCRへフォールバックするため、全能力の画像を事前登録する必要はない。
+  const HYBRID_ABILITY_MASKS={
+    '通常攻撃(双剣士)':'//////////i8HAAAAAAAGLAGAAAAAAAY5lML41AYdxDH4xvn/f5/gMdxA/f9/3+Aw6Ef9/z+f4DH8Z/z8P5/mM/R7/P47T8Yy2mO5/n+DBg=',
+    '烈':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf8AAAAAAAAA/wAAAAAAAAH/AAAAAAAAAP8AAAAAAAAA5wAAAAgAAADOAAAACAAAAb8AAAAI=',
+    '備え':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH+PgAAAAAAAbwAAAAAAAAD/n4AAAAAAAP+DgAAAAAAAf4cAAAAgAAB/n2AAACAAAHe74AAAI=',
+    '安全運転':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/h437/AAAAH+f5fm8AAAAWbzh88AAAAB/n8/z/gAAADMPB/PcAAgAPg/H+9QACAB/n+/7/gAI=',
+    '戦い抜く覚悟':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AD+BxvH+B/jMf4eH+7wH/I52Dgf7/Af5hjecB/P+B/mGf5wH8bwjubY/jwfx/if88n+Dg3n+I=',
+    '対魔闘士○':'AAAAAAAAAAAAAAAAAAAAAAGMGAABAAAAAYz/P8ED8AAD/P8/wQO4AAD8/z/f9xgAA/z/L9/2CAABvP8/wQYYAgHM/z/BAxgCA9z9P8/j+AI=',
+    '対魔法使い◎':'AAAAAAAAAAAAAAAAAAAAACGDAEAQAAcAMZ/n+f5gGYB/n+P7mGY5QB+f5mN8QzDAd5/n+3zDIAA3n+bRfMMggjmf5/FwealCe5/v+f55EII='
+  };
+  const HYBRID_DIGIT_MASKS={
+    '0':'H4H4P8OO8G4G4G4H4H4H4G8G8GO+H8BA',
+    '1':'APAPB/////APAPAPAPAPAPAPAPAPAPAP',
+    '2':'H8H8P+8P4DAPAPAPA+DwHgHgMA8A8A//',
+    '3':'HwHw/+4eAOAeAeA8H8AeAOAOAPwP8e/+',
+    '4':'A8A8A8D8H8HcHcOcOc8c8e8e//A+AcAc',
+    '5':'/+/+/+8A4A4A4A/+8eAPADADAD4P8eP8'
+  };
+  const HYBRID_LEVEL_MASKS={
+    '1':'B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI',
+    '2':'A/A/BjBBAIgMh4ARBzBCBMcPmAmA3/J+'
+  };
+  const HYBRID_DUAL_JOB_MASK='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/nnh4AAAAAAAAAAf/v/h4AAAAAAAAAAYA8dhYAAAAAAAAAAe+zN/fgAAAAAAAAAa24dwBgAAAAAAAAAc189wBgAAAAAAAAAMx+9/fgAAAAAAAAAMZe9hYAAAAAAAAAAdx89/fAAAAAAAAAAbk7d/PgAAAAAAAAAf//94BgAAAAAAAAAO7//f/AAAAAAAAAAAAAAAAAAAAA';
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize=s=>String(s).normalize('NFKC').replace(/\s/g,'').replace(/[〇◯]/g,'○');
   const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
@@ -35,6 +61,114 @@
   let files=[],urls=[],busy=false,worker=null,workerLanguage='jpn',review=null;
   const status=t=>{el('photoStatus').textContent=t;};
   const imageFrom=src=>new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('画像を開けませんでした。PNGまたはJPEGでお試しください。'));im.src=src;});
+
+  const decodedMasks=new Map();
+  function decodeMask(encoded,size){
+    const key=encoded+'|'+size;if(decodedMasks.has(key))return decodedMasks.get(key);
+    const raw=atob(encoded),out=new Uint8Array(size);
+    let p=0;
+    for(let i=0;i<raw.length&&p<size;i++){
+      const byte=raw.charCodeAt(i);
+      for(let bit=7;bit>=0&&p<size;bit--)out[p++]=(byte>>bit)&1;
+    }
+    decodedMasks.set(key,out);return out;
+  }
+  function canonicalCrop(image,rect){
+    const [x,y,w,h]=rect,c=document.createElement('canvas');
+    c.width=Math.round(w);c.height=Math.round(h);
+    c.getContext('2d').drawImage(
+      image,
+      x*image.width/1536,y*image.height/706,w*image.width/1536,h*image.height/706,
+      0,0,c.width,c.height
+    );
+    return c;
+  }
+  function inkMask(image,rect,blockX,blockY,threshold=100){
+    const c=canonicalCrop(image,rect),ctx=c.getContext('2d'),data=ctx.getImageData(0,0,c.width,c.height).data;
+    const outW=Math.floor(c.width/blockX),outH=Math.floor(c.height/blockY),out=new Uint8Array(outW*outH);
+    for(let oy=0;oy<outH;oy++)for(let ox=0;ox<outW;ox++){
+      let dark=0;
+      for(let yy=0;yy<blockY;yy++)for(let xx=0;xx<blockX;xx++){
+        const x=ox*blockX+xx,y=oy*blockY+yy,i=(y*c.width+x)*4;
+        const lum=Math.round(data[i]*.299+data[i+1]*.587+data[i+2]*.114);
+        if(lum<threshold)dark++;
+      }
+      out[oy*outW+ox]=dark?1:0;
+    }
+    return {mask:out,w:outW,h:outH};
+  }
+  function shiftedMaskDistance(a,b,w,h,maxDx=3,maxDy=2){
+    let best=1;
+    for(let dy=-maxDy;dy<=maxDy;dy++)for(let dx=-maxDx;dx<=maxDx;dx++){
+      let diff=0,count=0;
+      for(let y=0;y<h;y++){const by=y-dy;if(by<0||by>=h)continue;
+        for(let x=0;x<w;x++){const bx=x-dx;if(bx<0||bx>=w)continue;diff+=a[y*w+x]!==b[by*w+bx];count++;}
+      }
+      if(count)best=Math.min(best,diff/count);
+    }
+    return best;
+  }
+  function abilityByImage(image,cell){
+    const [x,y,w]=cell.rect;
+    const sig=inkMask(image,[x+4,y+4,w-8,20],2,2,100);
+    const ranked=Object.entries(HYBRID_ABILITY_MASKS).map(([name,encoded])=>({
+      name,d:shiftedMaskDistance(sig.mask,decodeMask(encoded,64*10),64,10,3,2)
+    })).sort((a,b)=>a.d-b.d);
+    const best=ranked[0],second=ranked[1];
+    if(!best)return '';
+    const limit=(best.name==='烈'||best.name==='備え')?.045:.07;
+    return best.d<=limit&&(!second||second.d-best.d>=.015)?best.name:'';
+  }
+  function normalizeGlyph(mask,w,h,outW=12,outH=16){
+    const out=new Uint8Array(outW*outH);
+    for(let oy=0;oy<outH;oy++){const sy=Math.min(h-1,Math.floor(oy*h/outH));
+      for(let ox=0;ox<outW;ox++){const sx=Math.min(w-1,Math.floor(ox*w/outW));out[oy*outW+ox]=mask[sy*w+sx];}
+    }
+    return out;
+  }
+  function maskDistance(a,b){let d=0;for(let i=0;i<a.length;i++)d+=a[i]!==b[i];return d/a.length;}
+  function glyphComponents(image,rect,threshold=90){
+    const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    const w=c.width,h=c.height,dark=new Uint8Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,lum=Math.round(data[i]*.299+data[i+1]*.587+data[i+2]*.114);if(lum<threshold)dark[y*w+x]=1;}
+    const seen=new Uint8Array(w*h),components=[];
+    const stackX=[],stackY=[];
+    for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
+      const start=sy*w+sx;if(!dark[start]||seen[start])continue;
+      seen[start]=1;stackX.push(sx);stackY.push(sy);
+      let minX=sx,maxX=sx,minY=sy,maxY=sy,area=0,pixels=[];
+      while(stackX.length){const x=stackX.pop(),y=stackY.pop();area++;pixels.push([x,y]);minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){const k=yy*w+xx;if(dark[k]&&!seen[k]){seen[k]=1;stackX.push(xx);stackY.push(yy);}}
+      }
+      const cw=maxX-minX+1,ch=maxY-minY+1;if(cw<4||cw>18||ch<8||ch>22||area<15)continue;
+      const local=new Uint8Array(cw*ch);for(const [x,y] of pixels)local[(y-minY)*cw+(x-minX)]=1;
+      components.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+    }
+    return components.sort((a,b)=>a.x-b.x);
+  }
+  function classifyGlyph(component,templates,limit=.18){
+    const glyph=normalizeGlyph(component.mask,component.w,component.h);
+    const ranked=Object.entries(templates).map(([value,encoded])=>({value,d:maskDistance(glyph,decodeMask(encoded,12*16))})).sort((a,b)=>a.d-b.d);
+    return ranked[0]&&ranked[0].d<=limit?ranked[0].value:'';
+  }
+  function basicByImage(image,index){
+    const x=270+Math.round(72.5*index),components=glyphComponents(image,[x,505,45,30],90).filter(c=>c.y>=5);
+    if(components.length!==2)return null;
+    const digits=components.map(c=>classifyGlyph(c,HYBRID_DIGIT_MASKS,.18));
+    return digits.every(Boolean)?Number(digits.join('')):null;
+  }
+  function levelByImage(image,cell){
+    const [x,y]=cell.rect,components=glyphComponents(image,[x+103,y+22,33,28],90);
+    if(!components.length)return null;
+    const digit=classifyGlyph(components[components.length-1],HYBRID_LEVEL_MASKS,.18);
+    return digit?Number(digit):null;
+  }
+  function dualJobByImage(image){
+    const sig=inkMask(image,[670,20,192,32],2,2,100);
+    const ref=decodeMask(HYBRID_DUAL_JOB_MASK,96*16);
+    return shiftedMaskDistance(sig.mask,ref,96,16,4,2)<=.06?'双剣士':'';
+  }
+
   function canvasCrop(image,rect,scale=3){
     const c=document.createElement('canvas'),r=rect.map((v,i)=>v*(i%2?image.height/706:image.width/1536));
     c.width=Math.round(r[2]*scale);c.height=Math.round(r[3]*scale);
