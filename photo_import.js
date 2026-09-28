@@ -6,7 +6,8 @@
   const EXPS=['筋力','敏捷','技術','知力','精神'];
   const ACADEMIES=[...new Set(D.academies.map(r=>r[0]))];
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
-  const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])];
+  const PHOTO_ONLY_SUPER_NAMES=['剛力'];
+  const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites),...PHOTO_ONLY_SUPER_NAMES])];
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
 
@@ -125,9 +126,10 @@
   function abilityByImage(image,cell){
     const [x,y,w]=cell.rect;
     const sig=inkMask(image,[x+4,y+4,w-8,20],2,2,100);
-    const ranked=Object.entries(HYBRID_ABILITY_MASKS).map(([name,encoded])=>({
-      name,d:shiftedMaskDistance(sig.mask,decodeMask(encoded,64*10),64,10,3,2)
-    })).sort((a,b)=>a.d-b.d);
+    const ranked=Object.entries(HYBRID_ABILITY_MASKS).map(([name,encoded])=>{
+      const variants=Array.isArray(encoded)?encoded:[encoded];
+      return {name,d:Math.min(...variants.map(e=>shiftedMaskDistance(sig.mask,decodeMask(e,64*10),64,10,3,2)))};
+    }).sort((a,b)=>a.d-b.d);
     const best=ranked[0],second=ranked[1];
     if(!best)return '';
     const limit=(best.name==='烈'||best.name==='備え')?.045:.07;
