@@ -3045,6 +3045,7 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     basicHints[n]=0; basicOwned[n]=false;
     document.getElementById('basic_'+n).value=data.basic[n]; applyBasicVisual(n);
   });
+  if(data.job==='双剣士') window.__PAWAADO_SET_DUAL_ATTACK__?.(Number(data.dualAttackLevel||1),0);
   specialState.clear(); renderSpecials();
   const owned=new Set(data.specials);
   for(const entry of data.supers||[]) for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]) owned.add(name);
