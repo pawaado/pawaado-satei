@@ -526,6 +526,7 @@ function renderExp(){
 
 
 function applyCurrentJobTheme(){
+  document.getElementById('specialTitle').textContent=job.value==='双剣士'?'特殊能力等':'特殊能力';
   document.body.classList.remove(...Object.values(jobClassMap).map(cls=>`theme-${cls}`));
   const cls=jobClassMap[job.value];
   if(cls) document.body.classList.add(`theme-${cls}`);
@@ -2860,7 +2861,7 @@ function sampleResultHtml(entry,index,multiple=false){
   return `<div class="sample-result ${multiple&&entry.isBest?'best-sample-result':''} ${multiple?'':'single-sample-result'}">
     ${headerHtml}
     <div class="result-block"><h3>基本能力</h3>${resultTable(finalItems,'basic')}</div>
-    <div class="result-block"><h3>特殊能力</h3>${resultTable(finalItems,'special')}</div>
+    <div class="result-block"><h3>${job.value==='双剣士'?'特殊能力等':'特殊能力'}</h3>${resultTable(finalItems,'special')}</div>
     <div class="result-block score-result-block"><h3>査定上昇量</h3><span class="score-gain">${scoreText}</span></div>
     <div class="result-block"><h3>残経験点</h3><div class="remain-grid">${remainHtml}</div></div>
   </div>`;
