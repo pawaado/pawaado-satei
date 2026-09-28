@@ -145,8 +145,9 @@
   function cellAbility(text){
     const normalized=normalize(text);
     const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
-    // OCR can turn a plain ○ into a circled number. Do not promote an ambiguous mark to ◎.
-    if(marked){const lower=marked[1]+'○',upper=marked[1]+'◎';if(D.special.some(s=>s[1]===lower))return {...findSpecials(lower),candidate:true};if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
+    // Tesseract often reads the double-circle ◎ as a circled digit. Treat that pattern as ◎,
+    // while plain O/0/〇/◯ remains handled as ○ below.
+    if(marked){const upper=marked[1]+'◎';if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
     const clean=normalized.replace(/[O0〇◯]$/,'○').replace(/^[火水風無]攻撃$/,'〜攻撃');
     const exact=findSpecials(clean);
     if(!exact.unknown.length&&(exact.specials.length||exact.supers.length))return {...exact,candidate:false};
