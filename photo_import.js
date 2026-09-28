@@ -230,7 +230,7 @@
       }
     }
     for(const n of BASICS)out.basic[n]=modalBasic[n]??null;
-    if(out.job==='双剣士')out.specials.push(DUAL_NORMAL_ATTACK);
+    // 双剣士専用通常攻撃は通常の特殊能力とは別管理。Lv1は academy_runtime.js の initialLevel で自動取得済み。
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();for(const s of out.supers){const old=superMap.get(s.name);if(old&&old.level!=null&&s.level!=null&&old.level!==s.level){s.level=null;out.warnings.push(s.name+'のLvを確認してください。');}else if(old?.level!=null&&s.level==null)s.level=old.level;superMap.set(s.name,s);}out.supers=[...superMap.values()];
     for(const entry of out.supers)if(D.superResistances[entry.name]&&entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを選んでください。');
@@ -246,7 +246,7 @@
       <div class="photo-review-grid"><label>アカデミー<select id="photoAcademy">${options(ACADEMIES,data.academy)}</select></label><label>ジョブ<select id="photoJob">${options(JOBS,data.job)}</select></label></div>
       <h3>所持経験点</h3><div class="photo-review-grid">${EXPS.map((n,i)=>`<label>${n}<input id="photoExp${i}" type="number" min="0" inputmode="numeric" value="${data.exp[n]??''}"></label>`).join('')}</div>
       <h3>基本能力</h3><p class="photo-note">「能力データ」画面の数値を使用しています。</p><div class="photo-review-grid">${BASICS.map((n,i)=>`<label>${n}<input id="photoBasic${i}" type="number" min="1" inputmode="numeric" value="${data.basic[n]??''}"></label>`).join('')}</div>
-      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
+      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?'双剣士専用の通常攻撃はLv1が初期取得済みです。Lv2以降は通常の特殊能力とは別に、器用さ条件を満たして順番に取得します。':''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
       <h3>取得済み超特殊能力</h3><p class="photo-note">上位能力に対応する◎・○は自動で取得済みにします。耐性のある能力はLvを選択してください。</p>
       <div id="photoSupers">${data.supers.map(s=>superRow(s)).join('')}</div><button id="photoAddSuper" class="secondary" type="button">＋超特殊能力を追加</button>
       <label class="photo-confirm"><input id="photoConfirmed" type="checkbox">特殊能力の続きも含め、読み取り結果を確認しました</label>
