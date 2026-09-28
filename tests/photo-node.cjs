@@ -10,9 +10,9 @@ vm.createContext(context);vm.runInContext(fs.readFileSync('data.js','utf8'),cont
 for(const [name,lowers] of Object.entries(context.PAWAADO_DATA.superPrerequisites)){const parsed=context.__PAWAADO_PHOTO_TEST__.findSpecials(name);for(const lower of lowers)assert.ok(parsed.specials.includes(lower));}
 assert.equal(context.__PAWAADO_PHOTO_TEST__.cellAbility('叶').supers.length,0);
 {
-  const ambiguous=context.__PAWAADO_PHOTO_TEST__.cellAbility('対ヌメリン⑥');
-  assert.ok(ambiguous.specials.includes('対ヌメリン○'));
-  assert.ok(!ambiguous.specials.includes('対ヌメリン◎'));
+  const doubleCircle=context.__PAWAADO_PHOTO_TEST__.cellAbility('対ヌメリン⑥');
+  assert.ok(doubleCircle.specials.includes('対ヌメリン◎'));
+  assert.ok(doubleCircle.specials.includes('対ヌメリン○'));
 }
 assert.ok(context.__PAWAADO_PHOTO_TEST__.cellAbility('対ウンディーネ○').specials.includes('対ウンディーネ○'));
 assert.deepEqual(context.__PAWAADO_PHOTO_TEST__.findSpecials('無頼漢の教えLv1').supers,[{name:'無頼漢の教え',level:1}]);
