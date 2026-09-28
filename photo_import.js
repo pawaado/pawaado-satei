@@ -7,11 +7,13 @@
   const ACADEMIES=[...new Set(D.academies.map(r=>r[0]))];
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])];
+  const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
+  const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize=s=>String(s).normalize('NFKC').replace(/\s/g,'').replace(/[〇◯]/g,'○');
   const section=document.createElement('section'); section.className='card photo-card';
-  section.innerHTML=`<h2>スクショから入力</h2><p>①「基本能力」画面と、②「能力データ」画面を選んでください。特殊能力の続きも追加できます。</p>
+  section.innerHTML=`<h2>スクショから入力</h2><p>①左上に「能力アップ」と表示される画面（基本能力・特殊能力・必殺技・ジョブチェンジのどれでも可）と、②「能力データ」画面を選んでください。特殊能力の続きも追加できます。</p>
     <label class="photo-picker">ゲームのスクショを選ぶ<input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
     <p class="photo-note">画像は端末内で読み取ります。加工・切り抜きしていない横向きのスクショを使ってください。</p>
     <div id="photoPreviews"></div><button id="readPhotos" type="button" disabled>画像を読み取る</button>
@@ -92,7 +94,7 @@
   function findSpecials(text){
     const lines=text.split(/\n/).map(normalize);
     const specials=[],supers=[],unknown=[];
-    const names=D.special.map(s=>s[1]).filter(n=>n!=='通常攻撃（双剣士）');
+    const names=GENERIC_SPECIAL_NAMES;
     for(const line of lines){
       if(!line || line==='未修得')continue;
       let remaining=line;
@@ -135,18 +137,20 @@
     for(let y=anchor[0];y+39<=537;y+=50)for(let col=0;col<4;col++){
       const x=[713,852,990,1128][col];let colored=0;
       for(let yy=y+5;yy<y+35;yy++)for(let xx=x+3;xx<x+127;xx+=8){const i=(yy*1536+xx)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];if((b>r+25&&g>r+10)||(r>b+65&&g>b+35))colored++;}
-      if(colored>30)cells.push({rect:[x+5,y+4,122,29],levelRect:[x+117,y+29,17,19],row:Math.round((y-anchor[0])/50)+1,col:col+1});
+      // Long names such as 対ウンディーネ and 無頼漢の教え need almost the full cell width.
+      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:Math.round((y-anchor[0])/50)+1,col:col+1});
     }
     return cells;
   }
   function cellAbility(text){
     const normalized=normalize(text);
-    const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑨][ぐく]?$/);
-    if(marked){const name=marked[1]+'◎';if(D.special.some(s=>s[1]===name))return {...findSpecials(name),candidate:true};}
+    const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
+    // OCR can turn a plain ○ into a circled number. Do not promote an ambiguous mark to ◎.
+    if(marked){const lower=marked[1]+'○',upper=marked[1]+'◎';if(D.special.some(s=>s[1]===lower))return {...findSpecials(lower),candidate:true};if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
     const clean=normalized.replace(/[O0〇◯]$/,'○').replace(/^[火水風無]攻撃$/,'〜攻撃');
     const exact=findSpecials(clean);
     if(!exact.unknown.length&&(exact.specials.length||exact.supers.length))return {...exact,candidate:false};
-    const names=[...D.special.map(s=>s[1]).filter(n=>n!=='通常攻撃（双剣士）'),...SUPER_NAMES];
+    const names=[...GENERIC_SPECIAL_NAMES,...SUPER_NAMES];
     // Never guess ○ versus ◎ from a damaged symbol.
     const hasMark=/[○◎]$/.test(clean);
     const ranked=names.filter(n=>n.length>=2&&(!/[○◎]$/.test(n)||hasMark&&n.endsWith(clean.slice(-1)))).map(name=>({name,d:distance(normalize(name),clean)})).sort((a,b)=>a.d-b.d);
@@ -175,8 +179,24 @@
     if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}は読み取り候補です。取得状態が合っているか確認してください。`);
     return result;
   }
+  async function jobOf(image){
+    const crops=[[650,12,250,48],[685,22,190,34]];
+    const ordered=JOBS.slice().sort((a,b)=>normalize(b).length-normalize(a).length);
+    for(const rect of crops){
+      for(const [white,threshold] of [[true,false],[false,true]]){
+        const raw=(await textAt(image,rect,false,white,true,threshold)).text;
+        const cleaned=normalize(raw).replace(/[|｜]/g,'').replace(/ジョブ/g,'');
+        const exact=ordered.find(j=>cleaned.includes(normalize(j)));if(exact)return {job:exact,candidate:false,raw};
+        const ranked=ordered.map(job=>({job,d:distance(normalize(job),cleaned)})).sort((a,b)=>a.d-b.d);
+        if(ranked[0]&&ranked[0].d<=1&&(!ranked[1]||ranked[0].d<ranked[1].d))return {job:ranked[0].job,candidate:true,raw};
+      }
+    }
+    // Old reference is only a fallback after OCR, so 双剣士 is never collapsed to 剣士 first.
+    if(await matchesTemplate(image,'swordsman',[685,22,165,32]))return {job:'剣士',candidate:false,raw:''};
+    return {job:'',candidate:false,raw:''};
+  }
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],warnings:[],abilityScreens:0,basicScreens:0};
+    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasic={};
     function mergeField(target,key,value,label){
       if(value==null||value==='')return;
@@ -187,7 +207,7 @@
       const image=images[i];status(`${i+1}/${images.length}枚目を読み取り中…`);
       if(Math.abs(image.width/image.height-1536/706)>0.06){out.warnings.push(`${i+1}枚目は画面比率が異なるため読み取れませんでした。`);continue;}
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
-        out.abilityScreens++;
+        out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
         const values=await numericRow(image,BASICS.map((_,j)=>[267+72.5*j,508,45,26]));
         BASICS.forEach((n,j)=>{if(values[j]!=null)modalBasic[n]=values[j];});
@@ -195,24 +215,27 @@
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         out.warnings.push(...result.warnings);
       }else{
-        if(!await matchesTemplate(image,'basic',[748,104,141,39])){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
-        out.basicScreens++;
-        const jobText=normalize((await textAt(image,[685,22,165,32],false,true)).text);
-        let jobMatch=await matchesTemplate(image,'swordsman',[685,22,165,32])?'剣士':JOBS.find(j=>jobText===normalize(j))||'';
-        if(!jobMatch){const candidates=JOBS.filter(j=>distance(normalize(j),jobText.replace(/[|｜]/g,''))===1);if(candidates.length===1){jobMatch=candidates[0];out.warnings.push('ジョブの候補：'+jobMatch+'（要確認）');}}
-        mergeField(out,'job',jobMatch,'ジョブ');
+        // Job and EXP live in the common header of every 能力アップ tab.
+        const jobResult=await jobOf(image);
         const exp=await numericRow(image,EXPS.map((_,j)=>[981+60*j,228,49,21]));
+        const knownTab=await matchesTemplate(image,'basic',[748,104,141,39]);
+        let title='';if(!knownTab)title=normalize((await textAt(image,[40,10,360,60],false,true)).text);
+        const enoughExp=exp.filter(v=>v!=null).length>=3;
+        if(!knownTab&&!title.includes('能力アップ')&&!jobResult.job&&!enoughExp){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
+        out.abilityUpScreens++;
+        if(jobResult.candidate)out.warnings.push('ジョブの候補：'+jobResult.job+'（要確認）');
+        mergeField(out,'job',jobResult.job,'ジョブ');
         EXPS.forEach((n,j)=>mergeField(out.exp,n,exp[j],n+'経験点'));
-        const basic=await numericRow(image,BASICS.map((_,j)=>[182+88.5*j,214,50,18]));
-        BASICS.forEach((n,j)=>mergeField(out.basic,n,basic[j],n));
+        // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
-    for(const n of BASICS)if(!(n in out.basic))out.basic[n]=modalBasic[n]??null;
+    for(const n of BASICS)out.basic[n]=modalBasic[n]??null;
+    if(out.job==='双剣士')out.specials.push(DUAL_NORMAL_ATTACK);
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();for(const s of out.supers){const old=superMap.get(s.name);if(old&&old.level!=null&&s.level!=null&&old.level!==s.level){s.level=null;out.warnings.push(s.name+'のLvを確認してください。');}else if(old?.level!=null&&s.level==null)s.level=old.level;superMap.set(s.name,s);}out.supers=[...superMap.values()];
     for(const entry of out.supers)if(D.superResistances[entry.name]&&entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを選んでください。');
-    if(!out.basicScreens)out.warnings.push('基本能力画面がありません。ジョブと経験点を確認してください。');
-    if(!out.abilityScreens)out.warnings.push('能力データ画面がありません。アカデミーと取得済み特殊能力を確認してください。');
+    if(!out.abilityUpScreens)out.warnings.push('「能力アップ」画面がありません。ジョブと経験点を確認してください。');
+    if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・基本能力・取得済み特殊能力を確認してください。');
     return out;
   }
   const options=(items,value)=>'<option value="">確認・選択してください</option>'+items.map(n=>`<option value="${escape(n)}" ${n===value?'selected':''}>${escape(n)}</option>`).join('');
@@ -222,7 +245,7 @@
       ${data.warnings.length?`<details class="photo-warning"><summary>確認が必要な項目（${data.warnings.length}件）</summary><p>「段目」は画像内で一番上の、枠全体が見える行から数えます。</p>${data.warnings.map(w=>`<p>${escape(w)}</p>`).join('')}</details>`:''}
       <div class="photo-review-grid"><label>アカデミー<select id="photoAcademy">${options(ACADEMIES,data.academy)}</select></label><label>ジョブ<select id="photoJob">${options(JOBS,data.job)}</select></label></div>
       <h3>所持経験点</h3><div class="photo-review-grid">${EXPS.map((n,i)=>`<label>${n}<input id="photoExp${i}" type="number" min="0" inputmode="numeric" value="${data.exp[n]??''}"></label>`).join('')}</div>
-      <h3>基本能力</h3><p class="photo-note">基本能力画面の数値を優先しています。</p><div class="photo-review-grid">${BASICS.map((n,i)=>`<label>${n}<input id="photoBasic${i}" type="number" min="1" inputmode="numeric" value="${data.basic[n]??''}"></label>`).join('')}</div>
+      <h3>基本能力</h3><p class="photo-note">「能力データ」画面の数値を使用しています。</p><div class="photo-review-grid">${BASICS.map((n,i)=>`<label>${n}<input id="photoBasic${i}" type="number" min="1" inputmode="numeric" value="${data.basic[n]??''}"></label>`).join('')}</div>
       <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
       <h3>取得済み超特殊能力</h3><p class="photo-note">上位能力に対応する◎・○は自動で取得済みにします。耐性のある能力はLvを選択してください。</p>
       <div id="photoSupers">${data.supers.map(s=>superRow(s)).join('')}</div><button id="photoAddSuper" class="secondary" type="button">＋超特殊能力を追加</button>
@@ -267,5 +290,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf};
 })();
