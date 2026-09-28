@@ -176,26 +176,31 @@
   function classifyBasicDigit(component){
     const glyph=normalizeGlyph(component.mask,component.w,component.h);
 
-    // 5 と 3 は輪郭が近いので、まず上半分の左右バランスで5を先に分離する。
-    const leftMid=(()=>{
-      let hit=0,total=0;
-      for(let y=3;y<8;y++)for(let x=0;x<4;x++){hit+=glyph[y*12+x];total++;}
-      return total?hit/total:0;
-    })();
-    const rightMid=(()=>{
-      let hit=0,total=0;
-      for(let y=3;y<8;y++)for(let x=8;x<12;x++){hit+=glyph[y*12+x];total++;}
-      return total?hit/total:0;
-    })();
-    if(component.w>=8&&leftMid>=.65&&rightMid<=.35)return '5';
-
     const ranked=Object.entries(HYBRID_DIGIT_MASKS).map(([value,encoded])=>{
       const variants=Array.isArray(encoded)?encoded:[encoded];
       return {value,d:Math.min(...variants.map(e=>maskDistance(glyph,decodeMask(e,12*16))))};
     }).sort((a,b)=>a.d-b.d);
 
+    if(!ranked[0])return '';
+
+    // 5 と 3 だけは輪郭が近いので、テンプレート上位が3/5の時に限って
+    // 上半分の左右バランスを補助判定に使う。6まで5扱いしないことが重要。
+    if(['3','5'].includes(ranked[0].value)){
+      const leftMid=(()=>{
+        let hit=0,total=0;
+        for(let y=3;y<8;y++)for(let x=0;x<4;x++){hit+=glyph[y*12+x];total++;}
+        return total?hit/total:0;
+      })();
+      const rightMid=(()=>{
+        let hit=0,total=0;
+        for(let y=3;y<8;y++)for(let x=8;x<12;x++){hit+=glyph[y*12+x];total++;}
+        return total?hit/total:0;
+      })();
+      if(component.w>=8&&leftMid>=.65&&rightMid<=.35)return '5';
+    }
+
     // 曖昧なら推測せず空欄にする。基本能力ではOCRを使わない。
-    if(!ranked[0]||ranked[0].d>.16)return '';
+    if(ranked[0].d>.16)return '';
     if(ranked[1]&&ranked[1].d-ranked[0].d<.025)return '';
     return ranked[0].value;
   }
