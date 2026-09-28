@@ -32,6 +32,8 @@
     '4':['A8A8A8D8H8HcHcMcMc4c4e4e//A+AcAc','A8A8A8B8D8DMDMGMOMMM8O8O//A+AMAM'],
     '5':['P+P+/+8A4A4A4A/+8PADADADAD4D8fP+','P+P+/+8A4A4A4A/+8PADADADAD4P8fP+','/+/+/+8A4A4A4A/+8eAPADADAD4P8eP8','/+/+/+4A4A4A4A/+8eAPADADAD4P8eP8','/+/+/+4A4A4A4A/88eAPADADAD4P8eP8'],
     '6':['D4D4H+OH8A4A4A/8/+8H4D4D8HOHP+D4'],
+    '7':['////////AOA8A4B4BwDwDwDAHAHAHAGA'],
+    '8':['B4B4H+GHOHOHHOD8H+PPOH8DMDOHH+D8'],
     '9':['D4D4P++O8H4D4D8H+PP7ADADAH8OP+H4','DwDwH8OO8G8H8H8HPfH/ADAHAGMOP8D4']
   };
   const HYBRID_LEVEL_MASKS={
@@ -211,8 +213,8 @@
       .filter(c=>c.y>=5&&c.h>=10&&c.area>=18)
       .sort((a,b)=>a.x-b.x);
 
-    // 能力データ画面の基本能力は、このレイアウトでは2桁表示。
-    if(components.length!==2)return null;
+    // 基本能力は1桁（例: 魔力5）から上限拡張後の3桁まであり得る。
+    if(components.length<1||components.length>3)return null;
     const digits=components.map(classifyBasicDigit);
     return digits.every(Boolean)?Number(digits.join('')):null;
   }
@@ -295,9 +297,22 @@
     }
     return {text:data.text.trim(),confidence:data.confidence};
   }
+  function numericByImageStrict(image,rect,maxDigits=4){
+    const components=glyphComponents(image,rect,90)
+      .filter(c=>c.h>=10&&c.area>=18)
+      .sort((a,b)=>a.x-b.x);
+    if(components.length<1||components.length>maxDigits)return null;
+    const digits=components.map(classifyBasicDigit);
+    return digits.every(Boolean)?Number(digits.join('')):null;
+  }
   async function numericRow(image,rects){
     const result=[];
-    for(const rect of rects){const r=await textAt(image,rect,true);result.push(/^\d{1,4}$/.test(r.text)&&r.confidence>=40?Number(r.text):null);}
+    for(const rect of rects){
+      const visual=numericByImageStrict(image,rect,4);
+      if(visual!=null){result.push(visual);continue;}
+      const r=await textAt(image,rect,true);
+      result.push(/^\d{1,4}$/.test(r.text)&&r.confidence>=40?Number(r.text):null);
+    }
     return result;
   }
   function distance(a,b){
