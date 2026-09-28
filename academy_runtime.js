@@ -314,6 +314,10 @@
       dualError='';
       renderDualRows();
     }
+    global.__PAWAADO_SET_DUAL_ATTACK__=(level,hint=0)=>{
+      dualHint=Math.max(0,Math.min(5,Number(hint)||0));
+      setDualLevel(level);
+    };
     function tryAcquireLevel(level){
       const target=Number(level);
       if(target<=dualLevel){
