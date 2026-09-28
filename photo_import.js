@@ -57,7 +57,7 @@
     .photo-review-grid label,.super-controls label{display:grid;gap:5px;min-width:0}.photo-review-grid input,.photo-review-grid select,.super-controls select{width:100%;min-width:0;font-size:16px;min-height:44px;padding:6px}
     .photo-specials{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:320px;overflow:auto;padding:8px;border:1px solid #b58a52;border-radius:8px}
     .photo-specials label{display:flex;align-items:center;gap:5px;min-height:40px;font-size:14px}.photo-specials input{width:20px;height:20px;flex-shrink:0}
-    .photo-warning{color:#9d3019;font-weight:700}.photo-super-row{display:flex;gap:8px;align-items:center;margin:8px 0}.photo-super-row select{min-height:44px;font-size:16px;min-width:0}.photo-super-name{flex:1;width:0}.photo-super-level{width:64px;flex:none}.photo-remove-super{width:42px;flex:none;padding:4px}
+    .photo-warning{color:#9d3019;font-weight:700}.photo-super-row{display:flex;gap:8px;align-items:center;margin:8px 0}.photo-super-row select{min-height:44px;font-size:16px;min-width:0}.photo-super-name{flex:1;width:0}.photo-super-level{width:84px;flex:none;text-align:center;padding-left:8px;padding-right:28px}.photo-remove-super{width:42px;flex:none;padding:4px}
     #photoReview[hidden]{display:none}#photoReview h3{margin-top:20px}.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 70px;gap:8px;margin-bottom:10px}.super-note{font-size:13px}
     #applyPhotos{margin-top:14px;width:100%}.photo-confirm{display:flex;align-items:flex-start;gap:8px;margin-top:16px}.photo-confirm input{width:22px;height:22px;flex-shrink:0}
   `;document.head.appendChild(style);
@@ -578,7 +578,7 @@
       }catch(error){status(error.message);}
     };
   }
-  function superRow(s){return `<div class="photo-super-row"><select class="photo-super-name" aria-label="超特殊能力">${options(SUPER_NAMES,s.name)}</select><select class="photo-super-level" aria-label="超特殊能力のLv"><option value="">Lv</option><option value="1" ${s.level===1?'selected':''}>1</option><option value="2" ${s.level===2?'selected':''}>2</option></select><button type="button" class="secondary photo-remove-super" aria-label="削除">×</button></div>`;}
+  function superRow(s){return `<div class="photo-super-row"><select class="photo-super-name" aria-label="超特殊能力">${options(SUPER_NAMES,s.name)}</select><select class="photo-super-level" aria-label="超特殊能力のLv"><option value="">Lv</option><option value="1" ${s.level===1?'selected':''}>Lv1</option><option value="2" ${s.level===2?'selected':''}>Lv2</option></select><button type="button" class="secondary photo-remove-super" aria-label="削除">×</button></div>`;}
   function clear(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];el('photoFiles').value='';el('photoPreviews').replaceChildren();el('photoReview').hidden=true;el('readPhotos').disabled=true;review=null;status('');}
   el('photoFiles').onchange=()=>{
     if(busy)return;urls.forEach(u=>URL.revokeObjectURL(u));files=[...el('photoFiles').files];urls=[];el('photoReview').hidden=true;
