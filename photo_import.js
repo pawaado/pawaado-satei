@@ -22,13 +22,17 @@
     '対魔闘士○':'AAAAAAAAAAAAAAAAAAAAAAGMGAABAAAAAYz/P8ED8AAD/P8/wQO4AAD8/z/f9xgAA/z/L9/2CAABvP8/wQYYAgHM/z/BAxgCA9z9P8/j+AI=',
     '対魔法使い◎':'AAAAAAAAAAAAAAAAAAAAACGDAEAQAAcAMZ/n+f5gGYB/n+P7mGY5QB+f5mN8QzDAd5/n+3zDIAA3n+bRfMMggjmf5/FwealCe5/v+f55EII='
   };
+  // 同じ数字でも「能力データ」と「能力アップ」では描画サイズが少し違うため、
+  // 実画像から複数テンプレートを持つ。7/8など未登録字形はOCRへフォールバックする。
   const HYBRID_DIGIT_MASKS={
-    '0':'H4H4P8OO8G4G4G4H4H4H4G8G8GO+H8BA',
-    '1':'APAPB/////APAPAPAPAPAPAPAPAPAPAP',
-    '2':'H8H8P+8P4DAPAPAPA+DwHgHgMA8A8A//',
-    '3':'HwHw/+4eAOAeAeA8H8AeAOAOAPwP8e/+',
-    '4':'A8A8A8D8H8HcHcOcOc8c8e8e//A+AcAc',
-    '5':'/+/+/+8A4A4A4A/+8eAPADADAD4P8eP8'
+    '0':['H4H4P8OO8G4G4G4H4H4H4G8G8GO+H8BA'],
+    '1':['APAPB/////APAPAPAPAPAPAPAPAPAPAP','APAPA/D/////A/A/A/A/A/A/A/A/A/AP','A8A8D/P/////A/A/A/A/A/A/A/A/A/A8'],
+    '2':['H8H8P+8P4DAPAPAPA+DwHgHgMA8A8A//','D4D4P++O8HAHAHAOB8D4HAOA8A+O////','B4B4H+OP8HAHAHAOA+D4HAOAMA+2////'],
+    '3':['HwHw/+4eAOAeA8H8AeAeAOAPwP8e/+Dg','D4D4P+OOEGAGAOD8D8AOAHADIH8PP+H8','D4D4H+OPEHAHAGB8B8APAHADID+HP+D8'],
+    '4':['A8A8A8D8H8HcHcMcMc4c4e4e//A+AcAc','A8A8A8B8D8DMDMGMOMMM8O8O//A+AMAM'],
+    '5':['P+P+/+8A4A4A4A/+8PADADADAD4D8fP+','P+P+/+8A4A4A4A/+8PADADADAD4P8fP+','/+/+/+8A4A4A4A/+8eAPADADAD4P8eP8','/+/+/+4A4A4A4A/+8eAPADADAD4P8eP8','/+/+/+4A4A4A4A/88eAPADADAD4P8eP8'],
+    '6':['D4D4H+OH8A4A4A/8/+8H4D4D8HOHP+D4'],
+    '9':['D4D4P++O8H4D4D8H+PP7ADADAH8OP+H4','DwDwH8OO8G8H8H8HPfH/ADAHAGMOP8D4']
   };
   const HYBRID_LEVEL_MASKS={
     '1':'B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI',
@@ -148,8 +152,11 @@
   }
   function classifyGlyph(component,templates,limit=.18){
     const glyph=normalizeGlyph(component.mask,component.w,component.h);
-    const ranked=Object.entries(templates).map(([value,encoded])=>({value,d:maskDistance(glyph,decodeMask(encoded,12*16))})).sort((a,b)=>a.d-b.d);
-    return ranked[0]&&ranked[0].d<=limit?ranked[0].value:'';
+    const ranked=Object.entries(templates).map(([value,encoded])=>{
+      const variants=Array.isArray(encoded)?encoded:[encoded];
+      return {value,d:Math.min(...variants.map(e=>maskDistance(glyph,decodeMask(e,12*16))))};
+    }).sort((a,b)=>a.d-b.d);
+    return ranked[0]&&ranked[0].d<=limit&&(!ranked[1]||ranked[1].d-ranked[0].d>=.025)?ranked[0].value:'';
   }
   function basicByImage(image,index){
     const x=[270,342,415,488,560,632][index],components=glyphComponents(image,[x,505,45,30],90).filter(c=>c.y>=5);
@@ -158,10 +165,17 @@
     return digits.every(Boolean)?Number(digits.join('')):null;
   }
   function levelByImage(image,cell){
-    const [x,y]=cell.rect,components=glyphComponents(image,[x+103,y+22,33,28],90);
+    const [x,y]=cell.rect;
+    // Lv表記は能力名の右下にはみ出して描画されるため、セル内だけを切ると数字が欠ける。
+    // 右下を広めに取り、最下段にある右端の数字を形で判定する（Lvは1/2のみ）。
+    const components=glyphComponents(image,[x+83,y+25,55,35],100)
+      .filter(c=>c.y>=15&&c.h>=10)
+      .sort((a,b)=>a.x-b.x);
     if(!components.length)return null;
-    const digit=classifyGlyph(components[components.length-1],HYBRID_LEVEL_MASKS,.18);
-    return digit?Number(digit):null;
+    const digit=components[components.length-1];
+    if(digit.w<=11)return 1;
+    if(digit.w>=12&&digit.w<=18)return 2;
+    return null;
   }
   function dualJobByImage(image){
     const sig=inkMask(image,[670,20,192,32],2,2,100);
@@ -376,13 +390,13 @@
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
-        if(D.superResistances[entry.name]){
-          const visualLevel=levelByImage(image,cell);
-          if(visualLevel!=null)entry.level=visualLevel;
-          else{
-            const t=(await textAt(image,cell.levelRect,true)).text;
-            entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
-          }
+        const visualLevel=levelByImage(image,cell);
+        if(visualLevel!=null)entry.level=visualLevel;
+        else{
+          // 画像比較で取れない時だけOCRを補助に使う。Lv表示はセル右下にはみ出す。
+          const [cx,cy]=cell.rect;
+          const t=(await textAt(image,[cx+83,cy+25,55,35],true)).text;
+          entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
         }
         result.supers.push(entry);
       }
@@ -459,7 +473,7 @@
     if(out.job==='双剣士'&&out.dualAttackLevel==null)out.dualAttackLevel=1;
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();for(const s of out.supers){const old=superMap.get(s.name);if(old&&old.level!=null&&s.level!=null&&old.level!==s.level){s.level=null;out.warnings.push(s.name+'のLvを確認してください。');}else if(old?.level!=null&&s.level==null)s.level=old.level;superMap.set(s.name,s);}out.supers=[...superMap.values()];
-    for(const entry of out.supers)if(D.superResistances[entry.name]&&entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを選んでください。');
+    for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを確認してください。');
     if(!out.abilityUpScreens)out.warnings.push('「能力アップ」画面がありません。ジョブと経験点を確認してください。');
     if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・基本能力・取得済み特殊能力を確認してください。');
     return out;
@@ -480,9 +494,8 @@
     const summary=()=>{const names=[...box.querySelectorAll('[data-photo-special]:checked')].map(e=>D.special[Number(e.dataset.photoSpecial)][1]);el('photoOwnedSummary').textContent=names.join('／')||'取得済み能力なし（読み取り漏れがないか確認してください）';};summary();
     box.onchange=event=>{
       if(event.target.matches('.photo-super-name')){
-        const row=event.target.closest('.photo-super-row');const needsLevel=!!D.superResistances[event.target.value];
-        row.querySelector('.photo-super-level').disabled=!needsLevel;
-        if(!needsLevel)row.querySelector('.photo-super-level').value='';
+        // Lvは査定に使わない上位能力でも、画像どおり確認できるよう常に表示する。
+        event.target.closest('.photo-super-row').querySelector('.photo-super-level').disabled=false;
       }
       summary();
     };
@@ -500,7 +513,7 @@
       }catch(error){status(error.message);}
     };
   }
-  function superRow(s){return `<div class="photo-super-row"><select class="photo-super-name" aria-label="超特殊能力">${options(SUPER_NAMES,s.name)}</select><select class="photo-super-level" aria-label="超特殊能力のLv" ${s.name&&!D.superResistances[s.name]?'disabled':''}><option value="">Lv</option><option value="1" ${s.level===1?'selected':''}>1</option><option value="2" ${s.level===2?'selected':''}>2</option></select><button type="button" class="secondary photo-remove-super" aria-label="削除">×</button></div>`;}
+  function superRow(s){return `<div class="photo-super-row"><select class="photo-super-name" aria-label="超特殊能力">${options(SUPER_NAMES,s.name)}</select><select class="photo-super-level" aria-label="超特殊能力のLv"><option value="">Lv</option><option value="1" ${s.level===1?'selected':''}>1</option><option value="2" ${s.level===2?'selected':''}>2</option></select><button type="button" class="secondary photo-remove-super" aria-label="削除">×</button></div>`;}
   function clear(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];el('photoFiles').value='';el('photoPreviews').replaceChildren();el('photoReview').hidden=true;el('readPhotos').disabled=true;review=null;status('');}
   el('photoFiles').onchange=()=>{
     if(busy)return;urls.forEach(u=>URL.revokeObjectURL(u));files=[...el('photoFiles').files];urls=[];el('photoReview').hidden=true;
