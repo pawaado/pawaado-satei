@@ -195,13 +195,14 @@
     return {specials:[],supers:[],unknown:[clean],candidate:false};
   }
   async function abilityMarkHint(image,cell,rawTexts=[]){
-    const joined=rawTexts.map(normalize).join('');
+    const markText=s=>String(s).normalize('NFC').replace(/\s/g,'');
+    const joined=rawTexts.map(markText).join('');
     if(/[◎①②③④⑤⑥⑦⑧⑨⑩@]/.test(joined))return '◎';
     const [x,y,w,h]=cell.rect;let sawCircle=/[○〇◯O]/.test(joined);
     for(const offset of [88,98]){
       const width=Math.min(48,w-offset);if(width<=10)continue;
       const t=(await textAt(image,[x+offset,y,width,h],false,false,true)).text;
-      const n=normalize(t);
+      const n=markText(t);
       if(/[◎①②③④⑤⑥⑦⑧⑨⑩@]/.test(n))return '◎';
       if(/[○〇◯O]/.test(n))sawCircle=true;
     }
