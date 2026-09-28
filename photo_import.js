@@ -80,7 +80,7 @@
     #applyPhotos{margin-top:14px;width:100%}.photo-confirm{display:flex;align-items:flex-start;gap:8px;margin-top:16px}.photo-confirm input{width:22px;height:22px;flex-shrink:0}
   `;document.head.appendChild(style);
   const el=id=>document.getElementById(id);
-  let files=[,'H4H4/88O4G4G4H8PP/P/DGAGAG88P8BA'],urls=[],busy=false,worker=null,workerLanguage='jpn',review=null;
+  let files=[],urls=[],busy=false,worker=null,workerLanguage='jpn',review=null;
   const status=t=>{el('photoStatus').textContent=t;};
   const imageFrom=src=>new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('画像を開けませんでした。PNGまたはJPEGでお試しください。'));im.src=src;});
 
@@ -140,7 +140,7 @@
     const best=ranked[0],second=ranked[1];
     if(!best)return '';
     const limit=(best.name==='烈'||best.name==='備え')?.045:.07;
-    return best.d<=limit&&(!second||second.d-best.d>=.015)?best.name:'';
+    return best.d<=limit&&(!second||second.d-best.d>=.01)?best.name:'';
   }
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
     const out=new Uint8Array(outW*outH);
