@@ -152,7 +152,7 @@
     return ranked[0]&&ranked[0].d<=limit?ranked[0].value:'';
   }
   function basicByImage(image,index){
-    const x=270+Math.round(72.5*index),components=glyphComponents(image,[x,505,45,30],90).filter(c=>c.y>=5);
+    const x=[270,342,415,488,560,632][index],components=glyphComponents(image,[x,505,45,30],90).filter(c=>c.y>=5);
     if(components.length!==2)return null;
     const digits=components.map(c=>classifyGlyph(c,HYBRID_DIGIT_MASKS,.18));
     return digits.every(Boolean)?Number(digits.join('')):null;
