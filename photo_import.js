@@ -152,6 +152,21 @@
   }
   function classifyGlyph(component,templates,limit=.18){
     const glyph=normalizeGlyph(component.mask,component.w,component.h);
+
+    // このゲームの「5」と「3」は輪郭比較だけだと非常に近い。
+    // 上半分左側に縦棒が残るのが5、右側に寄るのが3なので先に形状で分離する。
+    const leftMid=(()=>{
+      let hit=0,total=0;
+      for(let y=3;y<8;y++)for(let x=0;x<4;x++){hit+=glyph[y*12+x];total++;}
+      return total?hit/total:0;
+    })();
+    const rightMid=(()=>{
+      let hit=0,total=0;
+      for(let y=3;y<8;y++)for(let x=8;x<12;x++){hit+=glyph[y*12+x];total++;}
+      return total?hit/total:0;
+    })();
+    if(component.w>=8 && leftMid>=.65 && rightMid<=.35 && Object.prototype.hasOwnProperty.call(templates,'5')) return '5';
+
     const ranked=Object.entries(templates).map(([value,encoded])=>{
       const variants=Array.isArray(encoded)?encoded:[encoded];
       return {value,d:Math.min(...variants.map(e=>maskDistance(glyph,decodeMask(e,12*16))))};
@@ -472,7 +487,20 @@
     }
     if(out.job==='双剣士'&&out.dualAttackLevel==null)out.dualAttackLevel=1;
     out.specials=[...new Set(out.specials)];
-    const superMap=new Map();for(const s of out.supers){const old=superMap.get(s.name);if(old&&old.level!=null&&s.level!=null&&old.level!==s.level){s.level=null;out.warnings.push(s.name+'のLvを確認してください。');}else if(old?.level!=null&&s.level==null)s.level=old.level;superMap.set(s.name,s);}out.supers=[...superMap.values()];
+    const superMap=new Map();
+    for(const s of out.supers){
+      const old=superMap.get(s.name);
+      if(old?.level!=null && s.level==null){
+        s.level=old.level;
+      }else if(old?.level!=null && s.level!=null && old.level!==s.level){
+        // 重複スクショで一方が誤判定してもLvを空欄に戻さない。
+        // 先に確定できたLvを保持し、確認メッセージだけ出す。
+        s.level=old.level;
+        out.warnings.push(s.name+'のLv候補が画像間で一致しません。表示Lvを確認してください。');
+      }
+      superMap.set(s.name,s);
+    }
+    out.supers=[...superMap.values()];
     for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを確認してください。');
     if(!out.abilityUpScreens)out.warnings.push('「能力アップ」画面がありません。ジョブと経験点を確認してください。');
     if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・基本能力・取得済み特殊能力を確認してください。');
