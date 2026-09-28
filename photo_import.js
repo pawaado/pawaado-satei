@@ -213,12 +213,16 @@
     const missed=[],candidates=[];
     for(const cell of cells){
       const first=(await textAt(image,cell.rect,false,false,true)).text;
-      const retry=(await textAt(image,cell.rect,false,false,true,120)).text;
-      const stem=pairStemFromText(first)||pairStemFromText(retry);
+      const firstStem=pairStemFromText(first);
+      let preliminary=cellAbility(first,'',cell.superCell),retry='';
+      if(firstStem||preliminary.unknown.length||preliminary.candidate)retry=(await textAt(image,cell.rect,false,false,true,120)).text;
+      const stem=firstStem||pairStemFromText(retry);
       const markHint=stem?await abilityMarkHint(image,cell,[first,retry]):'';
       let raw=first,parsed=cellAbility(first,markHint,cell.superCell);
-      const alternative=cellAbility(retry,markHint,cell.superCell);
-      if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}
+      if(retry){
+        const alternative=cellAbility(retry,markHint,cell.superCell);
+        if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}
+      }
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
