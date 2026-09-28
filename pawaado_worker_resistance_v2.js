@@ -12,14 +12,14 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20260921-total-score-floor-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20260928-photo-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
     const resistanceEngine=`// --- resistance-aware scoring patch v2 ---
 let workerExtraResistances=[];
 const RESISTANCE_SCORE_RATES=Object.freeze({
-  '物理攻撃耐性':70,'魔法攻撃耐性':70,'必殺技耐性':33,'全体攻撃耐性':50,'単体攻撃耐性':70,
+  '通常攻撃耐性':20,'被ダメージ耐性':140,'物理攻撃耐性':70,'魔法攻撃耐性':70,'必殺技耐性':33,'全体攻撃耐性':50,'単体攻撃耐性':70,
   '火属性耐性':70,'風属性耐性':70,'水属性耐性':70,'無属性耐性':70,'列攻撃耐性':50,
   'アクションスキル耐性':18,'ダメージ状態異常耐性':20,'弱体化状態異常耐性':20,'行動不能状態異常耐性':20
 });
@@ -43,7 +43,7 @@ const RESISTANCE_DIRECT_EFFECTS=Object.freeze({
   '風耐性':[['風属性耐性',2]],
   '水耐性':[['水属性耐性',2]],
   '無耐性':[['無属性耐性',2]],
-  'がむしゃら':[['物理攻撃耐性',-2],['魔法攻撃耐性',-2]],
+  'がむしゃら':[['物理攻撃耐性',-2],['魔法攻撃耐性',-2],['通常攻撃耐性',-2]],
   '防御態勢':[['単体攻撃耐性',2]],
   '備え':[['列攻撃耐性',2]],
   '広い視野':[['全体攻撃耐性',2]],
@@ -71,7 +71,7 @@ const STATIC_RESISTANCE_EFFECTS=Object.freeze({
   '体幹':[['物理攻撃耐性',1]],'魔力制御':[['魔法攻撃耐性',1]],
   '柔軟な体':[['物理攻撃耐性',4]],'無心の構え':[['魔法攻撃耐性',4]],
   '火耐性':[['火属性耐性',2]],'風耐性':[['風属性耐性',2]],'水耐性':[['水属性耐性',2]],'無耐性':[['無属性耐性',2]],
-  'がむしゃら':[['物理攻撃耐性',-2],['魔法攻撃耐性',-2]],
+  'がむしゃら':[['物理攻撃耐性',-2],['魔法攻撃耐性',-2],['通常攻撃耐性',-2]],
   'ケガしにくさ○':[['物理攻撃耐性',1],['魔法攻撃耐性',1]],
   'ケガしにくさ◎':[['物理攻撃耐性',1],['魔法攻撃耐性',1]],
   '防御態勢':[['単体攻撃耐性',2]],'備え':[['列攻撃耐性',2]],'広い視野':[['全体攻撃耐性',2]],
@@ -135,7 +135,9 @@ function resistanceSourcesForBits(bits){
     addResistanceSource(byType,row.type,'extra:'+String(row.name||index),row.value);
   });
 
+  const included=new Set(workerExtraResistances.flatMap(row=>D.superResistances?.[row.name]?.includes||[]));
   for(const pair of RESISTANCE_PAIR_SOURCES){
+    if(included.has(pair.upper)) continue;
     const lowerIndex=specialNameIndex.get(pair.lower)??-1;
     const upperIndex=specialNameIndex.get(pair.upper)??-1;
     const upper=upperIndex>=0&&mixedIsAcquired(upperIndex,activeBits);
@@ -147,6 +149,7 @@ function resistanceSourcesForBits(bits){
   }
 
   for(const [name,effects] of Object.entries(RESISTANCE_DIRECT_EFFECTS)){
+    if(included.has(name)) continue;
     const index=specialNameIndex.get(name)??-1;
     if(index<0||!mixedIsAcquired(index,activeBits)) continue;
     for(const [type,value] of effects) addResistanceSource(byType,type,'special:'+name,value);

@@ -62,8 +62,27 @@ async function main(){
   a.__applyWorkerPayload({...payload,extraResistances:[]});
   const injury=a.specialBit(idx('ケガしにくさ○'));
   const reckless=a.specialBit(idx('がむしゃら'));
-  close(a.resistanceScoreForBits(injury|reckless),-126);
+  close(a.resistanceScoreForBits(injury|reckless),-166);
   close(a.dynamicSpecialGainForBits(injury,reckless,[{type:'special',idx:idx('がむしゃら')}],-248.5),-234.5);
+  // Super levels are total values, including their lower abilities.
+  const superRows=(name,level)=>a.D.superResistances[name].types.map(type=>({name,type,value:a.D.superResistances[name].levels[level-1]}));
+  for(const [name,def] of Object.entries(a.D.superResistances)){
+    for(const level of [1,2]){
+      const rates={'物理攻撃耐性':70,'魔法攻撃耐性':70,'全体攻撃耐性':50,'通常攻撃耐性':20,'風属性耐性':70,'水属性耐性':70,'火属性耐性':70,'被ダメージ耐性':140,'単体攻撃耐性':70,'ダメージ状態異常耐性':20,'必殺技耐性':33};
+      a.__applyWorkerPayload({...payload,job:'剣士',extraResistances:superRows(name,level),specialState:[]});
+      close(a.resistanceScoreForBits(0n),def.types.reduce((sum,t)=>sum+def.levels[level-1]*rates[t],0));
+    }
+  }
+  a.__applyWorkerPayload({...payload,job:'剣士',extraResistances:superRows('鉄人',2),specialState:[[idx('ケガしにくさ○'),{own:1,hint:0}],[idx('ケガしにくさ◎'),{own:1,hint:0}]]});
+  close(a.resistanceScoreForBits(0n),980);
+  close(a.resistanceScoreForBits(injury|a.specialBit(idx('ケガしにくさ◎'))),980);
+  a.__applyWorkerPayload({...payload,job:'剣士',extraResistances:superRows('超免疫',1),specialState:[[idx('免疫強化'),{own:1,hint:0}]]});
+  close(a.resistanceScoreForBits(0n),560);
+  close(a.resistanceScoreForBits(a.specialBit(idx('免疫強化'))),560);
+  assert.equal(a.D.multiplierScorePerPercent.givenDamage,45);
+  a.__applyWorkerPayload({...payload,job:'剣士',specialState:[],extraResistances:superRows('不朽の意志',2)});
+  // 49% normal resistance combined with -2% => 48.0%, a -20 rating change.
+  close(a.dynamicSpecialGainForBits(0n,reckless,[{type:'special',idx:idx('がむしゃら')}],35),55);
   // End-to-end request verifies loader, payload, optimizer, and result serialization.
   await context.onmessage({data:{type:'calculate',payload:{...payload,extraResistances:[],exp:[0,0,30,170,70]}}});
   const result=messages.findLast(m=>m.type==='result');

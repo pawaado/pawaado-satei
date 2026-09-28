@@ -3023,6 +3023,37 @@ function resetAll(){
 
 
 
+document.addEventListener('pawaado-super-change',event=>{
+  for(const name of D.superResistances[event.detail.name]?.includes||[]){const i=specialNameIndex.get(name);if(i!==undefined)setSpecialOwned(i,true);}
+  calcResultCache.clear();
+});
+window.__PAWAADO_IMPORT_PHOTO__=data=>{
+  if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
+  if(!jobsByAcademy[data.academy]?.includes(data.job)) throw new Error('アカデミーとジョブを確認してください。');
+  if(!expNames.every(n=>Number.isInteger(data.exp[n])&&data.exp[n]>=0)) throw new Error('経験点を確認してください。');
+  const row=D.academies.find(r=>r[0]===data.academy&&r[1]===data.job);
+  if(!basicNames.every((n,i)=>Number.isInteger(data.basic[n])&&data.basic[n]>=1&&data.basic[n]<=row[i+2])) throw new Error('基本能力とアカデミー・ジョブの組み合わせを確認してください。');
+  const max=data.academy==='ブートレインアカデミー'?BOOTRAIN_EXP_LIMITS:Object.fromEntries(expNames.map(n=>[n,1000]));
+  if(!expNames.every(n=>data.exp[n]<=max[n])) throw new Error('経験点が保持上限を超えています。');
+  academy.value=data.academy;
+  academy.dispatchEvent(new Event('change',{bubbles:true}));
+  job.value=data.job;
+  job.dispatchEvent(new Event('change',{bubbles:true}));
+  expSamples=[{...data.exp}]; renderExp();
+  basicNames.forEach(n=>{
+    basicHints[n]=0; basicOwned[n]=false;
+    document.getElementById('basic_'+n).value=data.basic[n]; applyBasicVisual(n);
+  });
+  specialState.clear(); renderSpecials();
+  const owned=new Set(data.specials);
+  for(const entry of data.supers||[]) for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]) owned.add(name);
+  for(const name of owned){const i=specialNameIndex.get(name);if(i!==undefined) setSpecialOwned(i,true);}
+  window.__PAWAADO_SET_SUPERS__?.((data.supers||[]).filter(entry=>D.superResistances[entry.name]));
+  calcResultCache.clear();validateAllInline();
+  document.getElementById('result').textContent='画像の内容を反映しました。コツLvを入力して計算してください。';
+  document.dispatchEvent(new Event('change',{bubbles:true}));
+};
+
 document.getElementById('calcBtn').addEventListener('click',calc);
 document.getElementById('resetBtn').addEventListener('click',resetAll);
 document.getElementById('topResetBtn').addEventListener('click',resetAll);
