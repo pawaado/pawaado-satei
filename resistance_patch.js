@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-11';
+  const PATCH_VERSION='20260929-super-ui-12';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -248,11 +248,15 @@
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
       .super-control-row{display:block}
-      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px 44px!important;gap:6px!important;align-items:end}
+      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px 44px!important;gap:6px!important;align-items:center}
       .super-controls .super-field{min-width:0}
-      .super-level-field{display:grid;gap:5px}
+      .super-level-field{display:grid;grid-template-columns:20px minmax(0,1fr);gap:3px;align-items:center}
+      .super-level-label{font-size:14px;line-height:1;text-align:right;white-space:nowrap}
       .super-custom-select{position:relative;min-width:0}
       .super-custom-select .custom-select-button{height:52px;min-height:52px;font-size:16px;padding:8px 38px 8px 10px}
+      .super-name-control .custom-select-button{font-size:clamp(13px,3.8vw,15px);letter-spacing:-.02em;padding-right:31px}
+      .super-name-text{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:clip}
+      .super-level-control .custom-select-button{padding-left:7px;padding-right:25px}
       .super-name-control .custom-select-menu{width:min(360px,calc(100vw - 28px));min-width:min(360px,calc(100vw - 28px));max-width:calc(100vw - 28px);left:0;right:auto}
       .super-level-control .custom-select-menu{width:100%;min-width:100%;left:0;right:auto}
       .super-name-control .custom-select-option{white-space:nowrap;overflow:visible;line-height:1.35}
@@ -474,7 +478,7 @@
       <div class="super-control-row">
         <div class="super-controls">
           <div class="super-field super-name-field">${superSelectControlHtml('name',nameOptions,'超特殊能力を選択',!job)}</div>
-          <div class="super-field super-level-field"><span>Lv</span>${superSelectControlHtml('level',levelOptions,'')}</div>
+          <div class="super-field super-level-field"><span class="super-level-label">Lv</span>${superSelectControlHtml('level',levelOptions,'')}</div>
           <button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>
         </div>
       </div>
