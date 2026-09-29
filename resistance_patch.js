@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-4';
+  const PATCH_VERSION='20260929-super-ui-5';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -129,7 +129,9 @@
     const result=document.getElementById('result');
     if(!result)return;
     const safe=String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-    const formatted=safe.replace('Lvを選択してください。','<span class="error-no-break">Lvを選択してください。</span>');
+    const formatted=safe
+      .replace('超特殊能力のLv','<span class="error-no-break">超特殊能力のLv</span>')
+      .replace('Lvを選択してください。','<span class="error-no-break">Lvを選択してください。</span>');
     result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+formatted+'</li></ul></div>';
     result.closest('.result-card')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
@@ -408,7 +410,7 @@
   const SUPER_ORDER_INDEX=new Map(SUPER_ORDER.map((name,index)=>[name,index]));
 
   function currentJob(){return document.getElementById('job')?.value||'';}
-  function availableSuperNames(job=currentJob()){
+  function allAvailableSuperNames(job=currentJob()){
     if(!job)return [];
     return Object.keys(window.PAWAADO_DATA.superResistances)
       .filter(name=>{
@@ -417,12 +419,25 @@
       })
       .sort((a,b)=>(SUPER_ORDER_INDEX.get(a)??999)-(SUPER_ORDER_INDEX.get(b)??999));
   }
+  function selectedSuperNames(exceptGroup=null){
+    const selected=new Set();
+    document.querySelectorAll('.extra-resistance-group').forEach(group=>{
+      if(group===exceptGroup)return;
+      const name=group.querySelector('.super-name')?.value;
+      if(name)selected.add(name);
+    });
+    return selected;
+  }
+  function availableSuperNames(job=currentJob(),exceptGroup=null){
+    const selected=selectedSuperNames(exceptGroup);
+    return allAvailableSuperNames(job).filter(name=>!selected.has(name));
+  }
   function rebuildSuperNameOptions(group){
     const select=group.querySelector('.super-name');
     if(!select)return;
     const job=currentJob();
     const old=select.value;
-    const names=availableSuperNames(job);
+    const names=availableSuperNames(job,group);
     select.innerHTML='<option value="">超特殊能力を選択</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
     const valid=old&&names.includes(old);
     select.value=valid?old:'';
@@ -449,9 +464,9 @@
     if(add)add.disabled=!job;
   }
 
-  function resistanceGroupHtml(index){
+  function resistanceGroupHtml(index,includeAll=false){
     const job=currentJob();
-    const names=availableSuperNames(job);
+    const names=includeAll?allAvailableSuperNames(job):availableSuperNames(job);
     const nameOptions='<option value="">超特殊能力を選択</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
     const levelOptions='<option value=""></option><option value="1">1</option><option value="2">2</option>';
     return `<div class="extra-resistance-group" data-group-index="${index}">
@@ -578,7 +593,13 @@
       clearDetectedResultCaches();
     });
     section.addEventListener('change',event=>{
-      if(event.target.matches('.super-name,.super-level')) fillSuperGroup(event.target.closest('.extra-resistance-group'));
+      if(event.target.matches('.super-name,.super-level')){
+        const group=event.target.closest('.extra-resistance-group');
+        fillSuperGroup(group);
+        if(event.target.matches('.super-name')){
+          section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
+        }
+      }
       const row=event.target.closest('.extra-resistance-row');
       if(event.target.matches('.extra-resistance-value')) validateResistanceValue(row,true);
       clearDetectedResultCaches();
@@ -598,6 +619,7 @@
       if(removeGroup){
         removeGroup.closest('.extra-resistance-group')?.remove();
         renumberResistanceGroups();
+        section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
         clearDetectedResultCaches();
       }
     });
@@ -607,7 +629,7 @@
     const usageList=document.querySelector('.usage-list');
     if(usageList){
       usageList.innerHTML=[
-        '「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあり、耐性に影響する超特殊能力を入力してください。',
+        '「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあるため、耐性に影響する超特殊能力を入力してください。',
         '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。',
         '基本能力・特殊能力左の「＋」でコツLvを設定します。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
@@ -656,7 +678,7 @@
 
   window.__PAWAADO_SET_SUPERS__=entries=>{
     const list=document.getElementById('extraResistanceList');
-    list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i)).join('');
+    list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i,true)).join('');
     initSuperSelects(list);
     renumberResistanceGroups();
     refreshSuperControlsForJob();
