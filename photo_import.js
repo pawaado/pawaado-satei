@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-3';
+  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-4';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -382,7 +382,10 @@
     }
     ranked.sort((a,b)=>a.d-b.d);
     const best=ranked[0],second=ranked[1];
-    if(!best||best.d>.24||second&&second.d-best.d<.018)return '';
+    if(!best||best.d>.29)return '';
+    const margin=second?second.d-best.d:1;
+    // 対魔闘士など字面が近い能力でも、絶対距離が十分小さい時は名前本体を採用する。
+    if(best.d>.16&&margin<.010)return '';
     return best.stem;
   }
 
@@ -394,6 +397,25 @@
     const circleVariants=Array.isArray(circleRaw)?circleRaw:[circleRaw];
     const doubleVariants=Array.isArray(doubleRaw)?doubleRaw:[doubleRaw];
     const size=64*10;
+    const [x,y,w]=cell.rect;
+    const sigs=[85,100,115,130].flatMap(threshold=>
+      [0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
+    );
+
+    // まず同じ能力名の○版と◎版だけで、セル全体の実画像テンプレートを比較する。
+    // 名前本体が同一なので、端末差があっても末尾記号の差を安定して拾いやすい。
+    const fullScore=variants=>Math.min(...variants.flatMap(encoded=>{
+      const ref=decodeMask(encoded,size);
+      return sigs.map(sig=>shiftedMaskDistance(sig,ref,64,10,4,2));
+    }));
+    const circleFull=fullScore(circleVariants),doubleFull=fullScore(doubleVariants);
+    const fullWinner=circleFull<=doubleFull?'○':'◎';
+    const fullBest=Math.min(circleFull,doubleFull),fullMargin=Math.abs(circleFull-doubleFull);
+
+    // 提供済み実画像にかなり近い場合は、全体比較を最優先する。
+    if(fullBest<=.105&&fullMargin>=.0045)return fullWinner;
+
+    // 次に○/◎で差が出る画素だけへ重みを付けて比較する。
     const mean=variants=>{
       const out=new Float32Array(size);
       for(const encoded of variants){
@@ -407,119 +429,12 @@
     const weights=new Float32Array(size);
     let weightSum=0;
     for(let i=0;i<size;i++){
-      const w=Math.abs(circleMean[i]-doubleMean[i]);
-      // 端末差による微小な輪郭差は捨て、○/◎で安定して違う画素だけを見る。
-      if(w>=.28){
-        weights[i]=w;
-        weightSum+=w;
-      }
+      const wt=Math.abs(circleMean[i]-doubleMean[i]);
+      if(wt>=.24){weights[i]=wt;weightSum+=wt;}
     }
-    if(weightSum<8)return '';
-
-    const [x,y,w]=cell.rect;
-
-    // ○は黒い一重リング、◎は灰色のリングなので、まず「黒いリング」が
-    // 末尾に実在するかを形そのものから確認する。ここで○が確定した場合は
-    // 後段の明るさ・テンプレート比較で◎へ上書きしない。
-    const darkCircleMark=()=>{
-      const comps=glyphComponents(image,[x+4,y+2,w-8,30],105);
-      const minX=Math.max(36,(w-8)*.35);
-      const rings=comps.filter(c=>{
-        if(c.x<minX||c.w<13||c.w>18||c.h<13||c.h>19)return false;
-        const aspect=c.w/c.h,density=c.area/(c.w*c.h);
-        if(aspect<.78||aspect>1.22||density<.32||density>.56)return false;
-        const glyph=normalizeGlyph(c.mask,c.w,c.h);
-        let center=0,total=0;
-        for(let yy=5;yy<=10;yy++)for(let xx=4;xx<=7;xx++){center+=glyph[yy*12+xx];total++;}
-        return total&&center/total<=.14;
-      }).sort((a,b)=>(b.x+b.w)-(a.x+a.w));
-      return rings.length?'○':'';
-    };
-    const darkMark=darkCircleMark();
-    if(darkMark)return darkMark;
-
-    // ○/◎は能力名から切り離し、末尾の丸記号だけを直接見る。
-    // テンプレートの右端にある最後の字形を記号位置として取り、
-    // その周辺だけを数px探索する。○は黒い外周、◎は灰色の太い二重丸なので、
-    // 外周画素の明るさの下位25%を見ると端末差・縮小差にも比較的強い。
-    const symbolToneMark=()=>{
-      const profile=new Float32Array(64);
-      for(let xx=0;xx<64;xx++){
-        let sum=0;
-        for(let yy=0;yy<10;yy++){
-          const i=yy*64+xx;
-          sum+=Math.max(circleMean[i],doubleMean[i]);
-        }
-        profile[xx]=sum;
-      }
-
-      let right=-1;
-      for(let xx=63;xx>=0;xx--){
-        if(profile[xx]>=.35){right=xx;break;}
-      }
-      if(right<0)return '';
-
-      let left=Math.max(0,right-9);
-      let gap=0;
-      for(let xx=right-1;xx>=Math.max(0,right-15);xx--){
-        if(profile[xx]<.18) gap++;
-        else gap=0;
-        if(gap>=2&&right-xx>=5){
-          left=xx+2;
-          break;
-        }
-      }
-      const templateCenter=(left+right)/2;
-      const predictedX=4+(templateCenter+.5)*2;
-      const c=canonicalCrop(image,cell.rect);
-      const ctx=c.getContext('2d');
-      const pixels=ctx.getImageData(0,0,c.width,c.height).data;
-
-      const sampleAt=(cx,cy)=>{
-        const ring=[];
-        let evidence=0;
-        for(let yy=Math.max(0,Math.floor(cy-11));yy<=Math.min(c.height-1,Math.ceil(cy+11));yy++){
-          for(let xx=Math.max(0,Math.floor(cx-11));xx<=Math.min(c.width-1,Math.ceil(cx+11));xx++){
-            const dx=xx-cx,dy=yy-cy,rr=Math.sqrt(dx*dx+dy*dy);
-            if(rr<5||rr>10)continue;
-            const i=(yy*c.width+xx)*4;
-            const rr0=pixels[i],gg=pixels[i+1],bb=pixels[i+2];
-            const lum=rr0*.299+gg*.587+bb*.114;
-            const chrom=Math.max(rr0,gg,bb)-Math.min(rr0,gg,bb);
-            // 青いセル背景を除き、黒〜灰色の記号画素だけを見る。
-            if(chrom<100&&lum<230){
-              ring.push(lum);
-              evidence++;
-            }
-          }
-        }
-        if(ring.length<25)return null;
-        ring.sort((a,b)=>a-b);
-        const q25=ring[Math.floor((ring.length-1)*.25)];
-        return {q25,evidence};
-      };
-
-      let best=null;
-      for(let dy=-3;dy<=3;dy++)for(let dx=-6;dx<=6;dx++){
-        const result=sampleAt(predictedX+dx,17+dy);
-        if(!result)continue;
-        if(!best||result.evidence>best.evidence)best={...result,dx,dy};
-      }
-      if(!best)return '';
-
-      // 実画像では○の輪郭は黒、◎は明るい灰色。
-      // その中間だけ従来の差分テンプレート比較へ回して推測しすぎない。
-      if(best.q25<=118)return '○';
-      // 明るいだけで◎と断定すると、○の位置ずれを◎と誤認しやすい。
-      // ◎は後段のテンプレート比較でも十分差が出た場合だけ確定する。
-      return '';
-    };
-    const symbolTone=symbolToneMark();
-    if(symbolTone)return symbolTone;
-
-    const sigs=[85,100,115,130].flatMap(threshold=>
-      [0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
-    );
+    if(weightSum<5){
+      return fullBest<=.13&&fullMargin>=.003?fullWinner:'';
+    }
 
     const weightedDistance=(sig,ref)=>{
       let best=1;
@@ -538,15 +453,19 @@
       return best;
     };
 
-    const circleScore=Math.min(...sigs.map(sig=>weightedDistance(sig,circleMean)));
-    const doubleScore=Math.min(...sigs.map(sig=>weightedDistance(sig,doubleMean)));
-    const best=Math.min(circleScore,doubleScore),margin=Math.abs(circleScore-doubleScore);
-    // 記号だけで確信が持てない時は推測せず、従来のOCR補助へ回す。
-    if(best>.42||margin<.055)return '';
-    if(circleScore<doubleScore)return '○';
-    // ◎への昇格は誤判定の影響が大きいため、○より厳しくする。
-    if(best>.32||margin<.09)return '';
-    return '◎';
+    const circleWeighted=Math.min(...sigs.map(sig=>weightedDistance(sig,circleMean)));
+    const doubleWeighted=Math.min(...sigs.map(sig=>weightedDistance(sig,doubleMean)));
+    const weightedWinner=circleWeighted<=doubleWeighted?'○':'◎';
+    const weightedBest=Math.min(circleWeighted,doubleWeighted);
+    const weightedMargin=Math.abs(circleWeighted-doubleWeighted);
+
+    // 全体比較と記号差分が一致する場合は、やや広い端末差まで許容する。
+    if(fullWinner===weightedWinner&&fullBest<=.145&&fullMargin>=.0025&&weightedBest<=.44&&weightedMargin>=.035){
+      return fullWinner;
+    }
+    // 記号差分だけでも十分大きく差が付いた場合のみ採用する。
+    if(weightedBest<=.31&&weightedMargin>=.085)return weightedWinner;
+    return '';
   }
 
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
@@ -825,7 +744,7 @@
       const x=[713,852,990,1128][col];let colored=0,yellow=0;
       for(let yy=y+5;yy<Math.min(537,y+35);yy++)for(let xx=x+3;xx<x+127;xx+=8){const i=(yy*1536+xx)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];if((b>r+25&&g>r+10)||(r>b+65&&g>b+35))colored++;if(r>175&&g>125&&b<120&&r>b+65&&g>b+35)yellow++;}
       // Long names such as 対ウンディーネ and 無頼漢の教え need almost the full cell width.
-      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:rowIndex+1,col:col+1,superCell:yellow>18});
+      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:rowIndex+1,col:col+1,superCell:yellow>60});
     }});
     return cells;
   }
@@ -836,7 +755,7 @@
     const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
     if(marked){const upper=marked[1]+'◎';if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
     // One-character 烈 is especially prone to 珠/科/杏/吾 in this game font.
-    if(superCell&&SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/.test(cleanCellText(text)))return {...findSpecials('烈'),candidate:true};
+    if(superCell&&SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/.test(cleanCellText(text)))return {...findSpecials('烈'),candidate:false};
     const clean=cleanCellText(normalized.replace(/[O0〇◯]$/,'○')).replace(/^[火水風]攻撃$/,'〜攻撃');
     const exact=findSpecials(clean);
     if(!exact.unknown.length&&(exact.specials.length||exact.supers.length))return {...exact,candidate:false};
@@ -872,6 +791,15 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell);
+      // 全体比較で落ちても、○/◎付き能力は「名前本体」と「末尾記号」を別々に画像比較する。
+      // ケガしにくさ・対魔闘士・対ハーピーなど、OCRで崩れやすい能力をここで直接拾う。
+      if(!visualName){
+        const pairStem=pairStemByImage(image,cell);
+        const pairMark=pairStem?pairMarkByImage(image,cell,pairStem):'';
+        if(pairStem&&pairMark&&D.special.some(row=>normalize(row[1])===pairStem+pairMark)){
+          visualName=pairStem+pairMark;
+        }
+      }
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
       if(/[○◎]$/.test(visualName)){
@@ -964,7 +892,7 @@
       if(parsed.candidate)candidates.push(`${where}「${parsed.supers[0]?.name||parsed.specials[0]}」`);
     }
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
-    if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。画像と見比べて、下の「取得状態を確認・修正する」または「＋超特殊能力を追加」で補ってください。`);
+    if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。必要に応じて修正してください。`);
     if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}について、取得状態が合っているか確認してください。`);
     return result;
   }
