@@ -228,6 +228,7 @@
     const style=document.createElement('style');
     style.textContent=`
       .extra-resistance-list{display:grid;gap:12px}
+      .usage-subnote{font-size:.88em;font-weight:600;color:#6f5438}
       .extra-resistance-group{padding:11px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
       .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
@@ -286,7 +287,7 @@
       .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
         .extra-resistance-group{padding:9px}
-        .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 38px;gap:5px}
+        .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
         .extra-resistance-type-control .custom-select-menu{width:min(240px,calc(100vw - 36px));min-width:min(230px,calc(100vw - 36px))}
         .extra-resistance-type-control .custom-select-option{font-size:14px}
@@ -463,7 +464,11 @@
     }
     const firstNote=document.querySelector('.usage-note-list li');
     if(firstNote){
-      firstNote.textContent='基本能力の小数点以下の査定が不明であることなどから、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力の査定は割愛  function fillSuperGroup(group){
+      firstNote.textContent='基本能力の小数点以下の査定が不明であることなどから、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力の査定は割愛しています。あらかじめご了承ください。';
+    }
+  }
+
+  function fillSuperGroup(group){
     const name=group.querySelector('.super-name').value;
     const def=window.PAWAADO_DATA.superResistances[name];
     const lv=Number(group.querySelector('.super-level').value);
@@ -484,6 +489,7 @@
       def&&!lv?'Lvを選択すると耐性値を自動設定します。':'';
     clearDetectedResultCaches();
   }
+
   window.__PAWAADO_SET_SUPERS__=entries=>{
     const list=document.getElementById('extraResistanceList');
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i)).join('');
