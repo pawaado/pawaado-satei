@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-job-filter-super-1';
+  const PATCH_VERSION='20260929-super-order-1';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -370,27 +370,31 @@
     </div>`;
   }
 
-  const SUPER_READINGS={
-    '安全運転':'あんぜんうんてん',
-    'ウィンドプロテクション':'うぃんどぷろてくしょん',
-    'ウォータープロテクション':'うぉーたーぷろてくしょん',
-    '加護':'かご',
-    '火事場の馬鹿力':'かじばのばかぢから',
-    'カチカチボディ':'かちかちぼでぃ',
-    '救援者':'きゅうえんしゃ',
-    '慈愛の祈り':'じあいのいのり',
-    '対魔の盾':'たいまのたて',
-    '戦い抜く覚悟':'たたかいぬくかくご',
-    '超免疫':'ちょうめんえき',
-    '鉄人':'てつじん',
-    '百戦の生存術':'ひゃくせんのせいぞんじゅつ',
-    'ファイアプロテクション':'ふぁいあぷろてくしょん',
-    '不朽の意志':'ふきゅうのいし',
-    '不屈の精神':'ふくつのせいしん',
-    '不滅':'ふめつ',
-    '無頼漢の教え':'ぶらいかんのおしえ',
-    '魔力耐性':'まりょくたいせい'
-  };
+  // 超特殊能力の表示順は端末ごとのlocaleCompare差を避けるため固定する。
+  // ユーザーが確認した五十音順をそのまま使用。
+  const SUPER_ORDER=[
+    '安全運転',
+    'ウィンドプロテクション',
+    'ウォータープロテクション',
+    '加護',
+    '火事場の馬鹿力',
+    'カチカチボディ',
+    '救援者',
+    '慈愛の祈り',
+    '対魔の盾',
+    '戦い抜く覚悟',
+    '超免疫',
+    '鉄人',
+    '百戦の生存術',
+    'ファイアプロテクション',
+    '不朽の意志',
+    '不屈の精神',
+    '不滅',
+    '魔力耐性',
+    '無頼漢の教え'
+  ];
+  const SUPER_ORDER_INDEX=new Map(SUPER_ORDER.map((name,index)=>[name,index]));
+
   function currentJob(){return document.getElementById('job')?.value||'';}
   function availableSuperNames(job=currentJob()){
     if(!job)return [];
@@ -399,7 +403,7 @@
         const def=window.PAWAADO_DATA.superResistances[name];
         return !def.job||def.job===job;
       })
-      .sort((a,b)=>(SUPER_READINGS[a]||a).localeCompare(SUPER_READINGS[b]||b,'ja',{sensitivity:'base'}));
+      .sort((a,b)=>(SUPER_ORDER_INDEX.get(a)??999)-(SUPER_ORDER_INDEX.get(b)??999));
   }
   function rebuildSuperNameOptions(group){
     const select=group.querySelector('.super-name');
