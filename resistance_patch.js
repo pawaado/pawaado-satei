@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-simple-1';
+  const PATCH_VERSION='20260929-ui-recognition-fix-1';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -228,6 +228,8 @@
     const style=document.createElement('style');
     style.textContent=`
       .extra-resistance-list{display:grid;gap:12px}
+      /* 耐性の内訳は内部計算にだけ使い、画面には表示しない */
+      .extra-resistance-group-rows{display:none!important}
       .usage-subnote{font-size:.88em;font-weight:600;color:#6f5438}
       .extra-resistance-group{padding:11px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
       .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
@@ -286,6 +288,7 @@
       .extra-resistance-actions{margin-top:12px}
       .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
+        .usage-list li:nth-child(3){font-size:.94em;letter-spacing:-.02em;white-space:nowrap}
         .extra-resistance-group{padding:9px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
@@ -455,9 +458,9 @@
     const usageList=document.querySelector('.usage-list');
     if(usageList){
       usageList.innerHTML=[
-        '「能力アップ」画面と「能力データ」画面の画像を選択します。<br><span class="usage-subnote">※画像を使わず、手入力でも利用できます。</span>',
+        '「能力アップ」画面と「能力データ」画面の画像を選択します。画像を使わず、手入力でも利用できます。',
         '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。なお、名称をタップすると、基本能力は上限値、特殊能力は取得済になります。',
-        '基本能力・特殊能力左側の「＋」でコツLvを設定します。',
+        '基本能力・特殊能力左の「＋」でコツLvを設定します。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
         '「計算する」を押すと、査定が最大となる組合せを表示します。'
       ].map(text=>`<li>${text}</li>`).join('');
