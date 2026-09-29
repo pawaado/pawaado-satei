@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-special-zoom-1';
+  const PHOTO_IMPORT_BUILD='20260930-confidence-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -969,7 +969,10 @@
         const ocrMark=stem?await ocrMarkHint(image,cell,reads):'';
         // 能力名は候補絞り＋画像比較、○/◎は末尾記号の形を最優先して別判定する。
         markHint=shapeMark||ocrMark||visualMark;
-        const pairCertain=!!stem&&!hybrid.candidate&&!!shapeMark;
+        // OCRが崩れても、独立した画像名判定と○/◎形状判定が同じ答えなら要確認にしない。
+        // 対魔闘士のようにゲームフォントでOCRが弱い能力を、正しく読めているのに警告し続けないため。
+        const strongImageStem=stem&&pairStemByImage(image,cell)===stem;
+        const pairCertain=!!stem&&!!shapeMark&&(!hybrid.candidate||strongImageStem);
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
         parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
