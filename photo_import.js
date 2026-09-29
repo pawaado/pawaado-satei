@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-position-independent-1';
+  const PHOTO_IMPORT_BUILD='20260929-cleric-visual-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -229,22 +229,39 @@
   }
   function abilityByImage(image,cell){
     const [x,y,w]=cell.rect;
-    // ゲーム側の能力データ画面には行間が約50pxの版と約57pxの版があり、
-    // 文字の上下位置も少し違う。縦位置を3通り照合して実画像差を吸収する。
-    // 能力の並び順には依存せず、セル内の文字そのものだけを照合する。
-    // 端末・描画差で文字のベースラインがずれても拾えるよう縦位置を広めに探索する。
-    const sigs=[0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,100));
-    const ranked=Object.entries(HYBRID_ABILITY_MASKS).map(([name,encoded])=>{
+    // 能力の並び順や隣接能力には依存せず、セル内の文字そのものだけを照合する。
+    // まず通常条件で全テンプレートを比較し、外れたセルだけ追加条件で再比較する。
+    const offsets=[0,2,4,6,8,10,12,14];
+    const makeSigs=threshold=>offsets.map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold));
+    const rank=(entries,sigs,maxDx=3,maxDy=2)=>entries.map(([name,encoded])=>{
       const variants=Array.isArray(encoded)?encoded:[encoded];
-      return {name,d:Math.min(...variants.flatMap(e=>sigs.map(sig=>shiftedMaskDistance(sig.mask,decodeMask(e,64*10),64,10,3,2))))};
+      return {name,d:Math.min(...variants.flatMap(e=>sigs.map(sig=>shiftedMaskDistance(sig.mask,decodeMask(e,64*10),64,10,maxDx,maxDy))))};
     }).sort((a,b)=>a.d-b.d);
-    const best=ranked[0],second=ranked[1];
-    if(!best)return '';
-    const limit=(best.name==='烈'||best.name==='備え')?.045:.07;
-    // 実画像テンプレートとほぼ完全一致した場合は、似た別テンプレートとの僅差で捨てない。
-    // 僧侶治療○など、長い能力名の末尾記号まで一致している実画像を確実に採用する。
-    if(best.d<=.015)return best.name;
-    return best.d<=limit&&(!second||second.d-best.d>=.01)?best.name:'';
+    const accept=(ranked,relaxed=false)=>{
+      const best=ranked[0],second=ranked[1];
+      if(!best)return '';
+      const limit=(best.name==='烈'||best.name==='備え')?.045:(relaxed?.075:.07);
+      if(best.d<=.015)return best.name;
+      const treatment=/治療[○◎]$/.test(best.name);
+      // 「○/◎」だけが共通する治療系は端末ごとの字形差で2位との差が小さくなりやすい。
+      // ただし絶対距離も十分小さい場合だけ許可し、並び順からは補完しない。
+      const margin=treatment?(relaxed?.003:.006):.01;
+      const treatmentLimit=treatment?(relaxed?.065:.055):limit;
+      return best.d<=Math.min(limit,treatmentLimit)&&(!second||second.d-best.d>=margin)?best.name:'';
+    };
+
+    const entries=Object.entries(HYBRID_ABILITY_MASKS);
+    const normal=rank(entries,makeSigs(100));
+    const hit=accept(normal,false);
+    if(hit)return hit;
+
+    // 通常比較で落ちたときだけ、上位候補＋治療系を濃淡・位置ずれに強い条件で再比較。
+    // これで僧侶治療○を固定位置に頼らず認識しつつ、全セルの計算量増加を抑える。
+    const candidateNames=new Set(normal.slice(0,8).map(r=>r.name));
+    for(const [name] of entries)if(/治療[○◎]$/.test(name))candidateNames.add(name);
+    const candidates=entries.filter(([name])=>candidateNames.has(name));
+    const robustSigs=[85,115,135].flatMap(makeSigs);
+    return accept(rank(candidates,robustSigs,6,3),true);
   }
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
     const out=new Uint8Array(outW*outH);
@@ -584,17 +601,30 @@
         raw='[image] '+visualName;
         parsed=cellAbility(visualName,'',cell.superCell);
       }else{
-        const first=(await textAt(image,cell.rect,false,false,true)).text;
-        const firstStem=pairStemFromText(first);
-        let preliminary=cellAbility(first,'',cell.superCell),retry='';
-        if(firstStem||preliminary.unknown.length||preliminary.candidate)retry=(await textAt(image,cell.rect,false,false,true,120)).text;
-        const stem=firstStem||pairStemFromText(retry);
-        markHint=stem?await abilityMarkHint(image,cell,[first,retry]):'';
-        raw=first;parsed=cellAbility(first,markHint,cell.superCell);
-        if(retry){
-          const alternative=cellAbility(retry,markHint,cell.superCell);
-          if(!alternative.unknown.length&&(parsed.unknown.length||!alternative.candidate)){raw=retry;parsed=alternative;}
+        // 画像比較で確定できないセルだけOCRを段階的に再試行する。
+        // 端末差で「僧侶」など一部の漢字が潰れても、能力名そのものから判定する。
+        const reads=[];
+        const addRead=async threshold=>{
+          const t=(await textAt(image,cell.rect,false,false,true,threshold)).text;
+          if(t&&!reads.includes(t))reads.push(t);
+        };
+        await addRead(false);
+        await addRead(120);
+        let stem=reads.map(pairStemFromText).find(Boolean)||'';
+        let preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
+        if(!stem&&!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
+          await addRead(155);
+          await addRead(190);
+          stem=reads.map(pairStemFromText).find(Boolean)||'';
+          preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         }
+        markHint=stem?await abilityMarkHint(image,cell,reads):'';
+        const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell),i}));
+        const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
+        parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
+        const bestRead=parsedReads[0];
+        raw=bestRead?.text||'';
+        parsed=bestRead?.parsed||{specials:[],supers:[],unknown:[''],candidate:false};
       }
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
