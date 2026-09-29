@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-auto-1';
+  const PATCH_VERSION='20260929-super-ui-simple-1';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -229,9 +229,26 @@
     style.textContent=`
       .extra-resistance-list{display:grid;gap:12px}
       .extra-resistance-group{padding:11px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
-      .extra-resistance-group-title{margin:0 0 9px;color:#5a371d;font-size:14px;font-weight:800}
-      .extra-resistance-group-rows{display:grid;gap:8px}
-      .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px;gap:7px;align-items:center}
+      .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
+      .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
+      .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
+      .super-control-row{display:flex;align-items:flex-end;gap:8px}
+      .super-control-row .super-controls{flex:1;min-width:0}
+      .extra-resistance-group-remove{flex:0 0 42px;width:42px;min-width:42px;height:52px;min-height:52px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
+      .super-controls select{
+        -webkit-appearance:none;appearance:none;
+        padding-right:34px!important;
+        background-image:
+          linear-gradient(45deg,transparent 50%,#715638 50%),
+          linear-gradient(135deg,#715638 50%,transparent 50%),
+          linear-gradient(180deg,#fffdf4,#fff2ce)!important;
+        background-position:
+          calc(100% - 17px) 52%,
+          calc(100% - 12px) 52%,
+          0 0!important;
+        background-size:5px 5px,5px 5px,100% 100%!important;
+        background-repeat:no-repeat!important;
+      }
       .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
       .extra-resistance-type-control.is-open{z-index:4000}
       .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}
@@ -280,25 +297,14 @@
     document.head.appendChild(style);
   }
 
-  function resistanceRowHtml(removable=false){
-    const options='<option value="">耐性を選択</option>'+resistanceTypes.map(type=>`<option value="${type}">${type}</option>`).join('');
-    const removeControl=removable
-      ? '<button type="button" class="secondary extra-resistance-remove" aria-label="この耐性を削除">×</button>'
-      : '<span class="extra-resistance-remove-placeholder" aria-hidden="true"></span>';
+  function resistanceRowHtml(){
     return `<div class="extra-resistance-row">
-      <div class="extra-resistance-type-control custom-select-control">
-        <select class="extra-resistance-type custom-native-select" tabindex="-1" aria-hidden="true">${options}</select>
-        <button type="button" class="custom-select-button extra-resistance-type-button" aria-haspopup="listbox" aria-expanded="false">
-          <span class="extra-resistance-type-text">耐性を選択</span>
-        </button>
-        <span class="select-game-arrow" aria-hidden="true"></span>
-        <div class="custom-select-menu extra-resistance-type-menu" role="listbox" hidden></div>
-      </div>
+      <div class="extra-resistance-type-label"></div>
+      <input class="extra-resistance-type" type="hidden">
       <label class="extra-resistance-value-wrap">
-        <input class="extra-resistance-value" type="number" max="99.9" step="0.1" inputmode="decimal" aria-label="耐性の数値（パーセント）">
+        <input class="extra-resistance-value" type="number" max="99.9" step="0.1" inputmode="decimal" aria-label="耐性の数値（パーセント）" readonly>
         <span class="extra-resistance-unit" aria-hidden="true">%</span>
       </label>
-      ${removeControl}
       <p class="extra-resistance-error" hidden>耐性値は0以外・100未満の数値で入力してください。</p>
     </div>`;
   }
@@ -368,26 +374,26 @@
   }
 
   function resistanceGroupHtml(index){
-    const letter=abilityLetter(index);
+    const names=Object.keys(window.PAWAADO_DATA.superResistances)
+      .sort((a,b)=>a.localeCompare(b,'ja',{sensitivity:'base'}));
     return `<div class="extra-resistance-group" data-group-index="${index}">
-      <div class="extra-resistance-group-title">超特殊能力${letter}</div>
-      <div class="super-controls"><label>能力<select class="super-name"><option value="">手動で耐性を入力</option>${Object.keys(window.PAWAADO_DATA.superResistances).sort((a,b)=>a.localeCompare(b,'ja')).map(n=>`<option>${n}</option>`).join('')}</select></label><label>Lv<select class="super-level"><option value="">選択</option><option value="1">1</option><option value="2">2</option></select></label></div>
-      <p class="super-note"></p>
-      <div class="extra-resistance-group-rows">${resistanceRowHtml(index>0)}</div>
-      <div class="extra-resistance-group-actions">
-        <button type="button" class="secondary extra-resistance-same-add">＋超特殊能力${letter}の耐性を追加</button>
+      <div class="super-control-row">
+        <div class="super-controls"><label>超特殊能力<select class="super-name"><option value="">超特殊能力を選択</option>${names.map(n=>`<option>${n}</option>`).join('')}</select></label><label>Lv<select class="super-level"><option value="">選択</option><option value="1">1</option><option value="2">2</option></select></label></div>
+        ${index>0?'<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>':''}
       </div>
+      <p class="super-note"></p>
+      <div class="extra-resistance-group-rows"></div>
     </div>`;
   }
 
   function renumberResistanceGroups(){
     document.querySelectorAll('.extra-resistance-group').forEach((group,index)=>{
       group.dataset.groupIndex=String(index);
-      const letter=abilityLetter(index);
-      const title=group.querySelector('.extra-resistance-group-title');
-      const add=group.querySelector('.extra-resistance-same-add');
-      if(title) title.textContent=`超特殊能力${letter}`;
-      if(add) add.textContent=`＋超特殊能力${letter}の耐性を追加`;
+      const remove=group.querySelector('.extra-resistance-group-remove');
+      if(index===0&&remove) remove.remove();
+      if(index>0&&!remove){
+        group.querySelector('.super-control-row')?.insertAdjacentHTML('beforeend','<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>');
+      }
     });
   }
 
@@ -395,7 +401,6 @@
     const list=document.getElementById('extraResistanceList');
     if(!list) return;
     list.innerHTML=resistanceGroupHtml(0);
-    initResistanceSelects(list);
     clearDetectedResultCaches();
   }
 
@@ -414,7 +419,6 @@
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
       <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add">＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
-    initResistanceSelects(section);
 
     section.addEventListener('input',event=>{
       const row=event.target.closest('.extra-resistance-row');
@@ -433,33 +437,14 @@
         const list=document.getElementById('extraResistanceList');
         const index=list?.querySelectorAll('.extra-resistance-group').length||0;
         list?.insertAdjacentHTML('beforeend',resistanceGroupHtml(index));
-        const group=list?.lastElementChild;
-        if(group) initResistanceSelects(group);
         clearDetectedResultCaches();
         return;
       }
 
-      const addSame=event.target.closest('.extra-resistance-same-add');
-      if(addSame){
-        const rows=addSame.closest('.extra-resistance-group')?.querySelector('.extra-resistance-group-rows');
-        rows?.insertAdjacentHTML('beforeend',resistanceRowHtml(true));
-        if(rows?.lastElementChild) initResistanceSelects(rows.lastElementChild);
-        clearDetectedResultCaches();
-        return;
-      }
-
-      const remove=event.target.closest('.extra-resistance-remove');
-      if(remove){
-        const list=document.getElementById('extraResistanceList');
-        const row=remove.closest('.extra-resistance-row');
-        const group=remove.closest('.extra-resistance-group');
-        const rows=group?.querySelectorAll('.extra-resistance-row')||[];
-        const groups=list?.querySelectorAll('.extra-resistance-group')||[];
-        if(rows.length>1) row?.remove();
-        else if(groups.length>1){
-          group?.remove();
-          renumberResistanceGroups();
-        }
+      const removeGroup=event.target.closest('.extra-resistance-group-remove');
+      if(removeGroup){
+        removeGroup.closest('.extra-resistance-group')?.remove();
+        renumberResistanceGroups();
         clearDetectedResultCaches();
       }
     });
@@ -468,49 +453,40 @@
   function updateUsageText(){
     const usageList=document.querySelector('.usage-list');
     if(usageList){
-      const items=[
-        '「能力アップ」画面と「能力データ」画面の画像を選択します。',
+      usageList.innerHTML=[
+        '「能力アップ」画面と「能力データ」画面の画像を選択します。<br><span class="usage-subnote">※画像を使わず、手入力でも利用できます。</span>',
         '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。なお、名称をタップすると、基本能力は上限値、特殊能力は取得済になります。',
-        '基本能力・特殊能力の左側の「＋」でコツLvを設定します。',
+        '基本能力・特殊能力左側の「＋」でコツLvを設定します。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
         '「計算する」を押すと、査定が最大となる組合せを表示します。'
-      ];
-      usageList.innerHTML=items.map(text=>`<li>${text}</li>`).join('');
+      ].map(text=>`<li>${text}</li>`).join('');
     }
     const firstNote=document.querySelector('.usage-note-list li');
     if(firstNote){
-      firstNote.textContent='基本能力の小数点以下の査定が不明であることなどから、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力の査定は割愛しています。あらかじめご了承ください。';
-    }
-  }
-
-  function fillSuperGroup(group){
+      firstNote.textContent='基本能力の小数点以下の査定が不明であることなどから、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力の査定は割愛  function fillSuperGroup(group){
     const name=group.querySelector('.super-name').value;
     const def=window.PAWAADO_DATA.superResistances[name];
     const lv=Number(group.querySelector('.super-level').value);
     const rows=group.querySelector('.extra-resistance-group-rows');
 
-    // 能力を選んだ時点で既知の耐性種類を自動設定し、Lv選択後に数値も自動設定する。
-    rows.innerHTML=(def?def.types:['']).map(()=>resistanceRowHtml(true)).join('');
-    initResistanceSelects(rows);
+    rows.innerHTML=def?def.types.map(()=>resistanceRowHtml()).join(''):'';
     if(def) [...rows.children].forEach((row,i)=>{
-      const type=row.querySelector('.extra-resistance-type');
-      const value=row.querySelector('.extra-resistance-value');
-      type.value=def.types[i];
-      type.dispatchEvent(new Event('change'));
-      value.value=lv?def.levels[lv-1]:'';
-      value.readOnly=true;
-      row.querySelector('.extra-resistance-type-button').disabled=true;
-      row.querySelector('.extra-resistance-remove').hidden=true;
+      row.querySelector('.extra-resistance-type').value=def.types[i];
+      row.querySelector('.extra-resistance-type-label').textContent=def.types[i];
+      row.querySelector('.extra-resistance-value').value=lv?def.levels[lv-1]:'';
     });
-    group.querySelector('.extra-resistance-group-actions').hidden=!!def;
+
     if(def&&lv) document.dispatchEvent(new CustomEvent('pawaado-super-change',{detail:{name}}));
-    group.querySelector('.super-note').textContent=def?.includes&&lv?'下位能力込みの合計値です。':def?.job&&!lv?def.job+'専用・Lvを選択してください。':def?.job?def.job+'専用':def&&!lv?'耐性種類を自動設定しました。Lvを選択してください。':'';
+    group.querySelector('.super-note').textContent=
+      def?.includes&&lv?'下位能力込みの合計値です。':
+      def?.job&&!lv?def.job+'専用・Lvを選択してください。':
+      def?.job?def.job+'専用':
+      def&&!lv?'Lvを選択すると耐性値を自動設定します。':'';
     clearDetectedResultCaches();
   }
   window.__PAWAADO_SET_SUPERS__=entries=>{
     const list=document.getElementById('extraResistanceList');
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i)).join('');
-    initResistanceSelects(list);
     entries.forEach((entry,i)=>{
       const group=list.children[i];
       group.querySelector('.super-name').value=entry.name;
