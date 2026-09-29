@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-cleric-visual-2';
+  const PHOTO_IMPORT_BUILD='20260929-mark-tone-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -372,15 +372,66 @@
     };
     const circleMean=mean(circleVariants),doubleMean=mean(doubleVariants);
     const weights=new Float32Array(size);
+    const columnWeights=new Float32Array(64);
     let weightSum=0;
     for(let i=0;i<size;i++){
       const w=Math.abs(circleMean[i]-doubleMean[i]);
       // 端末差による微小な輪郭差は捨て、○/◎で安定して違う画素だけを見る。
-      if(w>=.28){weights[i]=w;weightSum+=w;}
+      if(w>=.28){
+        weights[i]=w;
+        weightSum+=w;
+        columnWeights[i%64]+=w;
+      }
     }
     if(weightSum<8)return '';
 
     const [x,y,w]=cell.rect;
+
+    // ゲーム画面では「○」は濃い輪郭、「◎」は明るい灰色の二重丸になる。
+    // 能力名全体の白黒比較だけだと端末差・縮小率で逆転するため、
+    // ○/◎テンプレートの差分から末尾記号の位置を求め、その部分の濃さを先に判定する。
+    const toneMark=()=>{
+      let maxColumn=0;
+      for(const value of columnWeights)maxColumn=Math.max(maxColumn,value);
+      if(maxColumn<=0)return '';
+
+      let right=-1;
+      for(let xx=63;xx>=0;xx--){
+        if(columnWeights[xx]>=Math.max(.22,maxColumn*.18)){right=xx;break;}
+      }
+      if(right<0)return '';
+
+      const left=Math.max(0,right-10),end=Math.min(63,right+2);
+      let sum=0,cx=0;
+      for(let xx=left;xx<=end;xx++){
+        const wt=columnWeights[xx];
+        if(!wt)continue;
+        sum+=wt;cx+=xx*wt;
+      }
+      if(sum<=0)return '';
+
+      const centerX=x+4+(cx/sum+.5)*2;
+      const patchX=Math.max(x+4,Math.min(x+w-24,centerX-10));
+      const c=canonicalCrop(image,[patchX,y+3,20,28]);
+      const data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+      let veryDark=0,darkish=0,samples=0;
+      for(let yy=3;yy<c.height-3;yy++)for(let xx=1;xx<c.width-1;xx++){
+        const i=(yy*c.width+xx)*4;
+        const lum=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+        samples++;
+        if(lum<175)darkish++;
+        if(lum<120)veryDark++;
+      }
+      if(samples<100||darkish<8)return '';
+      const ratio=veryDark/darkish;
+      const veryDarkRate=veryDark/samples;
+      if(veryDarkRate>=.028&&ratio>=.27)return '○';
+      if(ratio<=.16)return '◎';
+      return '';
+    };
+    const tone=toneMark();
+    if(tone)return tone;
+
     const sigs=[85,100,115,130].flatMap(threshold=>
       [0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
     );
