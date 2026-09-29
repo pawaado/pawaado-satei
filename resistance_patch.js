@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-ui-recognition-fix-1';
+  const PATCH_VERSION='20260929-select-ui-2';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -235,38 +235,18 @@
       .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
-      .super-control-row{display:flex;align-items:flex-end;gap:8px}
-      .super-control-row .super-controls{flex:1;min-width:0}
-      .extra-resistance-group-remove{flex:0 0 42px;width:42px;min-width:42px;height:52px;min-height:52px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
-      .super-controls select{
-        -webkit-appearance:none;appearance:none;
-        padding-right:34px!important;
-        background-image:
-          linear-gradient(45deg,transparent 50%,#715638 50%),
-          linear-gradient(135deg,#715638 50%,transparent 50%),
-          linear-gradient(180deg,#fffdf4,#fff2ce)!important;
-        background-position:
-          calc(100% - 17px) 52%,
-          calc(100% - 12px) 52%,
-          0 0!important;
-        background-size:5px 5px,5px 5px,100% 100%!important;
-        background-repeat:no-repeat!important;
-      }
+      .super-control-row{display:block}
+      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px!important;gap:8px!important;align-items:end}
+      .super-controls label{min-width:0}
+      .super-custom-select{position:relative;min-width:0}
+      .super-custom-select .custom-select-button{height:52px;min-height:52px;font-size:16px;padding:8px 38px 8px 10px}
+      .super-custom-select .custom-select-menu{width:100%;min-width:100%;max-width:min(420px,calc(100vw - 54px));left:0;right:auto}
+      .super-custom-select .custom-select-option{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+      .super-level-control .custom-select-option{white-space:nowrap}
+      .extra-resistance-group-remove{display:block;margin:8px 0 0 auto;width:42px;min-width:42px;height:42px;min-height:42px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
       .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
       .extra-resistance-type-control.is-open{z-index:4000}
-      .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}
-      /* アカデミーと耐性選択の矢印は主張を抑える */
-      #academyFieldLabel .select-game-arrow,
-      .extra-resistance-type-control .select-game-arrow{
-        width:24px;height:24px;right:10px;border-radius:7px;opacity:.68;
-        border-width:1px;box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 1px 0 rgba(90,52,8,.35);
-        background:linear-gradient(180deg,#f5d98c,#d8ad4d);
-      }
-      #academyFieldLabel .select-game-arrow::before,
-      .extra-resistance-type-control .select-game-arrow::before{
-        width:7px;height:7px;border-right-width:2px;border-bottom-width:2px;
-      }
-      .extra-resistance-type-control .custom-select-menu{
+      .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}      .extra-resistance-type-control .custom-select-menu{
         left:0;right:auto;
         width:min(240px,calc(100vw - 48px));
         min-width:min(230px,calc(100vw - 48px));
@@ -288,7 +268,6 @@
       .extra-resistance-actions{margin-top:12px}
       .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
-        .usage-list li:nth-child(3){font-size:.94em;letter-spacing:-.02em;white-space:nowrap}
         .extra-resistance-group{padding:9px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
@@ -377,17 +356,96 @@
     });
   }
 
+  function superSelectControlHtml(kind,optionsHtml,placeholder){
+    const isLevel=kind==='level';
+    return `<div class="custom-select-control super-custom-select ${isLevel?'super-level-control':'super-name-control'}">
+      <select class="${isLevel?'super-level':'super-name'} custom-native-select" tabindex="-1" aria-hidden="true">${optionsHtml}</select>
+      <button type="button" class="custom-select-button ${isLevel?'super-level-button':'super-name-button'}" aria-haspopup="listbox" aria-expanded="false">
+        <span class="${isLevel?'super-level-text':'super-name-text'}">${placeholder}</span>
+      </button>
+      <div class="custom-select-menu ${isLevel?'super-level-menu':'super-name-menu'}" role="listbox" hidden></div>
+    </div>`;
+  }
+
   function resistanceGroupHtml(index){
     const names=Object.keys(window.PAWAADO_DATA.superResistances)
       .sort((a,b)=>a.localeCompare(b,'ja',{sensitivity:'base'}));
+    const nameOptions='<option value="">超特殊能力を選択</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+    const levelOptions='<option value=""></option><option value="1">1</option><option value="2">2</option>';
     return `<div class="extra-resistance-group" data-group-index="${index}">
       <div class="super-control-row">
-        <div class="super-controls"><label>超特殊能力<select class="super-name"><option value="">超特殊能力を選択</option>${names.map(n=>`<option>${n}</option>`).join('')}</select></label><label>Lv<select class="super-level"><option value="">選択</option><option value="1">1</option><option value="2">2</option></select></label></div>
+        <div class="super-controls">
+          <label>超特殊能力${superSelectControlHtml('name',nameOptions,'超特殊能力を選択')}</label>
+          <label>Lv${superSelectControlHtml('level',levelOptions,'—')}</label>
+        </div>
         ${index>0?'<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>':''}
       </div>
       <p class="super-note"></p>
       <div class="extra-resistance-group-rows"></div>
     </div>`;
+  }
+
+  function initSuperSelects(root=document){
+    root.querySelectorAll('.super-custom-select').forEach(control=>{
+      if(control.dataset.ready==='1')return;
+      control.dataset.ready='1';
+      const select=control.querySelector('select');
+      const button=control.querySelector('.custom-select-button');
+      const textEl=control.querySelector('.super-name-text,.super-level-text');
+      const menu=control.querySelector('.custom-select-menu');
+      if(!select||!button||!textEl||!menu)return;
+
+      const placeholder=control.classList.contains('super-level-control')?'—':'超特殊能力を選択';
+      const close=()=>{
+        control.classList.remove('is-open');
+        button.setAttribute('aria-expanded','false');
+        menu.hidden=true;
+      };
+      const sync=()=>{
+        const selected=select.options[select.selectedIndex];
+        textEl.textContent=select.value?(selected?.textContent||select.value):placeholder;
+        menu.innerHTML='';
+        for(const option of select.options){
+          const item=document.createElement('button');
+          item.type='button';
+          item.className='custom-select-option'+(option.value===select.value?' is-selected':'');
+          item.textContent=option.value?option.textContent:(control.classList.contains('super-level-control')?'—':option.textContent);
+          item.addEventListener('click',event=>{
+            event.stopPropagation();
+            select.value=option.value;
+            select.dispatchEvent(new Event('change',{bubbles:true}));
+            sync();
+            close();
+          });
+          menu.appendChild(item);
+        }
+      };
+      button.addEventListener('click',event=>{
+        event.stopPropagation();
+        const opening=menu.hidden;
+        document.querySelectorAll('.super-custom-select.is-open').forEach(other=>{
+          if(other===control)return;
+          other.classList.remove('is-open');
+          other.querySelector('.custom-select-button')?.setAttribute('aria-expanded','false');
+          const otherMenu=other.querySelector('.custom-select-menu');if(otherMenu)otherMenu.hidden=true;
+        });
+        if(opening){
+          sync();menu.hidden=false;control.classList.add('is-open');button.setAttribute('aria-expanded','true');
+        }else close();
+      });
+      select.addEventListener('change',sync);
+      sync();
+    });
+  }
+
+  function syncSuperSelects(root=document){
+    root.querySelectorAll('.super-custom-select').forEach(control=>{
+      const select=control.querySelector('select');
+      const textEl=control.querySelector('.super-name-text,.super-level-text');
+      if(!select||!textEl)return;
+      const selected=select.options[select.selectedIndex];
+      textEl.textContent=select.value?(selected?.textContent||select.value):(control.classList.contains('super-level-control')?'—':'超特殊能力を選択');
+    });
   }
 
   function renumberResistanceGroups(){
@@ -405,6 +463,7 @@
     const list=document.getElementById('extraResistanceList');
     if(!list) return;
     list.innerHTML=resistanceGroupHtml(0);
+    initSuperSelects(list);
     clearDetectedResultCaches();
   }
 
@@ -423,6 +482,7 @@
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
       <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add">＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
+    initSuperSelects(section);
 
     section.addEventListener('input',event=>{
       const row=event.target.closest('.extra-resistance-row');
@@ -441,6 +501,7 @@
         const list=document.getElementById('extraResistanceList');
         const index=list?.querySelectorAll('.extra-resistance-group').length||0;
         list?.insertAdjacentHTML('beforeend',resistanceGroupHtml(index));
+        if(list?.lastElementChild)initSuperSelects(list.lastElementChild);
         clearDetectedResultCaches();
         return;
       }
@@ -460,7 +521,7 @@
       usageList.innerHTML=[
         '「能力アップ」画面と「能力データ」画面の画像を選択します。画像を使わず、手入力でも利用できます。',
         '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。なお、名称をタップすると、基本能力は上限値、特殊能力は取得済になります。',
-        '基本能力・特殊能力左の「＋」でコツLvを設定します。',
+        '基本能力・特殊能力左の「＋」でコツLvを設定。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
         '「計算する」を押すと、査定が最大となる組合せを表示します。'
       ].map(text=>`<li>${text}</li>`).join('');
@@ -496,10 +557,12 @@
   window.__PAWAADO_SET_SUPERS__=entries=>{
     const list=document.getElementById('extraResistanceList');
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i)).join('');
+    initSuperSelects(list);
     entries.forEach((entry,i)=>{
       const group=list.children[i];
       group.querySelector('.super-name').value=entry.name;
       group.querySelector('.super-level').value=entry.level||'';
+      syncSuperSelects(group);
       fillSuperGroup(group);
     });
     clearDetectedResultCaches();
@@ -508,7 +571,14 @@
   injectResistanceUi();
   updateUsageText();
 
-  document.addEventListener('click',()=>closeResistanceMenus());
+  document.addEventListener('click',()=>{
+    closeResistanceMenus();
+    document.querySelectorAll('.super-custom-select.is-open').forEach(control=>{
+      control.classList.remove('is-open');
+      control.querySelector('.custom-select-button')?.setAttribute('aria-expanded','false');
+      const menu=control.querySelector('.custom-select-menu');if(menu)menu.hidden=true;
+    });
+  });
   document.getElementById('calcBtn')?.addEventListener('click',event=>{
     if(validateAllResistanceValues()) return;
     event.preventDefault();
