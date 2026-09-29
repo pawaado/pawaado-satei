@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-hybrid-candidates-2';
+  const PHOTO_IMPORT_BUILD='20260929-special-zoom-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -666,11 +666,11 @@
     worker=await Tesseract.createWorker('jpn',1,{workerPath:'./vendor/ocr/worker.min.js',corePath:'./vendor/ocr',langPath:'./vendor/ocr/lang',gzip:false});
     return worker;
   }
-  async function textAt(image,rect,digits=false,white=false,single=false,threshold=false){
+  async function textAt(image,rect,digits=false,white=false,single=false,threshold=false,sourceScale=1){
     const w=await getWorker();
     const language=digits?'eng':'jpn';if(workerLanguage!==language){await w.reinitialize(language);workerLanguage=language;}
     await w.setParameters({tessedit_pageseg_mode:digits||single?'7':'6',tessedit_char_whitelist:digits?'0123456789':'',preserve_interword_spaces:'1'});
-    let input=canvasCrop(image,rect,1);
+    let input=canvasCrop(image,rect,Math.max(1,sourceScale||1));
     const inputCtx=input.getContext('2d'),inputData=inputCtx.getImageData(0,0,input.width,input.height);
     if(digits){
       // The game uses outlined numerals. Removing colour prevents 5 from being read as 3/9.
@@ -896,8 +896,14 @@
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
           const quickReads=[];
-          for(const threshold of [120,155]){
-            const quick=(await textAt(image,cell.rect,false,false,true,threshold)).text;
+          const [qx,qy,qw,qh]=cell.rect;
+          const quickAttempts=[
+            [cell.rect,120,2],
+            [[qx,qy,Math.max(40,qw-16),qh],155,2]
+          ];
+          for(const [rect,threshold,zoom] of quickAttempts){
+            // 特殊能力だけ先に拡大してからOCRへ渡す。既存のOCR側3倍拡大と合わせて実質約6倍。
+            const quick=(await textAt(image,rect,false,false,true,threshold,zoom)).text;
             if(quick&&!quickReads.includes(quick))quickReads.push(quick);
           }
           // abilityByImage が既に高信頼で拾えた能力名は消さない。
@@ -938,16 +944,22 @@
         // 画像比較で確定できないセルだけOCRを段階的に再試行する。
         // 端末差で「僧侶」など一部の漢字が潰れても、能力名そのものから判定する。
         const reads=[];
-        const addRead=async threshold=>{
-          const t=(await textAt(image,cell.rect,false,false,true,threshold)).text;
+        const [rx,ry,rw,rh]=cell.rect;
+        // 末尾の○/◎を除いた名前寄りの切り出しも用意する。長い名前でも16pxだけ除外する。
+        const nameRect=[rx,ry,Math.max(40,rw-16),rh];
+        const addRead=async(threshold,zoom=1,rect=cell.rect)=>{
+          const t=(await textAt(image,rect,false,false,true,threshold,zoom)).text;
           if(t&&!reads.includes(t))reads.push(t);
         };
-        await addRead(false);
-        await addRead(120);
+        // 特殊能力はセルを自動拡大して読む。sourceScale=2 + OCR内部3倍で実質約6倍。
+        await addRead(false,2,cell.rect);
+        await addRead(120,2,nameRect);
         let preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         if(!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
-          await addRead(155);
-          await addRead(190);
+          // 1回目で決まらない時だけ、倍率と白黒化の条件を変えて再読する。
+          await addRead(155,1,cell.rect);
+          await addRead(155,2,nameRect);
+          await addRead(190,2,cell.rect);
           preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         }
         const hybrid=hybridPairStem(image,cell,reads);
@@ -1167,5 +1179,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('photoFiles').disabled=false;el('choosePhotos').disabled=false;renderPreviews();}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,textAt};
 })();
