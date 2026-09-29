@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260930-super-ui-19';
+  const PATCH_VERSION='20260930-super-ui-20';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -586,7 +586,7 @@
     section.className='card';
     section.setAttribute('aria-labelledby','extraResistanceTitle');
     section.innerHTML=`
-      <div class="section-heading"><h2 id="extraResistanceTitle">耐性に影響する超特殊能力</h2></div>
+      <div class="section-heading no-heading-diamond"><h2 id="extraResistanceTitle">耐性に影響する超特殊能力</h2></div>
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
       <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add" ${currentJob()?'':'disabled'}>＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
