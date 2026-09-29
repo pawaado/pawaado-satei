@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-10';
+  const PATCH_VERSION='20260929-super-ui-11';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -239,11 +239,11 @@
   function addStyles(){
     const style=document.createElement('style');
     style.textContent=`
-      .extra-resistance-list{display:grid;gap:8px}
+      .extra-resistance-list{display:grid;gap:4px}
       /* 耐性の内訳は内部計算にだけ使い、画面には表示しない */
       .extra-resistance-group-rows{display:none!important}
       .usage-subnote{font-size:.88em;font-weight:600;color:#6f5438}
-      .extra-resistance-group{padding:8px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
+      .extra-resistance-group{padding:6px 7px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
       .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
@@ -285,7 +285,7 @@
       .extra-resistance-actions{margin-top:12px}
       .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
-        .extra-resistance-group{padding:7px}
+        .extra-resistance-group{padding:5px 6px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
         .extra-resistance-type-control .custom-select-menu{width:min(240px,calc(100vw - 36px));min-width:min(230px,calc(100vw - 36px))}
