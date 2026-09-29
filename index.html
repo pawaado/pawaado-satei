@@ -240,7 +240,7 @@
         <button id="usageCloseBtn" class="modal-close" type="button" aria-label="使い方を閉じる">×</button>
       </div>
       <ol class="usage-list">
-        <li>「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性によって査定が変わることがあるため、耐性に影響する超特殊能力を入力してください。</li>
+        <li>「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性により査定が変動することがあるため、耐性に影響する超特殊能力を入力してください。</li>
         <li>画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。</li>
         <li>基本能力・特殊能力左の「＋」でコツLvを設定します。</li>
         <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。</li>
@@ -259,7 +259,7 @@
   </div>
 
   <script src="data.js?v=20260928-photo-1"></script>
-  <script src="resistance_patch.js?v=20260929-super-ui-6"></script>
+  <script src="resistance_patch.js?v=20260929-super-ui-7"></script>
   <script src="academy_runtime.js?v=20260928-photo-hybrid-1"></script>
   <script src="script.js?v=20260928-photo-hybrid-1"></script>
   <script>
@@ -421,12 +421,21 @@
     if(!calcBtn||!academy||!job||!expRoot||!basicRoot) return;
 
     const filled=input=>String(input?.value??'').trim()!=='';
+    const resistanceSupersReady=()=>{
+      const groups=[...document.querySelectorAll('.extra-resistance-group')];
+      return groups.every(group=>{
+        const name=group.querySelector('.super-name')?.value||'';
+        if(!name) return true;
+        return filled(group.querySelector('.super-level'));
+      });
+    };
     const requiredReady=()=>{
       const expInputs=[...expRoot.querySelectorAll('input')];
       const basicInputs=[...basicRoot.querySelectorAll('input[id^="basic_"]')];
       return !!academy.value && !!job.value &&
         expInputs.length>0 && expInputs.every(filled) &&
-        basicInputs.length===6 && basicInputs.every(filled);
+        basicInputs.length===6 && basicInputs.every(filled) &&
+        resistanceSupersReady();
     };
     const syncCalcButton=()=>{
       if(calcBtn.textContent!=='計算する') return;
