@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-dual-lv2-cleric-1';
+  const PHOTO_IMPORT_BUILD='20260929-dual-lv2-cleric-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -16,7 +16,7 @@
   // 提供済みの実ゲーム画像から、誤読しやすい文字列・数字を「黒画素の形」として登録している。
   // 未登録の能力は従来OCRへフォールバックするため、全能力の画像を事前登録する必要はない。
   const HYBRID_ABILITY_MASKS={
-    '通常攻撃(双剣士)':'//////////i8HAAAAAAAGLAGAAAAAAAY5lML41AYdxDH4xvn/f5/gMdxA/f9/3+Aw6Ef9/z+f4DH8Z/z8P5/mM/R7/P47T8Yy2mO5/n+DBg=',
+    '通常攻撃(双剣士)':['//////////i8HAAAAAAAGLAGAAAAAAAY5lML41AYdxDH4xvn/f5/gMdxA/f9/3+Aw6Ef9/z+f4DH8Z/z8P5/mM/R7/P47T8Yy2mO5/n+DBg=','njwAAAAAABi4DgAAAAAAGOQWAAAAAAAYZ0Mb49n4d4DH8Qnn/f9/gMfhA/f8/n+Ax/Gf87j+f4DH8c/z8N4/mM3Z7vf57QwY33sf9tn+f5g=','5BYAAAAAABhnQxvj2fh3gMfxCef9/3+Ax+ED9/z+f4DH8Z/zuP5/gMfxz/Pw3j+Yzdnu9/ntDBjfex/22f5/mPwbH/bYNhwYsAYAAAAAABg='],
     '烈':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf8AAAAAAAAA/wAAAAAAAAH/AAAAAAAAAP8AAAAAAAAA5wAAAAgAAADOAAAACAAAAb8AAAAI=',
     '備え':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH+PgAAAAAAAbwAAAAAAAAD/n4AAAAAAAP+DgAAAAAAAf4cAAAAgAAB/n2AAACAAAHe74AAAI=',
     '安全運転':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/h437/AAAAH+f5fm8AAAAWbzh88AAAAB/n8/z/gAAADMPB/PcAAgAPg/H+9QACAB/n+/7/gAI=',
@@ -557,7 +557,7 @@
   async function readAbilityCells(image,index){
     const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false};
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
-    const missed=[],candidates=[];
+    const missed=[],candidates=[],recognizedByPos=new Map();
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       const visualName=abilityByImage(image,cell);
@@ -596,6 +596,8 @@
       }
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
+      const recognizedName=parsed.specials[0]||parsed.supers[0]?.name||'';
+      if(recognizedName)recognizedByPos.set(`${cell.row}-${cell.col}`,recognizedName);
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
         const visualLevel=levelByImage(image,cell);
@@ -612,6 +614,16 @@
       const ignoreUnmodeledSuper=cell.superCell&&parsed.unknown.length&&!parsed.supers.length&&!parsed.specials.length;
       if(parsed.unknown.length&&!ignoreUnmodeledSuper)missed.push(where);
       if(parsed.candidate)candidates.push(`${where}「${parsed.supers[0]?.name||parsed.specials[0]}」`);
+    }
+    // 治療系の並びはゲーム内で「重戦士→弓使い→魔法使い→僧侶」の固定順。
+    // 右端の僧侶治療○だけOCR/画像比較が落ちる端末差があるため、同じ行の前3セルが
+    // すべて確定している場合に限って僧侶治療○を補完する。
+    for(const row of new Set(cells.map(c=>c.row))){
+      if(recognizedByPos.get(`${row}-1`)==='重戦士治療○'&&recognizedByPos.get(`${row}-2`)==='弓使い治療○'&&recognizedByPos.get(`${row}-3`)==='魔法使い治療○'&&!recognizedByPos.has(`${row}-4`)){
+        result.specials.push('僧侶治療○');
+        const where=`${row}段目・左から4番目`,mi=missed.indexOf(where);if(mi>=0)missed.splice(mi,1);
+        if(window.__PHOTO_DEBUG__)console.log(index,row,4,'[ordered fallback] 僧侶治療○');
+      }
     }
     if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。画像と見比べて、下の「取得状態を確認・修正する」または「＋超特殊能力を追加」で補ってください。`);
     if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}は読み取り候補です。取得状態が合っているか確認してください。`);
