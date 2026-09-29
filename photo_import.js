@@ -697,7 +697,7 @@
   async function getWorker(){
     if(worker) return worker;
     if(!window.Tesseract) await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/ocr/tesseract.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('読み取り機能を読み込めませんでした。通信状態を確認してください。'));document.head.appendChild(s);});
-    status('初回の読み取り準備中…');workerLanguage='jpn';
+    workerLanguage='jpn';
     worker=await Tesseract.createWorker('jpn',1,{workerPath:'./vendor/ocr/worker.min.js',corePath:'./vendor/ocr',langPath:'./vendor/ocr/lang',gzip:false});
     return worker;
   }
@@ -765,6 +765,10 @@
   function pairStemFromText(text){
     const best=fuzzyBest(text,PAIR_STEMS,true);return best?.name||'';
   }
+  function exactPairStemFromText(text){
+    const clean=cleanCellText(text).replace(/[○◎O0@①②③④⑤⑥⑦⑧⑨⑩A-Za-z0-9]+$/g,'');
+    return PAIR_STEMS.find(name=>normalize(name)===clean)||'';
+  }
   function jobFromText(raw){
     const cleaned=cleanCellText(raw).replace(/ジョブ/g,'');
     const exact=JOBS.find(j=>cleaned.includes(normalize(j)));if(exact)return {job:exact,candidate:false,raw};
@@ -825,10 +829,10 @@
     }});
     return cells;
   }
-  function cellAbility(text,markHint='',superCell=false){
+  function cellAbility(text,markHint='',superCell=false,pairCertain=false){
     const normalized=normalize(text);
     const pairStem=pairStemFromText(text);
-    if(pairStem&&markHint&&D.special.some(s=>normalize(s[1])===pairStem+markHint))return {...findSpecials(pairStem+markHint),candidate:true};
+    if(pairStem&&markHint&&D.special.some(s=>normalize(s[1])===pairStem+markHint))return {...findSpecials(pairStem+markHint),candidate:!pairCertain};
     const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
     if(marked){const upper=marked[1]+'◎';if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
     // One-character 烈 is especially prone to 珠/科/杏/吾 in this game font.
@@ -918,16 +922,22 @@
         };
         await addRead(false);
         await addRead(120);
-        let stem=reads.map(pairStemFromText).find(Boolean)||'';
+        let stemByImage=pairStemByImage(image,cell);
+        let exactStem=reads.map(exactPairStemFromText).find(Boolean)||'';
+        let stem=stemByImage||exactStem||reads.map(pairStemFromText).find(Boolean)||'';
         let preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         if(!stem&&!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
           await addRead(155);
           await addRead(190);
-          stem=reads.map(pairStemFromText).find(Boolean)||'';
+          stemByImage=pairStemByImage(image,cell);
+          exactStem=reads.map(exactPairStemFromText).find(Boolean)||'';
+          stem=stemByImage||exactStem||reads.map(pairStemFromText).find(Boolean)||'';
           preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         }
-        markHint=stem?await abilityMarkHint(image,cell,reads,stem):'';
-        const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell),i}));
+        const visualMark=stem?pairMarkByImage(image,cell,stem):'';
+        markHint=visualMark||(stem?await abilityMarkHint(image,cell,reads,stem):'');
+        const pairCertain=!!stem&&!!visualMark&&(!!stemByImage||!!exactStem);
+        const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
         parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
         const bestRead=parsedReads[0];
@@ -955,7 +965,7 @@
     }
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
     if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。画像と見比べて、下の「取得状態を確認・修正する」または「＋超特殊能力を追加」で補ってください。`);
-    if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}は読み取りに迷った項目です。取得状態が合っているか確認してください。`);
+    if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}について、取得状態が合っているか確認してください。`);
     return result;
   }
   async function jobOf(image){
