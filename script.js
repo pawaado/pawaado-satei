@@ -526,7 +526,7 @@ function renderExp(){
 
 
 function applyCurrentJobTheme(){
-  document.getElementById('specialTitle').textContent=job.value==='双剣士'?'特殊能力等':'特殊能力';
+  document.getElementById('specialTitle').textContent='特殊能力';
   document.body.classList.remove(...Object.values(jobClassMap).map(cls=>`theme-${cls}`));
   const cls=jobClassMap[job.value];
   if(cls) document.body.classList.add(`theme-${cls}`);
@@ -3045,7 +3045,11 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     basicHints[n]=0; basicOwned[n]=false;
     document.getElementById('basic_'+n).value=data.basic[n]; applyBasicVisual(n);
   });
-  if(data.job==='双剣士') window.__PAWAADO_SET_DUAL_ATTACK__?.(Number(data.dualAttackLevel||1),0);
+  if(data.job==='双剣士'){
+    // 双剣士専用「通常攻撃」は通常の特殊能力とは別枠で、画像から読んだLvをそのまま反映する。
+    const dualLevel=Number(data.dualAttackLevel);
+    window.__PAWAADO_SET_DUAL_ATTACK__?.(Number.isInteger(dualLevel)&&dualLevel>=1&&dualLevel<=6?dualLevel:1,0);
+  }
   specialState.clear(); renderSpecials();
   const owned=new Set(data.specials);
   for(const entry of data.supers||[]) for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]) owned.add(name);
