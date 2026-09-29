@@ -299,6 +299,60 @@
   }
   // ○/◎は能力名全体の比較だと差が小さすぎるため、同じ能力名の○版・◎版だけを
   // 比較して、2者で差が出る画素に重みを付けて判定する。能力名と記号を分離して扱う。
+  function pairStemByImage(image,cell){
+    const [x,y,w]=cell.rect;
+    const sigs=[95,110,125].flatMap(threshold=>
+      [2,6,10,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
+    );
+    const size=64*10;
+    const ranked=[];
+    for(const stem of PAIR_STEMS){
+      const circleRaw=HYBRID_ABILITY_MASKS[stem+'○'],doubleRaw=HYBRID_ABILITY_MASKS[stem+'◎'];
+      if(!circleRaw||!doubleRaw)continue;
+      const all=[...(Array.isArray(circleRaw)?circleRaw:[circleRaw]),...(Array.isArray(doubleRaw)?doubleRaw:[doubleRaw])];
+      const refs=all.map(encoded=>decodeMask(encoded,size));
+      const mean=new Float32Array(size);
+      for(const ref of refs)for(let i=0;i<size;i++)mean[i]+=ref[i];
+      for(let i=0;i<size;i++)mean[i]/=refs.length;
+
+      // 同じ能力の○/◎テンプレート間で安定している部分＝能力名本体を重視する。
+      const variance=new Float32Array(size);
+      for(const ref of refs)for(let i=0;i<size;i++)variance[i]+=Math.abs(ref[i]-mean[i]);
+      for(let i=0;i<size;i++)variance[i]/=refs.length;
+
+      let minX=64,maxX=-1;
+      for(let yy=0;yy<10;yy++)for(let xx=0;xx<64;xx++){
+        if(mean[yy*64+xx]>.08){minX=Math.min(minX,xx);maxX=Math.max(maxX,xx);}
+      }
+      if(maxX<minX)continue;
+      minX=Math.max(0,minX-2);maxX=Math.min(63,maxX+2);
+
+      const dist=sig=>{
+        let best=1;
+        for(let dy=-2;dy<=2;dy++)for(let dx=-3;dx<=3;dx++){
+          let diff=0,total=0;
+          for(let yy=0;yy<10;yy++){
+            const sy=yy-dy;if(sy<0||sy>=10)continue;
+            for(let xx=minX;xx<=maxX;xx++){
+              const sx=xx-dx;if(sx<0||sx>=64)continue;
+              const i=yy*64+xx;
+              const stable=Math.max(.08,1-Math.min(1,variance[i]*2.4));
+              // 背景も含めて比較し、別の能力名の余分な画をペナルティにする。
+              diff+=stable*Math.abs(sig[sy*64+sx]-mean[i]);total+=stable;
+            }
+          }
+          if(total)best=Math.min(best,diff/total);
+        }
+        return best;
+      };
+      ranked.push({stem,d:Math.min(...sigs.map(dist))});
+    }
+    ranked.sort((a,b)=>a.d-b.d);
+    const best=ranked[0],second=ranked[1];
+    if(!best||best.d>.24||second&&second.d-best.d<.018)return '';
+    return best.stem;
+  }
+
   function pairMarkByImage(image,cell,stem){
     const circleName=stem+'○',doubleName=stem+'◎';
     const circleRaw=HYBRID_ABILITY_MASKS[circleName],doubleRaw=HYBRID_ABILITY_MASKS[doubleName];
@@ -675,12 +729,24 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell);
-      // 能力名が同じ○/◎ペアは、名前の認識結果をそのまま信じず記号だけ再判定する。
+      // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
+      // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
       if(/[○◎]$/.test(visualName)){
-        const stem=normalize(visualName).slice(0,-1);
-        if(PAIR_STEMS.includes(stem)){
+        const originalStem=normalize(visualName).slice(0,-1);
+        if(PAIR_STEMS.includes(originalStem)){
+          let stem=pairStemByImage(image,cell)||originalStem;
+          // 画像比較で名前本体が確定しない場合だけOCRも1回使い、別stem誤認を防ぐ。
+          if(stem===originalStem){
+            const quick=(await textAt(image,cell.rect,false,false,true,120)).text;
+            const ocrStem=pairStemFromText(quick);
+            if(ocrStem&&ocrStem!==originalStem)stem=ocrStem;
+          }
           const mark=pairMarkByImage(image,cell,stem);
           if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
+          else if(stem!==originalStem){
+            const fallbackMark=normalize(visualName).slice(-1);
+            if(D.special.some(s=>normalize(s[1])===stem+fallbackMark))visualName=stem+fallbackMark;
+          }
         }
       }
       if(visualName===DUAL_NORMAL_ATTACK){
@@ -892,5 +958,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairMarkByImage};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage};
 })();
