@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260930-confidence-1';
+  const PHOTO_IMPORT_BUILD='20260930-multiscale-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -245,7 +245,22 @@
           }
         }
       }
-    }catch(_){/* 検出に失敗したら画像全体を使う */}
+    }catch(_){/* 下の縦横比フォールバックへ進む */}
+
+    // 明暗によるゲーム領域検出が失敗しても、端末全体のスクショをそのまま座標化しない。
+    // 基準ゲーム画面(1536x706)と同じ縦横比の最大中央領域へ寄せてから正規化する。
+    if(viewport.mode==='full'){
+      const targetRatio=REF_W/REF_H,ratio=image.width/image.height;
+      if(Math.abs(ratio-targetRatio)>.035){
+        if(ratio<targetRatio){
+          const h=image.width/targetRatio;
+          if(h>=image.height*.16&&h<image.height*.96)viewport={x:0,y:(image.height-h)/2,w:image.width,h,mode:'aspect-fallback'};
+        }else{
+          const w=image.height*targetRatio;
+          if(w>=image.width*.45&&w<image.width*.96)viewport={x:(image.width-w)/2,y:0,w,h:image.height,mode:'aspect-fallback'};
+        }
+      }
+    }
     viewportCache.set(image,viewport);
     return viewport;
   }
@@ -410,6 +425,7 @@
 
   function hybridPairStem(image,cell,rawTexts=[]){
     const ocrCandidates=pairStemCandidatesFromTexts(rawTexts,4);
+    const ocrConsensus=pairStemConsensus(rawTexts);
     const imageAll=rankPairStemsByImage(image,cell);
     // OCR上位候補に、画像比較だけの上位候補も足す。最大5候補に絞って最終比較する。
     const names=[];
@@ -421,6 +437,16 @@
     const narrowed=imageAll.filter(r=>names.includes(r.stem)).sort((a,b)=>a.d-b.d);
     const best=narrowed[0],second=narrowed[1];
     if(!best||best.d>.24)return {stem:'',candidate:false,alternatives:narrowed.slice(0,3).map(r=>r.stem)};
+
+    // 2倍/4倍など複数OCR条件が同じ能力名を支持したら、その候補を優先する。
+    // ただし画像比較が明確に別能力を示す場合はOCRだけで押し切らない。
+    if(ocrConsensus.strong&&ocrConsensus.stem){
+      const voted=imageAll.find(r=>r.stem===ocrConsensus.stem);
+      const imageBest=imageAll[0];
+      if(voted&&voted.d<=.24&&(!imageBest||imageBest.stem===voted.stem||voted.d-imageBest.d<=.018)){
+        return {stem:voted.stem,candidate:false,alternatives:narrowed.slice(0,3).map(r=>r.stem)};
+      }
+    }
 
     const margin=second?second.d-best.d:1;
     const exact=rawTexts.map(exactPairStemFromText).find(Boolean)||'';
@@ -734,6 +760,22 @@
     const clean=cleanCellText(text).replace(/[○◎O0@①②③④⑤⑥⑦⑧⑨⑩A-Za-z0-9]+$/g,'');
     return PAIR_STEMS.find(name=>normalize(name)===clean)||'';
   }
+  function pairStemConsensus(rawTexts=[]){
+    const votes=new Map();
+    for(const text of rawTexts){
+      const exact=exactPairStemFromText(text);
+      const stem=exact||pairStemFromText(text);
+      if(!stem)continue;
+      const row=votes.get(stem)||{stem,points:0,hits:0,exactHits:0};
+      row.points+=exact?2:1;row.hits++;if(exact)row.exactHits++;
+      votes.set(stem,row);
+    }
+    const ranked=[...votes.values()].sort((a,b)=>b.points-a.points||b.hits-a.hits||b.exactHits-a.exactHits);
+    const best=ranked[0],second=ranked[1];
+    // 2倍/4倍など複数条件で同じ能力名が再現した時だけ、OCR側の一致を「強い」とみなす。
+    const strong=!!best&&best.hits>=2&&best.points>=(second?.points||0)+1;
+    return {stem:best?.stem||'',strong,ranked};
+  }
   function jobFromText(raw){
     const cleaned=cleanCellText(raw).replace(/ジョブ/g,'');
     const exact=JOBS.find(j=>cleaned.includes(normalize(j)));if(exact)return {job:exact,candidate:false,raw};
@@ -883,6 +925,46 @@
     if(ocr)return ocr;
     return stem?pairMarkByImage(image,cell,stem):'';
   }
+  async function collectSpecialReads(image,cell){
+    const observations=[];
+    const [rx,ry,rw,rh]=cell.rect;
+    const nameRect=[rx,ry,Math.max(40,rw-16),rh];
+    const add=async(rect,threshold,zoom,label)=>{
+      const result=await textAt(image,rect,false,false,true,threshold,zoom);
+      const text=String(result.text||'').trim();
+      if(text)observations.push({text,zoom,label,confidence:result.confidence||0});
+    };
+
+    // 端末差を吸収するため、必ず2倍と4倍の両方を読む。
+    // セル全体と、○/◎を少し外した名前部分の2種類を同じ条件で比較する。
+    const primary=[
+      [cell.rect,false,2,'full-2x'],
+      [cell.rect,false,4,'full-4x'],
+      [nameRect,120,2,'name-2x'],
+      [nameRect,120,4,'name-4x']
+    ];
+    for(const plan of primary)await add(...plan);
+
+    const texts=observations.map(o=>o.text);
+    const stemConsensus=pairStemConsensus(texts);
+    const parsed=texts.map(t=>cellAbility(t,'',cell.superCell));
+    const recognized=parsed.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length));
+
+    // 2倍/4倍で一致しない、または能力名自体が取れない時だけ白黒条件を変えて再読する。
+    if(!stemConsensus.strong&&!recognized){
+      const fallback=[
+        [cell.rect,155,2,'full-2x-155'],
+        [cell.rect,155,4,'full-4x-155'],
+        [nameRect,155,2,'name-2x-155'],
+        [nameRect,155,4,'name-4x-155'],
+        [cell.rect,190,2,'full-2x-190'],
+        [cell.rect,190,4,'full-4x-190']
+      ];
+      for(const plan of fallback)await add(...plan);
+    }
+    return observations;
+  }
+
   async function readAbilityCells(image,index){
     const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false};
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
@@ -895,24 +977,15 @@
       if(/[○◎]$/.test(visualName)){
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
-          const quickReads=[];
-          const [qx,qy,qw,qh]=cell.rect;
-          const quickAttempts=[
-            [cell.rect,120,2],
-            [[qx,qy,Math.max(40,qw-16),qh],155,2]
-          ];
-          for(const [rect,threshold,zoom] of quickAttempts){
-            // 特殊能力だけ先に拡大してからOCRへ渡す。既存のOCR側3倍拡大と合わせて実質約6倍。
-            const quick=(await textAt(image,rect,false,false,true,threshold,zoom)).text;
-            if(quick&&!quickReads.includes(quick))quickReads.push(quick);
-          }
-          // abilityByImage が既に高信頼で拾えた能力名は消さない。
-          // OCRが別の名前を明確に支持した時だけ、候補絞り＋画像再比較で補正する。
-          const exactOcr=quickReads.map(exactPairStemFromText).find(Boolean)||'';
+          const quickObservations=await collectSpecialReads(image,cell);
+          const quickReads=quickObservations.map(o=>o.text);
+          // abilityByImage が既に高信頼で拾えた能力名は基本的に保持。
+          // 2倍/4倍OCRが同じ別能力名を支持し、画像再比較もそれを許す時だけ補正する。
+          const consensus=pairStemConsensus(quickReads);
           let stem=originalStem;
-          if(exactOcr&&exactOcr!==originalStem){
+          if(consensus.strong&&consensus.stem&&consensus.stem!==originalStem){
             const hybrid=hybridPairStem(image,cell,quickReads);
-            if(hybrid.stem)stem=hybrid.stem;
+            if(hybrid.stem===consensus.stem&&!hybrid.candidate)stem=hybrid.stem;
           }
           const shapeMark=markShapeByImage(image,cell);
           const ocrMark=await ocrMarkHint(image,cell,quickReads);
@@ -943,25 +1016,9 @@
       }else{
         // 画像比較で確定できないセルだけOCRを段階的に再試行する。
         // 端末差で「僧侶」など一部の漢字が潰れても、能力名そのものから判定する。
-        const reads=[];
-        const [rx,ry,rw,rh]=cell.rect;
-        // 末尾の○/◎を除いた名前寄りの切り出しも用意する。長い名前でも16pxだけ除外する。
-        const nameRect=[rx,ry,Math.max(40,rw-16),rh];
-        const addRead=async(threshold,zoom=1,rect=cell.rect)=>{
-          const t=(await textAt(image,rect,false,false,true,threshold,zoom)).text;
-          if(t&&!reads.includes(t))reads.push(t);
-        };
-        // 特殊能力はセルを自動拡大して読む。sourceScale=2 + OCR内部3倍で実質約6倍。
-        await addRead(false,2,cell.rect);
-        await addRead(120,2,nameRect);
-        let preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
-        if(!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
-          // 1回目で決まらない時だけ、倍率と白黒化の条件を変えて再読する。
-          await addRead(155,1,cell.rect);
-          await addRead(155,2,nameRect);
-          await addRead(190,2,cell.rect);
-          preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
-        }
+        const observations=await collectSpecialReads(image,cell);
+        const reads=observations.map(o=>o.text);
+        const preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         const hybrid=hybridPairStem(image,cell,reads);
         const stem=hybrid.stem;
         const shapeMark=stem?markShapeByImage(image,cell):'';
@@ -975,7 +1032,22 @@
         const pairCertain=!!stem&&!!shapeMark&&(!hybrid.candidate||strongImageStem);
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
-        parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
+        const parsedKey=p=>{
+          if(p.unknown.length||(!p.specials.length&&!p.supers.length))return '';
+          return [...p.specials].sort().join('|')+'::'+p.supers.map(x=>x.name).sort().join('|');
+        };
+        const voteMap=new Map();
+        for(const item of parsedReads){
+          const key=parsedKey(item.parsed);if(!key)continue;
+          const row=voteMap.get(key)||{key,count:0,score:0};
+          row.count++;row.score+=quality(item.parsed);voteMap.set(key,row);
+        }
+        const voteWinner=[...voteMap.values()].sort((a,b)=>b.count-a.count||b.score-a.score)[0];
+        parsedReads.sort((a,b)=>{
+          const av=voteWinner&&parsedKey(a.parsed)===voteWinner.key?1:0;
+          const bv=voteWinner&&parsedKey(b.parsed)===voteWinner.key?1:0;
+          return bv-av||quality(b.parsed)-quality(a.parsed)||a.i-b.i;
+        });
         const bestRead=parsedReads[0];
         raw=bestRead?.text||'';
         parsed=bestRead?.parsed||{specials:[],supers:[],unknown:[''],candidate:false};
@@ -1182,5 +1254,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('photoFiles').disabled=false;el('choosePhotos').disabled=false;renderPreviews();}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,textAt};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
 })();
