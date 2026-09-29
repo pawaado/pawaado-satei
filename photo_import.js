@@ -101,17 +101,16 @@
   const normalize=s=>String(s).normalize('NFKC').replace(/\s/g,'').replace(/[〇◯]/g,'○');
   const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
   const section=document.createElement('section'); section.className='card photo-card';
-  section.innerHTML=`<h2>スクショから入力</h2><p>①左上に「能力アップ」と表示される画面（基本能力・特殊能力・必殺技・ジョブチェンジのどれでも可）と、②「能力データ」画面を選んでください。特殊能力の続きも追加できます。</p>
-    <label class="photo-picker">ゲームのスクショを選ぶ<input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
-    <p class="photo-note">画像は端末内で読み取ります。加工・切り抜きしていない横向きのスクショを使ってください。</p>
+  section.innerHTML=`<h2>画像から自動入力</h2>
+    <button id="choosePhotos" class="secondary photo-choose" type="button">画像を選択</button>
+    <input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
     <div id="photoPreviews"></div><button id="readPhotos" type="button" disabled>画像を読み取る</button>
-    <p id="photoStatus" role="status" aria-live="polite"></p><div id="photoReview" hidden></div>`;
+    <p id="photoStatus" role="status" aria-live="polite"></p>`;
   document.querySelector('main').prepend(section);
   const style=document.createElement('style');style.textContent=`
-    .photo-card p{line-height:1.65}.photo-picker{display:block;padding:18px;border:2px dashed #a47842;border-radius:12px;background:#fff6dc;font-weight:700;cursor:pointer}
-    .photo-picker input{display:block;width:100%;margin-top:10px;font-size:16px}.photo-note{font-size:13px;color:#70563c}
-    #photoPreviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}#photoPreviews img{width:100%;border-radius:8px}
-    #photoPreviews p{margin:2px 0;font-size:12px;overflow-wrap:anywhere}.photo-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .photo-card p{line-height:1.65}.photo-choose{width:100%;margin:4px 0 10px}
+    #photoPreviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.photo-preview-item{position:relative;min-width:0}#photoPreviews img{width:100%;display:block;border-radius:8px}
+    #photoPreviews p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}.photo-preview-remove{position:absolute;top:6px;right:6px;width:32px;height:32px;min-height:32px;padding:0;border-radius:50%;font-size:24px;line-height:28px;z-index:2}.photo-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .photo-review-grid label,.super-controls label{display:grid;gap:5px;min-width:0}.photo-review-grid input,.photo-review-grid select,.super-controls select{width:100%;min-width:0;font-size:16px;min-height:44px;padding:6px}
     .photo-specials{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:320px;overflow:auto;padding:8px;border:1px solid #b58a52;border-radius:8px}
     .photo-specials label{display:flex;align-items:center;gap:5px;min-height:40px;font-size:14px}.photo-specials input{width:20px;height:20px;flex-shrink:0}
@@ -1049,19 +1048,51 @@
     };
   }
   function superRow(s){return `<div class="photo-super-row"><select class="photo-super-name" aria-label="超特殊能力">${options(SUPER_NAMES,s.name)}</select><select class="photo-super-level" aria-label="超特殊能力のLv"><option value="">Lv</option><option value="1" ${s.level===1?'selected':''}>Lv1</option><option value="2" ${s.level===2?'selected':''}>Lv2</option></select><button type="button" class="secondary photo-remove-super" aria-label="削除">×</button></div>`;}
-  function clear(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];el('photoFiles').value='';el('photoPreviews').replaceChildren();el('photoReview').hidden=true;el('readPhotos').disabled=true;review=null;status('');}
+  const fileKey=file=>[file.name,file.size,file.lastModified,file.type].join('|');
+  function renderPreviews(){
+    const box=el('photoPreviews');box.replaceChildren();
+    files.forEach((file,index)=>{
+      const wrap=document.createElement('div'),img=document.createElement('img'),label=document.createElement('p'),remove=document.createElement('button');
+      wrap.className='photo-preview-item';img.src=urls[index];img.alt='選択したスクショ';label.textContent=file.name;
+      remove.type='button';remove.className='secondary photo-preview-remove';remove.dataset.index=String(index);remove.textContent='×';remove.setAttribute('aria-label',file.name+'を削除');
+      wrap.append(img,remove,label);box.append(wrap);
+    });
+    el('readPhotos').disabled=busy||!files.length;
+    el('choosePhotos').textContent=files.length?'画像を追加':'画像を選択';
+  }
+  function clear(){urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;review=null;el('choosePhotos').textContent='画像を選択';status('');}
+  el('choosePhotos').onclick=()=>{if(!busy)el('photoFiles').click();};
   el('photoFiles').onchange=()=>{
-    if(busy)return;urls.forEach(u=>URL.revokeObjectURL(u));files=[...el('photoFiles').files];urls=[];el('photoReview').hidden=true;
-    if(files.length>12){status('画像は一度に12枚まで選べます。');el('readPhotos').disabled=true;return;}
-    el('photoPreviews').replaceChildren();
-    for(const file of files){const url=URL.createObjectURL(file);urls.push(url);const wrap=document.createElement('div'),img=document.createElement('img'),label=document.createElement('p');img.src=url;img.alt='選択したスクショ';label.textContent=file.name;wrap.append(img,label);el('photoPreviews').append(wrap);}
-    el('readPhotos').disabled=!files.length;status(`${files.length}枚選択しました。`);
+    if(busy)return;
+    const picked=[...el('photoFiles').files];el('photoFiles').value='';
+    const seen=new Set(files.map(fileKey));let skipped=0;
+    for(const file of picked){
+      const key=fileKey(file);
+      if(seen.has(key)){skipped++;continue;}
+      if(files.length>=12){skipped++;continue;}
+      files.push(file);urls.push(URL.createObjectURL(file));seen.add(key);
+    }
+    renderPreviews();
+    if(skipped&&files.length>=12)status('画像は12枚まで選べます。');
+    else if(skipped)status(`${files.length}枚選択しました。重複した画像は追加していません。`);
+    else status(files.length?`${files.length}枚選択しました。`:'');
+  };
+  el('photoPreviews').onclick=e=>{
+    const remove=e.target.closest('.photo-preview-remove');if(!remove||busy)return;
+    const index=Number(remove.dataset.index);if(!Number.isInteger(index)||index<0||index>=files.length)return;
+    URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);renderPreviews();status(files.length?`${files.length}枚選択しました。`:'');
   };
   el('readPhotos').onclick=async()=>{
-    if(busy)return;busy=true;el('readPhotos').disabled=true;el('photoFiles').disabled=true;
-    try{const images=await Promise.all(urls.map(imageFrom));showReview(await readImages(images));status('読み取りが終わりました。内容を確認してください。');}
+    if(busy)return;busy=true;renderPreviews();el('photoFiles').disabled=true;el('choosePhotos').disabled=true;
+    try{
+      const images=await Promise.all(urls.map(imageFrom));
+      const data=await readImages(images);
+      window.__PAWAADO_IMPORT_PHOTO__(data);
+      const warningCount=data.warnings?.length||0;
+      status(warningCount?`自動入力しました。読み取りに不確かな項目が${warningCount}件あります。下の入力欄を確認してください。`:'自動入力しました。');
+    }
     catch(e){status('読み取りに失敗しました：'+e.message+'。手入力でも利用できます。');}
-    finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
+    finally{if(worker){await worker.terminate();worker=null;}busy=false;el('photoFiles').disabled=false;el('choosePhotos').disabled=false;renderPreviews();}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
   window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage};
