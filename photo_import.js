@@ -115,7 +115,7 @@
   const style=document.createElement('style');style.textContent=`
     .photo-card p{line-height:1.65}.photo-choose{width:100%;margin:4px 0 10px}
     #photoPreviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.photo-preview-item{position:relative;min-width:0}#photoPreviews img{width:100%;display:block;border-radius:8px}.photo-preview-image{cursor:zoom-in}
-    #photoPreviews p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}.photo-preview-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border-radius:50%;font-size:17px;line-height:20px;z-index:2}.photo-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    #photoPreviews p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}.photo-preview-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border-radius:50%;font-size:0;line-height:1;z-index:2}.photo-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .photo-review-grid label,.super-controls label{display:grid;gap:5px;min-width:0}.photo-review-grid input,.photo-review-grid select,.super-controls select{width:100%;min-width:0;font-size:16px;min-height:44px;padding:6px}
     .photo-specials{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:320px;overflow:auto;padding:8px;border:1px solid #b58a52;border-radius:8px}
     .photo-specials label{display:flex;align-items:center;gap:5px;min-height:40px;font-size:14px}.photo-specials input{width:20px;height:20px;flex-shrink:0}
@@ -126,7 +126,12 @@
     .photo-uncertain strong{display:block;margin-bottom:4px}.photo-uncertain ul{margin:0;padding-left:1.35em}.photo-uncertain li+li{margin-top:4px}
     .photo-lightbox{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(20,12,7,.88)}
     .photo-lightbox[hidden]{display:none!important}.photo-lightbox img{max-width:100%;max-height:calc(100vh - 36px);width:auto;height:auto;border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,.48)}
-    .photo-lightbox-close{position:fixed;top:max(12px,env(safe-area-inset-top));right:12px;width:36px;min-width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;font-size:24px;line-height:30px;z-index:1}
+    .photo-preview-remove,.photo-lightbox-close{color:#fff!important;border:2px solid #38200f!important;background:linear-gradient(180deg,#8b6547,#5a3923)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 0 #321b0d!important;text-shadow:none!important}
+    .photo-preview-remove::before,.photo-preview-remove::after,.photo-lightbox-close::before,.photo-lightbox-close::after{content:'';position:absolute;left:50%;top:50%;width:12px;height:2px;border-radius:2px;background:#fff;box-shadow:none;transform-origin:center}
+    .photo-preview-remove::before,.photo-lightbox-close::before{transform:translate(-50%,-50%) rotate(45deg)}.photo-preview-remove::after,.photo-lightbox-close::after{transform:translate(-50%,-50%) rotate(-45deg)}
+    .photo-preview-remove:active,.photo-lightbox-close:active{transform:none!important}
+    .photo-lightbox-close{position:fixed;top:max(12px,env(safe-area-inset-top));right:12px;width:34px;min-width:34px;height:34px;min-height:34px;padding:0;border-radius:50%;font-size:0;line-height:1;z-index:1}
+    .photo-lightbox-close::before,.photo-lightbox-close::after{width:16px;height:2px}
   `;document.head.appendChild(style);
   const el=id=>document.getElementById(id);
   let files=[],urls=[],busy=false,worker=null,workerLanguage='jpn',review=null;
@@ -950,7 +955,7 @@
     }
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
     if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。画像と見比べて、下の「取得状態を確認・修正する」または「＋超特殊能力を追加」で補ってください。`);
-    if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}は読み取り候補です。取得状態が合っているか確認してください。`);
+    if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}は読み取りに迷った項目です。取得状態が合っているか確認してください。`);
     return result;
   }
   async function jobOf(image){
