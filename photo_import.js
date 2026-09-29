@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-hybrid-candidates-1';
+  const PHOTO_IMPORT_BUILD='20260929-hybrid-candidates-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -134,7 +134,7 @@
     .photo-lightbox-close::before,.photo-lightbox-close::after{width:16px;height:2px}
   `;document.head.appendChild(style);
   const el=id=>document.getElementById(id);
-  let files=[],urls=[],busy=false,worker=null,workerLanguage='jpn',review=null;
+  let files=[],urls=[],busy=false,worker=null,workerLanguage='jpn',review=null,selectionDirty=false;
   const status=t=>{el('photoStatus').textContent=t;};
   function renderUncertain(warnings=[]){
     const box=el('photoUncertain');if(!box)return;
@@ -817,6 +817,51 @@
     }
     return {specials:[],supers:[],unknown:[clean],candidate:false};
   }
+  function markShapeByImage(image,cell){
+    // ○/◎は能力名と切り離し、末尾の丸そのものの形だけを見る。
+    // ○は外周1本、◎は内外2本なので、外周の少し内側（半径約6px）の黒さで分離する。
+    const [x,y,w,h]=cell.rect;
+    const c=canonicalCrop(image,[x+45,y,Math.max(40,w-51),h]);
+    const ctx=c.getContext('2d'),data=ctx.getImageData(0,0,c.width,c.height).data;
+    const dark=new Uint8Array(c.width*c.height);
+    for(let yy=0;yy<c.height;yy++)for(let xx=0;xx<c.width;xx++){
+      const i=(yy*c.width+xx)*4;
+      const lum=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+      if(lum<160)dark[yy*c.width+xx]=1;
+    }
+    const proj=new Uint16Array(c.width);
+    for(let xx=0;xx<c.width;xx++)for(let yy=7;yy<Math.min(29,c.height);yy++)proj[xx]+=dark[yy*c.width+xx];
+    const runs=[];let start=-1;
+    for(let xx=0;xx<=c.width;xx++){
+      const on=xx<c.width&&proj[xx]>=2;
+      if(on&&start<0){start=xx;continue;}
+      if(!on&&start>=0){
+        const end=xx,width=end-start;
+        // 右端のセル枠を除外し、末尾の○/◎らしい幅だけ残す。
+        if(width>=8&&width<=20&&end<c.width-4)runs.push([start,end]);
+        start=-1;
+      }
+    }
+    if(!runs.length)return '';
+    const [sx,ex]=runs[runs.length-1];
+    let minY=c.height,maxY=-1;
+    for(let yy=5;yy<Math.min(31,c.height);yy++)for(let xx=sx;xx<ex;xx++){
+      if(dark[yy*c.width+xx]){minY=Math.min(minY,yy);maxY=Math.max(maxY,yy);}
+    }
+    if(maxY<minY)return '';
+    const cx=(sx+ex-1)/2,cy=(minY+maxY)/2;
+    let ink=0,total=0;
+    for(let yy=0;yy<c.height;yy++)for(let xx=0;xx<c.width;xx++){
+      const r=Math.hypot(xx-cx,yy-cy);
+      if(r>=5.3&&r<=6.7){ink+=dark[yy*c.width+xx];total++;}
+    }
+    if(total<20)return '';
+    const ratio=ink/total;
+    if(ratio<=.50)return '◎';
+    if(ratio>=.70)return '○';
+    return '';
+  }
+
   async function ocrMarkHint(image,cell,rawTexts=[]){
     const markText=s=>String(s).normalize('NFC').replace(/\s/g,'');
     const joined=rawTexts.map(markText).join('');
@@ -832,6 +877,8 @@
     return sawCircle?'○':'';
   }
   async function abilityMarkHint(image,cell,rawTexts=[],stem=''){
+    const shape=markShapeByImage(image,cell);
+    if(shape)return shape;
     const ocr=await ocrMarkHint(image,cell,rawTexts);
     if(ocr)return ocr;
     return stem?pairMarkByImage(image,cell,stem):'';
@@ -848,24 +895,23 @@
       if(/[○◎]$/.test(visualName)){
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
-          // 全能力から一発決定しない。OCRで候補を絞り、画像上位候補も混ぜて最大5候補から再比較する。
           const quickReads=[];
           for(const threshold of [120,155]){
             const quick=(await textAt(image,cell.rect,false,false,true,threshold)).text;
             if(quick&&!quickReads.includes(quick))quickReads.push(quick);
           }
-          const hybrid=hybridPairStem(image,cell,quickReads);
-          const stem=hybrid.stem;
-          if(stem){
-            // ○/◎は能力名と完全に別判定。OCRで見えた記号を優先し、画像形状は補助にする。
-            const ocrMark=await ocrMarkHint(image,cell,quickReads);
-            const mark=ocrMark||pairMarkByImage(image,cell,stem);
-            if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
-            else visualName='';
-          }else{
-            // 候補が競っている時は、誤った能力を自動取得済みにしない。
-            visualName='';
+          // abilityByImage が既に高信頼で拾えた能力名は消さない。
+          // OCRが別の名前を明確に支持した時だけ、候補絞り＋画像再比較で補正する。
+          const exactOcr=quickReads.map(exactPairStemFromText).find(Boolean)||'';
+          let stem=originalStem;
+          if(exactOcr&&exactOcr!==originalStem){
+            const hybrid=hybridPairStem(image,cell,quickReads);
+            if(hybrid.stem)stem=hybrid.stem;
           }
+          const shapeMark=markShapeByImage(image,cell);
+          const ocrMark=await ocrMarkHint(image,cell,quickReads);
+          const mark=shapeMark||ocrMark||pairMarkByImage(image,cell,stem);
+          if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
         }
       }
       if(visualName===DUAL_NORMAL_ATTACK){
@@ -906,11 +952,12 @@
         }
         const hybrid=hybridPairStem(image,cell,reads);
         const stem=hybrid.stem;
+        const shapeMark=stem?markShapeByImage(image,cell):'';
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
         const ocrMark=stem?await ocrMarkHint(image,cell,reads):'';
-        // 能力名は「OCR候補＋画像候補」から最終画像比較。○/◎は別工程で決める。
-        markHint=ocrMark||visualMark;
-        const pairCertain=!!stem&&!hybrid.candidate&&!!ocrMark&&(!visualMark||visualMark===ocrMark);
+        // 能力名は候補絞り＋画像比較、○/◎は末尾記号の形を最優先して別判定する。
+        markHint=shapeMark||ocrMark||visualMark;
+        const pairCertain=!!stem&&!hybrid.candidate&&!!shapeMark;
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
         parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
@@ -1074,21 +1121,22 @@
       remove.type='button';remove.className='secondary photo-preview-remove';remove.dataset.index=String(index);remove.textContent='×';remove.setAttribute('aria-label',file.name+'を削除');
       wrap.append(img,remove);box.append(wrap);
     });
-    el('readPhotos').disabled=busy||!files.length;
+    el('readPhotos').disabled=busy||!files.length||!selectionDirty;
     el('choosePhotos').textContent=files.length?'画像を追加':'画像を選択';
   }
-  function clear(){closePreview();urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;review=null;el('choosePhotos').textContent='画像を選択';renderUncertain([]);status('');}
+  function clear(){closePreview();urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];selectionDirty=false;el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;review=null;el('choosePhotos').textContent='画像を選択';renderUncertain([]);status('');}
   el('choosePhotos').onclick=()=>{if(!busy)el('photoFiles').click();};
   el('photoFiles').onchange=()=>{
     if(busy)return;
     const picked=[...el('photoFiles').files];el('photoFiles').value='';
-    const seen=new Set(files.map(fileKey));let skipped=0;
+    const seen=new Set(files.map(fileKey));let skipped=0,changed=false;
     for(const file of picked){
       const key=fileKey(file);
       if(seen.has(key)){skipped++;continue;}
       if(files.length>=12){skipped++;continue;}
-      files.push(file);urls.push(URL.createObjectURL(file));seen.add(key);
+      files.push(file);urls.push(URL.createObjectURL(file));seen.add(key);changed=true;
     }
+    if(changed)selectionDirty=true;
     renderPreviews();renderUncertain([]);
     if(skipped&&files.length>=12)status('画像は12枚まで選べます。');
     else if(skipped)status(`${files.length}枚選択しました。重複した画像は追加していません。`);
@@ -1099,19 +1147,20 @@
     const remove=e.target.closest('.photo-preview-remove');
     if(remove){
       const index=Number(remove.dataset.index);if(!Number.isInteger(index)||index<0||index>=files.length)return;
-      URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);renderPreviews();renderUncertain([]);status(files.length?`${files.length}枚選択しました。`:'');return;
+      URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);selectionDirty=true;renderPreviews();renderUncertain([]);status(files.length?`${files.length}枚選択しました。`:'');return;
     }
     const preview=e.target.closest('.photo-preview-image');
     if(preview)openPreview(Number(preview.dataset.index));
   };
   el('readPhotos').onclick=async()=>{
-    if(busy)return;busy=true;renderPreviews();el('photoFiles').disabled=true;el('choosePhotos').disabled=true;
+    if(busy||!files.length||!selectionDirty)return;busy=true;renderPreviews();el('photoFiles').disabled=true;el('choosePhotos').disabled=true;
     try{
       const images=await Promise.all(urls.map(imageFrom));
       const data=await readImages(images);
       window.__PAWAADO_IMPORT_PHOTO__(data);
       const warningCount=data.warnings?.length||0;
       renderUncertain(data.warnings||[]);
+      selectionDirty=false;
       status(warningCount?`自動入力しました。要確認が${warningCount}件あります。`:'自動入力しました。');
     }
     catch(e){renderUncertain([]);status('読み取りに失敗しました：'+e.message+'。手入力でも利用できます。');}
