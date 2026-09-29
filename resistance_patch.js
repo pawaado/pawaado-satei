@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-9';
+  const PATCH_VERSION='20260929-super-ui-10';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -239,16 +239,16 @@
   function addStyles(){
     const style=document.createElement('style');
     style.textContent=`
-      .extra-resistance-list{display:grid;gap:12px}
+      .extra-resistance-list{display:grid;gap:8px}
       /* 耐性の内訳は内部計算にだけ使い、画面には表示しない */
       .extra-resistance-group-rows{display:none!important}
       .usage-subnote{font-size:.88em;font-weight:600;color:#6f5438}
-      .extra-resistance-group{padding:11px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
+      .extra-resistance-group{padding:8px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
       .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
       .super-control-row{display:block}
-      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px!important;gap:8px!important;align-items:end}
+      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px 44px!important;gap:6px!important;align-items:end}
       .super-controls .super-field{min-width:0}
       .super-level-field{display:grid;gap:5px}
       .super-custom-select{position:relative;min-width:0}
@@ -258,8 +258,9 @@
       .super-name-control .custom-select-option{white-space:nowrap;overflow:visible;line-height:1.35}
       .super-level-control .custom-select-option{white-space:nowrap}
       .super-level-control .custom-select-option{white-space:nowrap}
-      .extra-resistance-group-remove{display:block;margin:8px 0 0 auto;width:42px;min-width:42px;height:42px;min-height:42px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
-      .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{display:none}
+      .extra-resistance-group-remove{display:block;margin:0;width:44px;min-width:44px;height:52px;min-height:52px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
+      .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{visibility:hidden;pointer-events:none}
+      .super-note{margin:4px 0 0;font-size:12px;line-height:1.35}.super-note:empty{display:none}
       .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
       .extra-resistance-type-control.is-open{z-index:4000}
       .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}      .extra-resistance-type-control .custom-select-menu{
@@ -284,7 +285,7 @@
       .extra-resistance-actions{margin-top:12px}
       .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
-        .extra-resistance-group{padding:9px}
+        .extra-resistance-group{padding:7px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
         .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
         .extra-resistance-type-control .custom-select-menu{width:min(240px,calc(100vw - 36px));min-width:min(230px,calc(100vw - 36px))}
@@ -474,8 +475,8 @@
         <div class="super-controls">
           <div class="super-field super-name-field">${superSelectControlHtml('name',nameOptions,'超特殊能力を選択',!job)}</div>
           <div class="super-field super-level-field"><span>Lv</span>${superSelectControlHtml('level',levelOptions,'')}</div>
+          <button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>
         </div>
-        <button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>
       </div>
       <p class="super-note"></p>
       <div class="extra-resistance-group-rows"></div>
@@ -556,7 +557,7 @@
       group.dataset.groupIndex=String(index);
       const remove=group.querySelector('.extra-resistance-group-remove');
       if(!remove){
-        group.querySelector('.super-control-row')?.insertAdjacentHTML('beforeend','<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>');
+        group.querySelector('.super-controls')?.insertAdjacentHTML('beforeend','<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>');
       }
       syncSuperRemoveButton(group);
     });
