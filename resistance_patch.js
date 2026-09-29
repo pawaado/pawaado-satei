@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-7';
+  const PATCH_VERSION='20260929-super-ui-8';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -129,9 +129,9 @@
     const result=document.getElementById('result');
     if(!result)return;
     const safe=String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-    const formatted=safe
-      .replace('超特殊能力のLv','<span class="error-no-break">超特殊能力のLv</span>')
-      .replace('Lvを選択してください。','<span class="error-no-break">Lvを選択してください。</span>');
+    const formatted=safe==='耐性に影響する超特殊能力のLvを選択してください。'
+      ? '<span class="error-no-break">耐性に影響する超特殊能力のLvを</span><wbr><span class="error-no-break">選択してください。</span>'
+      : safe;
     result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+formatted+'</li></ul></div>';
     result.closest('.result-card')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
