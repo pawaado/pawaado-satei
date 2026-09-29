@@ -814,11 +814,7 @@
         if(level==null){
           // 画像比較で外れた時だけOCRを補助に使う。専用通常攻撃はLv1〜6。
           const [cx,cy]=cell.rect;
-          let t='';
-          for(const rect of [[cx+76,cy+12,68,46],[cx+86,cy+18,58,40],[cx+96,cy+20,48,38]]){
-            const attempt=(await textAt(image,rect,true)).text.replace(/\s/g,'');
-            if(/[1-6]$/.test(attempt)){t=attempt;break;}
-          }
+          const t=(await textAt(image,[cx+83,cy+23,55,35],true)).text.replace(/\s/g,'');
           const m=t.match(/([1-6])$/);
           if(m)level=Number(m[1]);
         }
@@ -878,12 +874,8 @@
         else{
           // 画像比較で取れない時だけOCRを補助に使う。Lv表示はセル右下にはみ出す。
           const [cx,cy]=cell.rect;
-          let levelText='';
-          for(const rect of [[cx+78,cy+14,64,45],[cx+88,cy+18,54,40],[cx+96,cy+20,46,38]]){
-            const t=(await textAt(image,rect,true)).text.replace(/\s/g,'');
-            if(/[12]$/.test(t)){levelText=t;break;}
-          }
-          entry.level=/[12]$/.test(levelText)?Number(levelText.slice(-1)):null;
+          const t=(await textAt(image,[cx+83,cy+25,55,35],true)).text;
+          entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
         }
         result.supers.push(entry);
       }
