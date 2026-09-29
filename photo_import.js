@@ -1086,10 +1086,10 @@
   function renderPreviews(){
     const box=el('photoPreviews');box.replaceChildren();
     files.forEach((file,index)=>{
-      const wrap=document.createElement('div'),img=document.createElement('img'),label=document.createElement('p'),remove=document.createElement('button');
-      wrap.className='photo-preview-item';img.src=urls[index];img.alt='選択したスクショ';img.className='photo-preview-image';img.dataset.index=String(index);img.setAttribute('role','button');img.setAttribute('aria-label',file.name+'を拡大表示');label.textContent=file.name;
+      const wrap=document.createElement('div'),img=document.createElement('img'),remove=document.createElement('button');
+      wrap.className='photo-preview-item';img.src=urls[index];img.alt='選択したスクショ';img.className='photo-preview-image';img.dataset.index=String(index);img.setAttribute('role','button');img.setAttribute('aria-label',file.name+'を拡大表示');
       remove.type='button';remove.className='secondary photo-preview-remove';remove.dataset.index=String(index);remove.textContent='×';remove.setAttribute('aria-label',file.name+'を削除');
-      wrap.append(img,remove,label);box.append(wrap);
+      wrap.append(img,remove);box.append(wrap);
     });
     el('readPhotos').disabled=busy||!files.length;
     el('choosePhotos').textContent=files.length?'画像を追加':'画像を選択';
