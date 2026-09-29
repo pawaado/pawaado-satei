@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-6';
+  const PHOTO_IMPORT_BUILD='20260929-hybrid-candidates-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -332,14 +332,33 @@
   }
   // ○/◎は能力名全体の比較だと差が小さすぎるため、同じ能力名の○版・◎版だけを
   // 比較して、2者で差が出る画素に重みを付けて判定する。能力名と記号を分離して扱う。
-  function pairStemByImage(image,cell){
+  function pairStemCandidatesFromTexts(rawTexts,maxCount=4){
+    const cleans=rawTexts.map(text=>cleanCellText(text).replace(/[○◎O0@①②③④⑤⑥⑦⑧⑨⑩A-Za-z0-9]+$/g,'')).filter(Boolean);
+    if(!cleans.length)return [];
+    const ranked=PAIR_STEMS.map(stem=>{
+      const n=normalize(stem);
+      let d=Infinity;
+      for(const clean of cleans){
+        const score=(clean.includes(n)||(n.includes(clean)&&clean.length>=Math.max(2,n.length-1)))
+          ?Math.abs(n.length-clean.length)
+          :distance(n,clean);
+        d=Math.min(d,score);
+      }
+      return {stem,d};
+    }).sort((a,b)=>a.d-b.d);
+    const best=ranked[0]?.d??Infinity;
+    // OCRは正解を決めず「あり得る名前」を残すだけ。最良との差2以内、最大4候補。
+    return ranked.filter((r,i)=>i<maxCount&&r.d<=Math.min(best+2,3));
+  }
+
+  function rankPairStemsByImage(image,cell,stems=PAIR_STEMS){
     const [x,y,w]=cell.rect;
     const sigs=[95,110,125].flatMap(threshold=>
       [2,6,10,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
     );
     const size=64*10;
     const ranked=[];
-    for(const stem of PAIR_STEMS){
+    for(const stem of stems){
       const circleRaw=HYBRID_ABILITY_MASKS[stem+'○'],doubleRaw=HYBRID_ABILITY_MASKS[stem+'◎'];
       if(!circleRaw||!doubleRaw)continue;
       const all=[...(Array.isArray(circleRaw)?circleRaw:[circleRaw]),...(Array.isArray(doubleRaw)?doubleRaw:[doubleRaw])];
@@ -348,7 +367,7 @@
       for(const ref of refs)for(let i=0;i<size;i++)mean[i]+=ref[i];
       for(let i=0;i<size;i++)mean[i]/=refs.length;
 
-      // 同じ能力の○/◎テンプレート間で安定している部分＝能力名本体を重視する。
+      // ○/◎で変わる末尾より、共通している「能力名本体」を強く見る。
       const variance=new Float32Array(size);
       for(const ref of refs)for(let i=0;i<size;i++)variance[i]+=Math.abs(ref[i]-mean[i]);
       for(let i=0;i<size;i++)variance[i]/=refs.length;
@@ -370,7 +389,6 @@
               const sx=xx-dx;if(sx<0||sx>=64)continue;
               const i=yy*64+xx;
               const stable=Math.max(.08,1-Math.min(1,variance[i]*2.4));
-              // 背景も含めて比較し、別の能力名の余分な画をペナルティにする。
               diff+=stable*Math.abs(sig[sy*64+sx]-mean[i]);total+=stable;
             }
           }
@@ -380,10 +398,41 @@
       };
       ranked.push({stem,d:Math.min(...sigs.map(dist))});
     }
-    ranked.sort((a,b)=>a.d-b.d);
+    return ranked.sort((a,b)=>a.d-b.d);
+  }
+
+  function pairStemByImage(image,cell){
+    const ranked=rankPairStemsByImage(image,cell);
     const best=ranked[0],second=ranked[1];
     if(!best||best.d>.24||second&&second.d-best.d<.018)return '';
     return best.stem;
+  }
+
+  function hybridPairStem(image,cell,rawTexts=[]){
+    const ocrCandidates=pairStemCandidatesFromTexts(rawTexts,4);
+    const imageAll=rankPairStemsByImage(image,cell);
+    // OCR上位候補に、画像比較だけの上位候補も足す。最大5候補に絞って最終比較する。
+    const names=[];
+    const push=name=>{if(name&&!names.includes(name)&&names.length<5)names.push(name);};
+    ocrCandidates.forEach(r=>push(r.stem));
+    imageAll.slice(0,3).forEach(r=>push(r.stem));
+    if(!names.length)return {stem:'',candidate:false,alternatives:[]};
+
+    const narrowed=imageAll.filter(r=>names.includes(r.stem)).sort((a,b)=>a.d-b.d);
+    const best=narrowed[0],second=narrowed[1];
+    if(!best||best.d>.24)return {stem:'',candidate:false,alternatives:narrowed.slice(0,3).map(r=>r.stem)};
+
+    const margin=second?second.d-best.d:1;
+    const exact=rawTexts.map(exactPairStemFromText).find(Boolean)||'';
+    const ocrTop=ocrCandidates[0]?.stem||'';
+    const supportedByOcr=exact===best.stem||ocrTop===best.stem;
+
+    // OCRと画像が同じ名前を支持する、または画像差が十分大きい時だけ採用。
+    if((supportedByOcr&&margin>=.004)||(best.d<=.15&&margin>=.012)){
+      return {stem:best.stem,candidate:!supportedByOcr,alternatives:narrowed.slice(0,3).map(r=>r.stem)};
+    }
+    // 候補が競っている時は勝手に取得済みにせず、要確認へ回す。
+    return {stem:'',candidate:true,alternatives:narrowed.slice(0,3).map(r=>r.stem)};
   }
 
   function pairMarkByImage(image,cell,stem){
@@ -799,20 +848,23 @@
       if(/[○◎]$/.test(visualName)){
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
-          let stem=pairStemByImage(image,cell)||originalStem;
-          // 画像比較で名前本体が確定しない場合だけOCRも1回使い、別stem誤認を防ぐ。
-          let quick='';
-          if(stem===originalStem){
-            quick=(await textAt(image,cell.rect,false,false,true,120)).text;
-            const ocrStem=pairStemFromText(quick);
-            if(ocrStem&&ocrStem!==originalStem)stem=ocrStem;
+          // 全能力から一発決定しない。OCRで候補を絞り、画像上位候補も混ぜて最大5候補から再比較する。
+          const quickReads=[];
+          for(const threshold of [120,155]){
+            const quick=(await textAt(image,cell.rect,false,false,true,threshold)).text;
+            if(quick&&!quickReads.includes(quick))quickReads.push(quick);
           }
-          const ocrMark=await ocrMarkHint(image,cell,quick?[quick]:[]);
-          const mark=ocrMark||pairMarkByImage(image,cell,stem);
-          if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
-          else if(stem!==originalStem){
-            const fallbackMark=normalize(visualName).slice(-1);
-            if(D.special.some(s=>normalize(s[1])===stem+fallbackMark))visualName=stem+fallbackMark;
+          const hybrid=hybridPairStem(image,cell,quickReads);
+          const stem=hybrid.stem;
+          if(stem){
+            // ○/◎は能力名と完全に別判定。OCRで見えた記号を優先し、画像形状は補助にする。
+            const ocrMark=await ocrMarkHint(image,cell,quickReads);
+            const mark=ocrMark||pairMarkByImage(image,cell,stem);
+            if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
+            else visualName='';
+          }else{
+            // 候補が競っている時は、誤った能力を自動取得済みにしない。
+            visualName='';
           }
         }
       }
@@ -846,27 +898,19 @@
         };
         await addRead(false);
         await addRead(120);
-        let stemByImage=pairStemByImage(image,cell);
-        let exactStem=reads.map(exactPairStemFromText).find(Boolean)||'';
-        let ocrStem=reads.map(pairStemFromText).find(Boolean)||'';
-        let stem=exactStem||ocrStem||'';
         let preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
-        if(!stem&&!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
+        if(!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
           await addRead(155);
           await addRead(190);
-          stemByImage=pairStemByImage(image,cell);
-          exactStem=reads.map(exactPairStemFromText).find(Boolean)||'';
-          ocrStem=reads.map(pairStemFromText).find(Boolean)||'';
-          stem=exactStem||ocrStem||stemByImage||'';
           preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         }
+        const hybrid=hybridPairStem(image,cell,reads);
+        const stem=hybrid.stem;
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
         const ocrMark=stem?await ocrMarkHint(image,cell,reads):'';
-        // 名前はOCRを主、画像比較は最後の補助。○/◎はOCRで明示されていればそちらを優先する。
-        const stemAgrees=!stemByImage||stemByImage===stem;
+        // 能力名は「OCR候補＋画像候補」から最終画像比較。○/◎は別工程で決める。
         markHint=ocrMark||visualMark;
-        const stemFromOcr=!!(exactStem||ocrStem);
-        const pairCertain=!!stem&&stemFromOcr&&stemAgrees&&!!ocrMark&&(!visualMark||visualMark===ocrMark);
+        const pairCertain=!!stem&&!hybrid.candidate&&!!ocrMark&&(!visualMark||visualMark===ocrMark);
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
         parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
