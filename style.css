@@ -542,12 +542,12 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .note-no-break{white-space:nowrap}
 
 .modal[hidden]{display:none}
-.modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:max(8px,env(safe-area-inset-top)) 10px max(8px,env(safe-area-inset-bottom));overscroll-behavior:contain;overflow-x:hidden}
+.modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:max(8px,env(safe-area-inset-top)) 4px max(8px,env(safe-area-inset-bottom));overscroll-behavior:contain;overflow-x:hidden}
 .modal-backdrop{position:absolute;inset:0;background:rgba(25,13,6,.68);backdrop-filter:blur(2px)}
 .modal-panel{
   position:relative;
   width:100%;
-  max-width:560px;
+  max-width:620px;
   max-height:min(calc(100dvh - 16px),760px);
   overflow:auto;
   overscroll-behavior:contain;
