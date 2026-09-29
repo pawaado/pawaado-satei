@@ -100,64 +100,93 @@
     decodedMasks.set(key,out);return out;
   }
   const referenceFrameCache=new WeakMap();
+  const viewportCache=new WeakMap();
   const REF_W=1536,REF_H=706;
-  const REF_MODAL_INNER={x:240,y:59,w:1056,h:582};
 
-  function referenceFrame(image){
-    if(referenceFrameCache.has(image))return referenceFrameCache.get(image);
+  function longestRun(flags,minLength){
+    let best=null,start=-1;
+    for(let i=0;i<=flags.length;i++){
+      if(i<flags.length&&flags[i]){
+        if(start<0)start=i;
+        continue;
+      }
+      if(start<0)continue;
+      const end=i-1,length=end-start+1;
+      if(length>=minLength&&(!best||length>best.length))best={start,end,length};
+      start=-1;
+    }
+    return best;
+  }
 
-    // まず端末差を「同じゲーム画面を縦横比を保って中央表示」として吸収する。
-    // これだけで解像度違い・左右/上下の余白には対応できる。
-    const refAspect=REF_W/REF_H,aspect=image.width/image.height;
-    let vw,vh,ox,oy;
-    if(aspect>=refAspect){vh=image.height;vw=vh*refAspect;ox=(image.width-vw)/2;oy=0;}
-    else{vw=image.width;vh=vw/refAspect;ox=0;oy=(image.height-vh)/2;}
-    let frame={ox,oy,sx:vw/REF_W,sy:vh/REF_H,mode:'viewport'};
+  function detectGameViewport(image){
+    if(viewportCache.has(image))return viewportCache.get(image);
 
-    // 「能力データ」画面は中央の大きなベージュ枠そのものを画像から検出し、
-    // その枠を基準に座標を補正する。端末の画面比率・黒帯・余白に依存しない。
+    // 端末のスクリーンショット全体ではなく、実際にゲームが描画されている矩形を先に探す。
+    // これにより、縦長iPhoneスクショの上下黒帯や、別端末の四周黒帯を座標計算から除外する。
+    let viewport={x:0,y:0,w:image.width,h:image.height,mode:'full'};
     try{
       const sampleScale=Math.min(1,768/image.width);
       const sw=Math.max(1,Math.round(image.width*sampleScale));
       const sh=Math.max(1,Math.round(image.height*sampleScale));
-      const sc=document.createElement('canvas');sc.width=sw;sc.height=sh;
-      const sctx=sc.getContext('2d',{willReadFrequently:true});
-      sctx.drawImage(image,0,0,sw,sh);
-      const px=sctx.getImageData(0,0,sw,sh).data,total=sw*sh;
-      const mask=new Uint8Array(total),seen=new Uint8Array(total),stack=new Int32Array(total);
+      const c=document.createElement('canvas');c.width=sw;c.height=sh;
+      const ctx=c.getContext('2d',{willReadFrequently:true});
+      ctx.drawImage(image,0,0,sw,sh);
+      const px=ctx.getImageData(0,0,sw,sh).data,total=sw*sh;
+      const active=new Uint8Array(total);
+
+      // 黒帯はほぼRGB=0。一方、能力アップ/能力データ画面は明るい背景が広く連続する。
       for(let p=0;p<total;p++){
-        const i=p*4,r=px[i],g=px[i+1],b=px[i+2];
-        if(r>180&&g>145&&b>90&&r-b>40)mask[p]=1;
+        const i=p*4;
+        if(Math.max(px[i],px[i+1],px[i+2])>28)active[p]=1;
       }
-      let best=null;
-      for(let start=0;start<total;start++){
-        if(!mask[start]||seen[start])continue;
-        let top=0;stack[top++]=start;seen[start]=1;
-        let area=0,minX=sw,minY=sh,maxX=0,maxY=0;
-        while(top){
-          const p=stack[--top],x=p%sw,y=(p/sw)|0;area++;
-          if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
-          if(x>0){const q=p-1;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
-          if(x+1<sw){const q=p+1;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
-          if(y>0){const q=p-sw;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
-          if(y+1<sh){const q=p+sw;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
+
+      const rowFlags=new Uint8Array(sh);
+      for(let y=0;y<sh;y++){
+        let count=0,base=y*sw;
+        for(let x=0;x<sw;x++)count+=active[base+x];
+        if(count/sw>.18)rowFlags[y]=1;
+      }
+      const rowRun=longestRun(rowFlags,Math.max(8,Math.floor(sh*.10)));
+
+      if(rowRun){
+        const colFlags=new Uint8Array(sw);
+        const rowCount=rowRun.length;
+        for(let x=0;x<sw;x++){
+          let count=0;
+          for(let y=rowRun.start;y<=rowRun.end;y++)count+=active[y*sw+x];
+          if(count/rowCount>.18)colFlags[x]=1;
         }
-        const bw=maxX-minX+1,bh=maxY-minY+1,ratio=bw/bh;
-        const looksLikeModal=
-          area>total*.045&&bw>sw*.55&&bw<sw*.82&&bh>sh*.65&&bh<sh*.93&&
-          ratio>1.62&&ratio<2.02&&minX>sw*.04&&maxX<sw*.96&&minY>sh*.02&&maxY<sh*.98;
-        if(looksLikeModal&&(!best||area>best.area))best={area,minX,minY,maxX,maxY,bw,bh};
+        const colRun=longestRun(colFlags,Math.max(8,Math.floor(sw*.20)));
+        if(colRun){
+          let x=colRun.start/sampleScale;
+          let y=rowRun.start/sampleScale;
+          let w=colRun.length/sampleScale;
+          let h=rowRun.length/sampleScale;
+
+          // 数pxだけ黒縁が残る/欠ける程度は画像端へスナップする。
+          const edgeX=Math.max(3,image.width*.006),edgeY=Math.max(3,image.height*.006);
+          if(x<edgeX){w+=x;x=0;}
+          if(y<edgeY){h+=y;y=0;}
+          if(image.width-(x+w)<edgeX)w=image.width-x;
+          if(image.height-(y+h)<edgeY)h=image.height-y;
+
+          // 誤検出を避け、ゲーム画面として十分大きい矩形だけ採用する。
+          if(w>=image.width*.45&&h>=image.height*.16){
+            viewport={x,y,w,h,mode:'detected'};
+          }
+        }
       }
-      if(best){
-        const dx=best.minX/sampleScale,dy=best.minY/sampleScale;
-        const dw=best.bw/sampleScale,dh=best.bh/sampleScale;
-        const scale=(dw/REF_MODAL_INNER.w+dh/REF_MODAL_INNER.h)/2;
-        const dcx=dx+dw/2,dcy=dy+dh/2;
-        const rcx=REF_MODAL_INNER.x+REF_MODAL_INNER.w/2;
-        const rcy=REF_MODAL_INNER.y+REF_MODAL_INNER.h/2;
-        frame={ox:dcx-rcx*scale,oy:dcy-rcy*scale,sx:scale,sy:scale,mode:'modal'};
-      }
-    }catch(_){/* 検出失敗時は縦横比補正だけで続行 */}
+    }catch(_){/* 検出に失敗したら画像全体を使う */}
+    viewportCache.set(image,viewport);
+    return viewport;
+  }
+
+  function referenceFrame(image){
+    if(referenceFrameCache.has(image))return referenceFrameCache.get(image);
+
+    const v=detectGameViewport(image);
+    // 端末によってゲーム画面自体の縦横比が少し異なるため、X/Yは独立して1536x706へ正規化する。
+    const frame={ox:v.x,oy:v.y,sx:v.w/REF_W,sy:v.h/REF_H,mode:v.mode};
     referenceFrameCache.set(image,frame);
     return frame;
   }
@@ -604,7 +633,7 @@
     }
     for(let i=0;i<images.length;i++){
       const image=images[i];status(`${i+1}/${images.length}枚目を読み取り中…`);
-      if(Math.abs(image.width/image.height-1536/706)>0.06){out.warnings.push(`${i+1}枚目は画面比率が異なるため読み取れませんでした。`);continue;}
+
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
@@ -716,5 +745,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport};
 })();
