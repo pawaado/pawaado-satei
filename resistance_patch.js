@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-order-1';
+  const PATCH_VERSION='20260929-super-ui-2';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -237,7 +237,8 @@
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
       .super-control-row{display:block}
       .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px!important;gap:8px!important;align-items:end}
-      .super-controls label{min-width:0}
+      .super-controls .super-field{min-width:0}
+      .super-level-field{display:grid;gap:5px}
       .super-custom-select{position:relative;min-width:0}
       .super-custom-select .custom-select-button{height:52px;min-height:52px;font-size:16px;padding:8px 38px 8px 10px}
       .super-name-control .custom-select-menu{width:min(360px,calc(100vw - 28px));min-width:min(360px,calc(100vw - 28px));max-width:calc(100vw - 28px);left:0;right:auto}
@@ -390,8 +391,8 @@
     '不朽の意志',
     '不屈の精神',
     '不滅',
-    '魔力耐性',
-    '無頼漢の教え'
+    '無頼漢の教え',
+    '魔力耐性'
   ];
   const SUPER_ORDER_INDEX=new Map(SUPER_ORDER.map((name,index)=>[name,index]));
 
@@ -445,10 +446,10 @@
     return `<div class="extra-resistance-group" data-group-index="${index}">
       <div class="super-control-row">
         <div class="super-controls">
-          <label>超特殊能力${superSelectControlHtml('name',nameOptions,'超特殊能力を選択',!job)}</label>
-          <label>Lv${superSelectControlHtml('level',levelOptions,'')}</label>
+          <div class="super-field super-name-field">${superSelectControlHtml('name',nameOptions,'超特殊能力を選択',!job)}</div>
+          <div class="super-field super-level-field"><span>Lv</span>${superSelectControlHtml('level',levelOptions,'')}</div>
         </div>
-        ${index>0?'<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>':''}
+        <button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>
       </div>
       <p class="super-note"></p>
       <div class="extra-resistance-group-rows"></div>
@@ -523,8 +524,7 @@
     document.querySelectorAll('.extra-resistance-group').forEach((group,index)=>{
       group.dataset.groupIndex=String(index);
       const remove=group.querySelector('.extra-resistance-group-remove');
-      if(index===0&&remove) remove.remove();
-      if(index>0&&!remove){
+      if(!remove){
         group.querySelector('.super-control-row')?.insertAdjacentHTML('beforeend','<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>');
       }
     });
@@ -549,7 +549,7 @@
     section.className='card';
     section.setAttribute('aria-labelledby','extraResistanceTitle');
     section.innerHTML=`
-      <div class="section-heading"><h2 id="extraResistanceTitle">超特殊能力の耐性</h2></div>
+      <div class="section-heading"><h2 id="extraResistanceTitle">耐性を持つ超特殊能力</h2></div>
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
       <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add" ${currentJob()?'':'disabled'}>＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
@@ -590,8 +590,8 @@
     const usageList=document.querySelector('.usage-list');
     if(usageList){
       usageList.innerHTML=[
-        '「能力アップ」画面と「能力データ」画面の画像を選択します。画像を使わず、手入力でも利用できます。',
-        '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。なお、名称をタップすると、基本能力は上限値、特殊能力は取得済になります。',
+        '「能力アップ」画面と「能力データ」画面の画像を選択します。画像を使わず、手入力でも利用できます。基本能力、特殊能力について、名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあるため、耐性を持つ超特殊能力を入力ください。',
+        '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。',
         '基本能力・特殊能力左の「＋」でコツLvを設定します。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
         '「計算する」を押すと、査定が最大となる組合せを表示します。'
