@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-13';
+  const PATCH_VERSION='20260929-super-ui-14';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -600,6 +600,12 @@
     section.addEventListener('change',event=>{
       if(event.target.matches('.super-name,.super-level')){
         const group=event.target.closest('.extra-resistance-group');
+        if(event.target.matches('.super-name')&&event.target.value){
+          const level=group.querySelector('.super-level');
+          // 手動で超特殊能力を選んだ時は、Lv未選択なら従来どおりLv1を初期表示する。
+          // 画像から反映済みのLv1/Lv2はそのまま保持する。
+          if(level&&!level.value)level.value='1';
+        }
         fillSuperGroup(group);
         if(event.target.matches('.super-name')){
           section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
