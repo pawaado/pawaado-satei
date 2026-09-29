@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-mark-tone-1';
+  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -372,7 +372,6 @@
     };
     const circleMean=mean(circleVariants),doubleMean=mean(doubleVariants);
     const weights=new Float32Array(size);
-    const columnWeights=new Float32Array(64);
     let weightSum=0;
     for(let i=0;i<size;i++){
       const w=Math.abs(circleMean[i]-doubleMean[i]);
@@ -380,57 +379,89 @@
       if(w>=.28){
         weights[i]=w;
         weightSum+=w;
-        columnWeights[i%64]+=w;
       }
     }
     if(weightSum<8)return '';
 
     const [x,y,w]=cell.rect;
 
-    // ゲーム画面では「○」は濃い輪郭、「◎」は明るい灰色の二重丸になる。
-    // 能力名全体の白黒比較だけだと端末差・縮小率で逆転するため、
-    // ○/◎テンプレートの差分から末尾記号の位置を求め、その部分の濃さを先に判定する。
-    const toneMark=()=>{
-      let maxColumn=0;
-      for(const value of columnWeights)maxColumn=Math.max(maxColumn,value);
-      if(maxColumn<=0)return '';
+    // ○/◎は能力名から切り離し、末尾の丸記号だけを直接見る。
+    // テンプレートの右端にある最後の字形を記号位置として取り、
+    // その周辺だけを数px探索する。○は黒い外周、◎は灰色の太い二重丸なので、
+    // 外周画素の明るさの下位25%を見ると端末差・縮小差にも比較的強い。
+    const symbolToneMark=()=>{
+      const profile=new Float32Array(64);
+      for(let xx=0;xx<64;xx++){
+        let sum=0;
+        for(let yy=0;yy<10;yy++){
+          const i=yy*64+xx;
+          sum+=Math.max(circleMean[i],doubleMean[i]);
+        }
+        profile[xx]=sum;
+      }
 
       let right=-1;
       for(let xx=63;xx>=0;xx--){
-        if(columnWeights[xx]>=Math.max(.22,maxColumn*.18)){right=xx;break;}
+        if(profile[xx]>=.35){right=xx;break;}
       }
       if(right<0)return '';
 
-      const left=Math.max(0,right-10),end=Math.min(63,right+2);
-      let sum=0,cx=0;
-      for(let xx=left;xx<=end;xx++){
-        const wt=columnWeights[xx];
-        if(!wt)continue;
-        sum+=wt;cx+=xx*wt;
+      let left=Math.max(0,right-9);
+      let gap=0;
+      for(let xx=right-1;xx>=Math.max(0,right-15);xx--){
+        if(profile[xx]<.18) gap++;
+        else gap=0;
+        if(gap>=2&&right-xx>=5){
+          left=xx+2;
+          break;
+        }
       }
-      if(sum<=0)return '';
+      const templateCenter=(left+right)/2;
+      const predictedX=4+(templateCenter+.5)*2;
+      const c=canonicalCrop(image,cell.rect);
+      const ctx=c.getContext('2d');
+      const pixels=ctx.getImageData(0,0,c.width,c.height).data;
 
-      const centerX=x+4+(cx/sum+.5)*2;
-      const patchX=Math.max(x+4,Math.min(x+w-24,centerX-10));
-      const c=canonicalCrop(image,[patchX,y+3,20,28]);
-      const data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
-      let veryDark=0,darkish=0,samples=0;
-      for(let yy=3;yy<c.height-3;yy++)for(let xx=1;xx<c.width-1;xx++){
-        const i=(yy*c.width+xx)*4;
-        const lum=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
-        samples++;
-        if(lum<175)darkish++;
-        if(lum<120)veryDark++;
+      const sampleAt=(cx,cy)=>{
+        const ring=[];
+        let evidence=0;
+        for(let yy=Math.max(0,Math.floor(cy-11));yy<=Math.min(c.height-1,Math.ceil(cy+11));yy++){
+          for(let xx=Math.max(0,Math.floor(cx-11));xx<=Math.min(c.width-1,Math.ceil(cx+11));xx++){
+            const dx=xx-cx,dy=yy-cy,rr=Math.sqrt(dx*dx+dy*dy);
+            if(rr<5||rr>10)continue;
+            const i=(yy*c.width+xx)*4;
+            const rr0=pixels[i],gg=pixels[i+1],bb=pixels[i+2];
+            const lum=rr0*.299+gg*.587+bb*.114;
+            const chrom=Math.max(rr0,gg,bb)-Math.min(rr0,gg,bb);
+            // 青いセル背景を除き、黒〜灰色の記号画素だけを見る。
+            if(chrom<100&&lum<230){
+              ring.push(lum);
+              evidence++;
+            }
+          }
+        }
+        if(ring.length<25)return null;
+        ring.sort((a,b)=>a-b);
+        const q25=ring[Math.floor((ring.length-1)*.25)];
+        return {q25,evidence};
+      };
+
+      let best=null;
+      for(let dy=-3;dy<=3;dy++)for(let dx=-6;dx<=6;dx++){
+        const result=sampleAt(predictedX+dx,17+dy);
+        if(!result)continue;
+        if(!best||result.evidence>best.evidence)best={...result,dx,dy};
       }
-      if(samples<100||darkish<8)return '';
-      const ratio=veryDark/darkish;
-      const veryDarkRate=veryDark/samples;
-      if(veryDarkRate>=.028&&ratio>=.27)return '○';
-      if(ratio<=.16)return '◎';
+      if(!best)return '';
+
+      // 実画像では○の輪郭は黒、◎は明るい灰色。
+      // その中間だけ従来の差分テンプレート比較へ回して推測しすぎない。
+      if(best.q25<=118)return '○';
+      if(best.q25>=138)return '◎';
       return '';
     };
-    const tone=toneMark();
-    if(tone)return tone;
+    const symbolTone=symbolToneMark();
+    if(symbolTone)return symbolTone;
 
     const sigs=[85,100,115,130].flatMap(threshold=>
       [0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
