@@ -8,7 +8,7 @@
   const EXPS=['筋力','敏捷','技術','知力','精神'];
   const ACADEMIES=[...new Set(D.academies.map(r=>r[0]))];
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
-  const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])];
+  const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
 
