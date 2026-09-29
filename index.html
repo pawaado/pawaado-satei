@@ -51,6 +51,23 @@
       overflow:hidden;
       text-overflow:ellipsis;
     }
+    /* アカデミー・ジョブ・超特殊能力の選択矢印は同じシンプルな形に統一 */
+    .select-game-arrow{display:none!important}
+    .custom-select-button{position:relative;padding-right:40px}
+    .custom-select-button::after{
+      content:'';
+      position:absolute;
+      right:15px;
+      top:50%;
+      width:8px;
+      height:8px;
+      border-right:2px solid #715638;
+      border-bottom:2px solid #715638;
+      transform:translateY(-70%) rotate(45deg);
+      pointer-events:none;
+    }
+    #academySelectButton,#jobSelectButton{height:52px;min-height:52px}
+
     .custom-select-button:active:not(:disabled){
       transform:none;
       box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7);
@@ -225,7 +242,7 @@
       <ol class="usage-list">
         <li>「能力アップ」画面と「能力データ」画面の画像を選択します。画像を使わず、手入力でも利用できます。</li>
         <li>画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。なお、名称をタップすると、基本能力は上限値、特殊能力は取得済になります。</li>
-        <li>基本能力・特殊能力左の「＋」でコツLvを設定します。</li>
+        <li>基本能力・特殊能力左の「＋」でコツLvを設定。</li>
         <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。</li>
         <li>「計算する」を押すと、査定が最大となる組合せを表示します。</li>
       </ol>
@@ -242,7 +259,7 @@
   </div>
 
   <script src="data.js?v=20260928-photo-1"></script>
-  <script src="resistance_patch.js?v=20260929-ui-recognition-fix-1"></script>
+  <script src="resistance_patch.js?v=20260929-select-ui-2"></script>
   <script src="academy_runtime.js?v=20260928-photo-hybrid-1"></script>
   <script src="script.js?v=20260928-photo-hybrid-1"></script>
   <script>
@@ -424,6 +441,6 @@
     syncCalcButton();
   })();
   </script>
-  <script src="photo_import.js?v=20260929-pair-mark-1"></script>
+  <script src="photo_import.js?v=20260929-pair-stem-2"></script>
 </body>
 </html>
