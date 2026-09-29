@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-4';
+  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-5';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -382,10 +382,7 @@
     }
     ranked.sort((a,b)=>a.d-b.d);
     const best=ranked[0],second=ranked[1];
-    if(!best||best.d>.29)return '';
-    const margin=second?second.d-best.d:1;
-    // 対魔闘士など字面が近い能力でも、絶対距離が十分小さい時は名前本体を採用する。
-    if(best.d>.16&&margin<.010)return '';
+    if(!best||best.d>.24||second&&second.d-best.d<.018)return '';
     return best.stem;
   }
 
@@ -791,15 +788,6 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell);
-      // 全体比較で落ちても、○/◎付き能力は「名前本体」と「末尾記号」を別々に画像比較する。
-      // ケガしにくさ・対魔闘士・対ハーピーなど、OCRで崩れやすい能力をここで直接拾う。
-      if(!visualName){
-        const pairStem=pairStemByImage(image,cell);
-        const pairMark=pairStem?pairMarkByImage(image,cell,pairStem):'';
-        if(pairStem&&pairMark&&D.special.some(row=>normalize(row[1])===pairStem+pairMark)){
-          visualName=pairStem+pairMark;
-        }
-      }
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
       if(/[○◎]$/.test(visualName)){
@@ -826,7 +814,11 @@
         if(level==null){
           // 画像比較で外れた時だけOCRを補助に使う。専用通常攻撃はLv1〜6。
           const [cx,cy]=cell.rect;
-          const t=(await textAt(image,[cx+83,cy+23,55,35],true)).text.replace(/\s/g,'');
+          let t='';
+          for(const rect of [[cx+76,cy+12,68,46],[cx+86,cy+18,58,40],[cx+96,cy+20,48,38]]){
+            const attempt=(await textAt(image,rect,true)).text.replace(/\s/g,'');
+            if(/[1-6]$/.test(attempt)){t=attempt;break;}
+          }
           const m=t.match(/([1-6])$/);
           if(m)level=Number(m[1]);
         }
@@ -852,19 +844,24 @@
         await addRead(120);
         let stemByImage=pairStemByImage(image,cell);
         let exactStem=reads.map(exactPairStemFromText).find(Boolean)||'';
-        let stem=stemByImage||exactStem||reads.map(pairStemFromText).find(Boolean)||'';
+        let ocrStem=reads.map(pairStemFromText).find(Boolean)||'';
+        let stem=exactStem||ocrStem||'';
         let preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         if(!stem&&!preliminary.some(p=>!p.unknown.length&&(p.specials.length||p.supers.length))){
           await addRead(155);
           await addRead(190);
           stemByImage=pairStemByImage(image,cell);
           exactStem=reads.map(exactPairStemFromText).find(Boolean)||'';
-          stem=stemByImage||exactStem||reads.map(pairStemFromText).find(Boolean)||'';
+          ocrStem=reads.map(pairStemFromText).find(Boolean)||'';
+          stem=exactStem||ocrStem||'';
           preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         }
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
-        markHint=visualMark||(stem?await abilityMarkHint(image,cell,reads,stem):'');
-        const pairCertain=!!stem&&!!visualMark&&(!!stemByImage||!!exactStem);
+        const ocrMark=stem?await abilityMarkHint(image,cell,reads,stem):'';
+        // 名前はOCRを主、画像比較を確認に使う。記号が競合した場合は自動確定しない。
+        const stemAgrees=!stemByImage||stemByImage===stem;
+        markHint=visualMark&&ocrMark&&visualMark!==ocrMark?'':(visualMark||ocrMark);
+        const pairCertain=!!stem&&stemAgrees&&!!visualMark&&!!ocrMark&&visualMark===ocrMark;
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
         parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
@@ -881,14 +878,17 @@
         else{
           // 画像比較で取れない時だけOCRを補助に使う。Lv表示はセル右下にはみ出す。
           const [cx,cy]=cell.rect;
-          const t=(await textAt(image,[cx+83,cy+25,55,35],true)).text;
-          entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
+          let levelText='';
+          for(const rect of [[cx+78,cy+14,64,45],[cx+88,cy+18,54,40],[cx+96,cy+20,46,38]]){
+            const t=(await textAt(image,rect,true)).text.replace(/\s/g,'');
+            if(/[12]$/.test(t)){levelText=t;break;}
+          }
+          entry.level=/[12]$/.test(levelText)?Number(levelText.slice(-1)):null;
         }
         result.supers.push(entry);
       }
       const where=`${cell.row}段目・左から${cell.col}番目`;
-      const ignoreUnmodeledSuper=cell.superCell&&parsed.unknown.length&&!parsed.supers.length&&!parsed.specials.length;
-      if(parsed.unknown.length&&!ignoreUnmodeledSuper)missed.push(where);
+      if(parsed.unknown.length)missed.push(where);
       if(parsed.candidate)candidates.push(`${where}「${parsed.supers[0]?.name||parsed.specials[0]}」`);
     }
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
