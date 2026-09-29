@@ -201,6 +201,7 @@ main{
   padding:0 2px 8px;
   border-bottom:2px solid var(--theme-line);
 }
+.section-heading.no-heading-diamond::before{display:none}
 .section-heading::before{
   content:"";
   width:14px;height:14px;
