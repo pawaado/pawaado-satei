@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-12';
+  const PATCH_VERSION='20260929-super-ui-13';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -248,21 +248,21 @@
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
       .super-control-row{display:block}
-      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 78px 44px!important;gap:6px!important;align-items:center}
+      .super-controls{display:grid!important;grid-template-columns:minmax(0,1fr) 70px 38px!important;gap:4px!important;align-items:center}
       .super-controls .super-field{min-width:0}
-      .super-level-field{display:grid;grid-template-columns:20px minmax(0,1fr);gap:3px;align-items:center}
-      .super-level-label{font-size:14px;line-height:1;text-align:right;white-space:nowrap}
+      .super-level-field{display:grid;grid-template-columns:17px minmax(0,1fr);gap:2px;align-items:center}
+      .super-level-label{font-size:13px;line-height:1;text-align:right;white-space:nowrap}
       .super-custom-select{position:relative;min-width:0}
       .super-custom-select .custom-select-button{height:52px;min-height:52px;font-size:16px;padding:8px 38px 8px 10px}
-      .super-name-control .custom-select-button{font-size:clamp(13px,3.8vw,15px);letter-spacing:-.02em;padding-right:31px}
+      .super-name-control .custom-select-button{font-size:clamp(13px,3.55vw,14px);letter-spacing:-.055em;padding-left:9px;padding-right:26px}
       .super-name-text{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:clip}
-      .super-level-control .custom-select-button{padding-left:7px;padding-right:25px}
+      .super-level-control .custom-select-button{padding-left:5px;padding-right:22px}
       .super-name-control .custom-select-menu{width:min(360px,calc(100vw - 28px));min-width:min(360px,calc(100vw - 28px));max-width:calc(100vw - 28px);left:0;right:auto}
       .super-level-control .custom-select-menu{width:100%;min-width:100%;left:0;right:auto}
       .super-name-control .custom-select-option{white-space:nowrap;overflow:visible;line-height:1.35}
       .super-level-control .custom-select-option{white-space:nowrap}
       .super-level-control .custom-select-option{white-space:nowrap}
-      .extra-resistance-group-remove{display:block;margin:0;width:44px;min-width:44px;height:52px;min-height:52px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
+      .extra-resistance-group-remove{display:block;margin:0;width:38px;min-width:38px;height:48px;min-height:48px;padding:3px;border-radius:9px;font-size:18px;line-height:1}
       .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{visibility:hidden;pointer-events:none}
       .super-note{margin:4px 0 0;font-size:12px;line-height:1.35}.super-note:empty{display:none}
       .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
