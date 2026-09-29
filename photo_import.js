@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-dual-lv2-cleric-2';
+  const PHOTO_IMPORT_BUILD='20260929-position-independent-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -231,7 +231,9 @@
     const [x,y,w]=cell.rect;
     // ゲーム側の能力データ画面には行間が約50pxの版と約57pxの版があり、
     // 文字の上下位置も少し違う。縦位置を3通り照合して実画像差を吸収する。
-    const sigs=[4,8,12].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,100));
+    // 能力の並び順には依存せず、セル内の文字そのものだけを照合する。
+    // 端末・描画差で文字のベースラインがずれても拾えるよう縦位置を広めに探索する。
+    const sigs=[0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,100));
     const ranked=Object.entries(HYBRID_ABILITY_MASKS).map(([name,encoded])=>{
       const variants=Array.isArray(encoded)?encoded:[encoded];
       return {name,d:Math.min(...variants.flatMap(e=>sigs.map(sig=>shiftedMaskDistance(sig.mask,decodeMask(e,64*10),64,10,3,2))))};
@@ -557,7 +559,7 @@
   async function readAbilityCells(image,index){
     const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false};
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
-    const missed=[],candidates=[],recognizedByPos=new Map();
+    const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       const visualName=abilityByImage(image,cell);
@@ -596,8 +598,6 @@
       }
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
-      const recognizedName=parsed.specials[0]||parsed.supers[0]?.name||'';
-      if(recognizedName)recognizedByPos.set(`${cell.row}-${cell.col}`,recognizedName);
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
         const visualLevel=levelByImage(image,cell);
@@ -615,16 +615,7 @@
       if(parsed.unknown.length&&!ignoreUnmodeledSuper)missed.push(where);
       if(parsed.candidate)candidates.push(`${where}「${parsed.supers[0]?.name||parsed.specials[0]}」`);
     }
-    // 治療系の並びはゲーム内で「重戦士→弓使い→魔法使い→僧侶」の固定順。
-    // 右端の僧侶治療○だけOCR/画像比較が落ちる端末差があるため、同じ行の前3セルが
-    // すべて確定している場合に限って僧侶治療○を補完する。
-    for(const row of new Set(cells.map(c=>c.row))){
-      if(recognizedByPos.get(`${row}-1`)==='重戦士治療○'&&recognizedByPos.get(`${row}-2`)==='弓使い治療○'&&recognizedByPos.get(`${row}-3`)==='魔法使い治療○'&&!recognizedByPos.has(`${row}-4`)){
-        result.specials.push('僧侶治療○');
-        const where=`${row}段目・左から4番目`,mi=missed.indexOf(where);if(mi>=0)missed.splice(mi,1);
-        if(window.__PHOTO_DEBUG__)console.log(index,row,4,'[ordered fallback] 僧侶治療○');
-      }
-    }
+    // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
     if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。画像と見比べて、下の「取得状態を確認・修正する」または「＋超特殊能力を追加」で補ってください。`);
     if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}は読み取り候補です。取得状態が合っているか確認してください。`);
     return result;
