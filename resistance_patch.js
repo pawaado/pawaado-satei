@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-3';
+  const PATCH_VERSION='20260929-super-ui-4';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -129,7 +129,8 @@
     const result=document.getElementById('result');
     if(!result)return;
     const safe=String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-    result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+safe+'</li></ul></div>';
+    const formatted=safe.replace('Lvを選択してください。','<span class="error-no-break">Lvを選択してください。</span>');
+    result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+formatted+'</li></ul></div>';
     result.closest('.result-card')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 
@@ -143,7 +144,7 @@
       const level=group.querySelector('.super-level')?.value;
       if(!level || names.has(name) || (def.job&&def.job!==document.getElementById('job').value)){
         group.querySelector('.super-note').textContent='';
-        showResistanceCalcError(!level?'耐性を持つ超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
+        showResistanceCalcError(!level?'耐性に影響する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
         return false;
       }
       names.add(name);
@@ -565,7 +566,7 @@
     section.className='card';
     section.setAttribute('aria-labelledby','extraResistanceTitle');
     section.innerHTML=`
-      <div class="section-heading"><h2 id="extraResistanceTitle">耐性を持つ超特殊能力</h2></div>
+      <div class="section-heading"><h2 id="extraResistanceTitle">耐性に影響する超特殊能力</h2></div>
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
       <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add" ${currentJob()?'':'disabled'}>＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
@@ -606,7 +607,7 @@
     const usageList=document.querySelector('.usage-list');
     if(usageList){
       usageList.innerHTML=[
-        '「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあり、耐性を持つ超特殊能力を入力してください。',
+        '「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあり、耐性に影響する超特殊能力を入力してください。',
         '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。',
         '基本能力・特殊能力左の「＋」でコツLvを設定します。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
@@ -649,7 +650,7 @@
       def?.includes&&lv?'下位能力込みの合計値です。':
       def?.job&&!lv?def.job+'専用・Lvを選択してください。':
       def?.job?def.job+'専用':
-      def&&!lv?'Lvを選択すると耐性値を自動設定します。':'';
+      '';
     clearDetectedResultCaches();
   }
 
