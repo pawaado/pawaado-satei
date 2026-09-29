@@ -2,6 +2,8 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
+  const PHOTO_IMPORT_BUILD='20260929-dual-lv2-cleric-1';
+  window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
   const ACADEMIES=[...new Set(D.academies.map(r=>r[0]))];
@@ -237,6 +239,9 @@
     const best=ranked[0],second=ranked[1];
     if(!best)return '';
     const limit=(best.name==='烈'||best.name==='備え')?.045:.07;
+    // 実画像テンプレートとほぼ完全一致した場合は、似た別テンプレートとの僅差で捨てない。
+    // 僧侶治療○など、長い能力名の末尾記号まで一致している実画像を確実に採用する。
+    if(best.d<=.015)return best.name;
     return best.d<=limit&&(!second||second.d-best.d>=.01)?best.name:'';
   }
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
@@ -550,13 +555,14 @@
     return sawCircle?'○':'';
   }
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null};
+    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false};
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
     const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       const visualName=abilityByImage(image,cell);
       if(visualName===DUAL_NORMAL_ATTACK){
+        result.dualAttackSeen=true;
         let level=levelByImage(image,cell);
         if(level==null){
           // 画像比較で外れた時だけOCRを補助に使う。専用通常攻撃はLv1〜6。
@@ -565,8 +571,9 @@
           const m=t.match(/([1-6])$/);
           if(m)level=Number(m[1]);
         }
-        result.dualAttackLevel=Math.max(result.dualAttackLevel||0,level||1);
-        if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName,'Lv'+(level||1));
+        if(level!=null)result.dualAttackLevel=Math.max(result.dualAttackLevel||0,level);
+        else result.warnings.push(`${index}枚目：双剣士専用「通常攻撃」のLvを読み取れませんでした。読み取り結果のLvを確認してください。`);
+        if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName,level==null?'Lv?':'Lv'+level);
         continue;
       }
 
@@ -624,7 +631,7 @@
     return {job:'',candidate:false,raw:''};
   }
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     function mergeField(target,key,value,label){
       if(value==null||value==='')return;
@@ -645,6 +652,7 @@
         });
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
+        if(result.dualAttackSeen)out.dualAttackSeen=true;
         if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
         out.warnings.push(...result.warnings);
       }else{
@@ -669,11 +677,13 @@
     }
     // 双剣士専用通常攻撃は通常の特殊能力とは別管理。
     // 専用Lv1の画像を拾えた場合はジョブ判定の補助にも使う。
-    if(out.dualAttackLevel!=null){
+    if(out.dualAttackSeen||out.dualAttackLevel!=null){
       if(!out.job)out.job='双剣士';
       else if(out.job!=='双剣士')out.warnings.push('双剣士専用の通常攻撃を検出しました。ジョブを確認してください。');
     }
-    if(out.job==='双剣士'&&out.dualAttackLevel==null)out.dualAttackLevel=1;
+    // 専用通常攻撃そのものが画像に無い場合だけ初期Lv1を補う。
+    // 画像にLv表示があるのに読み取れなかったケースをLv1へ黙って潰さない。
+    if(out.job==='双剣士'&&out.dualAttackLevel==null&&!out.dualAttackSeen)out.dualAttackLevel=1;
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();
     for(const s of out.supers){
@@ -702,7 +712,7 @@
       <div class="photo-review-grid"><label>アカデミー<select id="photoAcademy">${options(ACADEMIES,data.academy)}</select></label><label>ジョブ<select id="photoJob">${options(JOBS,data.job)}</select></label></div>
       <h3>所持経験点</h3><div class="photo-review-grid">${EXPS.map((n,i)=>`<label>${n}<input id="photoExp${i}" type="number" min="0" inputmode="numeric" value="${data.exp[n]??''}"></label>`).join('')}</div>
       <h3>基本能力</h3><p class="photo-note">「能力データ」画面の数値を使用しています。</p><div class="photo-review-grid">${BASICS.map((n,i)=>`<label>${n}<input id="photoBasic${i}" type="number" min="1" inputmode="numeric" value="${data.basic[n]??''}"></label>`).join('')}</div>
-      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?`<strong>双剣士専用 通常攻撃 Lv${data.dualAttackLevel||1}：取得済み</strong><br>通常の「通常攻撃○／◎」とは別能力です。Lv2以降は器用さ条件と経験点を満たして順番に取得します。`:''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
+      <h3>取得済み特殊能力</h3><p id="photoOwnedSummary"></p><p class="photo-note">${data.job==='双剣士'?`<strong>双剣士専用 通常攻撃</strong> <label>Lv <select id="photoDualAttackLevel" aria-label="双剣士専用通常攻撃のLv">${[1,2,3,4,5,6].map(l=>`<option value="${l}" ${l===(data.dualAttackLevel||1)?'selected':''}>${l}</option>`).join('')}</select></label>：取得済み<br>通常の「通常攻撃○／◎」とは別能力です。画像からLvを読み取り、ここで確認・修正できます。`:''}</p><details><summary>取得状態を確認・修正する</summary><div class="photo-specials">${D.special.map((s,i)=>({s,i})).filter(({s})=>normalize(s[1])!==normalize(DUAL_NORMAL_ATTACK)).map(({s,i})=>`<label><input type="checkbox" data-photo-special="${i}" ${data.specials.includes(s[1])?'checked':''}>${escape(s[1])}</label>`).join('')}</div></details>
       <h3>取得済み超特殊能力</h3><p class="photo-note">上位能力に対応する◎・○は自動で取得済みにします。耐性のある能力はLvを選択してください。</p>
       <div id="photoSupers">${data.supers.map(s=>superRow(s)).join('')}</div><button id="photoAddSuper" class="secondary" type="button">＋超特殊能力を追加</button>
       <label class="photo-confirm"><input id="photoConfirmed" type="checkbox">特殊能力の続きも含め、読み取り結果を確認しました</label>
@@ -721,7 +731,8 @@
       try{
         if(!el('photoConfirmed').checked)throw new Error('読み取り結果を確認し、チェックを入れてください。');
         const number=id=>el(id).value===''?null:Number(el(id).value);
-        const result={academy:el('photoAcademy').value,job:el('photoJob').value,exp:Object.fromEntries(EXPS.map((n,i)=>[n,number('photoExp'+i)])),basic:Object.fromEntries(BASICS.map((n,i)=>[n,number('photoBasic'+i)])),specials:[...box.querySelectorAll('[data-photo-special]:checked')].map(e=>D.special[Number(e.dataset.photoSpecial)][1]),supers:[],dualAttackLevel:data.dualAttackLevel||(el('photoJob').value==='双剣士'?1:null)};
+        const selectedDualLevel=el('photoDualAttackLevel')?.value;
+        const result={academy:el('photoAcademy').value,job:el('photoJob').value,exp:Object.fromEntries(EXPS.map((n,i)=>[n,number('photoExp'+i)])),basic:Object.fromEntries(BASICS.map((n,i)=>[n,number('photoBasic'+i)])),specials:[...box.querySelectorAll('[data-photo-special]:checked')].map(e=>D.special[Number(e.dataset.photoSpecial)][1]),supers:[],dualAttackLevel:el('photoJob').value==='双剣士'?Number(selectedDualLevel||data.dualAttackLevel||1):null};
         for(const row of el('photoSupers').children){const name=row.querySelector('.photo-super-name').value,level=Number(row.querySelector('.photo-super-level').value);if(!name)throw new Error('超特殊能力の名前を選択してください。');const def=D.superResistances[name];if(def&&![1,2].includes(level))throw new Error('耐性のある超特殊能力のLvを選択してください。');if(result.supers.some(s=>s.name===name))throw new Error('超特殊能力が重複しています。');if(def?.job&&def.job!==result.job)throw new Error(name+'は'+def.job+'専用です。');result.supers.push({name,level:[1,2].includes(level)?level:null});}
         window.__PAWAADO_IMPORT_PHOTO__(result);
         status('反映しました。下のコツLvを入力して「計算する」を押してください。');
