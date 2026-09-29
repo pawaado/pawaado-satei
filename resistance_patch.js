@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-14';
+  const PATCH_VERSION='20260929-super-ui-15';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -260,8 +260,8 @@
       .super-name-control .custom-select-menu{width:min(360px,calc(100vw - 28px));min-width:min(360px,calc(100vw - 28px));max-width:calc(100vw - 28px);left:0;right:auto}
       .super-level-control .custom-select-menu{width:100%;min-width:100%;left:0;right:auto}
       .super-name-control .custom-select-option{white-space:nowrap;overflow:visible;line-height:1.35}
-      .super-level-control .custom-select-option{white-space:nowrap}
-      .super-level-control .custom-select-option{white-space:nowrap}
+      .super-level-control .custom-select-option{white-space:nowrap;padding:8px 4px!important;text-align:center!important;color:#fff!important;overflow:visible;font-size:16px}
+      .super-level-control .custom-select-option::before{display:none!important;content:none!important;width:0!important;margin:0!important}
       .extra-resistance-group-remove{display:block;margin:0;width:38px;min-width:38px;height:48px;min-height:48px;padding:3px;border-radius:9px;font-size:18px;line-height:1}
       .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{visibility:hidden;pointer-events:none}
       .super-note{margin:4px 0 0;font-size:12px;line-height:1.35}.super-note:empty{display:none}
@@ -600,12 +600,6 @@
     section.addEventListener('change',event=>{
       if(event.target.matches('.super-name,.super-level')){
         const group=event.target.closest('.extra-resistance-group');
-        if(event.target.matches('.super-name')&&event.target.value){
-          const level=group.querySelector('.super-level');
-          // 手動で超特殊能力を選んだ時は、Lv未選択なら従来どおりLv1を初期表示する。
-          // 画像から反映済みのLv1/Lv2はそのまま保持する。
-          if(level&&!level.value)level.value='1';
-        }
         fillSuperGroup(group);
         if(event.target.matches('.super-name')){
           section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
