@@ -97,14 +97,76 @@
     }
     decodedMasks.set(key,out);return out;
   }
+  const referenceFrameCache=new WeakMap();
+  const REF_W=1536,REF_H=706;
+  const REF_MODAL_INNER={x:240,y:59,w:1056,h:582};
+
+  function referenceFrame(image){
+    if(referenceFrameCache.has(image))return referenceFrameCache.get(image);
+
+    // まず端末差を「同じゲーム画面を縦横比を保って中央表示」として吸収する。
+    // これだけで解像度違い・左右/上下の余白には対応できる。
+    const refAspect=REF_W/REF_H,aspect=image.width/image.height;
+    let vw,vh,ox,oy;
+    if(aspect>=refAspect){vh=image.height;vw=vh*refAspect;ox=(image.width-vw)/2;oy=0;}
+    else{vw=image.width;vh=vw/refAspect;ox=0;oy=(image.height-vh)/2;}
+    let frame={ox,oy,sx:vw/REF_W,sy:vh/REF_H,mode:'viewport'};
+
+    // 「能力データ」画面は中央の大きなベージュ枠そのものを画像から検出し、
+    // その枠を基準に座標を補正する。端末の画面比率・黒帯・余白に依存しない。
+    try{
+      const sampleScale=Math.min(1,768/image.width);
+      const sw=Math.max(1,Math.round(image.width*sampleScale));
+      const sh=Math.max(1,Math.round(image.height*sampleScale));
+      const sc=document.createElement('canvas');sc.width=sw;sc.height=sh;
+      const sctx=sc.getContext('2d',{willReadFrequently:true});
+      sctx.drawImage(image,0,0,sw,sh);
+      const px=sctx.getImageData(0,0,sw,sh).data,total=sw*sh;
+      const mask=new Uint8Array(total),seen=new Uint8Array(total),stack=new Int32Array(total);
+      for(let p=0;p<total;p++){
+        const i=p*4,r=px[i],g=px[i+1],b=px[i+2];
+        if(r>180&&g>145&&b>90&&r-b>40)mask[p]=1;
+      }
+      let best=null;
+      for(let start=0;start<total;start++){
+        if(!mask[start]||seen[start])continue;
+        let top=0;stack[top++]=start;seen[start]=1;
+        let area=0,minX=sw,minY=sh,maxX=0,maxY=0;
+        while(top){
+          const p=stack[--top],x=p%sw,y=(p/sw)|0;area++;
+          if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+          if(x>0){const q=p-1;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
+          if(x+1<sw){const q=p+1;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
+          if(y>0){const q=p-sw;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
+          if(y+1<sh){const q=p+sw;if(mask[q]&&!seen[q]){seen[q]=1;stack[top++]=q;}}
+        }
+        const bw=maxX-minX+1,bh=maxY-minY+1,ratio=bw/bh;
+        const looksLikeModal=
+          area>total*.045&&bw>sw*.55&&bw<sw*.82&&bh>sh*.65&&bh<sh*.93&&
+          ratio>1.62&&ratio<2.02&&minX>sw*.04&&maxX<sw*.96&&minY>sh*.02&&maxY<sh*.98;
+        if(looksLikeModal&&(!best||area>best.area))best={area,minX,minY,maxX,maxY,bw,bh};
+      }
+      if(best){
+        const dx=best.minX/sampleScale,dy=best.minY/sampleScale;
+        const dw=best.bw/sampleScale,dh=best.bh/sampleScale;
+        const scale=(dw/REF_MODAL_INNER.w+dh/REF_MODAL_INNER.h)/2;
+        const dcx=dx+dw/2,dcy=dy+dh/2;
+        const rcx=REF_MODAL_INNER.x+REF_MODAL_INNER.w/2;
+        const rcy=REF_MODAL_INNER.y+REF_MODAL_INNER.h/2;
+        frame={ox:dcx-rcx*scale,oy:dcy-rcy*scale,sx:scale,sy:scale,mode:'modal'};
+      }
+    }catch(_){/* 検出失敗時は縦横比補正だけで続行 */}
+    referenceFrameCache.set(image,frame);
+    return frame;
+  }
+  function sourceRect(image,rect){
+    const [x,y,w,h]=rect,f=referenceFrame(image);
+    return [f.ox+x*f.sx,f.oy+y*f.sy,w*f.sx,h*f.sy];
+  }
   function canonicalCrop(image,rect){
-    const [x,y,w,h]=rect,c=document.createElement('canvas');
+    const [x,y,w,h]=rect,c=document.createElement('canvas'),r=sourceRect(image,rect);
     c.width=Math.round(w);c.height=Math.round(h);
-    c.getContext('2d').drawImage(
-      image,
-      x*image.width/1536,y*image.height/706,w*image.width/1536,h*image.height/706,
-      0,0,c.width,c.height
-    );
+    c.getContext('2d').drawImage(image,...r,0,0,c.width,c.height);
     return c;
   }
   function inkMask(image,rect,blockX,blockY,threshold=100){
@@ -269,8 +331,8 @@
   }
 
   function canvasCrop(image,rect,scale=3){
-    const c=document.createElement('canvas'),r=rect.map((v,i)=>v*(i%2?image.height/706:image.width/1536));
-    c.width=Math.round(r[2]*scale);c.height=Math.round(r[3]*scale);
+    const c=document.createElement('canvas'),r=sourceRect(image,rect);
+    c.width=Math.max(1,Math.round(rect[2]*scale));c.height=Math.max(1,Math.round(rect[3]*scale));
     c.getContext('2d').drawImage(image,...r,0,0,c.width,c.height);return c;
   }
   function vector(image){
@@ -652,5 +714,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame};
 })();
