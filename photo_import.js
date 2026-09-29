@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-2';
+  const PHOTO_IMPORT_BUILD='20260929-mark-symbol-3';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -385,6 +385,26 @@
 
     const [x,y,w]=cell.rect;
 
+    // ○は黒い一重リング、◎は灰色のリングなので、まず「黒いリング」が
+    // 末尾に実在するかを形そのものから確認する。ここで○が確定した場合は
+    // 後段の明るさ・テンプレート比較で◎へ上書きしない。
+    const darkCircleMark=()=>{
+      const comps=glyphComponents(image,[x+4,y+2,w-8,30],105);
+      const minX=Math.max(36,(w-8)*.35);
+      const rings=comps.filter(c=>{
+        if(c.x<minX||c.w<13||c.w>18||c.h<13||c.h>19)return false;
+        const aspect=c.w/c.h,density=c.area/(c.w*c.h);
+        if(aspect<.78||aspect>1.22||density<.32||density>.56)return false;
+        const glyph=normalizeGlyph(c.mask,c.w,c.h);
+        let center=0,total=0;
+        for(let yy=5;yy<=10;yy++)for(let xx=4;xx<=7;xx++){center+=glyph[yy*12+xx];total++;}
+        return total&&center/total<=.14;
+      }).sort((a,b)=>(b.x+b.w)-(a.x+a.w));
+      return rings.length?'○':'';
+    };
+    const darkMark=darkCircleMark();
+    if(darkMark)return darkMark;
+
     // ○/◎は能力名から切り離し、末尾の丸記号だけを直接見る。
     // テンプレートの右端にある最後の字形を記号位置として取り、
     // その周辺だけを数px探索する。○は黒い外周、◎は灰色の太い二重丸なので、
@@ -457,7 +477,8 @@
       // 実画像では○の輪郭は黒、◎は明るい灰色。
       // その中間だけ従来の差分テンプレート比較へ回して推測しすぎない。
       if(best.q25<=118)return '○';
-      if(best.q25>=138)return '◎';
+      // 明るいだけで◎と断定すると、○の位置ずれを◎と誤認しやすい。
+      // ◎は後段のテンプレート比較でも十分差が出た場合だけ確定する。
       return '';
     };
     const symbolTone=symbolToneMark();
@@ -489,7 +510,10 @@
     const best=Math.min(circleScore,doubleScore),margin=Math.abs(circleScore-doubleScore);
     // 記号だけで確信が持てない時は推測せず、従来のOCR補助へ回す。
     if(best>.42||margin<.055)return '';
-    return circleScore<doubleScore?'○':'◎';
+    if(circleScore<doubleScore)return '○';
+    // ◎への昇格は誤判定の影響が大きいため、○より厳しくする。
+    if(best>.32||margin<.09)return '';
+    return '◎';
   }
 
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
