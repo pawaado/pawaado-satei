@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-lv-1';
+  const PATCH_VERSION='20260929-job-filter-super-1';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -359,26 +359,89 @@
     });
   }
 
-  function superSelectControlHtml(kind,optionsHtml,placeholder){
+  function superSelectControlHtml(kind,optionsHtml,placeholder,disabled=false){
     const isLevel=kind==='level';
     return `<div class="custom-select-control super-custom-select ${isLevel?'super-level-control':'super-name-control'}">
-      <select class="${isLevel?'super-level':'super-name'} custom-native-select" tabindex="-1" aria-hidden="true" ${isLevel?'disabled':''}>${optionsHtml}</select>
-      <button type="button" class="custom-select-button ${isLevel?'super-level-button':'super-name-button'}" aria-haspopup="listbox" aria-expanded="false" ${isLevel?'disabled':''}>
+      <select class="${isLevel?'super-level':'super-name'} custom-native-select" tabindex="-1" aria-hidden="true" ${isLevel||disabled?'disabled':''}>${optionsHtml}</select>
+      <button type="button" class="custom-select-button ${isLevel?'super-level-button':'super-name-button'}" aria-haspopup="listbox" aria-expanded="false" ${isLevel||disabled?'disabled':''}>
         <span class="${isLevel?'super-level-text':'super-name-text'}">${placeholder}</span>
       </button>
       <div class="custom-select-menu ${isLevel?'super-level-menu':'super-name-menu'}" role="listbox" hidden></div>
     </div>`;
   }
 
+  const SUPER_READINGS={
+    '安全運転':'あんぜんうんてん',
+    'ウィンドプロテクション':'うぃんどぷろてくしょん',
+    'ウォータープロテクション':'うぉーたーぷろてくしょん',
+    '加護':'かご',
+    '火事場の馬鹿力':'かじばのばかぢから',
+    'カチカチボディ':'かちかちぼでぃ',
+    '救援者':'きゅうえんしゃ',
+    '慈愛の祈り':'じあいのいのり',
+    '対魔の盾':'たいまのたて',
+    '戦い抜く覚悟':'たたかいぬくかくご',
+    '超免疫':'ちょうめんえき',
+    '鉄人':'てつじん',
+    '百戦の生存術':'ひゃくせんのせいぞんじゅつ',
+    'ファイアプロテクション':'ふぁいあぷろてくしょん',
+    '不朽の意志':'ふきゅうのいし',
+    '不屈の精神':'ふくつのせいしん',
+    '不滅':'ふめつ',
+    '無頼漢の教え':'ぶらいかんのおしえ',
+    '魔力耐性':'まりょくたいせい'
+  };
+  function currentJob(){return document.getElementById('job')?.value||'';}
+  function availableSuperNames(job=currentJob()){
+    if(!job)return [];
+    return Object.keys(window.PAWAADO_DATA.superResistances)
+      .filter(name=>{
+        const def=window.PAWAADO_DATA.superResistances[name];
+        return !def.job||def.job===job;
+      })
+      .sort((a,b)=>(SUPER_READINGS[a]||a).localeCompare(SUPER_READINGS[b]||b,'ja',{sensitivity:'base'}));
+  }
+  function rebuildSuperNameOptions(group){
+    const select=group.querySelector('.super-name');
+    if(!select)return;
+    const job=currentJob();
+    const old=select.value;
+    const names=availableSuperNames(job);
+    select.innerHTML='<option value="">超特殊能力を選択</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+    const valid=old&&names.includes(old);
+    select.value=valid?old:'';
+    select.disabled=!job;
+    const button=group.querySelector('.super-name-button');
+    if(button)button.disabled=!job;
+    if(!valid){
+      const level=group.querySelector('.super-level');
+      if(level){level.value='';level.disabled=true;}
+      const levelButton=group.querySelector('.super-level-button');
+      if(levelButton)levelButton.disabled=true;
+    }
+    syncSuperSelects(group);
+  }
+  function refreshSuperControlsForJob(){
+    const job=currentJob();
+    const list=document.getElementById('extraResistanceList');
+    if(!list)return;
+    [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>{
+      rebuildSuperNameOptions(group);
+      fillSuperGroup(group);
+    });
+    const add=document.getElementById('addExtraResistanceBtn');
+    if(add)add.disabled=!job;
+  }
+
   function resistanceGroupHtml(index){
-    const names=Object.keys(window.PAWAADO_DATA.superResistances)
-      .sort((a,b)=>a.localeCompare(b,'ja',{sensitivity:'base'}));
+    const job=currentJob();
+    const names=availableSuperNames(job);
     const nameOptions='<option value="">超特殊能力を選択</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
     const levelOptions='<option value=""></option><option value="1">1</option><option value="2">2</option>';
     return `<div class="extra-resistance-group" data-group-index="${index}">
       <div class="super-control-row">
         <div class="super-controls">
-          <label>超特殊能力${superSelectControlHtml('name',nameOptions,'超特殊能力を選択')}</label>
+          <label>超特殊能力${superSelectControlHtml('name',nameOptions,'超特殊能力を選択',!job)}</label>
           <label>Lv${superSelectControlHtml('level',levelOptions,'')}</label>
         </div>
         ${index>0?'<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>':''}
@@ -484,7 +547,7 @@
     section.innerHTML=`
       <div class="section-heading"><h2 id="extraResistanceTitle">超特殊能力の耐性</h2></div>
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
-      <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add">＋超特殊能力を追加</button></div>`;
+      <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add" ${currentJob()?'':'disabled'}>＋超特殊能力を追加</button></div>`;
     specialCard.insertAdjacentElement('afterend',section);
     initSuperSelects(section);
 
@@ -573,6 +636,7 @@
     const list=document.getElementById('extraResistanceList');
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i)).join('');
     initSuperSelects(list);
+    refreshSuperControlsForJob();
     entries.forEach((entry,i)=>{
       const group=list.children[i];
       group.querySelector('.super-name').value=entry.name;
@@ -580,11 +644,15 @@
       syncSuperSelects(group);
       fillSuperGroup(group);
     });
+    refreshSuperControlsForJob();
     clearDetectedResultCaches();
   };
   addStyles();
   injectResistanceUi();
   updateUsageText();
+  refreshSuperControlsForJob();
+
+  document.getElementById('job')?.addEventListener('change',()=>queueMicrotask(refreshSuperControlsForJob));
 
   document.addEventListener('click',()=>{
     closeResistanceMenus();
