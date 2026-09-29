@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260929-super-ui-2';
+  const PATCH_VERSION='20260929-super-ui-3';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -125,6 +125,14 @@
     return valid;
   }
 
+  function showResistanceCalcError(message){
+    const result=document.getElementById('result');
+    if(!result)return;
+    const safe=String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+    result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+safe+'</li></ul></div>';
+    result.closest('.result-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
   function validateAllResistanceValues(){
     const groups=[...document.querySelectorAll('.extra-resistance-group')];
     const names=new Set();
@@ -134,8 +142,9 @@
       const def=window.PAWAADO_DATA.superResistances[name];
       const level=group.querySelector('.super-level')?.value;
       if(!level || names.has(name) || (def.job&&def.job!==document.getElementById('job').value)){
-        group.querySelector('.super-note').textContent=!level?'Lvを選択してください。':names.has(name)?'同じ能力が重複しています。':def.job+'専用の能力です。';
-        group.scrollIntoView({block:'center'}); return false;
+        group.querySelector('.super-note').textContent='';
+        showResistanceCalcError(!level?'耐性を持つ超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
+        return false;
       }
       names.add(name);
     }
@@ -247,6 +256,7 @@
       .super-level-control .custom-select-option{white-space:nowrap}
       .super-level-control .custom-select-option{white-space:nowrap}
       .extra-resistance-group-remove{display:block;margin:8px 0 0 auto;width:42px;min-width:42px;height:42px;min-height:42px;padding:4px;border-radius:9px;font-size:20px;line-height:1}
+      .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{display:none}
       .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
       .extra-resistance-type-control.is-open{z-index:4000}
       .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}      .extra-resistance-type-control .custom-select-menu{
@@ -520,6 +530,11 @@
     });
   }
 
+  function syncSuperRemoveButton(group){
+    const hasName=!!group?.querySelector('.super-name')?.value;
+    group?.classList.toggle('has-super-name',hasName);
+  }
+
   function renumberResistanceGroups(){
     document.querySelectorAll('.extra-resistance-group').forEach((group,index)=>{
       group.dataset.groupIndex=String(index);
@@ -527,6 +542,7 @@
       if(!remove){
         group.querySelector('.super-control-row')?.insertAdjacentHTML('beforeend','<button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>');
       }
+      syncSuperRemoveButton(group);
     });
   }
 
@@ -590,7 +606,7 @@
     const usageList=document.querySelector('.usage-list');
     if(usageList){
       usageList.innerHTML=[
-        '「能力アップ」画面と「能力データ」画面の画像を選択します。画像を使わず、手入力でも利用できます。基本能力、特殊能力について、名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあるため、耐性を持つ超特殊能力を入力ください。',
+        '「能力アップ」、「能力データ」の画像を選択します(画像を用いず手入力でも可)。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。耐性は査定に影響することがあり、耐性を持つ超特殊能力を入力してください。',
         '画像から自動入力された内容を確認し、誤りがあれば修正をお願いします。',
         '基本能力・特殊能力左の「＋」でコツLvを設定します。',
         '複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を使用します。',
@@ -605,6 +621,7 @@
 
   function fillSuperGroup(group){
     const name=group.querySelector('.super-name').value;
+    syncSuperRemoveButton(group);
     const def=window.PAWAADO_DATA.superResistances[name];
     const levelSelect=group.querySelector('.super-level');
     const levelButton=group.querySelector('.super-level-button');
@@ -640,6 +657,7 @@
     const list=document.getElementById('extraResistanceList');
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i)).join('');
     initSuperSelects(list);
+    renumberResistanceGroups();
     refreshSuperControlsForJob();
     entries.forEach((entry,i)=>{
       const group=list.children[i];
