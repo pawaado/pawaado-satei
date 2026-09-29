@@ -297,6 +297,65 @@
     const robustSigs=[85,115,135].flatMap(makeSigs);
     return accept(rank(candidates,robustSigs,6,3),true);
   }
+  // ○/◎は能力名全体の比較だと差が小さすぎるため、同じ能力名の○版・◎版だけを
+  // 比較して、2者で差が出る画素に重みを付けて判定する。能力名と記号を分離して扱う。
+  function pairMarkByImage(image,cell,stem){
+    const circleName=stem+'○',doubleName=stem+'◎';
+    const circleRaw=HYBRID_ABILITY_MASKS[circleName],doubleRaw=HYBRID_ABILITY_MASKS[doubleName];
+    if(!circleRaw||!doubleRaw)return '';
+
+    const circleVariants=Array.isArray(circleRaw)?circleRaw:[circleRaw];
+    const doubleVariants=Array.isArray(doubleRaw)?doubleRaw:[doubleRaw];
+    const size=64*10;
+    const mean=variants=>{
+      const out=new Float32Array(size);
+      for(const encoded of variants){
+        const mask=decodeMask(encoded,size);
+        for(let i=0;i<size;i++)out[i]+=mask[i];
+      }
+      for(let i=0;i<size;i++)out[i]/=variants.length;
+      return out;
+    };
+    const circleMean=mean(circleVariants),doubleMean=mean(doubleVariants);
+    const weights=new Float32Array(size);
+    let weightSum=0;
+    for(let i=0;i<size;i++){
+      const w=Math.abs(circleMean[i]-doubleMean[i]);
+      // 端末差による微小な輪郭差は捨て、○/◎で安定して違う画素だけを見る。
+      if(w>=.28){weights[i]=w;weightSum+=w;}
+    }
+    if(weightSum<8)return '';
+
+    const [x,y,w]=cell.rect;
+    const sigs=[85,100,115,130].flatMap(threshold=>
+      [0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,threshold).mask)
+    );
+
+    const weightedDistance=(sig,ref)=>{
+      let best=1;
+      for(let dy=-2;dy<=2;dy++)for(let dx=-3;dx<=3;dx++){
+        let diff=0,total=0;
+        for(let yy=0;yy<10;yy++){
+          const sy=yy-dy;if(sy<0||sy>=10)continue;
+          for(let xx=0;xx<64;xx++){
+            const sx=xx-dx;if(sx<0||sx>=64)continue;
+            const i=yy*64+xx,wt=weights[i];if(!wt)continue;
+            diff+=wt*Math.abs(sig[sy*64+sx]-ref[i]);total+=wt;
+          }
+        }
+        if(total)best=Math.min(best,diff/total);
+      }
+      return best;
+    };
+
+    const circleScore=Math.min(...sigs.map(sig=>weightedDistance(sig,circleMean)));
+    const doubleScore=Math.min(...sigs.map(sig=>weightedDistance(sig,doubleMean)));
+    const best=Math.min(circleScore,doubleScore),margin=Math.abs(circleScore-doubleScore);
+    // 記号だけで確信が持てない時は推測せず、従来のOCR補助へ回す。
+    if(best>.42||margin<.055)return '';
+    return circleScore<doubleScore?'○':'◎';
+  }
+
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
     const out=new Uint8Array(outW*outH);
     for(let oy=0;oy<outH;oy++){const sy=Math.min(h-1,Math.floor(oy*h/outH));
@@ -593,7 +652,9 @@
     }
     return {specials:[],supers:[],unknown:[clean],candidate:false};
   }
-  async function abilityMarkHint(image,cell,rawTexts=[]){
+  async function abilityMarkHint(image,cell,rawTexts=[],stem=''){
+    const visual=stem?pairMarkByImage(image,cell,stem):'';
+    if(visual)return visual;
     const markText=s=>String(s).normalize('NFC').replace(/\s/g,'');
     const joined=rawTexts.map(markText).join('');
     if(/[◎①②③④⑤⑥⑦⑧⑨⑩@]/.test(joined))return '◎';
@@ -613,7 +674,15 @@
     const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
-      const visualName=abilityByImage(image,cell);
+      let visualName=abilityByImage(image,cell);
+      // 能力名が同じ○/◎ペアは、名前の認識結果をそのまま信じず記号だけ再判定する。
+      if(/[○◎]$/.test(visualName)){
+        const stem=normalize(visualName).slice(0,-1);
+        if(PAIR_STEMS.includes(stem)){
+          const mark=pairMarkByImage(image,cell,stem);
+          if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
+        }
+      }
       if(visualName===DUAL_NORMAL_ATTACK){
         result.dualAttackSeen=true;
         let level=levelByImage(image,cell);
@@ -652,7 +721,7 @@
           stem=reads.map(pairStemFromText).find(Boolean)||'';
           preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         }
-        markHint=stem?await abilityMarkHint(image,cell,reads):'';
+        markHint=stem?await abilityMarkHint(image,cell,reads,stem):'';
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell),i}));
         const quality=p=>p.unknown.length?0:(p.specials.length||p.supers.length)?(p.candidate?2:3):1;
         parsedReads.sort((a,b)=>quality(b.parsed)-quality(a.parsed)||a.i-b.i);
@@ -823,5 +892,5 @@
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('readPhotos').disabled=!files.length;el('photoFiles').disabled=false;}
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairMarkByImage};
 })();
