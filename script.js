@@ -3064,7 +3064,7 @@ function resetAll(){
   renderSpecials();
   applyCurrentJobTheme();
 
-  document.getElementById('result').textContent='条件を入力して「計算する」を押してください。';
+  document.getElementById('result').textContent='';
 }
 
 
