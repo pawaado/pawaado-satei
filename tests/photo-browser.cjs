@@ -1,24 +1,154 @@
-const path=require('node:path');const root=path.resolve(__dirname,'..');const fixtures=process.env.PHOTO_FIXTURE_DIR;if(!fixtures)throw new Error('Set PHOTO_FIXTURE_DIR to the folder containing IMG_0747.jpeg through IMG_0751.jpeg');const assert=require('node:assert/strict');const {chromium}=require(require.resolve('playwright',{paths:[process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES||root,root]}));const server=require('child_process').spawn('python',['-m','http.server','8765','--bind','127.0.0.1'],{cwd:root,stdio:'ignore'});
-(async()=>{await new Promise(r=>setTimeout(r,300));const b=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE||undefined,args:['--no-sandbox']});try{const page=await b.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));if(process.env.DEBUG_OCR)page.on('console',e=>console.log(e.text()));await page.goto('http://127.0.0.1:8765/');await page.route('**/upload/*.jpeg',route=>route.fulfill({path:path.join(fixtures,path.basename(new URL(route.request().url()).pathname)),contentType:'image/jpeg'}));
-if(process.env.DEBUG_OCR)await page.evaluate(()=>window.__PAWAADO_DEBUG_OCR__=true);const academy=await page.evaluate(async()=>{const out=[];for(const n of [748,749,750,751]){const im=new Image();im.src='/upload/IMG_0'+n+'.jpeg';await im.decode();out.push(await __PAWAADO_PHOTO_TEST__.academyOf(im));}return out;});assert.deepEqual(academy,['ブートレインアカデミー','パワフルアカデミー','タテレスキュアアカデミー','カジナイトアカデミー']);console.log('PASS all four academy references');
-await page.locator('#photoFiles').setInputFiles([path.join(fixtures,'IMG_0747.jpeg'),path.join(fixtures,'IMG_0748.jpeg')]);await page.locator('#readPhotos').click();await page.locator('#photoReview').waitFor({state:'visible',timeout:90000});const vals=await page.locator('#photoReview input[type=number]').evaluateAll(es=>es.map(e=>Number(e.value)));assert.deepEqual(vals,[690,238,351,273,451,12,8,14,9,9,8]);assert.equal(await page.locator('#photoOwnedSummary').textContent(),'魔法攻撃○');
-await page.locator('#photoConfirmed').check();await page.locator('#applyPhotos').click();assert.match(await page.locator('#photoStatus').textContent(),/反映しました/);assert.equal(await page.locator('#academy').inputValue(),'ブートレインアカデミー');assert.equal(await page.locator('#job').inputValue(),'剣士');assert.equal(await page.locator('#basic_生命力').inputValue(),'12');assert.equal(await page.locator('[data-exp-name="筋力"]').inputValue(),'690');assert.ok(await page.locator('#calcBtn').isEnabled());
-const idx=await page.evaluate(()=>PAWAADO_DATA.special.findIndex(s=>s[1]==='魔法攻撃○'));assert.ok(await page.locator(`.skill-row[data-index="${idx}"]`).evaluate(e=>e.classList.contains('owned')));console.log('PASS screenshot OCR and input import');
-await page.locator('.super-name').selectOption('鉄人');await page.locator('.super-level').selectOption('2');const rows=await page.evaluate(()=>__PAWAADO_GET_EXTRA_RESISTANCES__());assert.deepEqual(rows,[{name:'鉄人',type:'物理攻撃耐性',value:7},{name:'鉄人',type:'魔法攻撃耐性',value:7}]);const injury=await page.evaluate(()=>PAWAADO_DATA.special.findIndex(s=>s[1]==='ケガしにくさ◎'));assert.ok(await page.locator(`.skill-row[data-index="${injury}"]`).evaluate(e=>e.classList.contains('owned')));await page.locator('.super-name').selectOption('火事場の馬鹿力');assert.deepEqual(await page.evaluate(()=>__PAWAADO_GET_EXTRA_RESISTANCES__()),[{name:'火事場の馬鹿力',type:'被ダメージ耐性',value:-4}]);console.log('PASS super selection, included lower ability, negative resistance');
-const parsed=await page.evaluate(()=>__PAWAADO_PHOTO_TEST__.findSpecials('鉄人Lv2\n超免疫Lv1\n魔法攻撃◎\n慈愛の祈りLv2'));assert.deepEqual(parsed.supers,[{name:'鉄人',level:2},{name:'超免疫',level:1},{name:'慈愛の祈り',level:2}]);assert.deepEqual(new Set(parsed.specials),new Set(['魔法攻撃◎','魔法攻撃○','ケガしにくさ◎','ケガしにくさ○','免疫強化']));
-const prerequisiteChecks=await page.evaluate(()=>Object.entries(PAWAADO_DATA.superPrerequisites).map(([name,lowers])=>{
-  const parsed=__PAWAADO_PHOTO_TEST__.findSpecials(name);
-  const expected=lowers.flatMap(n=>[n,PAWAADO_DATA.special.find(s=>s[1]===n)?.[2]]).filter(n=>PAWAADO_DATA.special.some(s=>s[1]===n));
-  return {name,expected,owned:parsed.specials,detected:parsed.supers.map(s=>s.name)};
-}));
-for(const c of prerequisiteChecks){assert.deepEqual(c.detected,[c.name]);assert.deepEqual(new Set(c.owned),new Set(c.expected));}
-assert.deepEqual(await page.evaluate(()=>__PAWAADO_PHOTO_TEST__.findSpecials('烈火').supers),[]);
-const imported=await page.evaluate(()=>{
-  __PAWAADO_IMPORT_PHOTO__({academy:'ブートレインアカデミー',job:'剣士',exp:{筋力:690,敏捷:238,技術:351,知力:273,精神:451},basic:{生命力:12,パワー:8,魔力:14,器用さ:9,耐久力:9,精神力:8},specials:['通常攻撃◎'],supers:Object.keys(PAWAADO_DATA.superPrerequisites).filter(n=>!PAWAADO_DATA.superResistances[n]).map(name=>({name,level:null}))});
-  return [...document.querySelectorAll('.skill-row.owned')].map(el=>PAWAADO_DATA.special[Number(el.dataset.index)][1]);
+// Browser integration regression test.
+// Scope: real-image import -> live UI wiring -> planned-EXP confirmation -> reset.
+// Parser/prerequisite unit coverage belongs in photo-node.cjs; scoring math belongs in scoring.cjs.
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const {spawn}=require('node:child_process');
+
+const root=path.resolve(__dirname,'..');
+const fixtures=process.env.PHOTO_FIXTURE_DIR;
+if(!fixtures) throw new Error('Set PHOTO_FIXTURE_DIR to the folder containing IMG_0747.jpeg through IMG_0751.jpeg');
+
+const modulePaths=[process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES,root].filter(Boolean);
+const {chromium}=require(require.resolve('playwright',{paths:modulePaths}));
+const server=spawn('python',['-m','http.server','8765','--bind','127.0.0.1'],{cwd:root,stdio:'ignore'});
+
+const fixture=name=>path.join(fixtures,name);
+
+(async()=>{
+  await new Promise(resolve=>setTimeout(resolve,300));
+  const browser=await chromium.launch({
+    headless:true,
+    executablePath:process.env.CHROMIUM_EXECUTABLE||undefined,
+    args:['--no-sandbox']
+  });
+
+  try{
+    const page=await browser.newPage({viewport:{width:390,height:844}});
+    const errors=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    if(process.env.DEBUG_OCR) page.on('console',message=>console.log(message.text()));
+
+    await page.goto('http://127.0.0.1:8765/');
+    await page.route('**/upload/*.jpeg',route=>{
+      const name=path.basename(new URL(route.request().url()).pathname);
+      return route.fulfill({path:fixture(name),contentType:'image/jpeg'});
+    });
+    if(process.env.DEBUG_OCR) await page.evaluate(()=>window.__PAWAADO_DEBUG_OCR__=true);
+
+    // Academy reference-image smoke test.
+    const academies=await page.evaluate(async()=>{
+      const out=[];
+      for(const n of [748,749,750,751]){
+        const image=new Image();
+        image.src='/upload/IMG_0'+n+'.jpeg';
+        await image.decode();
+        out.push(await __PAWAADO_PHOTO_TEST__.academyOf(image));
+      }
+      return out;
+    });
+    assert.deepEqual(academies,[
+      'ブートレインアカデミー',
+      'パワフルアカデミー',
+      'タテレスキュアアカデミー',
+      'カジナイトアカデミー'
+    ]);
+    console.log('PASS academy reference images');
+
+    // Current product flow auto-applies the OCR result; there is no review/apply screen.
+    await page.locator('#photoFiles').setInputFiles([
+      fixture('IMG_0747.jpeg'),
+      fixture('IMG_0748.jpeg')
+    ]);
+    await page.locator('#readPhotos').click();
+    await page.waitForFunction(
+      ()=>document.getElementById('photoStatus')?.textContent?.includes('自動入力しました。'),
+      {timeout:90000}
+    );
+
+    assert.equal(await page.locator('#academy').inputValue(),'ブートレインアカデミー');
+    assert.equal(await page.locator('#job').inputValue(),'剣士');
+    assert.equal(await page.locator('#basic_生命力').inputValue(),'12');
+    assert.equal(await page.locator('[data-exp-name="筋力"]').inputValue(),'690');
+    assert.ok(await page.locator('#calcBtn').isEnabled());
+
+    const magicAttackIndex=await page.evaluate(()=>PAWAADO_DATA.special.findIndex(s=>s[1]==='魔法攻撃○'));
+    assert.ok(await page.locator(`.skill-row[data-index="${magicAttackIndex}"]`).evaluate(el=>el.classList.contains('owned')));
+    console.log('PASS screenshot OCR auto-import');
+
+    // Browser/UI wiring for super abilities and their lower/resistance effects.
+    await page.locator('.super-name').selectOption('鉄人');
+    await page.locator('.super-level').selectOption('2');
+    assert.deepEqual(
+      await page.evaluate(()=>__PAWAADO_GET_EXTRA_RESISTANCES__()),
+      [
+        {name:'鉄人',type:'物理攻撃耐性',value:7},
+        {name:'鉄人',type:'魔法攻撃耐性',value:7}
+      ]
+    );
+    const injuryIndex=await page.evaluate(()=>PAWAADO_DATA.special.findIndex(s=>s[1]==='ケガしにくさ◎'));
+    assert.ok(await page.locator(`.skill-row[data-index="${injuryIndex}"]`).evaluate(el=>el.classList.contains('owned')));
+
+    await page.locator('.super-name').selectOption('火事場の馬鹿力');
+    assert.deepEqual(
+      await page.evaluate(()=>__PAWAADO_GET_EXTRA_RESISTANCES__()),
+      [{name:'火事場の馬鹿力',type:'被ダメージ耐性',value:-4}]
+    );
+    console.log('PASS super-ability UI wiring');
+
+    // Multi-pattern calculation may intentionally omit planned EXP, but must ask first.
+    await page.locator('.exp-action-btn[data-exp-action="duplicate"][data-sample-index="0"]').click();
+    await page.waitForFunction(()=>document.querySelectorAll('.exp-sample').length===2);
+    assert.equal(await page.locator('[data-planned-exp-name]').count(),5);
+    assert.ok(await page.locator('[data-planned-exp-name]').evaluateAll(inputs=>inputs.every(input=>input.value==='')));
+    await page.waitForFunction(()=>!document.getElementById('calcBtn').disabled);
+
+    await page.locator('#calcBtn').click();
+    const confirm=page.locator('#plannedExpConfirmModal');
+    await confirm.waitFor({state:'visible'});
+    assert.equal(
+      await page.locator('#plannedExpConfirmMessage').textContent(),
+      '訓練後の付与予定経験点が入力されていませんが、問題ないですか。'
+    );
+    assert.equal(await page.locator('#plannedExpConfirmYes').textContent(),'はい');
+    assert.equal(await page.locator('#plannedExpConfirmNo').textContent(),'いいえ');
+
+    await page.locator('#plannedExpConfirmNo').click();
+    await confirm.waitFor({state:'hidden'});
+    assert.equal(await page.locator('#calcBtn').textContent(),'計算する');
+
+    await page.locator('#calcBtn').click();
+    await confirm.waitFor({state:'visible'});
+    await page.locator('#plannedExpConfirmYes').click();
+    await page.waitForFunction(()=>{
+      const modal=document.getElementById('plannedExpConfirmModal');
+      const button=document.getElementById('calcBtn');
+      const result=document.getElementById('result');
+      return modal?.hidden && (button?.textContent!=='計算する' || String(result?.textContent||'').trim()!=='');
+    },{timeout:5000});
+    const cancel=page.locator('#cancelCalcBtn');
+    if(await cancel.isVisible()){
+      await cancel.click();
+      await page.waitForFunction(()=>document.getElementById('calcBtn')?.textContent==='計算する');
+    }
+    console.log('PASS planned EXP confirmation: no stops, yes proceeds');
+
+    // Reset remains a browser smoke test; parser details are intentionally not duplicated here.
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.locator('#topResetBtn').click();
+    assert.equal(await page.locator('#photoFiles').inputValue(),'');
+    assert.equal(await page.locator('#academy').inputValue(),'');
+    assert.equal(await page.locator('.super-name').inputValue(),'');
+    assert.equal(await page.locator('#photoUncertain').isVisible(),false);
+    assert.deepEqual(errors,[]);
+    console.log('PASS mobile width, reset, and no page errors');
+  }finally{
+    await browser.close();
+    server.kill();
+  }
+})().catch(error=>{
+  console.error(error);
+  server.kill();
+  process.exit(1);
 });
-const expectedOwned=prerequisiteChecks.filter(c=>!['鉄人','超免疫'].includes(c.name)).flatMap(c=>c.expected);
-assert.deepEqual(new Set(imported),new Set(expectedOwned));assert.equal(imported.length,new Set(imported).size);
-console.log('PASS 11 upper-ability mappings, prerequisite chains, deduplication, and one-character name boundary');
-assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.evaluate(()=>window.scrollTo(0,0));
-await page.locator('#topResetBtn').click();assert.equal(await page.locator('#photoFiles').inputValue(),'');assert.equal(await page.locator('#academy').inputValue(),'');assert.equal(await page.locator('.super-name').inputValue(),'');assert.equal(await page.locator('#photoReview').isVisible(),false);assert.deepEqual(errors,[]);console.log('PASS parser, mobile width, reset; no page errors');}finally{await b.close();server.kill();}})().catch(e=>{console.error(e);server.kill();process.exit(1)});
