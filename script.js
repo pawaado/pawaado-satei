@@ -563,6 +563,19 @@ function renderErrorBox(messages){
   return `<div class="error-box"><ul class="error-box-list">${items}</ul></div>`;
 }
 
+function showCalcValidationError(messages){
+  const area=document.getElementById('calcValidationError');
+  const card=document.querySelector('.result-card');
+  if(area){area.innerHTML=renderErrorBox(messages);area.hidden=false;}
+  if(card)card.hidden=true;
+}
+function clearCalcValidationError(){
+  const area=document.getElementById('calcValidationError');
+  const card=document.querySelector('.result-card');
+  if(area){area.innerHTML='';area.hidden=true;}
+  if(card)card.hidden=false;
+}
+
 function animateResultCard(){
   const card=document.querySelector('.result-card');
   if(!card) return;
@@ -2924,9 +2937,10 @@ async function calc(){
   const result=document.getElementById('result');
   const errs=validateInputs();
   if(errs.length){
-    result.innerHTML=renderErrorBox(errs);
+    showCalcValidationError(errs);
     return;
   }
+  clearCalcValidationError();
 
   const planned=expSamples.length>1?expNames.map(n=>Number(plannedExp[n]||0)):[0,0,0,0,0];
   const sampleExps=expSamples.map(sample=>expNames.map((n,i)=>Number(sample[n]||0)+planned[i]));
@@ -3043,6 +3057,7 @@ function setupUsageModal(){
 }
 
 function resetAll(){
+  clearCalcValidationError();
   expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
   plannedExp=Object.fromEntries(expNames.map(n=>[n,'']));
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
@@ -3072,6 +3087,7 @@ document.addEventListener('pawaado-super-change',event=>{
   calcResultCache.clear();
 });
 window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
+  clearCalcValidationError();
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   const rows=(patterns||[]).slice(0,MAX_EXP_SAMPLES).filter(p=>p&&p.exp);
   if(!rows.length) throw new Error('練習画像の経験点を読み取れませんでした。');
@@ -3086,6 +3102,7 @@ window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
 };
 
 window.__PAWAADO_IMPORT_PHOTO__=data=>{
+  clearCalcValidationError();
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   if(!jobsByAcademy[data.academy]?.includes(data.job)) throw new Error('アカデミーとジョブを確認してください。');
   if(!expNames.every(n=>Number.isInteger(data.exp[n])&&data.exp[n]>=0)) throw new Error('経験点を確認してください。');
