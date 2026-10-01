@@ -692,7 +692,6 @@
   }
 
   window.__PAWAADO_SET_SUPERS__=entries=>{
-    entries=[...entries].sort((a,b)=>(SUPER_ORDER_INDEX.get(a.name)??999)-(SUPER_ORDER_INDEX.get(b.name)??999));
     const list=document.getElementById('extraResistanceList');
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i,true)).join('');
     initSuperSelects(list);
