@@ -2918,6 +2918,47 @@ function comparisonHtml(entries){
   return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
+function plannedExpNeedsConfirmation(){
+  return expSamples.length>1 && expNames.some(name=>plannedExp[name]==='' || plannedExp[name]==null);
+}
+function confirmMissingPlannedExp(){
+  const modal=document.getElementById('plannedExpConfirmModal');
+  const yes=document.getElementById('plannedExpConfirmYes');
+  const no=document.getElementById('plannedExpConfirmNo');
+  if(!modal || !yes || !no) return Promise.resolve(false);
+
+  const previousFocus=document.activeElement;
+  modal.hidden=false;
+  document.body.classList.add('modal-open');
+
+  return new Promise(resolve=>{
+    let settled=false;
+    const finish=value=>{
+      if(settled) return;
+      settled=true;
+      modal.hidden=true;
+      document.body.classList.remove('modal-open');
+      yes.removeEventListener('click',onYes);
+      no.removeEventListener('click',onNo);
+      document.removeEventListener('keydown',onKeyDown,true);
+      previousFocus?.focus?.();
+      resolve(value);
+    };
+    const onYes=()=>finish(true);
+    const onNo=()=>finish(false);
+    const onKeyDown=event=>{
+      if(event.key==='Escape'){
+        event.preventDefault();
+        finish(false);
+      }
+    };
+    yes.addEventListener('click',onYes);
+    no.addEventListener('click',onNo);
+    document.addEventListener('keydown',onKeyDown,true);
+    no.focus();
+  });
+}
+
 async function calc(){
   clearCalcCaches();
   TARGET_DEBUG.reset();
@@ -2928,6 +2969,11 @@ async function calc(){
   if(errs.length){
     result.innerHTML=renderErrorBox(errs);
     return;
+  }
+
+  if(plannedExpNeedsConfirmation()){
+    const proceed=await confirmMissingPlannedExp();
+    if(!proceed) return;
   }
 
   const planned=expSamples.length>1?expNames.map(n=>Number(plannedExp[n]||0)):[0,0,0,0,0];
