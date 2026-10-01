@@ -20,7 +20,6 @@ GitHub Pages で公開している査定ツールの保守メモです。
 | `rankings.html` / `rankings_patch.js` | 査定効率ランキング画面 |
 | `assets/` | 画像認識用の固定画像 |
 | `vendor/ocr/` | OCRライブラリ・認識データ |
-| `tests/` | 回帰テスト |
 
 ## 保守ルール
 
@@ -42,20 +41,11 @@ GitHub Pages で公開している査定ツールの保守メモです。
 - 双剣士専用「通常攻撃」は通常特殊能力の「通常攻撃○／◎」と別管理。
 - 特殊能力が本当に空の能力データ画面では、特殊能力読取エラーを出さない。
 
-## テスト
-
-現時点ではCIへ自動接続しておらず、変更時に手動で実行する回帰テスト。
-
-- `node tests/scoring.cjs`：査定計算、端数処理、耐性、Worker連携。
-- `node tests/photo-node.cjs`：画像認識のパーサー、テンプレート、既知のOCR誤読補正。必要に応じて実画像パスを引数で渡す。
-- `PHOTO_FIXTURE_DIR=... node tests/photo-browser.cjs`：実画像の自動入力、UI連携、訓練後の付与予定経験点の確認ダイアログ、リセットをブラウザで確認。
-- iPhone Safariでは、画像追加→読み取り→入力反映→計算まで一連の動作も確認する。
-
-3本の役割を分離し、同じパーサー／上位能力対応表の検証を複数テストへ重複させない。
-
 ## 整理履歴
 
 2026-10-02:
+- 実行経路のない手動回帰テスト `tests/` を削除。
+- OCR依存関係の出所を再確認し、`vendor/ocr/lang/LICENSE` を `tesseract-ocr/tessdata_fast` の正本へ差し替え。英語・日本語の traineddata も同リポジトリの正本と一致することを確認。
 - 古い `pawaado_worker_resistance_v2.js` を廃止し、`pawaado_worker_resistance.js` を正本に統合。
 - `resistance_patch.js` が使い方本文を上書きしないように変更。
 - 古いスクショ入力説明ファイルをこのREADMEへ統合。
