@@ -299,11 +299,12 @@ input.input-error{border-color:#b12f28;background:#fff1ea}
   text-align:center;
   white-space:nowrap;
 }
-.exp-row:nth-child(1) label{background:linear-gradient(180deg,#c44636,#94281f)}
-.exp-row:nth-child(2) label{background:linear-gradient(180deg,#e4872c,#b95413)}
-.exp-row:nth-child(3) label{background:linear-gradient(180deg,#4b984f,#2c6f35)}
-.exp-row:nth-child(4) label{background:linear-gradient(180deg,#4a83b6,#285b8a)}
-.exp-row:nth-child(5) label{background:linear-gradient(180deg,#8e62b2,#67408c)}
+/* ゲーム内の経験点アイコン色に合わせる：筋力=赤、敏捷=青、技術=橙、知力=紫、精神=緑 */
+.exp-row:nth-child(1) label{background:linear-gradient(180deg,#d4475d,#a51f34)}
+.exp-row:nth-child(2) label{background:linear-gradient(180deg,#438ee0,#245eae)}
+.exp-row:nth-child(3) label{background:linear-gradient(180deg,#f39a31,#c45d12)}
+.exp-row:nth-child(4) label{background:linear-gradient(180deg,#b86bd0,#77419a)}
+.exp-row:nth-child(5) label{background:linear-gradient(180deg,#5aa84d,#347a36)}
 .exp-row input{min-height:46px;padding:6px 3px;font-size:16px}
 .exp-row .inline-error{font-size:10px}
 .exp-row .inline-error:empty{display:none}
