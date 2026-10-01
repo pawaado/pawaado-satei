@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-pair-template-first-1';
+  const PHOTO_IMPORT_BUILD='20261001-training-patterns-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1317,8 +1317,59 @@
     if(await matchesTemplate(image,'swordsman',[685,22,165,32]))return {job:'剣士',candidate:false,raw:''};
     return {job:'',candidate:false,raw:''};
   }
+  function trainingBubblePresent(image,rowY,kind){
+    const rect=kind==='blue'?[392,rowY,92,42]:[292,rowY,92,42];
+    const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    let hit=0,total=0;
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i],g=data[i+1],b=data[i+2]; total++;
+      if(kind==='blue'){
+        if(b>190&&g>170&&b>r+10)hit++;
+      }else{
+        if(r>220&&g>200&&b>160)hit++;
+      }
+    }
+    const ratio=total?hit/total:0;
+    return kind==='blue'?ratio>.24:ratio>.40;
+  }
+  async function trainingNumber(image,rect,maxDigits=4){
+    const visual=numericByImageStrict(image,rect,maxDigits);
+    if(Number.isInteger(visual)&&visual>=0)return visual;
+    const attempts=[
+      await textAt(image,rect,true,false,true,false,2),
+      await textAt(image,rect,true,false,true,false,4)
+    ];
+    const valid=attempts.map(x=>({n:/^\d{1,4}$/.test(x.text)?Number(x.text):null,c:Number(x.confidence||0)})).filter(x=>x.n!=null);
+    valid.sort((a,b)=>b.c-a.c);
+    return valid[0]?.n??null;
+  }
+  async function readTrainingPattern(image){
+    // 練習選択画面左の「現在経験点」と、その右に表示される練習獲得予定値を読む。
+    // 5行は 筋力/敏捷/技術/知力/精神 の固定順。
+    const baseY=120,step=59;
+    const current=[],gains=[];
+    for(let i=0;i<5;i++){
+      const y=baseY+step*i;
+      const cur=await trainingNumber(image,[210,y,88,45],4);
+      current.push(cur);
+      let gain=0;
+      if(trainingBubblePresent(image,y,'yellow')){
+        const v=await trainingNumber(image,[324,y,68,45],3);
+        if(Number.isInteger(v))gain+=v;
+      }
+      if(trainingBubblePresent(image,y,'blue')){
+        const v=await trainingNumber(image,[404,y,68,45],3);
+        if(Number.isInteger(v))gain+=v;
+      }
+      gains.push(gain);
+    }
+    if(current.filter(Number.isInteger).length<5)return null;
+    const exp=Object.fromEntries(EXPS.map((name,i)=>[name,current[i]+gains[i]]));
+    return {exp,current:Object.fromEntries(EXPS.map((name,i)=>[name,current[i]])),gains:Object.fromEntries(EXPS.map((name,i)=>[name,gains[i]]))};
+  }
+
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     function mergeField(target,key,value,label){
       if(value==null||value==='')return;
@@ -1327,6 +1378,12 @@
     }
     for(let i=0;i<images.length;i++){
       const image=images[i];status(`${i+1}/${images.length}枚目を読み取り中…`);
+
+      const trainingPattern=await readTrainingPattern(image);
+      if(trainingPattern){
+        out.trainingPatterns.push(trainingPattern);
+        continue;
+      }
 
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
@@ -1396,8 +1453,10 @@
     }
     out.supers=[...superMap.values()];
     for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「取得済み超特殊能力」でLvを確認してください。');
-    if(!out.abilityUpScreens)out.warnings.push('「能力アップ」画面がありません。ジョブと経験点を確認してください。');
-    if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・基本能力・取得済み特殊能力を確認してください。');
+    if(out.abilityUpScreens||out.dataScreens){
+      if(!out.abilityUpScreens)out.warnings.push('「能力アップ」画面がありません。ジョブと経験点を確認してください。');
+      if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・基本能力・取得済み特殊能力を確認してください。');
+    }
     return out;
   }
   const options=(items,value)=>'<option value="">確認・選択してください</option>'+items.map(n=>`<option value="${escape(n)}" ${n===value?'selected':''}>${escape(n)}</option>`).join('');
@@ -1492,11 +1551,23 @@
         status('能力アップ画面を追加してください。');
         return;
       }
-      window.__PAWAADO_IMPORT_PHOTO__(data);
+      const hasCharacterScreens=data.abilityUpScreens>0&&data.dataScreens>0;
+      const hasTraining=(data.trainingPatterns||[]).length>0;
+      if(!hasCharacterScreens&&!hasTraining){
+        throw new Error('対応するゲーム画面を判別できませんでした');
+      }
+      if(hasCharacterScreens)window.__PAWAADO_IMPORT_PHOTO__(data);
+      if(hasTraining)window.__PAWAADO_IMPORT_TRAINING_PHOTOS__?.(data.trainingPatterns);
       const warningCount=data.warnings?.length||0;
       renderUncertain(data.warnings||[]);
       selectionDirty=false;
-      status(warningCount?`自動入力しました。要確認が${warningCount}件あります。`:'自動入力しました。');
+      if(hasTraining&&!hasCharacterScreens){
+        status(`練習画像${data.trainingPatterns.length}枚から経験点を自動入力しました。`);
+      }else if(hasTraining){
+        status(warningCount?`自動入力しました。練習画像${data.trainingPatterns.length}枚を反映し、要確認が${warningCount}件あります。`:`自動入力しました。練習画像${data.trainingPatterns.length}枚も反映しました。`);
+      }else{
+        status(warningCount?`自動入力しました。要確認が${warningCount}件あります。`:'自動入力しました。');
+      }
     }
     catch(e){renderUncertain([]);status('読み取りに失敗しました：'+e.message+'。手入力でも利用できます。');}
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('photoFiles').disabled=false;el('choosePhotos').disabled=false;renderPreviews();}
