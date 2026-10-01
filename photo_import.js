@@ -1512,18 +1512,10 @@
   }
 
   async function looksLikeTrainingScreen(image){
-    // 左側に大きな5段の経験点表示がある画面をまず画像形状で判定する。
+    // 背景や上部テキストは使わず、左側5段の現在経験点だけで訓練画面を判定する。
     let hits=0;
-    for(let i=0;i<5;i++){
-      const v=trainingCurrentNumberByImage(image,i);
-      if(v!=null)hits++;
-    }
-    if(hits>=3)return true;
-
-    // 数字判定が端末差で落ちた場合だけ、上部の固定文言を補助に使う。
-    const a=normalize((await textAt(image,[225,15,440,70],false,true)).text);
-    const b=normalize((await textAt(image,[380,85,340,55],false,true)).text);
-    return a.includes('セクション')||b.includes('試合まで残り');
+    for(let i=0;i<5;i++)if(trainingCurrentNumberByImage(image,i)!=null)hits++;
+    return hits>=3;
   }
   function trainingDigitComponents(image,rect,threshold){
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
