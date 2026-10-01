@@ -457,7 +457,7 @@
     }
     syncSuperSelects(group);
   }
-  function refreshSuperControlsForJob(){
+  function refreshSuperControlsForJob(ensureEmpty=true){
     const job=currentJob();
     const list=document.getElementById('extraResistanceList');
     if(!list)return;
@@ -465,8 +465,27 @@
       rebuildSuperNameOptions(group);
       fillSuperGroup(group);
     });
-    const add=document.getElementById('addExtraResistanceBtn');
-    if(add)add.disabled=!job;
+    if(ensureEmpty)syncEmptySuperGroup();
+  }
+
+  // Keep a single empty selector after the selected abilities.
+  function syncEmptySuperGroup(){
+    const list=document.getElementById('extraResistanceList');
+    if(!list)return;
+    const empty=[...list.querySelectorAll('.extra-resistance-group')]
+      .filter(group=>!group.querySelector('.super-name')?.value);
+    const needsEmpty=!currentJob()||availableSuperNames().length>0;
+    const keep=needsEmpty?empty.shift():null;
+    empty.forEach(group=>group.remove());
+    if(keep){
+      list.appendChild(keep);
+      rebuildSuperNameOptions(keep);
+      fillSuperGroup(keep);
+    }else if(needsEmpty){
+      list.insertAdjacentHTML('beforeend',resistanceGroupHtml(list.children.length));
+      initSuperSelects(list.lastElementChild);
+    }
+    renumberResistanceGroups();
   }
 
   function resistanceGroupHtml(index,includeAll=false){
@@ -587,8 +606,7 @@
     section.setAttribute('aria-labelledby','extraResistanceTitle');
     section.innerHTML=`
       <div class="section-heading no-heading-diamond"><h2 id="extraResistanceTitle">耐性に影響する超特殊能力</h2></div>
-      <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>
-      <div class="extra-resistance-actions"><button id="addExtraResistanceBtn" type="button" class="secondary extra-resistance-add" ${currentJob()?'':'disabled'}>＋超特殊能力を追加</button></div>`;
+      <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>`;
     specialCard.insertAdjacentElement('afterend',section);
     initSuperSelects(section);
 
@@ -606,6 +624,7 @@
         fillSuperGroup(group);
         if(event.target.matches('.super-name')){
           section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
+          syncEmptySuperGroup();
         }
       }
       const row=event.target.closest('.extra-resistance-row');
@@ -613,21 +632,12 @@
       clearDetectedResultCaches();
     });
     section.addEventListener('click',event=>{
-      const addAbility=event.target.closest('#addExtraResistanceBtn');
-      if(addAbility){
-        const list=document.getElementById('extraResistanceList');
-        const index=list?.querySelectorAll('.extra-resistance-group').length||0;
-        list?.insertAdjacentHTML('beforeend',resistanceGroupHtml(index));
-        if(list?.lastElementChild)initSuperSelects(list.lastElementChild);
-        clearDetectedResultCaches();
-        return;
-      }
-
       const removeGroup=event.target.closest('.extra-resistance-group-remove');
       if(removeGroup){
         removeGroup.closest('.extra-resistance-group')?.remove();
         renumberResistanceGroups();
         section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
+        syncEmptySuperGroup();
         clearDetectedResultCaches();
       }
     });
@@ -686,7 +696,7 @@
     list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i,true)).join('');
     initSuperSelects(list);
     renumberResistanceGroups();
-    refreshSuperControlsForJob();
+    refreshSuperControlsForJob(false);
     entries.forEach((entry,i)=>{
       const group=list.children[i];
       group.querySelector('.super-name').value=entry.name;
