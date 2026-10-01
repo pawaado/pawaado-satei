@@ -677,10 +677,7 @@
 
     if(def&&lv) document.dispatchEvent(new CustomEvent('pawaado-super-change',{detail:{name}}));
     group.querySelector('.super-note').textContent=
-      def?.includes&&lv?'下位能力込みの合計値です。':
-      def?.job&&!lv?def.job+'専用・Lvを選択してください。':
-      def?.job?def.job+'専用':
-      '';
+      !def?.job&&def?.includes&&lv?'下位能力込みの合計値です。':'';
     clearDetectedResultCaches();
   }
 
