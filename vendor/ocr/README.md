@@ -1,10 +1,15 @@
 # Local OCR dependencies
 
-- Tesseract.js 7.0.0 (Apache-2.0), tesseract.min.js / worker.min.js.
-- Tesseract.js-core: version in CORE-VERSION.txt (Apache-2.0), LSTM WebAssembly variants for SIMD and non-SIMD browsers.
-- Japanese language model: tesseract-ocr/tessdata_fast, jpn.traineddata (Apache-2.0), downloaded 2026-09-28.
-  https://github.com/tesseract-ocr/tessdata_fast/blob/main/jpn.traineddata
+- Tesseract.js 7.0.0 (Apache-2.0): `tesseract.min.js` and `worker.min.js` from the 7.0.0 browser distribution.
+- Tesseract.js-core 7.0.0 (Apache-2.0): LSTM WebAssembly variants for SIMD, relaxed-SIMD, and non-SIMD browsers. The exact core version is also recorded in `CORE-VERSION.txt`.
+- OCR language models: `jpn.traineddata` and `eng.traineddata` are exact files from `tesseract-ocr/tessdata_fast` (Apache-2.0).
+  - `jpn.traineddata` Git blob: `c4178f89991bde90b7fdc647e3e1901868423bd0`
+  - `eng.traineddata` Git blob: `bbef4675053b5b468cdb477053e28b1c698ba08e`
 
-- English model for numeric recognition: system Tesseract eng.traineddata (Apache-2.0); exact bytes recorded below.
+License provenance:
+- `TESSERACT-LICENSE.md` is the exact Tesseract.js 7.0.0 `LICENSE.md`.
+- `CORE-LICENSE` is the exact Tesseract.js-core 7.0.0 `LICENSE`.
+- `lang/LICENSE` is the exact `tesseract-ocr/tessdata_fast` `LICENSE`.
+- The minified JavaScript bundle notices are preserved in `tesseract.min.js.LICENSE.txt` and `worker.min.js.LICENSE.txt`.
 
-The original license files are included. SHA256SUMS records the exact vendored bytes. No image leaves the browser during OCR.
+`SHA256SUMS` records the exact vendored bytes. OCR runs locally in the browser; image data is not sent to an OCR service.
