@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-elemental-attack-head-1';
+  const PHOTO_IMPORT_BUILD='20261001-pair-mark-authority-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1156,6 +1156,9 @@
 
   async function readAbilityCells(image,index){
     const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false};
+    // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
+    // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
+    const explicitPairMarks=new Map();
     const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
     const missed=[],candidates=[];
     for(const cell of cells){
@@ -1177,8 +1180,7 @@
             if(hybrid.stem===consensus.stem&&!hybrid.candidate)stem=hybrid.stem;
           }
           const shapeMark=markShapeByImage(image,cell);
-          const ocrMark=await ocrMarkHint(image,cell,quickReads);
-          const mark=shapeMark||ocrMark||pairMarkByImage(image,cell,stem);
+          const mark=shapeMark||pairMarkByImage(image,cell,stem);
           if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
         }
       }
@@ -1212,9 +1214,8 @@
         const stem=hybrid.stem;
         const shapeMark=stem?markShapeByImage(image,cell):'';
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
-        const ocrMark=stem?await ocrMarkHint(image,cell,reads):'';
-        // 能力名は候補絞り＋画像比較、○/◎は末尾記号の形を最優先して別判定する。
-        markHint=shapeMark||ocrMark||visualMark;
+        // ○/◎は文字OCRでは決めず、末尾記号そのものの形か○/◎専用画像比較だけで決める。
+        markHint=shapeMark||visualMark;
         // OCRが崩れても、独立した画像名判定と○/◎形状判定が同じ答えなら要確認にしない。
         // 対魔闘士のようにゲームフォントでOCRが弱い能力を、正しく読めているのに警告し続けないため。
         const strongImageStem=stem&&pairStemByImage(image,cell)===stem;
@@ -1243,6 +1244,19 @@
       }
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
+
+      // 通常特殊能力セルに○/◎が直接見えているなら、その形状を記録。
+      if(!cell.superCell){
+        const pairName=parsed.specials.find(name=>/[○◎]$/.test(normalize(name)));
+        if(pairName){
+          const stem=normalize(pairName).slice(0,-1);
+          if(PAIR_STEMS.includes(stem)){
+            const shape=markShapeByImage(image,cell)||pairMarkByImage(image,cell,stem);
+            if(shape)explicitPairMarks.set(stem,shape);
+          }
+        }
+      }
+
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
         const visualLevel=levelByImage(image,cell);
@@ -1259,6 +1273,23 @@
       if(parsed.unknown.length)missed.push(where);
       if(parsed.candidate)candidates.push(`${where}「${parsed.supers[0]?.name||parsed.specials[0]}」`);
     }
+    // 画面に直接表示された○/◎を最終優先。
+    // 例：列攻撃○が見えているのに、別セルの上位能力誤認や補完で列攻撃◎が混ざるのを防ぐ。
+    if(explicitPairMarks.size){
+      let owned=new Set(result.specials);
+      for(const [stem,mark] of explicitPairMarks){
+        owned.delete(stem+'○');
+        owned.delete(stem+'◎');
+        if(mark==='◎'){
+          owned.add(stem+'○');
+          owned.add(stem+'◎');
+        }else if(mark==='○'){
+          owned.add(stem+'○');
+        }
+      }
+      result.specials=[...owned];
+    }
+
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
     if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。必要に応じて修正してください。`);
     if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}について、取得状態が合っているか確認してください。`);
