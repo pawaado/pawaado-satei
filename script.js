@@ -5,6 +5,7 @@ const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const MAX_EXP_SAMPLES=6;
 let expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
+let plannedExp=Object.fromEntries(expNames.map(n=>[n,'']));
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const basicIconMap={生命力:'❤️',パワー:'⚔️',器用さ:'🎯',精神力:'🔥'};
 const mutualGroups=[
@@ -476,6 +477,12 @@ function syncExpSamplesFromDom(){
     });
     return next;
   });
+  if(expSamples.length>1){
+    expNames.forEach(name=>{
+      const inp=document.getElementById(`planned_exp_${safeId(name)}`);
+      if(inp) plannedExp[name]=inp.value;
+    });
+  }
 }
 function updateResultTitle(){
   const el=document.getElementById('resultTitle');
@@ -506,7 +513,14 @@ function renderExp(){
   const inputsLocked=!academy.value;
   const wrap=document.getElementById('expInputs');
   const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
-  wrap.innerHTML=expSamples.map((sample,index)=>{
+  const plannedHtml=expSamples.length>1?`
+    <div class="planned-exp-block">
+      <div class="planned-exp-title">練習後の付与予定経験点</div>
+      <div class="exp-list planned-exp-list">
+        ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" id="planned_exp_${safeId(name)}" data-planned-exp-name="${name}" value="${plannedExp[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_planned_exp_${safeId(name)}"></div></div>`).join('')}
+      </div>
+    </div>`:'';
+  wrap.innerHTML=plannedHtml+expSamples.map((sample,index)=>{
     const actionsLocked=!isExpSampleReady(sample) || limitReached;
     return `
     <div class="exp-sample" data-sample-index="${index}">
@@ -731,6 +745,17 @@ function validateExpField(sampleIndex,name){
   inp.classList.toggle('input-error',!!msg);
   return msg;
 }
+function validatePlannedExpField(name){
+  const inp=document.getElementById(`planned_exp_${safeId(name)}`); if(!inp) return '';
+  const v=inp.value; let msg='';
+  if(v!=='' && v!=null){
+    const num=Number(v);
+    if(!Number.isFinite(num) || num<0) msg='0以上で入力してください';
+  }
+  setInlineError(`err_planned_exp_${safeId(name)}`,msg);
+  inp.classList.toggle('input-error',!!msg);
+  return msg;
+}
 function validateBasicField(name){
   const inp=document.getElementById('basic_'+name); if(!inp) return '';
   const lim=limits()[name]; const v=inp.value;
@@ -744,7 +769,7 @@ function validateBasicField(name){
   inp.classList.toggle('input-error',!!msg);
   return msg;
 }
-function validateAllInline(){expSamples.forEach((_,i)=>expNames.forEach(n=>validateExpField(i,n))); basicNames.forEach(validateBasicField);}
+function validateAllInline(){expSamples.forEach((_,i)=>expNames.forEach(n=>validateExpField(i,n))); if(expSamples.length>1)expNames.forEach(validatePlannedExpField); basicNames.forEach(validateBasicField);}
 
 document.addEventListener('input',e=>{
   if(isCalculating) return;
@@ -755,6 +780,12 @@ document.addEventListener('input',e=>{
     expSamples[i][inp.dataset.expName]=inp.value;
     validateExpField(i,inp.dataset.expName);
     updateExpActionStates(i);
+    return;
+  }
+  if(inp.dataset.plannedExpName!=null){
+    plannedExp[inp.dataset.plannedExpName]=inp.value;
+    validatePlannedExpField(inp.dataset.plannedExpName);
+    calcResultCache.clear();
     return;
   }
   if(!inp.id.startsWith('basic_')) return;
@@ -836,6 +867,7 @@ function tableFor(name){
 function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
 function leq(a,b){return a[0]<=b[0]&&a[1]<=b[1]&&a[2]<=b[2]&&a[3]<=b[3]&&a[4]<=b[4];}
 function key5(c0,c1,c2,c3,c4){
+  if(c0>1500||c1>1500||c2>1500||c3>1500||c4>1500) return 'x:'+c0+','+c1+','+c2+','+c3+','+c4;
   return String(((((c0*1501+c1)*1501+c2)*1501+c3)*1501+c4));
 }
 function key(c){return key5(c[0],c[1],c[2],c[3],c[4]);}
@@ -2791,6 +2823,15 @@ function validateInputs(){
     }
   }
 
+  if(expSamples.length>1){
+    expNames.forEach(name=>{
+      const v=plannedExp[name];
+      if(v==='' || v==null) return;
+      const num=Number(v);
+      if(!Number.isFinite(num) || num<0) expErrs.push(`${name}の付与予定経験点は0以上の値を入力してください。`);
+    });
+  }
+
   errs.push(...expErrs);
 
   if(!hasAcademyJob()){
@@ -2887,7 +2928,8 @@ async function calc(){
     return;
   }
 
-  const sampleExps=expSamples.map(sample=>expNames.map(n=>Number(sample[n]||0)));
+  const planned=expSamples.length>1?expNames.map(n=>Number(plannedExp[n]||0)):[0,0,0,0,0];
+  const sampleExps=expSamples.map(sample=>expNames.map((n,i)=>Number(sample[n]||0)+planned[i]));
   const btn=document.getElementById('calcBtn');
   const cancelBtn=ensureCancelButton();
 
@@ -3002,6 +3044,7 @@ function setupUsageModal(){
 
 function resetAll(){
   expSamples=[Object.fromEntries(expNames.map(n=>[n,'']))];
+  plannedExp=Object.fromEntries(expNames.map(n=>[n,'']));
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
   academy.value='';
@@ -3028,6 +3071,20 @@ document.addEventListener('pawaado-super-change',event=>{
   for(const name of D.superResistances[event.detail.name]?.includes||[]){const i=specialNameIndex.get(name);if(i!==undefined)setSpecialOwned(i,true);}
   calcResultCache.clear();
 });
+window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
+  if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
+  const rows=(patterns||[]).slice(0,MAX_EXP_SAMPLES).filter(p=>p&&p.exp);
+  if(!rows.length) throw new Error('練習画像の経験点を読み取れませんでした。');
+  expSamples=rows.map(p=>Object.fromEntries(expNames.map(n=>[n,String(Math.max(0,Math.round(Number(p.exp[n]||0))))])));
+  renderExp();
+  validateAllInline();
+  calcResultCache.clear();
+  document.getElementById('result').textContent=rows.length>1
+    ? `練習画像${rows.length}枚の経験点をパターンA〜${sampleLabel(rows.length-1)}へ反映しました。`
+    : '練習画像の経験点をパターンAへ反映しました。';
+  document.dispatchEvent(new Event('change',{bubbles:true}));
+};
+
 window.__PAWAADO_IMPORT_PHOTO__=data=>{
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   if(!jobsByAcademy[data.academy]?.includes(data.job)) throw new Error('アカデミーとジョブを確認してください。');
