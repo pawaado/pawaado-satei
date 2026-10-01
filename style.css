@@ -710,12 +710,3 @@ img,svg,canvas{max-width:100%}
 }
 .planned-exp-list{margin:0}
 .planned-exp-block .exp-row input{background:linear-gradient(180deg,#fffef8,#f7edcf)}
-
-/* 入力エラーは「結果」内ではなく、計算操作の直下に表示する。 */
-.calc-validation-error{
-  margin:10px 0 14px;
-}
-.calc-validation-error[hidden]{display:none!important}
-.calc-validation-error .error-box{
-  margin:0;
-}
