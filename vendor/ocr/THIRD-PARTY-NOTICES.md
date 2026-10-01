@@ -8,7 +8,7 @@ The exact Tesseract.js-core 7.0.0 build links Tesseract and the image/compressio
 
 | Component | Source commit | License source |
 |---|---|---|
-| Tesseract OCR | `2a9c1c49c360462733c386d2a44fcd22c4e21411` | Apache-2.0; full text already included in `CORE-LICENSE` / `TESSERACT-LICENSE.md` |
+| Tesseract OCR | `2a9c1c49c360462733c386d2a44fcd22c4e21411` | Apache-2.0; its exact upstream `LICENSE` is byte-identical to `lang/LICENSE` (Git blob `d645695673349e3947e8e5ae42332d0ac3164cd7`) |
 | Leptonica | `4af068b56a9674da915debea4ed7e1b9885b17e8` | `leptonica-license.txt` |
 | IJG libjpeg | `6c0fcb8ddee365e7abc4d332662b06900612e923` | `README`, LEGAL ISSUES section |
 | giflib | `fa37672085ce4b3d62c51627ab3c8cf2dda8009a` | `COPYING` |
