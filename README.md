@@ -49,3 +49,4 @@ GitHub Pages で公開している査定ツールの保守メモです。
 - 古い `pawaado_worker_resistance_v2.js` を廃止し、`pawaado_worker_resistance.js` を正本に統合。
 - `resistance_patch.js` が使い方本文を上書きしないように変更。
 - 古いスクショ入力説明ファイルをこのREADMEへ統合。
+- `data.js` を全件監査し、未使用の旧 `settings` / `multiplierScorePerPercent` を削除。`癒やしの心`（僧侶）の固定査定を90へ正本化し、Worker/ランキング側の個別上書きを廃止。
