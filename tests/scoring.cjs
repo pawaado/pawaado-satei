@@ -1,4 +1,6 @@
-// Run with: node tests/scoring.cjs
+// Scoring/worker regression test. Run with: node tests/scoring.cjs
+// Scope: optimizer math, rounding, resistance composition, and worker serialization only.
+// OCR/parser coverage belongs in photo-node.cjs; browser/UI coverage belongs in photo-browser.cjs.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -66,11 +68,11 @@ async function main(){
   close(a.dynamicSpecialGainForBits(injury,reckless,[{type:'special',idx:idx('がむしゃら')}],-248.5),-234.5);
   // Super levels are total values, including their lower abilities.
   const superRows=(name,level)=>a.D.superResistances[name].types.map(type=>({name,type,value:a.D.superResistances[name].levels[level-1]}));
+  const resistanceRates={'物理攻撃耐性':70,'魔法攻撃耐性':70,'全体攻撃耐性':50,'通常攻撃耐性':20,'風属性耐性':70,'水属性耐性':70,'火属性耐性':70,'被ダメージ耐性':140,'単体攻撃耐性':70,'ダメージ状態異常耐性':20,'必殺技耐性':33};
   for(const [name,def] of Object.entries(a.D.superResistances)){
     for(const level of [1,2]){
-      const rates={'物理攻撃耐性':70,'魔法攻撃耐性':70,'全体攻撃耐性':50,'通常攻撃耐性':20,'風属性耐性':70,'水属性耐性':70,'火属性耐性':70,'被ダメージ耐性':140,'単体攻撃耐性':70,'ダメージ状態異常耐性':20,'必殺技耐性':33};
       a.__applyWorkerPayload({...payload,job:'剣士',extraResistances:superRows(name,level),specialState:[]});
-      close(a.resistanceScoreForBits(0n),def.types.reduce((sum,t)=>sum+def.levels[level-1]*rates[t],0));
+      close(a.resistanceScoreForBits(0n),def.types.reduce((sum,type)=>sum+def.levels[level-1]*resistanceRates[type],0));
     }
   }
   a.__applyWorkerPayload({...payload,job:'剣士',extraResistances:superRows('鉄人',2),specialState:[[idx('ケガしにくさ○'),{own:1,hint:0}],[idx('ケガしにくさ◎'),{own:1,hint:0}]]});
