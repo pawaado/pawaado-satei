@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-training-exp-fix-2';
+  const PHOTO_IMPORT_BUILD='20261002-training-exp-color-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -239,6 +239,21 @@
     for(const variant of variants)if(!target.includes(variant))target.push(variant);
   }
 
+  // 訓練の三角吹き出し専用。数字の「色の塗り」だけを抜いたテンプレート。
+  // 黄・青どちらの吹き出しでも同じ数字形状を使う。
+  const TRAINING_GAIN_COLOR_MASKS={
+    '0':['BwH8P+P+ffePcH8H8H8H8H8H8H8H8H','BwD4H8P+f+ePePcHcH8H8H8HcHcHcGOH','D4H+P+P/fPeHeHcDcDcD8DcDcDeHeHMD'],
+    '1':['AfA/D/P///////wfAfAfAfAfAfAfAfAe','AGA/A/D/////////A/A/A/A/A/A/AfAf','A+A+B+B/P+/+/+/+I/A+A/A+A+A+A+A+','A/A/D/P///////w/A/A/A/A/AfA/AfAH','A+A/B/H///////I/A/A/A/A/A/A/A/A+','AGA/A/D/P///////AfAfAfAfAfAfAfAe','A+D/P///////P/A/A/A/A/A/A/A+AeAe'],
+    '2':['AQH8P+f/ef8PAHAPAfA+B+HwPgPAOAIA'],
+    '3':['DwP8P+/++fMPAPAPB+D8D8D/APAHAHAH'],
+    '4':['A+A+B+B+D+D+H+HOPOOOeOcOcO/////7','AYA+A+B+B+D+D+H+OeeOcecO8e+///8f','AeA+B+B+B+D+H+HOOOeOcO8e8/////v7','A8A8B8B8D8H8H8Hceccc8c4c8+/+/+8e','AYA+A+B+B+D+H+HeOOeOcO8e/+/+//Oe','AgA8B+B+D+H+H+PeOeeece8e++////A+'],
+    '5':['Dg/+/+/+8A4A4A/4/8/++fAPAPAPAOAE','Dw/+/+/+8A4A4A/4/8/++fAPAGAGAGAG','/8/+/+/+4A4A4A/4/++/8PAPAPAHAHAG','f+fuf+f8cAYAYAYA/+f/ePAHAHAHAHAG','fw/8/+/8+A4A4A/4/8/++eAPAPAPAPAE'],
+    '6':['H8P+f/ff8G8A4A4g/+//+f8P4H4H4H4C','B+H/P/P/eDeAcAcA//////+HcDcDcBeB','A4D+H/P/fHeDcA84/+////8H8DcDcBMA','D8H+P/f/eHcA8A4A/+////8P8H4HYHYA'],
+    '7':['/+//////A+A8A8B4BwDwDwDgHgHgHAGA','R8///////+A+A8A4B4BwDwDwDgHgHgHA','f/QAQAQAfhBDBGCMAIAIAAAAEAEQEQHw'],
+    '8':['H8P+f/ef8P8PcPePP+f+f/+f8H4H4H4H'],
+    '9':['CQH8d8f++f8P8H8H8H+Pf/P/DHADADAC']
+  };
+
   // 訓練画面左側の「現在経験点」専用。茶色背景から白数字を抜いて判定する。
   const TRAINING_CURRENT_DIGIT_MASKS={
     '0':['DwH8PecHcHYH4D4D4D4D4DYHcHcHOOP8','H8P+OOcH4D4DwD4DwD4DwD4D4DcHPeP8'],
@@ -252,6 +267,19 @@
     '8':['D4H8OOYGYGcOOOH8P8eO4H4D4D4Hf+P8','BwH4P+cGYHcGOOH4H8P+YH4H4H4HePP+','H4H8OOYHYHMGPeH4P8eP4H4H4HcHP+H8'],
     '9':['BgH8ee4H4DwDwD8HePP7ABABADADeeP8','BwH4P8cGYHYH4HcHePP/DnAHAHAHeeP8']
   };
+
+  const TRAINING_CURRENT_EXTRA_MASKS={
+    '0':['D4H8P+cPcH8H4H4D4D4D8H8HcPcPP+H8'],
+    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP'],
+    '2':['D8P+P/cHcHAHAPAPB8DwDwOAMAcAf///','BwH+P/8H8HAHAHAfA+B8HgPAcA8A////'],
+    '3':['H8P/cHADADADAMB8AeAHADABABAD8Pf/','H8P+ffIHAHAHAOB8B+AfADADAD8Hf/P+'],
+    '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA'],
+    '8':['AgH8OOYHYDMHMGH8H8OP4D4D4D4HePH8','H8OOcHYDYDYHPcH8fe8H4DwBwD4DePP+']
+  };
+  for(const [digit,variants] of Object.entries(TRAINING_CURRENT_EXTRA_MASKS)){
+    const target=TRAINING_CURRENT_DIGIT_MASKS[digit]||(TRAINING_CURRENT_DIGIT_MASKS[digit]=[]);
+    for(const variant of variants)if(!target.includes(variant))target.push(variant);
+  }
 
   const HYBRID_LEVEL_MASKS={
     '1':'B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI',
@@ -1376,21 +1404,21 @@
     return {job:'',candidate:false,raw:''};
   }
   function trainingBubblePresent(image,rowY,kind){
-    const rect=kind==='blue'?[392,rowY,92,42]:[292,rowY,92,42];
+    const rect=kind==='blue'?[382,rowY,105,45]:[292,rowY,94,45];
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
     let hit=0,total=0;
     for(let i=0;i<data.length;i+=4){
-      const r=data[i],g=data[i+1],b=data[i+2]; total++;
+      const r=data[i],g=data[i+1],b=data[i+2];total++;
       if(kind==='blue'){
-        // 空や背景の青ではなく、吹き出し内部の淡い水色を検出する。
-        if(r>175&&g>200&&b>215&&b>r+10)hit++;
+        // 薄い水色の吹き出し背景。青空はRが低いため除外できる。
+        if(r>190&&g>220&&b>225&&(b-r)<80)hit++;
       }else{
-        // 黄色側はクリーム色の吹き出し面積で判定する。
-        if(r>220&&g>200&&b>160)hit++;
+        // 薄い黄土色の吹き出し背景。
+        if(r>235&&g>220&&b>185&&(r-b)>20)hit++;
       }
     }
     const ratio=total?hit/total:0;
-    return kind==='blue'?ratio>.18:ratio>.25;
+    return kind==='blue'?ratio>.15:ratio>.24;
   }
   async function trainingNumber(image,rect,maxDigits=4){
     const visual=numericByImageStrict(image,rect,maxDigits);
@@ -1556,7 +1584,48 @@
     }
     return pieces;
   }
+  function trainingGainColorComponents(image,rowY,kind){
+    const rect=kind==='blue'?[382,rowY,105,45]:[292,rowY,94,45];
+    const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    const w=c.width,h=c.height,ink=new Uint8Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+      const isDigit=kind==='blue'
+        ? (b>175&&g>135&&r<170&&(b-r)>30)
+        : (r>200&&g>135&&g<230&&b<160&&(r-g)>20);
+      if(isDigit)ink[y*w+x]=1;
+    }
+    const seen=new Uint8Array(w*h),out=[],stack=[];
+    for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
+      const start=sy*w+sx;if(!ink[start]||seen[start])continue;
+      seen[start]=1;stack.push([sx,sy]);
+      let minX=sx,maxX=sx,minY=sy,maxY=sy,area=0,pixels=[];
+      while(stack.length){
+        const [x,y]=stack.pop();area++;pixels.push([x,y]);
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+          const k=yy*w+xx;if(ink[k]&&!seen[k]){seen[k]=1;stack.push([xx,yy]);}
+        }
+      }
+      const cw=maxX-minX+1,ch=maxY-minY+1;
+      // 数字は吹き出し上寄り。三角マークは下寄りなのでここで除外。
+      if(minY>17||cw<5||cw>16||ch<15||ch>22||area<50)continue;
+      const local=new Uint8Array(cw*ch);
+      for(const [x,y] of pixels)local[(y-minY)*cw+(x-minX)]=1;
+      out.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+    }
+    return out.sort((a,b)=>a.x-b.x);
+  }
+  function trainingGainColorNumber(image,rowY,kind){
+    const pieces=trainingGainColorComponents(image,rowY,kind);
+    if(pieces.length<1||pieces.length>3)return null;
+    const digits=pieces.map(piece=>classifyTrainingGlyph(piece,TRAINING_GAIN_COLOR_MASKS,.24));
+    return digits.every(Boolean)?Number(digits.join('')):null;
+  }
+
   function trainingGainNumberByImage(image,rowY,kind){
+    const byColor=trainingGainColorNumber(image,rowY,kind);
+    if(byColor!=null)return byColor;
     if(kind==='yellow'){
       const rect=[320,rowY+4,55,34];
       for(const threshold of [190,180,170]){
@@ -1612,13 +1681,9 @@
 
       let gain=0,unread=false;
       for(const kind of ['yellow','blue']){
-        let v=trainingGainNumberByImage(image,y,kind);
-        const present=v!=null||trainingBubblePresent(image,y,kind);
-        if(!present)continue;
-        if(v==null){
-          const rect=kind==='yellow'?[322,y+8,68,30]:[397,y+8,74,30];
-          v=await trainingNumber(image,rect,3);
-        }
+        const present=trainingBubblePresent(image,y,kind);
+        const v=trainingGainNumberByImage(image,y,kind);
+        if(!present&&v==null)continue;
         if(Number.isInteger(v))gain+=v;
         else unread=true;
       }
