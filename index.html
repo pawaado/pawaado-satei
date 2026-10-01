@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261001-exp-colors-1">
+  <link rel="stylesheet" href="style.css?v=20261001-training-patterns-1">
   <style>
     /* 装飾アイコンは非表示。元の設定は残しているので必要なら戻せる。 */
     .select-label-icon,
@@ -270,8 +270,8 @@
       <ol class="usage-list">
         <li>「能力アップ」、「能力データ」の画像を選択し、「画像を読み取る」を押すと、アカデミー、ジョブ、経験点、基本能力、取得済み特殊能力、双剣士専用の通常攻撃（Lv）、耐性に影響する超特殊能力を自動入力します。<br>※画像を用いず、手入力でも可能です。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。</li>
         <li>基本能力・特殊能力左の「＋」でコツLvを設定します。</li>
-        <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を押します。</li>
-        <li>「計算する」を押すと、査定が最大となる組合せを表示します。</li>
+        <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を押します。練習画面の画像を複数読み込んだ場合は、練習後の経験点を各パターンへ自動入力します。</li>
+        <li>複数パターン時は「練習後の付与予定経験点」に今後得る予定の経験点を入力できます。各パターンの経験点との合計で計算します。</li><li>「計算する」を押すと、査定が最大となる組合せを表示します。</li>
       </ol>
       <div class="usage-note-block">
         <h3>注記</h3>
@@ -288,7 +288,7 @@
   <script src="data.js?v=20261001-powerful-jobs-1"></script>
   <script src="resistance_patch.js?v=20261001-super-reading-order"></script>
   <script src="academy_runtime.js?v=20260928-photo-hybrid-1"></script>
-  <script src="script.js?v=20261001-super-prereq-authority-1"></script>
+  <script src="script.js?v=20261001-training-patterns-1"></script>
   <script>
     (()=>{
       const createCustomSelect=(config)=>{
@@ -477,6 +477,6 @@
     syncCalcButton();
   })();
   </script>
-  <script src="photo_import.js?v=20261001-pair-template-first-1"></script>
+  <script src="photo_import.js?v=20261001-training-patterns-1"></script>
 </body>
 </html>
