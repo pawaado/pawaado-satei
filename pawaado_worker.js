@@ -1,6 +1,6 @@
 /* PowerAd calculation Web Worker */
 self.window=self;
-importScripts('./data.js?v=20260928-photo-1');
+importScripts('./data.js?v=20261001-powerful-jobs-1');
 
 const __workerElements=new Map();
 function __workerElement(id){
