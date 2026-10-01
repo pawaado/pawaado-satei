@@ -189,7 +189,7 @@
 
           if(inner) inner.terminate();
           const signature=encodeURIComponent(resistanceSignature()||'none');
-          inner=new NativeWorker(`./pawaado_worker_resistance_v2.js?v=${PATCH_VERSION}&r=${signature}`,options);
+          inner=new NativeWorker(`./pawaado_worker_resistance.js?v=${PATCH_VERSION}&r=${signature}`,options);
           inner.onmessage=event=>proxy.onmessage?.call(proxy,event);
           inner.onerror=event=>proxy.onerror?.call(proxy,event);
 
@@ -643,7 +643,7 @@
     });
   }
 
-  function updateUsageText(){
+  function syncUsageNoteOnly(){
     // 使い方本文は index.html を正本にする。
     // ここで上書きすると、index.html 側の更新が画面に反映されなくなるため触らない。
     const firstNote=document.querySelector('.usage-note-list li');
@@ -701,7 +701,7 @@
   };
   addStyles();
   injectResistanceUi();
-  updateUsageText();
+  syncUsageNoteOnly();
   refreshSuperControlsForJob();
 
   document.getElementById('job')?.addEventListener('change',()=>queueMicrotask(refreshSuperControlsForJob));
