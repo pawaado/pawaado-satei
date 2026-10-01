@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-image-read-fixes-2';
+  const PHOTO_IMPORT_BUILD='20261001-elemental-attack-head-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -429,6 +429,45 @@
     }
     return best;
   }
+  function shiftedMaskDistanceRegion(a,b,w,h,x0,x1,maxDx=3,maxDy=2){
+    let best=1;
+    for(let dy=-maxDy;dy<=maxDy;dy++)for(let dx=-maxDx;dx<=maxDx;dx++){
+      let diff=0,count=0;
+      for(let y=0;y<h;y++){const by=y-dy;if(by<0||by>=h)continue;
+        for(let x=x0;x<x1;x++){const bx=x-dx;if(bx<0||bx>=w)continue;diff+=a[y*w+x]!==b[by*w+bx];count++;}
+      }
+      if(count)best=Math.min(best,diff/count);
+    }
+    return best;
+  }
+  function elementalAttackByImage(image,cell){
+    if(cell.superCell)return '';
+    const names=['火攻撃','風攻撃','水攻撃'];
+    const [x,y,w]=cell.rect;
+    const offsets=[0,2,4,6,8,10,12,14];
+    const sigs=offsets.map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,100).mask);
+    const ranked=[];
+    for(const name of names){
+      const raw=HYBRID_ABILITY_MASKS[name];if(!raw)continue;
+      const variants=Array.isArray(raw)?raw:[raw];
+      let head=1,full=1;
+      for(const encoded of variants){
+        const ref=decodeMask(encoded,64*10);
+        for(const sig of sigs){
+          full=Math.min(full,shiftedMaskDistance(sig,ref,64,10,3,2));
+          // 「攻撃」は3種共通なので、先頭1文字の形を強く見る。
+          // テンプレート上で先頭字はおおむね x=14..24 に収まる。
+          head=Math.min(head,shiftedMaskDistanceRegion(sig,ref,64,10,14,25,3,2));
+        }
+      }
+      ranked.push({name,head,full});
+    }
+    ranked.sort((a,b)=>a.head-b.head||a.full-b.full);
+    const best=ranked[0],second=ranked[1];
+    if(!best)return '';
+    return best.head<=.06&&best.full<=.075&&(!second||second.head-best.head>=.03)?best.name:'';
+  }
+
   function abilityByImage(image,cell){
     const [x,y,w]=cell.rect;
     // 能力の並び順や隣接能力には依存せず、セル内の文字そのものだけを照合する。
@@ -1121,7 +1160,7 @@
     const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
-      let visualName=abilityByImage(image,cell);
+      let visualName=elementalAttackByImage(image,cell)||abilityByImage(image,cell);
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
       if(/[○◎]$/.test(visualName)){
