@@ -44,12 +44,14 @@ GitHub Pages で公開している査定ツールの保守メモです。
 
 ## テスト
 
-最低限、変更後に以下を確認する。
+現時点ではCIへ自動接続しておらず、変更時に手動で実行する回帰テスト。
 
-- `node tests/scoring.cjs`
-- `node tests/photo-node.cjs`
-- 画像認識を変更した場合は、可能なら `tests/photo-browser.cjs` も実画像で確認する。
-- iPhone Safariで、画像追加→読み取り→入力反映→計算まで一連の動作を確認する。
+- `node tests/scoring.cjs`：査定計算、端数処理、耐性、Worker連携。
+- `node tests/photo-node.cjs`：画像認識のパーサー、テンプレート、既知のOCR誤読補正。必要に応じて実画像パスを引数で渡す。
+- `PHOTO_FIXTURE_DIR=... node tests/photo-browser.cjs`：実画像の自動入力、UI連携、訓練後の付与予定経験点の確認ダイアログ、リセットをブラウザで確認。
+- iPhone Safariでは、画像追加→読み取り→入力反映→計算まで一連の動作も確認する。
+
+3本の役割を分離し、同じパーサー／上位能力対応表の検証を複数テストへ重複させない。
 
 ## 整理履歴
 
