@@ -20,7 +20,7 @@ async function main(){
     const expose=`self.testApi={D,job,skillScore,costAfter,ceilResistanceTenth,resistanceScoreForBits,dynamicSpecialGainForBits,specialBit,specialNameIndex,__applyWorkerPayload,mixedHpDeltaForBits,ownedHpDependentBreakdown,mixedApplyAction};`;
     vm.runInContext(source.slice(0,end)+expose+source.slice(end),context);
   };
-  vm.runInContext(read('pawaado_worker_resistance_v2.js'),context);
+  vm.runInContext(read('pawaado_worker_resistance.js'),context);
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(messages,[],'worker loader must initialize without errors');
   const a=context.testApi;
