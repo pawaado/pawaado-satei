@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-training-patterns-1';
+  const PHOTO_IMPORT_BUILD='20261001-training-detect-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -986,6 +986,21 @@
     for(const entry of supers)for(const name of D.superPrerequisites[entry.name]||[])addOwned(name);
     return {specials:[...owned],supers,unknown};
   }
+  function abilityRegionHasColorSignal(image){
+    const c=canvasCrop(image,[0,0,1536,706],1),ctx=c.getContext('2d');
+    const pixels=ctx.getImageData(0,0,1536,706).data;
+    let hits=0,total=0;
+    for(let y=274;y<537;y+=6){
+      for(const x0 of [716,855,993,1131]){
+        for(let xx=x0;xx<x0+118;xx+=10){
+          const i=(y*1536+xx)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+          total++;
+          if((b>r+25&&g>r+10)||(r>b+65&&g>b+35))hits++;
+        }
+      }
+    }
+    return hits>Math.max(18,total*.018);
+  }
   function abilityCells(image){
     const c=canvasCrop(image,[0,0,1536,706],1),ctx=c.getContext('2d');
     // Work in reference coordinates even for resized screenshots.
@@ -1167,7 +1182,8 @@
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
     const explicitPairMarks=new Map();
-    const cells=abilityCells(image);if(!cells.length)result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
+    const cells=abilityCells(image);
+    if(!cells.length&&abilityRegionHasColorSignal(image))result.warnings.push(`${index}枚目：特殊能力の枠を読み取れませんでした。「取得状態を確認・修正する」で選び直してください。`);
     const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
@@ -1343,29 +1359,90 @@
     valid.sort((a,b)=>b.c-a.c);
     return valid[0]?.n??null;
   }
+  function largeGlyphComponents(image,rect,threshold=125){
+    const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    const w=c.width,h=c.height,dark=new Uint8Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=(y*w+x)*4,lum=Math.round(data[i]*.299+data[i+1]*.587+data[i+2]*.114);
+      if(lum<threshold)dark[y*w+x]=1;
+    }
+    const seen=new Uint8Array(w*h),components=[],stack=[];
+    for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
+      const start=sy*w+sx;if(!dark[start]||seen[start])continue;
+      seen[start]=1;stack.push([sx,sy]);
+      let minX=sx,maxX=sx,minY=sy,maxY=sy,area=0,pixels=[];
+      while(stack.length){
+        const [x,y]=stack.pop();area++;pixels.push([x,y]);
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+          const k=yy*w+xx;if(dark[k]&&!seen[k]){seen[k]=1;stack.push([xx,yy]);}
+        }
+      }
+      const cw=maxX-minX+1,ch=maxY-minY+1;
+      if(cw<5||cw>30||ch<14||ch>40||area<28)continue;
+      const local=new Uint8Array(cw*ch);
+      for(const [x,y] of pixels)local[(y-minY)*cw+(x-minX)]=1;
+      components.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+    }
+    return components.sort((a,b)=>a.x-b.x);
+  }
+  function trainingNumberByImage(image,rect,maxDigits=4,minX=0){
+    const components=largeGlyphComponents(image,rect,130)
+      .filter(c=>c.x>=minX&&c.h>=18)
+      .sort((a,b)=>a.x-b.x);
+    if(components.length<1||components.length>maxDigits)return null;
+    const digits=components.map(c=>classifyGlyph(c,HYBRID_DIGIT_MASKS,.26));
+    return digits.every(Boolean)?Number(digits.join('')):null;
+  }
+  async function looksLikeTrainingScreen(image){
+    // 左側に大きな5段の経験点表示がある画面をまず画像形状で判定する。
+    let hits=0;
+    for(let i=0;i<5;i++){
+      const y=120+59*i;
+      const v=trainingNumberByImage(image,[220,y,78,46],4,0);
+      if(v!=null)hits++;
+    }
+    if(hits>=3)return true;
+
+    // 数字判定が端末差で落ちた場合だけ、上部の固定文言を補助に使う。
+    const a=normalize((await textAt(image,[225,15,440,70],false,true)).text);
+    const b=normalize((await textAt(image,[380,85,340,55],false,true)).text);
+    return a.includes('セクション')||b.includes('試合まで残り');
+  }
   async function readTrainingPattern(image){
-    // 練習選択画面左の「現在経験点」と、その右に表示される練習獲得予定値を読む。
-    // 5行は 筋力/敏捷/技術/知力/精神 の固定順。
-    const baseY=120,step=59;
+    if(!(await looksLikeTrainingScreen(image)))return null;
+
+    // 訓練画面では、現在経験点は左の大きい数字、増加分は右の三角吹き出し。
+    // 画像を「能力アップ」と同時に読み込む場合は、最終的に能力アップ側の現在経験点を正本にして増加分だけ足す。
     const current=[],gains=[];
     for(let i=0;i<5;i++){
-      const y=baseY+step*i;
-      const cur=await trainingNumber(image,[210,y,88,45],4);
+      const y=120+59*i;
+      let cur=trainingNumberByImage(image,[220,y,78,46],4,0);
+      if(cur==null)cur=await trainingNumber(image,[224,y+2,68,42],4);
       current.push(cur);
-      let gain=0;
+
+      let gain=0,found=false;
       if(trainingBubblePresent(image,y,'yellow')){
-        const v=await trainingNumber(image,[324,y,68,45],3);
-        if(Number.isInteger(v))gain+=v;
+        let v=trainingNumberByImage(image,[292,y,94,45],3,24);
+        if(v==null)v=await trainingNumber(image,[316,y+2,58,40],3);
+        if(Number.isInteger(v)){gain+=v;found=true;}
       }
       if(trainingBubblePresent(image,y,'blue')){
-        const v=await trainingNumber(image,[404,y,68,45],3);
-        if(Number.isInteger(v))gain+=v;
+        let v=trainingNumberByImage(image,[382,y,105,45],3,22);
+        if(v==null)v=await trainingNumber(image,[407,y+2,62,40],3);
+        if(Number.isInteger(v)){gain+=v;found=true;}
       }
-      gains.push(gain);
+      gains.push(found?gain:0);
     }
-    if(current.filter(Number.isInteger).length<5)return null;
-    const exp=Object.fromEntries(EXPS.map((name,i)=>[name,current[i]+gains[i]]));
-    return {exp,current:Object.fromEntries(EXPS.map((name,i)=>[name,current[i]])),gains:Object.fromEntries(EXPS.map((name,i)=>[name,gains[i]]))};
+
+    // ここでは訓練画面単独でも使えるよう current+gain を仮値にする。
+    // 能力アップ画面が一緒なら readImages の最後で能力アップ経験点+gain に差し替える。
+    const exp=Object.fromEntries(EXPS.map((name,i)=>[name,current[i]==null?null:current[i]+gains[i]]));
+    return {
+      exp,
+      current:Object.fromEntries(EXPS.map((name,i)=>[name,current[i]])),
+      gains:Object.fromEntries(EXPS.map((name,i)=>[name,gains[i]]))
+    };
   }
 
   async function readImages(images){
@@ -1378,12 +1455,6 @@
     }
     for(let i=0;i<images.length;i++){
       const image=images[i];status(`${i+1}/${images.length}枚目を読み取り中…`);
-
-      const trainingPattern=await readTrainingPattern(image);
-      if(trainingPattern){
-        out.trainingPatterns.push(trainingPattern);
-        continue;
-      }
 
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
@@ -1409,6 +1480,14 @@
         if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
         out.warnings.push(...result.warnings);
       }else{
+        const trainingPattern=await readTrainingPattern(image);
+        if(trainingPattern){
+          const missing=EXPS.filter(name=>trainingPattern.exp?.[name]==null);
+          if(missing.length)out.warnings.push(`${i+1}枚目：訓練画像の増加経験点を一部読み取れませんでした。経験点を確認してください。`);
+          out.trainingPatterns.push(trainingPattern);
+          continue;
+        }
+
         // Job and EXP live in the common header of every 能力アップ tab.
         const jobResult=await jobOf(image);
         const exp=await numericRow(image,EXPS.map((_,j)=>[981+60*j,228,49,21]));
@@ -1423,6 +1502,13 @@
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
+    // 能力アップ画面が一緒にある場合は、その現在経験点を正本にして各訓練の増加分を加算する。
+    if(out.trainingPatterns.length&&EXPS.every(n=>out.exp[n]!=null)){
+      for(const pattern of out.trainingPatterns){
+        pattern.exp=Object.fromEntries(EXPS.map(name=>[name,Number(out.exp[name])+Number(pattern.gains?.[name]||0)]));
+      }
+    }
+
     for(const n of BASICS){
       const samples=modalBasicSamples[n],counts=new Map();for(const v of samples)counts.set(v,(counts.get(v)||0)+1);
       const ranked=[...counts.entries()].sort((a,b)=>b[1]-a[1]);out.basic[n]=ranked[0]?.[0]??null;
