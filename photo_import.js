@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-super-template-complete-1';
+  const PHOTO_IMPORT_BUILD='20261001-super-color-guard-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -10,6 +10,8 @@
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
+  // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
 
   // OCRだけに依存しないハイブリッド認識。
@@ -147,6 +149,26 @@
       "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAT7/BgfgAAAD/P8fx+AAAAHY/T+P8AAAA/59Bg/z/AAD3P0fwHP8AQGc/z/A4AABA/5/ggHAAAE=",
       "AAAAAAAAAAAAAAAAAAAAAAE+/wYH4AAAA/z/H8fgAAAB2P0/j/AAAAP+fQYP8/wAA9z9H8Bz/AEBnP8/wOAAAQP+f4IBwAABAXZ/AwGAAAE=",
       "AAAAAAAAAAABPv8GB+AAAAP8/x/H4AAAAdj9P4/wAAAD/n0GD/P8AAPc/R/Ac/wBAZz/P8DgAAED/n+CAcAAAQF2fwMBgAABAAAAAAAAAAA="
+    ]
+  });
+
+  // 2026-10-01 実画像：入力対象外の金色超特殊能力も「無視対象」として識別し、
+  // 魔力探求→魔力耐性のような誤認を防ぐ。
+  Object.assign(HYBRID_ABILITY_MASKS,{
+    "魔力増強":[
+      "AAAAAAAAAAQAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAIG87QAAAB/hgf7vAAAAH+f5/n+AAAAf4Zv+7wAAAB/hmf7vAAA=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAgbztAAAAH+GB/u8AAAAf5/n+f4AAAB/hm/7vAAAAH+GZ/u8AAAAf45m+7wACAB/nE/4nAAI=",
+      "AAAAAAAAAAAAAwCBvO0AAAAf4YH+7wAAAB/n+f5/gAAAH+Gb/u8AAAAf4Zn+7wAAAB/jmb7vAAIAH+cT/icAAgAf5nE+/4ACAATkYDZNAAI="
+    ],
+    "そよかぜの加護":[
+      "AAAAAAAAAAwAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAFAZgwZGYcNzeBuDz2f35/PwBwPf7/b38/A/wwWmRbLz8A=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAUBmDBkZhw3N4G4PPZ/fn8/AHA9/v9vfz8D/DBaZFsvPwBh+NpkWy81CMG82GB3bz+I=",
+      "AAAAAAAAAAAAAAAAAAgBQGYMGRmHDc3gbg89n9+fz8AcD3+/29/PwP8MFpkWy8/AGH42mRbLzUIwbzYYHdvP4j59Lh+fn8/iHjxuD4EfzeI="
+    ],
+    "魔力探求":[
+      "AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4YH+CwAAAB/n8+7/AAAAH+fz/v8AAAAbwZH4bwAAAB/jk/4vAAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/hgf4LAAAAH+fz7v8AAAAf5/P+/wAAABvBkfhvAAAAH+OT/i8AAgAf4xG8fgACAB/nc/77AAI=",
+      "AAAAAAAAAAAAH+GB/gsAAAAf5/Pu/wAAAB/n8/7/AAAAG8GR+G8AAAAf45P+LwACAB/jEbx+AAIAH+dz/vsAAgAd5nNc+QACAAAAAAAAAAA="
     ]
   });
 
@@ -413,7 +435,13 @@
       return best.d<=Math.min(limit,treatmentLimit)&&(!second||second.d-best.d>=margin)?best.name:'';
     };
 
-    const entries=Object.entries(HYBRID_ABILITY_MASKS);
+    // 金色セルは超特殊能力（＋明示的な無視対象）だけ、青系セルは通常特殊能力だけで比較する。
+    // 色カテゴリをまたいだ近似一致を禁止して、似た文字列の誤認を防ぐ。
+    const entries=Object.entries(HYBRID_ABILITY_MASKS).filter(([name])=>{
+      const knownSuper=SUPER_NAMES.includes(name);
+      const ignoredSuper=IGNORED_SUPER_IMAGE_NAMES.has(name);
+      return cell.superCell ? (knownSuper||ignoredSuper) : (!knownSuper&&!ignoredSuper);
+    });
     const normal=rank(entries,makeSigs(100));
     const hit=accept(normal,false);
     if(hit)return hit;
