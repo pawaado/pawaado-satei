@@ -10,12 +10,6 @@
     '局所防衛','再生学','生命管理','ヒーラー魂','バランス感覚','立て直し','冷静沈着','戦況分析'
   ]);
 
-  const healingHeart=(D.special||[]).find(row=>String(row?.[1])==='癒やしの心');
-  if(healingHeart){
-    healingHeart[14]=90;
-    healingHeart[15]='剣士等・魔法職は基礎HP×1%。僧侶は90+基礎HP×1%。小数第2位四捨五入';
-  }
-
   const noteList=document.querySelector('.notes ul');
   if(noteList){
     const items=[...noteList.querySelectorAll('li')];
