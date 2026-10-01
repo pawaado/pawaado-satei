@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-training-exp-color-1';
+  const PHOTO_IMPORT_BUILD='20261002-training-left-exp-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1749,16 +1749,14 @@
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
-    // 各訓練画像に表示されている現在経験点を、そのパターンの正本にする。
-    // 能力アップ側の経験点は、訓練画像でその項目だけ読めなかった場合の補完に限定する。
+    // 各訓練画像の左側に表示されている現在経験点を、そのパターンの基準値にする。
+    // 背景や能力アップ画面の経験点では補完しない。読めない項目は要確認にする。
     if(out.trainingPatterns.length){
       for(const pattern of out.trainingPatterns){
         pattern.exp=Object.fromEntries(EXPS.map(name=>{
           const ownCurrent=pattern.current?.[name];
-          const fallbackCurrent=out.exp?.[name];
           const gain=pattern.gains?.[name];
-          const base=ownCurrent!=null?Number(ownCurrent):(fallbackCurrent!=null?Number(fallbackCurrent):null);
-          return [name,base!=null&&gain!=null?base+Number(gain):null];
+          return [name,ownCurrent!=null&&gain!=null?Number(ownCurrent)+Number(gain):null];
         }));
       }
     }
