@@ -16,6 +16,10 @@
     .ability-name-icon,
     .ability-name-svg{display:none!important}
 
+    /* 見出しと操作欄の間隔をアカデミー・ジョブ（gap 7px + margin 8px）に合わせる。 */
+    .photo-card .photo-choose{margin-top:15px}
+    @media(max-width:370px){.photo-card .photo-choose{margin-top:13px}}
+
     /* iPhoneのnative selectでは表示幅や改行制御が弱いので、アカデミーとジョブは自前メニューで統一表示する。 */
     .custom-select-control{position:relative;z-index:20}
     .custom-select-control.is-open{z-index:3000}
