@@ -3705,8 +3705,8 @@ window.PAWAADO_DATA = {
       0.01,
       0,
       0,
-      89,
-      "剣士等・魔法職は基礎HP×1%。僧侶は89+基礎HP×1%。小数を保持し、全査定の合算後に切り捨て"
+      90,
+      "剣士等・魔法職は基礎HP×1%。僧侶は90+基礎HP×1%。小数を保持し、全査定の合算後に切り捨て"
     ],
     [
       91,
@@ -4288,60 +4288,6 @@ window.PAWAADO_DATA = {
       "双剣士専用。Lv1は初期取得済。Lv2以降は器用さ条件を満たして順番に取得。"
     ]
   ],
-  "settings": [
-    [
-      "基本能力コツLv1",
-      "2%OFF"
-    ],
-    [
-      "基本能力コツLv2",
-      "4%OFF"
-    ],
-    [
-      "基本能力コツLv3",
-      "6%OFF"
-    ],
-    [
-      "基本能力コツLv4",
-      "8%OFF"
-    ],
-    [
-      "基本能力コツLv5",
-      "10%OFF"
-    ],
-    [
-      "特殊能力コツLv1",
-      "50%OFF"
-    ],
-    [
-      "特殊能力コツLv2",
-      "60%OFF"
-    ],
-    [
-      "特殊能力コツLv3",
-      "70%OFF"
-    ],
-    [
-      "特殊能力コツLv4",
-      "80%OFF"
-    ],
-    [
-      "特殊能力コツLv5",
-      "90%OFF"
-    ],
-    [
-      "注記1",
-      "小数点以下の査定が不明であることなどから、本ツールの結果が最大値とならない場合があります。また、必殺技、アクションスキル、超特殊能力は割愛しています。あらかじめご了承ください。"
-    ],
-    [
-      "注記2",
-      "〜攻撃は、火攻撃、風攻撃、水攻撃のいずれかを指します。"
-    ],
-    [
-      "バージョン",
-      "v1.2 表示統一・文言修正版"
-    ]
-  ],
   "academyMaster": {
     "academies": [
       {
@@ -4604,7 +4550,6 @@ window.PAWAADO_DATA.superResistances={
     ]
   }
 };
-window.PAWAADO_DATA.multiplierScorePerPercent={givenDamage:45};
 
 // A recognized upper ability implies ownership of its prerequisite chain.
 window.PAWAADO_DATA.superPrerequisites={
