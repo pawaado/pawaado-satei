@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-pair-mark-authority-1';
+  const PHOTO_IMPORT_BUILD='20261001-explicit-mark-cross-layer-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1155,7 +1155,7 @@
   }
 
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false};
+    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{}};
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
     const explicitPairMarks=new Map();
@@ -1288,6 +1288,7 @@
         }
       }
       result.specials=[...owned];
+      result.explicitPairMarks=Object.fromEntries(explicitPairMarks);
     }
 
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
@@ -1309,7 +1310,7 @@
     return {job:'',candidate:false,raw:''};
   }
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     function mergeField(target,key,value,label){
       if(value==null||value==='')return;
@@ -1330,6 +1331,15 @@
         });
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
+        for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
+          const old=out.explicitPairMarks[stem];
+          if(old&&old!==mark){
+            delete out.explicitPairMarks[stem];
+            out.warnings.push(stem+'の○/◎判定が画像間で一致しません。表示を確認してください。');
+          }else if(old!==null){
+            out.explicitPairMarks[stem]=mark;
+          }
+        }
         if(result.dualAttackSeen)out.dualAttackSeen=true;
         if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
         out.warnings.push(...result.warnings);
