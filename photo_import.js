@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20260930-spacing-2';
+  const PHOTO_IMPORT_BUILD='20261001-gold-super-action-fix-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -68,6 +68,18 @@
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
   }
+
+  // 2026-10-01 実画像追加：同一端末で落ちた「アクションスキル○」と「慈愛の祈り」を画像比較で補強。
+  (HYBRID_ABILITY_MASKS['アクションスキル○']??=[]).push(
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfGGACB4woAB8+IfMHnygAATbF8QGcKAAHJswwYQQqAA=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8YYAIHjCgAHz4h8wefKAABNsXxAZwoAAcmzDBhBCoABgQY8MMfLgDMDDAxx54uAM=',
+    'AAAAAAAAAAAAAAAAAAAAAHxhgAgeMKAAfPiHzB58oAAE2xfEBnCgABybMMGEEKgAGBBjwwx8uAMwMMDHHni4AyBhx84zEbADIEEDyDIQIAE='
+  );
+  HYBRID_ABILITY_MASKS['慈愛の祈り']=[
+    'AAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8/wcN8xgAA/z/H4/DGAAD/P8/x/MYAAHcfjbP85gAA/z/LN+j2AI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/z/Bw3zGAAD/P8fj8MYAAP8/z/H8xgAAdx+Ns/zmAAD/P8s36PYAgCg/j3No7ACA/x+P42gMAI=',
+    'AAAAAAAAAAAD/P8HDfMYAAP8/x+PwxgAA/z/P8fzGAAB3H42z/OYAAP8/yzfo9gCAKD+Pc2jsAID/H4/jaAwAgP8/wsNIDACAAAAAAAAAAI='
+  ];
 
   // 基本能力の数字はOCRを使わず、実画像の数字テンプレート比較だけで判定する。
   // 未登録・曖昧な字形は空欄＋警告にして、OCRへはフォールバックしない。
@@ -839,18 +851,42 @@
   function cellAbility(text,markHint='',superCell=false,pairCertain=false){
     const normalized=normalize(text);
     const rawClean=cleanCellText(text);
-    // 「剛力」は超特殊能力だが、このツールの耐性計算には影響しないため読み取り対象外。
-    if(superCell&&normalize(rawClean)==='剛力')return {specials:[],supers:[],unknown:[],candidate:false};
+    const clean=cleanCellText(normalized.replace(/[O0〇◯]$/,'○')).replace(/^[火水風]攻撃$/,'〜攻撃');
+
+    // 金色セルはゲーム上の「超特殊能力」。
+    // ここから通常特殊能力へフォールバックすると、未登録の上位能力
+    // （例：そよかぜの加護）が生存本能などへ化けるため、系統を完全に分離する。
+    if(superCell){
+      // 「剛力」など、このツールで耐性・下位補完に使わない上位能力は警告対象にしない。
+      if(normalize(rawClean)==='剛力')return {specials:[],supers:[],unknown:[],candidate:false};
+      // One-character 烈 is especially prone to 珠/科/杏/吾 in this game font.
+      if(SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/.test(rawClean))return {...findSpecials('烈'),candidate:false};
+
+      const exactSuper=findSpecials(clean);
+      if(exactSuper.supers.length)return {...exactSuper,candidate:false};
+
+      // 金色セルのあいまい補正は超特殊能力同士・編集距離1以内に限定。
+      // 未登録の超特殊能力を通常特殊能力へ誤変換しないことを優先する。
+      const ranked=SUPER_NAMES.filter(n=>n.length>=2).map(name=>({
+        name,
+        d:distance(normalize(name),clean)
+      })).sort((a,b)=>a.d-b.d);
+      const best=ranked[0],second=ranked[1];
+      if(best&&best.d<=1&&(!second||best.d<second.d)){
+        return {...findSpecials(best.name),candidate:true};
+      }
+
+      // 金色だと判定できた未登録上位能力は、査定入力に不要なので静かに無視する。
+      return {specials:[],supers:[],unknown:[],candidate:false};
+    }
+
     const pairStem=pairStemFromText(text);
     if(pairStem&&markHint&&D.special.some(s=>normalize(s[1])===pairStem+markHint))return {...findSpecials(pairStem+markHint),candidate:!pairCertain};
     const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
     if(marked){const upper=marked[1]+'◎';if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
-    // One-character 烈 is especially prone to 珠/科/杏/吾 in this game font.
-    if(superCell&&SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/.test(cleanCellText(text)))return {...findSpecials('烈'),candidate:false};
-    const clean=cleanCellText(normalized.replace(/[O0〇◯]$/,'○')).replace(/^[火水風]攻撃$/,'〜攻撃');
     const exact=findSpecials(clean);
     if(!exact.unknown.length&&(exact.specials.length||exact.supers.length))return {...exact,candidate:false};
-    const names=[...GENERIC_SPECIAL_NAMES,...SUPER_NAMES].filter(n=>n.length>=2);
+    const names=GENERIC_SPECIAL_NAMES.filter(n=>n.length>=2);
     const best=fuzzyBest(clean,names,false);
     if(best){
       // Without a symbol hint, never silently swap ○ and ◎.
