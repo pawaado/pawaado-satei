@@ -3077,7 +3077,10 @@ window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   const rows=(patterns||[]).slice(0,MAX_EXP_SAMPLES).filter(p=>p&&p.exp);
   if(!rows.length) throw new Error('練習画像の経験点を読み取れませんでした。');
-  expSamples=rows.map(p=>Object.fromEntries(expNames.map(n=>[n,String(Math.max(0,Math.round(Number(p.exp[n]||0))))])));
+  expSamples=rows.map(p=>Object.fromEntries(expNames.map(n=>{
+    const value=p.exp[n];
+    return [n,value==null?'':String(Math.max(0,Math.round(Number(value))))];
+  })));
   renderExp();
   validateAllInline();
   calcResultCache.clear();
