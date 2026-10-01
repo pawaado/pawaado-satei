@@ -3084,9 +3084,7 @@ window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
   renderExp();
   validateAllInline();
   calcResultCache.clear();
-  document.getElementById('result').textContent=rows.length>1
-    ? `練習画像${rows.length}枚の経験点をパターンA〜${sampleLabel(rows.length-1)}へ反映しました。`
-    : '練習画像の経験点をパターンAへ反映しました。';
+  document.getElementById('result').textContent='';
   document.dispatchEvent(new Event('change',{bubbles:true}));
 };
 
@@ -3136,7 +3134,7 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
   for(const name of owned){const i=specialNameIndex.get(name);if(i!==undefined) setSpecialOwned(i,true);}
   window.__PAWAADO_SET_SUPERS__?.((data.supers||[]).filter(entry=>D.superResistances[entry.name]));
   calcResultCache.clear();validateAllInline();
-  document.getElementById('result').textContent='画像の内容を反映しました。コツLvを入力して計算してください。';
+  document.getElementById('result').textContent='';
   document.dispatchEvent(new Event('change',{bubbles:true}));
 };
 
