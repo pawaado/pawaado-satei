@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-super-color-guard-1';
+  const PHOTO_IMPORT_BUILD='20261001-image-read-fixes-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -11,7 +11,7 @@
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求']);
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求','魔力開眼']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
 
   // OCRだけに依存しないハイブリッド認識。
@@ -171,6 +171,23 @@
       "AAAAAAAAAAAAH+GB/gsAAAAf5/Pu/wAAAB/n8/7/AAAAG8GR+G8AAAAf45P+LwACAB/jEbx+AAIAH+dz/vsAAgAd5nNc+QACAAAAAAAAAAA="
     ]
   });
+
+  // 2026-10-01 実画像追加：魔力開眼の誤認防止、風攻撃と列攻撃○の認識補強。
+  HYBRID_ABILITY_MASKS['魔力開眼']=[
+    'AAAAAAAAAAQAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgIHe7wAAAB/hwf7vgAAAH+f5/u8AAAAf4Zn+74AAAB/hmf7vgAA=',
+    'AAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4CB3u8AAAAf4cH+74AAAB/n+f7vAAAAH+GZ/u+AAAAf4Zn+74AAAB/jmX7vgAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAgd7vAAAAH+HB/u+AAAAf5/n+7wAAAB/hmf7vgAAAH+GZ/u+AAAAf45l+74ACAB/nGf77AAI='
+  ];
+  (HYBRID_ABILITY_MASKS['風攻撃']??=[]).push(
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/gIe4AAAAAD+f97wAAAAAP4/3vAAAAAA+hbO4AAAAAD+F57wAAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP4CHuAAAAAA/n/e8AAAAAD+P97wAAAAAPoWzuAAAAAA/hee8AACAAD+O4+AAAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+Ah7gAAAAAP5/3vAAAAAA/j/e8AAAAAD6Fs7gAAAAAP4XnvAAAgAA/juPgAACAADff5/wAAI='
+  );
+  (HYBRID_ABILITY_MASKS['列攻撃○']??=[]).push(
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfMGHcHgAAAB/3/f4/AAAAD/N9/nOAAAAf8/nuYYAAAB/zef5hgAM=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHzBh3B4AAAAf9/3+PwAAAA/zff5zgAAAH/P57mGAAAAf83n+YYADAAfzuPhhgAM=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8wYdweAAAAH/f9/j8AAAAP833+c4AAAB/z+e5hgAAAH/N5/mGAAwAH87j4YYADAA43+f53AAM='
+  );
 
   // 基本能力の数字はOCRを使わず、実画像の数字テンプレート比較だけで判定する。
   // 未登録・曖昧な字形は空欄＋警告にして、OCRへはフォールバックしない。
@@ -1377,6 +1394,16 @@
     try{
       const images=await Promise.all(urls.map(imageFrom));
       const data=await readImages(images);
+      if(data.abilityUpScreens>0 && data.dataScreens===0){
+        renderUncertain([]);
+        status('能力データ画面を追加してください。');
+        return;
+      }
+      if(data.dataScreens>0 && data.abilityUpScreens===0){
+        renderUncertain([]);
+        status('能力アップ画面を追加してください。');
+        return;
+      }
       window.__PAWAADO_IMPORT_PHOTO__(data);
       const warningCount=data.warnings?.length||0;
       renderUncertain(data.warnings||[]);
