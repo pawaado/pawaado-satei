@@ -271,7 +271,7 @@
         <li>「能力アップ」、「能力データ」の画像を選択し、「画像を読み取る」を押すと、アカデミー、ジョブ、経験点、基本能力、取得済み特殊能力、双剣士専用の通常攻撃（Lv）、耐性に影響する超特殊能力を自動入力します。<br>※画像を用いず、手入力でも可能です。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。</li>
         <li>基本能力・特殊能力左の「＋」でコツLvを設定します。</li>
         
-        <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を押します。</li><li>「計算する」を押すと、査定が最大となる組合せを表示します。<br>なお、「能力アップ」、「能力データ」に加えて複数の「訓練」画像を読み取ると、各訓練後の経験点をパターンとして比較できます。さらに「練習後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せを表示します。</li>
+        <li>複数の経験点を比較する場合は、「パターンを複製」または「パターンを追加」を押します。</li><li>「計算する」を押すと、査定が最大となる組合せを表示します。<br>なお、「能力アップ」、「能力データ」に加えて複数の「訓練」画像を読み取ると、各訓練後の経験点パターンを比較できます。「訓練後の付与予定経験点」を入力した場合は、入力した値を各パターンに加算し、査定が最大となるパターンと組合せを表示します。</li>
       </ol>
       <div class="usage-note-block">
         <h3>注記</h3>
@@ -288,7 +288,7 @@
   <script src="data.js?v=20261001-powerful-jobs-1"></script>
   <script src="resistance_patch.js?v=20261001-super-reading-order"></script>
   <script src="academy_runtime.js?v=20260928-photo-hybrid-1"></script>
-  <script src="script.js?v=20261001-training-patterns-1"></script>
+  <script src="script.js?v=20261001-planned-exp-ready-1"></script>
   <script>
     (()=>{
       const createCustomSelect=(config)=>{
@@ -457,7 +457,7 @@
       });
     };
     const requiredReady=()=>{
-      const expInputs=[...expRoot.querySelectorAll('input')];
+      const expInputs=[...expRoot.querySelectorAll('input[data-exp-name]')];
       const basicInputs=[...basicRoot.querySelectorAll('input[id^="basic_"]')];
       return !!academy.value && !!job.value &&
         expInputs.length>0 && expInputs.every(filled) &&
