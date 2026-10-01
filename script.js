@@ -515,7 +515,7 @@ function renderExp(){
   const limitReached=expSamples.length>=MAX_EXP_SAMPLES;
   const plannedHtml=expSamples.length>1?`
     <div class="planned-exp-block">
-      <div class="planned-exp-title">練習後の付与予定経験点</div>
+      <div class="planned-exp-title">訓練後の付与予定経験点</div>
       <div class="exp-list planned-exp-list">
         ${expNames.map(name=>`<div class="exp-row"><label>${name}</label><input type="number" min="0" id="planned_exp_${safeId(name)}" data-planned-exp-name="${name}" value="${plannedExp[name]??''}" inputmode="numeric" autocomplete="off"><div class="inline-error" id="err_planned_exp_${safeId(name)}"></div></div>`).join('')}
       </div>
