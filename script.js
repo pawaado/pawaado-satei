@@ -3054,8 +3054,8 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
   const owned=new Set(data.specials);
   const explicitPairMarks=data.explicitPairMarks||{};
 
-  // 画像に○/◎が直接表示されている場合は、その記号を推測より優先する。
-  // まずOCR/画像比較で混ざった同名の○・◎を正規化する。
+  // 通常特殊能力の○/◎は、画面に直接見えている記号を正本にする。
+  // ただし対応する超特殊能力が認識されている場合は、その超特殊能力の取得条件（◎）が最優先。
   for(const [stem,mark] of Object.entries(explicitPairMarks)){
     owned.delete(stem+'○');
     owned.delete(stem+'◎');
@@ -3063,16 +3063,11 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     else if(mark==='○')owned.add(stem+'○');
   }
 
-  // 超特殊能力から下位能力を補完する場合も、画面に明示された○/◎があれば上書きしない。
+  // 上位の超特殊能力が確認できたら、対応する下位◎は必ず取得済み。
+  // 例：平常心→通常攻撃◎、トリックスター→アクションスキル◎、ゴブリンキラー→対ゴブリン◎。
+  // これは通常特殊能力側の○/◎表示よりゲーム仕様上強い条件として扱う。
   for(const entry of data.supers||[]){
     for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]){
-      const normalized=String(name);
-      const m=normalized.match(/^(.*)([○◎])$/);
-      if(m&&explicitPairMarks[m[1]]){
-        const mark=explicitPairMarks[m[1]];
-        if(mark==='○'){owned.add(m[1]+'○');continue;}
-        if(mark==='◎'){owned.add(m[1]+'○');owned.add(m[1]+'◎');continue;}
-      }
       owned.add(name);
     }
   }
