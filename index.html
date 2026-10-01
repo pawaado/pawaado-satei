@@ -132,6 +132,23 @@
       opacity:1!important;
       cursor:default;
     }
+
+    /* 入力不可の経験点はラベル・入力欄をまとめて無効表示にする。 */
+    #expInputs .exp-row:has(input:disabled) label{
+      color:#8d8173;
+      background:linear-gradient(180deg,#e4dfd5,#d3ccbf);
+      box-shadow:none;
+      text-shadow:none;
+    }
+    #expInputs .exp-row input:disabled{
+      color:#8d8173;
+      -webkit-text-fill-color:#8d8173;
+      background:linear-gradient(180deg,#eeeae2,#e1dbcf);
+      border-color:#c2bbae;
+      box-shadow:none;
+      opacity:1;
+      cursor:not-allowed;
+    }
   </style>
 </head>
 <body>
