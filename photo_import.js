@@ -1896,16 +1896,9 @@
       }
       if(hasCharacterScreens)window.__PAWAADO_IMPORT_PHOTO__(data);
       if(hasTraining)window.__PAWAADO_IMPORT_TRAINING_PHOTOS__?.(data.trainingPatterns);
-      const warningCount=data.warnings?.length||0;
       renderUncertain(data.warnings||[]);
       selectionDirty=false;
-      if(hasTraining&&!hasCharacterScreens){
-        status(`練習画像${data.trainingPatterns.length}枚から経験点を自動入力しました。`);
-      }else if(hasTraining){
-        status(warningCount?`自動入力しました。練習画像${data.trainingPatterns.length}枚を反映し、要確認が${warningCount}件あります。`:`自動入力しました。練習画像${data.trainingPatterns.length}枚も反映しました。`);
-      }else{
-        status(warningCount?`自動入力しました。要確認が${warningCount}件あります。`:'自動入力しました。');
-      }
+      status('自動入力しました。');
     }
     catch(e){renderUncertain([]);status('読み取りに失敗しました：'+e.message+'。手入力でも利用できます。');}
     finally{if(worker){await worker.terminate();worker=null;}busy=false;el('photoFiles').disabled=false;el('choosePhotos').disabled=false;renderPreviews();}
