@@ -12,5 +12,6 @@ License provenance:
 - The three retained core files are `tesseract-core-relaxedsimd-lstm.wasm.js`, `tesseract-core-simd-lstm.wasm.js`, and `tesseract-core-lstm.wasm.js`. Tesseract.js feature-detects the browser and loads exactly one of them.
 - `lang/LICENSE` is the exact `tesseract-ocr/tessdata_fast` `LICENSE`.
 - The minified JavaScript bundle notices are preserved in `tesseract.min.js.LICENSE.txt` and `worker.min.js.LICENSE.txt`.
+- `THIRD-PARTY-NOTICES.md` preserves the attribution and license notices for native libraries compiled into the OCR WebAssembly builds (Leptonica, IJG libjpeg, giflib, libpng, libtiff, libwebp, openlibm, and zlib).
 
 `SHA256SUMS` records the exact vendored bytes. OCR runs locally in the browser; image data is not sent to an OCR service.
