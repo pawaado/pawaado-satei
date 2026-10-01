@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-training-exp-fix-1';
+  const PHOTO_IMPORT_BUILD='20261002-training-exp-fix-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -224,6 +224,35 @@
     '8':['ABABABABAD/DzzI7c7c7ByA/c5+ZcZA7','ABA/APBPOf////I/c/c/B+A/c/+fc/A/'],
     '9':['BwEIQEgAhhiRiRghwBYBPxThgDwCYEH4','DwEIQGgDhhiRjRhhwBYBPxbxgDwCYMH4']
   };
+  // 訓練画像の増加経験点：2026-10-02の実画像（101/18/54/64/60等）を追加。
+  const TRAINING_GAIN_EXTRA_MASKS={
+    '0':['D4GMN6ILf3d1VRxZxJxBxRZRZzYDIDOO','D4HcJ+ej9zz9zdzZzZzZzZxx4DYDOOH4'],
+    '1':['A/A/DbHb474L/rPjHjBjBjBjBjBjBjB/','A+B/DbP747477j/jPjBjBjBjBjBjBjB/','AeA/BrHf878L9jPjBjBjBjBjBhBhBhB'],
+    '4':['A8B+BaD6H6GqE6JyZzxzwBwB/zPzAyA+','A8B+BaD6H6HCEyLyZyZzwBwBwB/zPyAy','B8BkC0C0HUEELkLkZmxDwBwB/D/nBmB8'],
+    '5':['f+//370Tz+z8wGwD7x/xeR7xxj4HYHP8','f+f+370Tz/z+wGwGwj/x/x/xjxwD4DcO'],
+    '6':['B4D8E7N/L7d/d+YGYD4BYBYBYBYBIDGD','B8HMF/Lxf7d/YCQDwBYBYBYBYDIDGGH8','BwH8NyYPdzz/yMwCwDwBwBwBYDYDMGH8'],
+    '7':['P///3+3+/5/nD3CMCICIEYEQMQMQMQPw','f///3939/vfWDECIGYGYE4EwAwIwIwPg'],
+    '8':['DwH8J2YKZ3Z/Z7YGYDwDwBgBwD4DYDP+']
+  };
+  for(const [digit,variants] of Object.entries(TRAINING_GAIN_EXTRA_MASKS)){
+    const target=TRAINING_DIGIT_MASKS[digit]||(TRAINING_DIGIT_MASKS[digit]=[]);
+    for(const variant of variants)if(!target.includes(variant))target.push(variant);
+  }
+
+  // 訓練画面左側の「現在経験点」専用。茶色背景から白数字を抜いて判定する。
+  const TRAINING_CURRENT_DIGIT_MASKS={
+    '0':['DwH8PecHcHYH4D4D4D4D4DYHcHcHOOP8','H8P+OOcH4D4DwD4DwD4DwD4D4DcHPeP8'],
+    '1':['A/A/B//+/+A/APAOAPAPAPAPAPAPAOAP','A+A/B/////APAPAPAPAPAPAPAPAPAPAP','A/B/H/////4/A/A/A/A/A/A/A/A/A/A/','AfA/D/P///AfAfAfAfAfAfAfAfAfAfAf'],
+    '2':['D8P+ePYDADADAHAOA4BwHAOAcAcA////','H8P/f/8HYDADAHAPA8D4HgPAeAcA////'],
+    '3':['BwP8f+cPAHAPAOD4D4D+AHAHAHQH+/f+','D4P+cOAHADAHAOA8D8AOAHADADAD4P//','H8P+ffAHAHAPAeB8B+APADADID8Hf/P+'],
+    '4':['AYA8A8B8B8HMHMGMMMYM4c//f/AcAMAM','A8A8A8B8D8DcGMGMMMYMYc////A/AMAM','A8A8A8B8DMDMGMMMYM4MwO////AeAMAM'],
+    '5':['f/f/f/cA4A4A98+PcHADADADYH8Hf/H8','////4AwAwAwAz8+fADADADADADwD8Pf+','f/f/f/cAYA4A48/f8HAHADADID8Hf/P+'],
+    '6':['B4D+H/MDcAcAcA/+/P8HcDcDcDcDPPH+','D8H+PPcAcA4A4w/++P8H4D4DcHcHP+H8','H+PPODYA4AwAw47+8H4D4D4B4DYDOPH+'],
+    '7':['//////AHAGAMAYA4BwBgBgDgDAHAHAHA'],
+    '8':['D4H8OOYGYGcOOOH8P8eO4H4D4D4Hf+P8','BwH4P+cGYHcGOOH4H8P+YH4H4H4HePP+','H4H8OOYHYHMGPeH4P8eP4H4H4HcHP+H8'],
+    '9':['BgH8ee4H4DwDwD8HePP7ABABADADeeP8','BwH4P8cGYHYH4HcHePP/DnAHAHAHeeP8']
+  };
+
   const HYBRID_LEVEL_MASKS={
     '1':'B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI',
     '2':'A/A/BjBBAIgMh4ARBzBCBMcPmAmA3/J+',
@@ -1361,7 +1390,7 @@
       }
     }
     const ratio=total?hit/total:0;
-    return kind==='blue'?ratio>.18:ratio>.33;
+    return kind==='blue'?ratio>.18:ratio>.25;
   }
   async function trainingNumber(image,rect,maxDigits=4){
     const visual=numericByImageStrict(image,rect,maxDigits);
@@ -1409,12 +1438,56 @@
     const digits=components.map(c=>classifyGlyph(c,HYBRID_DIGIT_MASKS,.26));
     return digits.every(Boolean)?Number(digits.join('')):null;
   }
+  function classifyTrainingGlyph(component,templates,limit=.22){
+    const glyph=normalizeGlyph(component.mask,component.w,component.h);
+    const ranked=Object.entries(templates).map(([value,encoded])=>{
+      const variants=Array.isArray(encoded)?encoded:[encoded];
+      return {value,d:Math.min(...variants.map(e=>maskDistance(glyph,decodeMask(e,12*16))))};
+    }).sort((a,b)=>a.d-b.d);
+    if(!ranked[0]||ranked[0].d>limit)return '';
+    if(ranked[1]&&ranked[1].d-ranked[0].d<.015)return '';
+    return ranked[0].value;
+  }
+  function trainingBrightGlyphComponents(image,rect){
+    const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    const w=c.width,h=c.height,bright=new Uint8Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+      if(r>180&&g>180&&b>180)bright[y*w+x]=1;
+    }
+    const seen=new Uint8Array(w*h),out=[],stack=[];
+    for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
+      const start=sy*w+sx;if(!bright[start]||seen[start])continue;
+      seen[start]=1;stack.push([sx,sy]);
+      let minX=sx,maxX=sx,minY=sy,maxY=sy,area=0,pixels=[];
+      while(stack.length){
+        const [x,y]=stack.pop();area++;pixels.push([x,y]);
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+          const k=yy*w+xx;if(bright[k]&&!seen[k]){seen[k]=1;stack.push([xx,yy]);}
+        }
+      }
+      const cw=maxX-minX+1,ch=maxY-minY+1;
+      if(minX>=75||cw<5||cw>25||ch<15||ch>30||area<30)continue;
+      const local=new Uint8Array(cw*ch);
+      for(const [x,y] of pixels)local[(y-minY)*cw+(x-minX)]=1;
+      out.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+    }
+    return out.sort((a,b)=>a.x-b.x);
+  }
+  function trainingCurrentNumberByImage(image,rowIndex){
+    const y=120+59*rowIndex;
+    const components=trainingBrightGlyphComponents(image,[210,y,90,46]);
+    if(components.length<1||components.length>4)return null;
+    const digits=components.map(c=>classifyTrainingGlyph(c,TRAINING_CURRENT_DIGIT_MASKS,.20));
+    return digits.every(Boolean)?Number(digits.join('')):null;
+  }
+
   async function looksLikeTrainingScreen(image){
     // 左側に大きな5段の経験点表示がある画面をまず画像形状で判定する。
     let hits=0;
     for(let i=0;i<5;i++){
-      const y=120+59*i;
-      const v=trainingNumberByImage(image,[220,y,78,46],4,0);
+      const v=trainingCurrentNumberByImage(image,i);
       if(v!=null)hits++;
     }
     if(hits>=3)return true;
@@ -1484,7 +1557,19 @@
     return pieces;
   }
   function trainingGainNumberByImage(image,rowY,kind){
-    const rect=kind==='blue'?[360,rowY-10,125,50]:[280,rowY-10,110,50];
+    if(kind==='yellow'){
+      const rect=[320,rowY+4,55,34];
+      for(const threshold of [190,180,170]){
+        const pieces=trainingDigitComponents(image,rect,threshold)
+          .filter(c=>c.h>=20&&c.h<=30&&c.w<=22&&c.area>=40)
+          .sort((a,b)=>a.x-b.x);
+        if(pieces.length<1||pieces.length>3)continue;
+        const digits=pieces.map(piece=>classifyTrainingGlyph(piece,TRAINING_DIGIT_MASKS,.22));
+        if(digits.every(Boolean))return Number(digits.join(''));
+      }
+      return null;
+    }
+    const rect=[360,rowY-10,125,50];
     for(const threshold of [140,130,120]){
       const raw=trainingDigitComponents(image,rect,threshold).filter(c=>{
         if(kind==='blue')return c.x>=35&&c.x<=110&&c.h>=15;
@@ -1521,8 +1606,8 @@
     const current=[],gains=[];
     for(let i=0;i<5;i++){
       const y=120+59*i;
-      let cur=trainingNumberByImage(image,[220,y,78,46],4,0);
-      if(cur==null)cur=await trainingNumber(image,[224,y+2,68,42],4);
+      let cur=trainingCurrentNumberByImage(image,i);
+      if(cur==null)cur=await trainingNumber(image,[210,y+2,88,42],4);
       current.push(cur);
 
       let gain=0,unread=false;
@@ -1588,7 +1673,7 @@
         const trainingPattern=await readTrainingPattern(image);
         if(trainingPattern){
           const missing=EXPS.filter(name=>trainingPattern.exp?.[name]==null);
-          if(missing.length)out.warnings.push(`${i+1}枚目：訓練画像の増加経験点を一部読み取れませんでした。経験点を確認してください。`);
+          if(missing.length)out.warnings.push(`${i+1}枚目：訓練画像の経験点を一部読み取れませんでした。経験点を確認してください。`);
           out.trainingPatterns.push(trainingPattern);
           continue;
         }
@@ -1607,12 +1692,16 @@
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
-    // 能力アップ画面が一緒にある場合は、その現在経験点を正本にして各訓練の増加分を加算する。
-    if(out.trainingPatterns.length&&EXPS.every(n=>out.exp[n]!=null)){
+    // 各訓練画像に表示されている現在経験点を、そのパターンの正本にする。
+    // 能力アップ側の経験点は、訓練画像でその項目だけ読めなかった場合の補完に限定する。
+    if(out.trainingPatterns.length){
       for(const pattern of out.trainingPatterns){
         pattern.exp=Object.fromEntries(EXPS.map(name=>{
+          const ownCurrent=pattern.current?.[name];
+          const fallbackCurrent=out.exp?.[name];
           const gain=pattern.gains?.[name];
-          return [name,gain==null?null:Number(out.exp[name])+Number(gain)];
+          const base=ownCurrent!=null?Number(ownCurrent):(fallbackCurrent!=null?Number(fallbackCurrent):null);
+          return [name,base!=null&&gain!=null?base+Number(gain):null];
         }));
       }
     }
