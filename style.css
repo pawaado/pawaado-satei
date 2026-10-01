@@ -569,8 +569,30 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .modal-close{
   width:48px;min-width:48px;height:48px;min-height:48px;padding:0;border-radius:50%;font:800 28px/1 sans-serif;touch-action:manipulation;
 }
-.usage-list{margin:0;padding-left:1.55em;color:#4b3422;font-size:14px;font-weight:700;line-height:1.45}
-.usage-list li{margin:0 0 5px;padding-left:1px}
+.usage-list{
+  margin:0;
+  padding-left:0;
+  list-style:none;
+  counter-reset:usage-step;
+  color:#4b3422;
+  font-size:14px;
+  font-weight:700;
+  line-height:1.45;
+}
+.usage-list li{
+  counter-increment:usage-step;
+  position:relative;
+  margin:0 0 5px;
+  padding-left:2.05em;
+}
+.usage-list li::before{
+  content:counter(usage-step) ".";
+  position:absolute;
+  left:0;
+  top:0;
+  width:1.55em;
+  text-align:right;
+}
 .usage-note-block{margin-top:9px;padding-top:8px;border-top:2px solid rgba(128,78,25,.35)}
 .usage-note-block h3{margin:0 0 6px;font-family:"Kaisei Decol",serif;font-size:18px;color:#4b3422}
 .usage-note-list{margin:0;padding-left:1.2em;color:#4b3422;font-size:13px;font-weight:700;line-height:1.5}
