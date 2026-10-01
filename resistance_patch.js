@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20260930-super-ui-20';
+  const PATCH_VERSION='20261001-super-default-lv2';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -600,6 +600,9 @@
     section.addEventListener('change',event=>{
       if(event.target.matches('.super-name,.super-level')){
         const group=event.target.closest('.extra-resistance-group');
+        if(event.target.matches('.super-name')){
+          group.querySelector('.super-level').value=event.target.value?'2':'';
+        }
         fillSuperGroup(group);
         if(event.target.matches('.super-name')){
           section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
