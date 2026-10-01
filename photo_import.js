@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-training-detect-2';
+  const PHOTO_IMPORT_BUILD='20261002-training-exp-fix-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -210,6 +210,19 @@
     '7':['////////AOA8A4B4BwDwDwDAHAHAHAGA','//////AeAcAcAcAwDwDgDgDgHgHAHAHA','//////AeAcA8A8AwDwDgHgHgHgHAHAPA'],
     '8':['B4B4H+GHOHOHHOD8H+PPOH8DMDOHH+D8','D8D8P+MGMGMGMGH8H8OO8H8H4D8HOHH+','H4H4P88O4G8OP8P88+8+4G4H4G8OP8BA','B4B4H+OGOHOGHOH8H+OP8H8D8HOPH+D4','D4D4P+MH8H8HOOH8P++P8H4D4D8HP+D4'],
     '9':['D4D4P++O8H4D4D8H+PP7ADADAH8OP+H4','DwDwH8OO8G8H8H8HPfH/ADAHAGMOP8D4','D4D4P+MGMH8D8DMDOPH/BzBzADAHOOH8']
+  };
+  // 訓練画面の増加経験点専用。実ゲーム画像の大きい数字から作ったテンプレート。
+  const TRAINING_DIGIT_MASKS={
+    '0':['D4AAIGQAQhhRhQhQiQgQhRhRQBYDIGH4','D4AAL+aKRhxRhQjQjQjQxRxRQBYDIGH4'],
+    '1':['A+AiCBGBwBIBJBPBBBBBBBBBBBBBBBB+','A+AjDBODwB4DLDPDBDBDBBBDBBBBBBB/','A+AiCBMBwB4BJBPBBBBBBBBBBBBABBB+','A+BjDBODwD4BLBPDBDBDBBBDBBBBBBB+','AAAiDBGBwB4BJBPBBBBBBBBBBBBBBBB+','AeA3DBGB4B4BJBPBBBBBBBBBBBBBBBB/'],
+    '2':['DoEGQBQAhw+QeQCBEGIMQwRwgAgAgA//','D8EGYBQBxw+QewCBEHIOQ4R4gAgAgA//'],
+    '3':['DwEEQDhhjxexEDEDABDwHwiQgBwBcGH4','DwMMQDhhzxfxEDEHEBHwPwiwgBwBcPH4'],
+    '4':['A8ACBCCCACACACAiBjgAgAgA/jAiAiA+','A8AGBCCCECACIiYixjgAgAgA/jAiAiA+','AAA8BAAACAAAAAIgBiRjQAQAQBPiAgA8','AAA8BCACCCECACIgRiRjQAwAfjPjAiA8'],
+    '5':['fwABgBgBj/gGgCgAzw+QaAiQgBwDYHH8','f+wBz5wBz/gGgCgA7w/QeAiQgBwDcHH8','P+QBwBwBx/gGgCgAxw/QeAiAgAwBYDP8','f+QDwBwBz/zOgGgBxw/weAyAgBwBYHP+'],
+    '6':['AAD4ADIAAwB/ACACgAh4xYRIQAYBMDH8','AwD4ADIAQxR/QGwDgAx4xYRIYgYBMDH+','AwDAABAAQ5B/gCgBggh4xYRAQBYBMHH8','A4HEIDQBR5x/wCgDghx4xYxYYBYBMHH8'],
+    '7':['f/AAgAgAfhBGDGCIAIAAAAEQEQEQEQHw','f/wAgAgA/jDGDGCMAIAIEAEQEQEQMQHw','f/QAQAQAfhBDBGCMAIAIAAAAEAEQEQHw','f/QAwAwAfhDDBGCMCIAIAAAAEQEQEQHw'],
+    '8':['ABABABABAD/DzzI7c7c7ByA/c5+ZcZA7','ABA/APBPOf////I/c/c/B+A/c/+fc/A/'],
+    '9':['BwEIQEgAhhiRiRghwBYBPxThgDwCYEH4','DwEIQGgDhhiRjRhhwBYBPxbxgDwCYMH4']
   };
   const HYBRID_LEVEL_MASKS={
     '1':'B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI',
@@ -1340,13 +1353,15 @@
     for(let i=0;i<data.length;i+=4){
       const r=data[i],g=data[i+1],b=data[i+2]; total++;
       if(kind==='blue'){
-        if(b>190&&g>170&&b>r+10)hit++;
+        // 空や背景の青ではなく、吹き出し内部の淡い水色を検出する。
+        if(r>175&&g>200&&b>215&&b>r+10)hit++;
       }else{
+        // 黄色側はクリーム色の吹き出し面積で判定する。
         if(r>220&&g>200&&b>160)hit++;
       }
     }
     const ratio=total?hit/total:0;
-    return kind==='blue'?ratio>.24:ratio>.40;
+    return kind==='blue'?ratio>.18:ratio>.33;
   }
   async function trainingNumber(image,rect,maxDigits=4){
     const visual=numericByImageStrict(image,rect,maxDigits);
@@ -1409,6 +1424,95 @@
     const b=normalize((await textAt(image,[380,85,340,55],false,true)).text);
     return a.includes('セクション')||b.includes('試合まで残り');
   }
+  function trainingDigitComponents(image,rect,threshold){
+    const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+    const w=c.width,h=c.height,dark=new Uint8Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=(y*w+x)*4,lum=Math.round(data[i]*.299+data[i+1]*.587+data[i+2]*.114);
+      if(lum<threshold)dark[y*w+x]=1;
+    }
+    const seen=new Uint8Array(w*h),out=[],stack=[];
+    for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
+      const start=sy*w+sx;if(!dark[start]||seen[start])continue;
+      seen[start]=1;stack.push([sx,sy]);
+      let minX=sx,maxX=sx,minY=sy,maxY=sy,area=0,pixels=[];
+      while(stack.length){
+        const [x,y]=stack.pop();area++;pixels.push([x,y]);
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+          const k=yy*w+xx;if(dark[k]&&!seen[k]){seen[k]=1;stack.push([xx,yy]);}
+        }
+      }
+      const cw=maxX-minX+1,ch=maxY-minY+1;
+      if(cw<5||cw>55||ch<14||ch>40||area<25)continue;
+      const local=new Uint8Array(cw*ch);
+      for(const [x,y] of pixels)local[(y-minY)*cw+(x-minX)]=1;
+      out.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+    }
+    return out.sort((a,b)=>a.x-b.x);
+  }
+  function splitTrainingDigitComponent(component){
+    if(component.w<21)return [component];
+    const parts=component.w<36?2:3;
+    const cols=new Array(component.w).fill(0);
+    for(let y=0;y<component.h;y++)for(let x=0;x<component.w;x++)cols[x]+=component.mask[y*component.w+x];
+    const cuts=[0];
+    for(let k=1;k<parts;k++){
+      const target=component.w*k/parts;
+      const lo=Math.max(cuts[cuts.length-1]+3,Math.floor(target-4));
+      const hi=Math.min(component.w-3,Math.ceil(target+4));
+      let best=Math.round(target),bestInk=Infinity,bestDist=Infinity;
+      for(let x=lo;x<=hi;x++){
+        const ink=cols[x],dist=Math.abs(x-target);
+        if(ink<bestInk||(ink===bestInk&&dist<bestDist)){best=x;bestInk=ink;bestDist=dist;}
+      }
+      cuts.push(best);
+    }
+    cuts.push(component.w);
+    const pieces=[];
+    for(let i=0;i<cuts.length-1;i++){
+      const a=cuts[i],b=cuts[i+1];
+      let minX=b,maxX=-1,minY=component.h,maxY=-1,area=0;
+      for(let y=0;y<component.h;y++)for(let x=a;x<b;x++)if(component.mask[y*component.w+x]){
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);area++;
+      }
+      if(maxX<minX||maxY<minY)continue;
+      const w=maxX-minX+1,h=maxY-minY+1,mask=new Uint8Array(w*h);
+      for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++)if(component.mask[y*component.w+x])mask[(y-minY)*w+(x-minX)]=1;
+      pieces.push({x:component.x+minX,y:component.y+minY,w,h,area,mask});
+    }
+    return pieces;
+  }
+  function trainingGainNumberByImage(image,rowY,kind){
+    const rect=kind==='blue'?[360,rowY-10,125,50]:[280,rowY-10,110,50];
+    for(const threshold of [140,130,120]){
+      const raw=trainingDigitComponents(image,rect,threshold).filter(c=>{
+        if(kind==='blue')return c.x>=35&&c.x<=110&&c.h>=15;
+        return c.x>=42&&c.x<=92&&c.h>=20;
+      });
+      const pieces=[];
+      for(const c of raw)pieces.push(...splitTrainingDigitComponent(c));
+      pieces.sort((a,b)=>a.x-b.x);
+
+      const digits=[];
+      let prevEnd=null,started=false,failedWide=false;
+      for(const piece of pieces){
+        if(prevEnd!=null&&piece.x-prevEnd>6)break;
+        const digit=classifyGlyph(piece,TRAINING_DIGIT_MASKS,.32);
+        if(!digit){
+          if(started)break;
+          continue;
+        }
+        started=true;
+        digits.push(digit);
+        prevEnd=piece.x+piece.w;
+        if(digits.length===3)break;
+      }
+      if(digits.length)return Number(digits.join(''));
+    }
+    return null;
+  }
+
   async function readTrainingPattern(image){
     if(!(await looksLikeTrainingScreen(image)))return null;
 
@@ -1421,18 +1525,19 @@
       if(cur==null)cur=await trainingNumber(image,[224,y+2,68,42],4);
       current.push(cur);
 
-      let gain=0,found=false;
-      if(trainingBubblePresent(image,y,'yellow')){
-        let v=trainingNumberByImage(image,[292,y,94,45],3,24);
-        if(v==null)v=await trainingNumber(image,[316,y+2,58,40],3);
-        if(Number.isInteger(v)){gain+=v;found=true;}
+      let gain=0,unread=false;
+      for(const kind of ['yellow','blue']){
+        let v=trainingGainNumberByImage(image,y,kind);
+        const present=v!=null||trainingBubblePresent(image,y,kind);
+        if(!present)continue;
+        if(v==null){
+          const rect=kind==='yellow'?[322,y+8,68,30]:[397,y+8,74,30];
+          v=await trainingNumber(image,rect,3);
+        }
+        if(Number.isInteger(v))gain+=v;
+        else unread=true;
       }
-      if(trainingBubblePresent(image,y,'blue')){
-        let v=trainingNumberByImage(image,[382,y,105,45],3,22);
-        if(v==null)v=await trainingNumber(image,[407,y+2,62,40],3);
-        if(Number.isInteger(v)){gain+=v;found=true;}
-      }
-      gains.push(found?gain:0);
+      gains.push(unread?null:gain);
     }
 
     // ここでは訓練画面単独でも使えるよう current+gain を仮値にする。
@@ -1505,7 +1610,10 @@
     // 能力アップ画面が一緒にある場合は、その現在経験点を正本にして各訓練の増加分を加算する。
     if(out.trainingPatterns.length&&EXPS.every(n=>out.exp[n]!=null)){
       for(const pattern of out.trainingPatterns){
-        pattern.exp=Object.fromEntries(EXPS.map(name=>[name,Number(out.exp[name])+Number(pattern.gains?.[name]||0)]));
+        pattern.exp=Object.fromEntries(EXPS.map(name=>{
+          const gain=pattern.gains?.[name];
+          return [name,gain==null?null:Number(out.exp[name])+Number(gain)];
+        }));
       }
     }
 
