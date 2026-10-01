@@ -210,13 +210,6 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
 
     source=replaceOnce(
       source,
-      `function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}`,
-      `function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){let fixed=Number(s[fixedAddIndex()]||0); if(String(s[1])==='癒やしの心'&&job.value==='僧侶') fixed=90; return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}`,
-      '癒しの心 score correction'
-    );
-
-    source=replaceOnce(
-      source,
       `  if(score<=0){\n`,
       `  if(score<=0 && !hasResistanceEffectName(String(s[1]))){\n`,
       'allow dynamic resistance candidates'
