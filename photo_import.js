@@ -101,7 +101,7 @@
   const normalize=s=>String(s).normalize('NFKC').replace(/\s/g,'').replace(/[〇◯]/g,'○');
   const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
   const section=document.createElement('section'); section.className='card photo-card';
-  section.innerHTML=`<h2>画像から自動入力</h2>
+  section.innerHTML=`<h2>ゲーム画像</h2>
     <button id="choosePhotos" class="secondary photo-choose" type="button">画像を選択</button>
     <input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
     <div id="photoPreviews"></div><button id="readPhotos" type="button" disabled>画像を読み取る</button>
