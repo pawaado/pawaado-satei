@@ -694,3 +694,19 @@ img,svg,canvas{max-width:100%}
 
 /* アカデミー選択までは経験点の入力をロックする。 */
 #expInputs input:disabled{background:#e3dac7;color:#6f5c48;opacity:.62;cursor:not-allowed;}
+
+/* 複数パターン比較時の共通加算経験点 */
+.planned-exp-block{
+  margin:0 0 12px;
+  padding:0 2px 12px;
+  border-bottom:1px solid rgba(133,83,28,.34);
+}
+.planned-exp-title{
+  margin:0 0 8px;
+  font-family:"Kaisei Decol",serif;
+  font-size:17px;
+  font-weight:700;
+  color:var(--ink);
+}
+.planned-exp-list{margin:0}
+.planned-exp-block .exp-row input{background:linear-gradient(180deg,#fffef8,#f7edcf)}
