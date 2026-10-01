@@ -3052,7 +3052,30 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
   }
   specialState.clear(); renderSpecials();
   const owned=new Set(data.specials);
-  for(const entry of data.supers||[]) for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]) owned.add(name);
+  const explicitPairMarks=data.explicitPairMarks||{};
+
+  // 画像に○/◎が直接表示されている場合は、その記号を推測より優先する。
+  // まずOCR/画像比較で混ざった同名の○・◎を正規化する。
+  for(const [stem,mark] of Object.entries(explicitPairMarks)){
+    owned.delete(stem+'○');
+    owned.delete(stem+'◎');
+    if(mark==='◎'){owned.add(stem+'○');owned.add(stem+'◎');}
+    else if(mark==='○')owned.add(stem+'○');
+  }
+
+  // 超特殊能力から下位能力を補完する場合も、画面に明示された○/◎があれば上書きしない。
+  for(const entry of data.supers||[]){
+    for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]){
+      const normalized=String(name);
+      const m=normalized.match(/^(.*)([○◎])$/);
+      if(m&&explicitPairMarks[m[1]]){
+        const mark=explicitPairMarks[m[1]];
+        if(mark==='○'){owned.add(m[1]+'○');continue;}
+        if(mark==='◎'){owned.add(m[1]+'○');owned.add(m[1]+'◎');continue;}
+      }
+      owned.add(name);
+    }
+  }
   for(const name of owned){const i=specialNameIndex.get(name);if(i!==undefined) setSpecialOwned(i,true);}
   window.__PAWAADO_SET_SUPERS__?.((data.supers||[]).filter(entry=>D.superResistances[entry.name]));
   calcResultCache.clear();validateAllInline();
