@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261001-explicit-mark-cross-layer-1';
+  const PHOTO_IMPORT_BUILD='20261001-pair-template-first-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -187,6 +187,14 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfMGHcHgAAAB/3/f4/AAAAD/N9/nOAAAAf8/nuYYAAAB/zef5hgAM=',
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHzBh3B4AAAAf9/3+PwAAAA/zff5zgAAAH/P57mGAAAAf83n+YYADAAfzuPhhgAM=',
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8wYdweAAAAH/f9/j8AAAAP833+c4AAAB/z+e5hgAAAH/N5/mGAAwAH87j4YYADAA43+f53AAM='
+  );
+
+  // 2026-10-01 実画像追加：対ドラゴンタートル○。
+  // 長い能力名では汎用の○/◎形状判定が末尾記号以外を拾うことがあるため、能力別テンプレートを優先する。
+  (HYBRID_ABILITY_MASKS['対ドラゴンタートル○']??=[]).push(
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEkHggGAECHA+Qe+weAQY+D5AAZDIBBjYMnPggvvnGIg2eGCGM+e6iI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeCAYAQIcD5B77B4BBj4PkABkMgEGNgyc+CC++cYiDZ4YIYz57qIlkBBjDAEvti6QM+YcAQs+I=',
+    'AAAAAAAAAABJB4IBgBAhwPkHvsHgEGPg+QAGQyAQY2DJz4IL75xiINnhghjPnuoiWQEGMMAS+2LpAz5hwBCz4pkCAEGAEKHCAAAAAAAAAAI='
   );
 
   // 基本能力の数字はOCRを使わず、実画像の数字テンプレート比較だけで判定する。
@@ -1180,7 +1188,7 @@
             if(hybrid.stem===consensus.stem&&!hybrid.candidate)stem=hybrid.stem;
           }
           const shapeMark=markShapeByImage(image,cell);
-          const mark=shapeMark||pairMarkByImage(image,cell,stem);
+          const mark=pairMarkByImage(image,cell,stem)||shapeMark;
           if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
         }
       }
@@ -1215,7 +1223,7 @@
         const shapeMark=stem?markShapeByImage(image,cell):'';
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
         // ○/◎は文字OCRでは決めず、末尾記号そのものの形か○/◎専用画像比較だけで決める。
-        markHint=shapeMark||visualMark;
+        markHint=visualMark||shapeMark;
         // OCRが崩れても、独立した画像名判定と○/◎形状判定が同じ答えなら要確認にしない。
         // 対魔闘士のようにゲームフォントでOCRが弱い能力を、正しく読めているのに警告し続けないため。
         const strongImageStem=stem&&pairStemByImage(image,cell)===stem;
@@ -1251,7 +1259,7 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const shape=markShapeByImage(image,cell)||pairMarkByImage(image,cell,stem);
+            const shape=pairMarkByImage(image,cell,stem)||markShapeByImage(image,cell);
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
