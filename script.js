@@ -1139,6 +1139,61 @@ window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
   document.dispatchEvent(new Event('change',{bubbles:true}));
 };
 
+function applyRecognizedPhotoAbilities(data,{replace=false}={}){
+  const owned=new Set(data.specials||[]);
+  const explicitPairMarks=data.explicitPairMarks||{};
+
+  if(replace){
+    specialState.clear();
+    renderSpecials();
+  }
+
+  // 通常特殊能力の○/◎は、画面に直接見えている記号を正本にする。
+  for(const [stem,mark] of Object.entries(explicitPairMarks)){
+    owned.delete(stem+'○');
+    owned.delete(stem+'◎');
+    if(mark==='◎'){owned.add(stem+'○');owned.add(stem+'◎');}
+    else if(mark==='○')owned.add(stem+'○');
+  }
+
+  // 超特殊能力は名前とLvの両方を確定できたものだけ反映する。
+  const confirmedSupers=(data.supers||[]).filter(entry=>
+    entry.confirmed===true&&(entry.level===1||entry.level===2)
+  );
+
+  // 確定した上位能力だけ、対応する下位能力を取得済みに補完する。
+  for(const entry of confirmedSupers){
+    for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]){
+      owned.add(name);
+    }
+  }
+
+  for(const name of owned){
+    const i=specialNameIndex.get(name);
+    if(i!==undefined)setSpecialOwned(i,true);
+  }
+
+  const resistanceSupers=confirmedSupers.filter(entry=>{
+    const def=D.superResistances[entry.name];
+    if(!def)return false;
+    if(!def.job)return true;
+    return def.job===data.job||def.job===job.value;
+  });
+  // 全体入力では空配列でもリセットする。部分入力では確定値がある時だけ既存欄を置き換える。
+  if(replace||resistanceSupers.length)window.__PAWAADO_SET_SUPERS__?.(resistanceSupers);
+
+  return {owned:[...owned],confirmedSupers,resistanceSupers};
+}
+
+window.__PAWAADO_IMPORT_ABILITIES_ONLY__=data=>{
+  if(isCalculating)throw new Error('計算が終わってから読み込んでください。');
+  applyRecognizedPhotoAbilities(data,{replace:false});
+  calcResultCache.clear();
+  validateAllInline();
+  document.getElementById('result').textContent='';
+  document.dispatchEvent(new Event('change',{bubbles:true}));
+};
+
 window.__PAWAADO_IMPORT_PHOTO__=data=>{
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   if(!jobsByAcademy[data.academy]?.includes(data.job)) throw new Error('アカデミーとジョブを確認してください。');
@@ -1163,31 +1218,7 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     const dualLevel=Number(data.dualAttackLevel);
     window.__PAWAADO_SET_DUAL_ATTACK__?.(Number.isInteger(dualLevel)&&dualLevel>=1&&dualLevel<=6?dualLevel:1,0);
   }
-  specialState.clear(); renderSpecials();
-  const owned=new Set(data.specials);
-  const explicitPairMarks=data.explicitPairMarks||{};
-
-  // 通常特殊能力の○/◎は、画面に直接見えている記号を正本にする。
-  // ただし対応する超特殊能力が認識されている場合は、その超特殊能力の取得条件（◎）が最優先。
-  for(const [stem,mark] of Object.entries(explicitPairMarks)){
-    owned.delete(stem+'○');
-    owned.delete(stem+'◎');
-    if(mark==='◎'){owned.add(stem+'○');owned.add(stem+'◎');}
-    else if(mark==='○')owned.add(stem+'○');
-  }
-
-  // 画像からの超特殊能力は、名前とLvの両方を確定できたものだけ入力に使う。
-  const confirmedSupers=(data.supers||[]).filter(entry=>
-    entry.confirmed===true&&(entry.level===1||entry.level===2)
-  );
-  // 確定した上位超特だけ、対応する下位能力を取得済みに補完する。
-  for(const entry of confirmedSupers){
-    for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]){
-      owned.add(name);
-    }
-  }
-  for(const name of owned){const i=specialNameIndex.get(name);if(i!==undefined) setSpecialOwned(i,true);}
-  window.__PAWAADO_SET_SUPERS__?.(confirmedSupers.filter(entry=>D.superResistances[entry.name]));
+  applyRecognizedPhotoAbilities(data,{replace:true});
   calcResultCache.clear();validateAllInline();
   document.getElementById('result').textContent='';
   document.dispatchEvent(new Event('change',{bubbles:true}));
