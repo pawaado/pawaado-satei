@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,abilityNameExactByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubAbilityResults(fn){readAbilityCells=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
@@ -27,6 +27,7 @@ function setup(){
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
+   stubOneRawAbilityCell(row=1,col=1){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:false}];},
    stubPairCandidateCell(stem,mark){abilityCells=()=>[{rect:[0,0,136,34],row:2,col:3,superCell:false}];abilityByImage=()=>'';elementalAttackByImage=()=>'';collectSpecialReads=async()=>[{text:stem,label:'test'}];hybridPairStem=()=>({stem,candidate:true});pairStemByImage=()=>stem;markShapeByImage=()=>'';pairMarkByImage=()=>mark;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
@@ -123,6 +124,44 @@ test('IMG_1012 long 対ドラゴンタートル○ prefers the exact ○ cell te
  const circle='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABnP4gAAf5tAG4/jgPx/n+AbAAGAHH8QYBmP4BgYfxzAMYBgODhfjMM=';
  h.stubAbilityMask(circle);
  assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
+});
+test('IMG_1037 exact masks recognize 柔軟な体・風耐性・無耐性・列回復◎',()=>{
+ const {h}=setup();
+ const cases=[
+  ['柔軟な体','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/DMGAmAAAAB8f9/GYAAAAf5/3+f4AAAB/n+MRvAAAACYe4zG8AAQAf97m+f4ADAAfDee5/gAM='],
+  ['風耐性','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+fMzAAAAAAP583eAAAAAA/n3f8AAAAAD+fN/AAAAAAP5/3eAAAgAA/n3N4AACAACffMzAAAI='],
+  ['無耐性','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgPsRAAAAAAP8+1/AAAAAA/z/X8AAAAAD/PtdAAAAAAH8/1fAAAgAA/z/F8AACAAD/PsTAAAI='],
+  ['列回復◎','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/v+f4+AAAAHu/7/FcAAAAe7/n+pwAAAB7vef5AgAAAHu97/kCAAgAO7/n8owACABxuOfx1AAI=']
+ ];
+ for(const [name,encoded] of cases){
+   h.stubAbilityMask(encoded);
+   assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
+   assert.equal(h.abilityNameExactByImage({}, {rect:[0,0,136,34],superCell:false},name),true,name+' exact');
+ }
+});
+test('IMG_1037 柔軟な体 exact image does not leave a candidate warning',async()=>{
+ const {h}=setup();
+ h.stubOneRawAbilityCell(1,4);
+ h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/DMGAmAAAAB8f9/GYAAAAf5/3+f4AAAB/n+MRvAAAACYe4zG8AAQAf97m+f4ADAAfDee5/gAM=');
+ const r=await h.readAbilityCells({},2);
+ assert(r.specials.includes('柔軟な体'));
+ assert(!r.warnings.some(w=>w.includes('柔軟な体')));
+});
+test('IMG_1037 列回復◎ exact full-cell name is not overwritten as 列攻撃◎',async()=>{
+ const {h}=setup();
+ h.stubOneRawAbilityCell(3,2);
+ h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/v+f4+AAAAHu/7/FcAAAAe7/n+pwAAAB7vef5AgAAAHu97/kCAAgAO7/n8owACABxuOfx1AAI=');
+ const r=await h.readAbilityCells({},2);
+ assert(r.specials.includes('列回復◎'));
+ assert(!r.specials.includes('列攻撃◎'));
+});
+test('IMG_1037 風耐性 exact image is not replaced by ～攻撃 fallback',async()=>{
+ const {h}=setup();
+ h.stubOneRawAbilityCell(2,2);
+ h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+fMzAAAAAAP583eAAAAAA/n3f8AAAAAD+fN/AAAAAAP5/3eAAAgAA/n3N4AACAACffMzAAAI=');
+ const r=await h.readAbilityCells({},2);
+ assert(r.specials.includes('風耐性'));
+ assert(!r.specials.includes('〜攻撃'));
 });
 test('IMG_1038 exact mask recognizes 対僧侶◎ and not 対植物◎',()=>{
  const {h}=setup();
