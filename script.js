@@ -1214,22 +1214,52 @@ window.__PAWAADO_IMPORT_ABILITIES_ONLY__=data=>{
 window.__PAWAADO_IMPORT_PHOTO__=data=>{
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   if(!jobsByAcademy[data.academy]?.includes(data.job)) throw new Error('アカデミーとジョブを確認してください。');
-  const hasCharacterExp=expNames.every(n=>Number.isInteger(data.exp?.[n])&&data.exp[n]>=0);
-  const hasTrainingPatterns=Array.isArray(data.trainingPatterns)&&data.trainingPatterns.length>0;
-  if(!hasCharacterExp&&!hasTrainingPatterns) throw new Error('経験点を確認してください。');
+
   const row=D.academies.find(r=>r[0]===data.academy&&r[1]===data.job);
-  if(!basicNames.every((n,i)=>Number.isInteger(data.basic[n])&&data.basic[n]>=1&&data.basic[n]<=row[i+2])) throw new Error('基本能力とアカデミー・ジョブの組み合わせを確認してください。');
   const max=data.academy==='ブートレインアカデミー'?BOOTRAIN_EXP_LIMITS:Object.fromEntries(expNames.map(n=>[n,1000]));
-  if(hasCharacterExp&&!expNames.every(n=>data.exp[n]<=max[n])) throw new Error('経験点が保持上限を超えています。');
+  const warnings=Array.isArray(data.warnings)?data.warnings:(data.warnings=[]);
+  const addWarning=message=>{if(message&&!warnings.includes(message))warnings.push(message);};
+
+  // まず確定できた項目を反映し、1項目の未読で全入力を止めない。
   academy.value=data.academy;
   academy.dispatchEvent(new Event('change',{bubbles:true}));
   job.value=data.job;
   job.dispatchEvent(new Event('change',{bubbles:true}));
-  if(hasCharacterExp){expSamples=[{...data.exp}]; renderExp();}
-  basicNames.forEach(n=>{
-    basicHints[n]=0; basicOwned[n]=false;
-    document.getElementById('basic_'+n).value=data.basic[n]; applyBasicVisual(n);
+
+  const hasTrainingPatterns=Array.isArray(data.trainingPatterns)&&data.trainingPatterns.length>0;
+  const expRow={};
+  let validExpCount=0;
+  for(const n of expNames){
+    const value=data.exp?.[n];
+    const valid=Number.isInteger(value)&&value>=0&&value<=Number(max[n]);
+    expRow[n]=valid?String(value):'';
+    if(valid)validExpCount++;
+  }
+  if(validExpCount){
+    expSamples=[expRow];
+    renderExp();
+  }
+  if(validExpCount<expNames.length&&!hasTrainingPatterns){
+    addWarning('経験点を一部読み取れませんでした。経験点を確認してください。');
+  }
+  const overLimit=expNames.filter(n=>Number.isInteger(data.exp?.[n])&&data.exp[n]>Number(max[n]));
+  if(overLimit.length)addWarning('経験点が保持上限を超えている項目があります。経験点を確認してください。');
+
+  let validBasicCount=0;
+  basicNames.forEach((n,i)=>{
+    basicHints[n]=0;
+    basicOwned[n]=false;
+    const value=data.basic?.[n];
+    const valid=Number.isInteger(value)&&value>=1&&value<=Number(row[i+2]);
+    const input=document.getElementById('basic_'+n);
+    if(input)input.value=valid?String(value):'';
+    if(valid)validBasicCount++;
+    applyBasicVisual(n);
   });
+  if(validBasicCount<basicNames.length){
+    addWarning('基本能力を一部読み取れませんでした。基本能力を確認してください。');
+  }
+
   if(data.job==='双剣士'){
     // 双剣士専用「通常攻撃」は通常の特殊能力とは別枠で、画像から読んだLvをそのまま反映する。
     const dualLevel=Number(data.dualAttackLevel);
