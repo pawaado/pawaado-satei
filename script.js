@@ -1185,7 +1185,10 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     }
   }
   for(const name of owned){const i=specialNameIndex.get(name);if(i!==undefined) setSpecialOwned(i,true);}
-  window.__PAWAADO_SET_SUPERS__?.((data.supers||[]).filter(entry=>D.superResistances[entry.name]));
+  // Lvを確定できない耐性超特は自動選択しない。名称だけ入った未確定状態を作らないため。
+  window.__PAWAADO_SET_SUPERS__?.((data.supers||[]).filter(entry=>
+    D.superResistances[entry.name]&&(entry.level===1||entry.level===2)
+  ));
   calcResultCache.clear();validateAllInline();
   document.getElementById('result').textContent='';
   document.dispatchEvent(new Event('change',{bubbles:true}));
