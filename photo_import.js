@@ -2,15 +2,15 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1053-partial-import-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1052-1059-hp-super-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
-  const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
+  const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances||{}),...Object.keys(D.superScoreRules||{}),...Object.keys(D.superPrerequisites||{})])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','そよかぜの加護','魔力探求','魔力開眼','鉄壁の盾','タフネス','魔族キラー']);
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','魔力探求','魔力開眼','鉄壁の盾','魔族キラー']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
@@ -303,6 +303,30 @@
     ]
   };
   for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1049)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
+
+  // 2026-10-03 IMG_1052 / IMG_1059 実画像。
+  // HP依存で査定が変動する超特殊能力3種を、名称とLvを分離して読み取る。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1052_1059={
+    "そよかぜの加護":[
+      "AAAAAAAAAAAAAAAAAAAAAAIgQICYMED/ANgedjY/P7+ALAc+v9/Pp+AfwQb2ZtHr+AXD4byZ5PoeAEC+SCB7Pr+AHj22D43O7uAHjw2D4WO7+AA=",
+      "AAAAAAAAAAAAAAAAAAAAAAYgQMCcMM7/ANgefnc/P7+ALAc/v9/P7+AfwQb2ZtP7+AXD4byZ5P7+EED+yCB7P7+EHj22D4/P7uEHjw+D4WO7+EA=",
+      "AAAAAAAAAAAAAAAAAAAAAAYwQMCccM7/ANge/n8/P7+ALAe/v9/P7+AfwQb2ZtP7+AfD4b2Z5P7+MGD+yGB7P7+MHj22D4/P7+MHjw+D4WO7+MA="
+    ],
+    "タフネス":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAYAADAAAAAAAfn+fx+AAAAAxgMfwGAAAAB7gMDgOAAAAAfAcPwcAAAAAGA4e4+AAAAAeBwSZ3AAAAA4DgCBjgAAA=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAYF8DAAAAAAA/n+fx+AAAAAxgMfwGAAAAB7gMDgOAAAAAfAcPwcAAIAAHA4/4+AAIAAeBwTZ3AAIAA4DgDBjgAIA=",
+      "AAAAAAAAAAIAAAAAAAAAAAAAYH8DAAAAAAA/n+fx+AAAAAxgMfwGAAAAB/gMDgOAAAAAfAcPwcAAIAAHA4/4+AAIAAeBwTZ3AAIAA4DgDBjgAIA="
+    ],
+    "大真面目":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAMH+/5/AAAAAMD8GBjAAAAB/mMfx/AAAAAMGMXR/AAAAAeH8XR/AAAAA/H+XR/AAAABzn+fx/AAAABhnOfx/AAAA=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAMH+/5/AAAAAcH8HBjAAAAB/mMfx/AAAAAMGMXR/AAAAAeH8XR/AAIAA/H+XR/AAIABzn+fx/AAIABhnOfx/AAIA=",
+      "AAAAAAAAAAIAAAAAAAAAAAAAMH+/5/AAAAAfH8HBjAAAAB/n8fx/AAAAAMH8fR/AAAAAeH8XR/AAIAA/H+XR/AAIABzn+fx/AAIABhnO/x/AAIA="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1052_1059)){
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
   }
@@ -2277,7 +2301,7 @@
       superMap.set(s.name,s);
     }
     out.supers=[...superMap.values()];
-    for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「耐性に影響する超特殊能力」でLvを確認してください。');
+    for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「査定が変動する超特殊能力」でLvを確認してください。');
     if(out.abilityUpScreens||out.dataScreens||out.trainingPatterns.length){
       if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・基本能力・取得済み特殊能力を確認してください。');
       if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
