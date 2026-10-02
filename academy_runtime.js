@@ -98,8 +98,6 @@
     }
     function currentLevelIsValid(){return dualLevel<=maxValidDualLevel(dexValue());}
     function cycleDualHint(){dualHint=dualHint>=5?0:dualHint+1;}
-    global.__PAWAADO_DUAL_ATTACK_SIGNATURE__=()=>isDual()?dualLevel+':'+dualHint:'';
-
     function syncJobLabel(){
       const a=academyEl(),j=jobEl();
       if(!a||!j) return;
