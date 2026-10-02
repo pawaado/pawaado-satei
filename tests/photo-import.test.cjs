@@ -15,9 +15,10 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,cellAbility,findSpecials,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,decodeMask,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
+   stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
@@ -35,6 +36,17 @@ test('ability data job icon fills job',async()=>{
  const {h}=setup();h.stubReads();
  const r=await h.readImages([{kind:'data',dataJob:'重戦士'},{job:'重戦士',exp:100}]);
  assert.equal(r.job,'重戦士');
+});
+test('near-exact data job icon is accepted even when the second-place margin is narrow',()=>{
+ const {h}=setup();h.stubDataJobScores([100,150,900,900,900,900,900]);
+ assert.equal(h.dataJobByIcon({}),'重戦士');
+});
+test('near-exact academy crop is accepted despite a narrow score ratio',()=>{
+ const {h}=setup();
+ assert.equal(h.academyNameFromScores([
+  {name:'パワフルアカデミー',error:250},
+  {name:'タテレスキュアアカデミー',error:310}
+ ]),'パワフルアカデミー');
 });
 test('ability data falls back to the visible header job text when icon comparison misses',async()=>{
  const {h}=setup();h.stubDataJobHeader('重戦士');
@@ -93,6 +105,13 @@ test('training patterns are still applied and treated as success when character 
  assert.equal(get('photoStatus').textContent,'自動入力しました。');
  assert.equal(get('photoUncertain').hidden,false);
  assert.doesNotMatch(get('photoStatus').textContent,/失敗/);
+});
+test('IMG_1006/IMG_1007 mental 591 final digit is locked to 1',()=>{
+ const {h}=setup();
+ const encoded='A/A/B/////5/A/A/A/A/A/A/A/A/A/A/';
+ assert(h.trainingCurrentDigitMasks['1'].includes(encoded));
+ const mask=h.decodeMask(encoded,12*16);
+ assert.equal(h.classifyTrainingGlyph({mask,w:12,h:16},h.trainingCurrentDigitMasks,.20),'1');
 });
 test('a third screenshot cannot erase an EXP conflict',async()=>{
  const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'剣士',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,'剣士');assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));

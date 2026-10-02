@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-training-job-3';
+  const PHOTO_IMPORT_BUILD='20261002-img1009-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -341,7 +341,7 @@
 
   const TRAINING_CURRENT_EXTRA_MASKS={
     '0':['D4H8P+cPcH8H4H4D4D4D8H8HcPcPP+H8'],
-    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP'],
+    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/'],
     '2':['D8P+P/cHcHAHAPAPB8DwDwOAMAcAf///','BwH+P/8H8HAHAHAfA+B8HgPAcA8A////'],
     '3':['H8P/cHADADADAMB8AeAHADABABAD8Pf/','H8P+ffIHAHAHAOB8B+AfADADAD8Hf/P+'],
     '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA'],
@@ -1015,6 +1015,9 @@
       .map(([job,ref])=>({job,error:byteMse(sample,ref)}))
       .sort((a,b)=>a.error-b.error);
     const best=ranked[0],second=ranked[1];
+    // 実画像テンプレートに極めて近い場合は、JPEG再圧縮や縮小で2位との差が狭まっても採用する。
+    // IMG_1009の重戦士アイコンのようなほぼ同一画像を「曖昧」として落とさない。
+    if(best&&best.error<120)return best.job;
     return best&&best.error<700&&(!second||(second.error-best.error)>80&&second.error>best.error*1.25)?best.job:'';
   }
   async function dataJobFromHeader(image){
@@ -1031,11 +1034,18 @@
     return {job:await dataJobFromHeader(image)};
   }
   let refs;
+  function academyNameFromScores(scores){
+    const best=scores[0],second=scores[1];
+    if(!best)return '';
+    // 学院テンプレートとほぼ同一なら、JPEG化で2位との差の比率だけが縮んでも確定する。
+    if(best.error<300)return best.name;
+    return second&&best.error<1400&&second.error>best.error*1.35?best.name:'';
+  }
   async function academyOf(image){
     refs ||= Promise.all(REFERENCES.map(async ([name,file])=>({name,pixels:vector(await imageFrom(`./assets/academies/${file}.png`))}))).catch(error=>{refs=null;throw error;});
     const pixels=vector(canvasCrop(image,[417,280,104,115],1));
     const scores=(await refs).map(ref=>{let error=0;for(let i=0;i<pixels.length;i++)if(i%4!==3)error+=(pixels[i]-ref.pixels[i])**2;return {name:ref.name,error:error/(32*32*3)};}).sort((a,b)=>a.error-b.error);
-    return scores[0].error<1400 && scores[1].error>scores[0].error*1.35?scores[0].name:'';
+    return academyNameFromScores(scores);
   }
   async function getWorker(){
     if(worker) return worker;
