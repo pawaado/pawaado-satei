@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1088-action-double-2';
+  const PHOTO_IMPORT_BUILD='20261003-img1090-1092-action-pair-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -405,6 +405,28 @@
   );
   HYBRID_ABILITY_MASKS['アクションスキル○']=(HYBRID_ABILITY_MASKS['アクションスキル○']||[])
     .filter(v=>!HYBRID_ABILITY_MASKS['アクションスキル◎'].includes(v));
+
+  // 2026-10-03 IMG_1090/IMG_1092 実画像。
+  // 同じ魔法使い・同じセル位置で、IMG_1090 はアクションスキル○、
+  // IMG_1092 はアクションスキル◎。末尾記号だけが違う実画像を同時に正本へ追加する。
+  // 文字列全体の近さではなく、同一条件で切り出した○/◎の実テンプレートを比較できるようにする。
+  const EXTRA_ACTION_MASKS_20261003_IMG1090_1092={
+    'アクションスキル○':[
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA AfMEAGDwgYcB88YQcPHjj4AySB4gM+OJgOZMggQww6iA4MWeDDH36IiBgwIYc+fJiYOOHnDYRc+I=',
+      'AAAAAAAAAAAAAAAAAAAAAHzBABg8IGHAfPGEHDx44+AMkgeIDPjiYDmTIIEMMOogODFngwx9+iIgYMCGHPnyYmDjh5w2EXPiYMEHiCIRYcI=',
+      'AAAAAAAAAAB8wQAYPCBhwHzxhBw8eOPgDJIHiAz44mA5kyCBDDDqIDgxZ4MMffoiIGDAhhz58mJg44ecNhFz4mDBB4giEWHCAAAAAAAAAAI='
+    ],
+    'アクションスキル◎':[
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA AfMEAGDwgYAB88YUcPHjgAAySB4gM+OAAOZMggQww6AA4MWeDDH34AiBgwIYc+fACYOOHnDYRcAI=',
+      'AAAAAAAAAAAAAAAAAAAAAHzBABg8IGAAfPGFHDx44AAMkgeIDPjgADmTIIEMMOgAODFngwx9+AIgYMCGHPnwAmDjh5w2EXACYMEHiCIRYAI=',
+      'AAAAAAAAAAB8wQAYPCBgAHzxhRw8eOAADJIHiAz44AA5kyCBDDDoADgxZ4MMffgCIGDAhhz58AJg44ecNhFwAmDBB4giEWACAAAAAAAAAAI='
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ACTION_MASKS_20261003_IMG1090_1092)){
+    const cleaned=variants.map(v=>v.replace(/\s+/g,''));
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...cleaned])];
+  }
 
   // 2026-10-01 実画像追加：対ドラゴンタートル○。
   // 長い能力名では末尾の○が横方向に圧縮されるため、セル全体テンプレートを優先する。
