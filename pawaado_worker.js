@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261002-no-attribute-2');
+importScripts('./data.js?v=20261003-variable-super-hp-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -12,6 +12,7 @@ const DUAL_SKILL_INDEX=DUAL_MASTER?D.special.findIndex(s=>String(s[1])===String(
 let workerDualEnabled=false;
 let workerDualLevel=Number(DUAL_MASTER?.initialLevel||1);
 let workerDualHint=0;
+let workerSelectedSupers=[];
 
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const mutualGroups=[
@@ -138,6 +139,36 @@ function initialLifeValue(){
   return Number(basicValues['生命力']||1);
 }
 
+function normalizeSelectedSupers(rows){
+  const out=[];
+  const seen=new Set();
+  for(const row of Array.isArray(rows)?rows:[]){
+    const name=String(row?.name||'');
+    const level=Number(row?.level||0);
+    if(!name||seen.has(name)||(level!==1&&level!==2))continue;
+    if(!D.superResistances?.[name]&&!D.superScoreRules?.[name])continue;
+    seen.add(name);
+    out.push({name,level});
+  }
+  return out;
+}
+
+function selectedSuperHpRate(entry){
+  const rates=D.superScoreRules?.[entry?.name]?.hpRates;
+  const rate=Number(Array.isArray(rates)?rates[Number(entry?.level)-1]:0);
+  return Number.isFinite(rate)?rate:0;
+}
+
+function selectedSuperHpDelta(oldHp,newHp){
+  if(oldHp===newHp)return 0;
+  let delta=0;
+  for(const entry of workerSelectedSupers){
+    const rate=selectedSuperHpRate(entry);
+    if(rate)delta+=(Number(newHp)-Number(oldHp))*rate;
+  }
+  return delta;
+}
+
 function ownedHpDependentBreakdown(life){
   const baseHp=currentHpForLife(initialLifeValue());
   const finalHp=currentHpForLife(life);
@@ -162,6 +193,17 @@ function ownedHpDependentBreakdown(life){
       delta
     });
     total=total+delta;
+  }
+
+  for(const entry of workerSelectedSupers){
+    const rate=selectedSuperHpRate(entry);
+    if(!rate)continue;
+    const before=baseHp*rate;
+    const after=finalHp*rate;
+    const delta=after-before;
+    if(delta===0)continue;
+    rows.push({name:`${entry.name} Lv${entry.level}`,before,after,delta});
+    total+=delta;
   }
 
   return {baseHp,finalHp,total,rows};
@@ -460,6 +502,7 @@ function mixedBasicActions(st,exp){
         const oldHp=currentHpForLife(from);
         const newHp=currentHpForLife(to);
         gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp);
+        gain+=selectedSuperHpDelta(oldHp,newHp);
       }
       actions.push({...op,gain,efficiency:gain/Math.max(1,op.costSum)});
     }
@@ -862,12 +905,17 @@ function __workerPayloadConfigKey(payload){
       Number(state?.own||0)
     ])
     .sort((a,b)=>Number(a[0])-Number(b[0]));
+  const selectedSuperPart=(payload.selectedSupers||[])
+    .map(row=>[String(row?.name||''),Number(row?.level||0)])
+    .filter(row=>row[0]&&(row[1]===1||row[1]===2))
+    .sort((a,b)=>a[0].localeCompare(b[0],'ja')||a[1]-b[1]);
   return JSON.stringify([
     String(payload.academy||''),
     String(payload.job||''),
     dualPart,
     basicPart,
-    specialPart
+    specialPart,
+    selectedSuperPart
   ]);
 }
 
@@ -898,6 +946,7 @@ function __applyWorkerPayload(payload){
         own:Number(state?.own||0)
       });
     }
+    workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[]);
 
     clearCalcCaches();
     hpByLifeCache.clear();
