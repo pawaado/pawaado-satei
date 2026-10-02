@@ -1720,6 +1720,15 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
+      // アクションスキルだけは○/◎の全体像が非常に近いため、一般照合が○を返した時だけ
+      // 同じ能力名の○/◎専用比較で再確認する。◎側の実画像テンプレートも完全一致する場合に限って
+      // ◎へ補正するので、対ドラゴンタートル等ほかの○/◎能力の判定には影響させない。
+      if(normalize(visualName)==='アクションスキル○'){
+        const actionMark=pairMarkByImage(image,cell,'アクションスキル');
+        if(actionMark==='◎'&&abilityNameExactByImage(image,cell,'アクションスキル◎')){
+          visualName='アクションスキル◎';
+        }
+      }
       let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
 
       // IMG_1080: アクションスキルは文字列が長く、末尾の○/◎が横方向に圧縮される。
