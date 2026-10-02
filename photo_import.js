@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-attribute-flow-2';
+  const PHOTO_IMPORT_BUILD='20261002-attribute-flow-3';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1804,18 +1804,17 @@
         if(!knownTab&&!title.includes('能力アップ')&&!jobResult.job&&!enoughExp){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
         out.abilityUpScreens++;
         if(jobResult.candidate)out.warnings.push('ジョブの候補：'+jobResult.job+'（要確認）');
-        mergeField(abilityUpIdentity,'job',jobResult.job,'能力アップのジョブ');
+        if(jobResult.job)abilityUpIdentity.job=jobResult.job;
         EXPS.forEach((n,j)=>mergeField(out.exp,n,exp[j],n+'経験点'));
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
-    const abilityUpJobConflict=conflicts.get(abilityUpIdentity)?.has('job');
     const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
     if(abilityUpIdentity.job&&dataIdentity.job&&abilityUpIdentity.job!==dataIdentity.job){
       out.warnings.push(`ジョブの読み取り値が一致しません。能力アップ画面の文字判定（${abilityUpIdentity.job}）を優先しました。`);
     }
-    if(abilityUpJobConflict||(!abilityUpIdentity.job&&dataJobConflict))out.job=null;
+    if(!abilityUpIdentity.job&&dataJobConflict)out.job=null;
     else out.job=abilityUpIdentity.job||dataIdentity.job||'';
     out.attribute=dataIdentity.attribute||'';
 
