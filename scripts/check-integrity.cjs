@@ -46,6 +46,12 @@ assert(sources['academy_runtime.js'].includes('__PAWAADO_DUAL_ATTACK_SIGNATURE__
 assert(sources['script.js'].includes("'dualAttack:'+dualPart"),'calculation cache key must include dual attack level/hint');
 assert(sources['script.js'].includes('disabledBeforeCalc'),'calculation must restore prior disabled states');
 assert(!sources['script.js'].includes("querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;})"),'calculation must not blindly enable every control');
+assert.equal((sources['resistance_patch.js'].match(/function removeSupersRequiringSpecial\(/g)||[]).length,1,'resistance_patch.js must define one lower-to-super remover');
+assert.equal((sources['academy_runtime.js'].match(/__PAWAADO_DUAL_ATTACK_SIGNATURE__/g)||[]).length,1,'academy_runtime.js must expose one dual cache signature getter');
+assert(!/^\s*async\s*$/m.test(sources['script.js']),'script.js contains an orphan async keyword');
+assert(!sources['script.js'].includes('function prune('),'script.js must not contain the removed browser-side optimizer');
+assert(!sources['script.js'].includes('function itemForSpecialIndex('),'script.js must not contain the removed browser-side special candidate engine');
+assert(!sources['script.js'].includes('MIXED_BRANCH_NORMAL'),'script.js must not contain removed mixed-search tuning constants');
 for(const deadName of ['TARGET_DEBUG','function optimizeMixedAsync','function optimizeSpecialsForLife','function buildBasicStates']){
  assert(!sources['script.js'].includes(deadName),`script.js: obsolete local calculation/debug code remained: ${deadName}`);
 }
