@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261003-variable-super-hp-1';
+  const PATCH_VERSION='20261003-ironwall-hp-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -103,7 +103,7 @@
     if(!result)return;
     const safe=String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
     const formatted=safe==='査定が変動する超特殊能力のLvを選択してください。'
-      ? '<span class="error-no-break">耐性に影響する超特殊能力のLvを</span><wbr><span class="error-no-break">選択してください。</span>'
+      ? '<span class="error-no-break">査定が変動する超特殊能力のLvを</span><wbr><span class="error-no-break">選択してください。</span>'
       : safe;
     result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+formatted+'</li></ul></div>';
     result.closest('.result-card')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -247,6 +247,7 @@
     'タフネス',
     '超免疫',
     '鉄人',
+    '鉄壁の盾',
     '百戦の生存術',
     'ファイアプロテクション',
     '不朽の意志',

@@ -67,3 +67,21 @@ test('HP-dependent super Lv1/Lv2 rates match master data',()=>{
     assert(Math.abs((r.gain-r.base)-expected)<1e-9,`${name} Lv${level}`);
   }
 });
+
+test('鉄壁の盾 HP rate applies only to 重戦士',()=>{
+  const c=loadWorker();
+  const names=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
+  const heavy=c.PAWAADO_DATA.academies.find(r=>r[1]==='重戦士'&&Number(r[2])>=91);
+  assert(heavy);
+  const heavyPayload={
+    academy:heavy[0],job:'重戦士',
+    basicValues:Object.fromEntries(names.map((n,i)=>[n,i===0?90:1])),
+    basicOwned:Object.fromEntries(names.map(n=>[n,false])),
+    basicHints:Object.fromEntries(names.map(n=>[n,0])),
+    specialState:[],selectedSupers:[{name:'鉄壁の盾',level:2}]
+  };
+  const onJob=lifeGain(c,heavyPayload);
+  assert(Math.abs((onJob.gain-onJob.base)-13.6)<1e-9);
+  const offJob=lifeGain(c,payloadFor(c,{selectedSupers:[{name:'鉄壁の盾',level:2}]}));
+  assert(Math.abs(offJob.gain-offJob.base)<1e-9);
+});

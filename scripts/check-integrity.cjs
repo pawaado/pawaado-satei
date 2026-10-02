@@ -68,6 +68,8 @@ const specialNames=new Set((data.special||[]).map(row=>String(row[1]||'')));
 assert.equal(JSON.stringify(data.superScoreRules?.['タフネス']?.hpRates),JSON.stringify([0.10,0.20]),'data.js: タフネス HP rates');
 assert.equal(JSON.stringify(data.superScoreRules?.['そよかぜの加護']?.hpRates),JSON.stringify([0.11,0.22]),'data.js: そよかぜの加護 HP rates');
 assert.equal(JSON.stringify(data.superScoreRules?.['大真面目']?.hpRates),JSON.stringify([0.06,0.10]),'data.js: 大真面目 HP rates');
+assert.equal(JSON.stringify(data.superScoreRules?.['鉄壁の盾']?.hpRates),JSON.stringify([0.10,0.20]),'data.js: 鉄壁の盾 HP rates');
+assert.equal(data.superScoreRules?.['鉄壁の盾']?.job,'重戦士','data.js: 鉄壁の盾 must be 重戦士-only');
 const checkEffect=(name,type,value)=>{assert(specialNames.has(name),`data.js: unknown resistance skill ${name}`);assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown resistance type ${type} for ${name}`);assert(Number.isFinite(Number(value))&&Number(value)!==0,`data.js: invalid resistance value for ${name}`);};
 for(const pair of resistanceRules.pairSources){for(const type of pair.types||[pair.type]){checkEffect(pair.lower,type,pair.lowerValue);checkEffect(pair.upper,type,Number(pair.upperValue)-Number(pair.lowerValue));}}
 for(const [name,effects] of Object.entries(resistanceRules.directEffects))for(const [type,value] of effects)checkEffect(name,type,value);
@@ -84,7 +86,9 @@ assert(sources['script.js'].includes('selectedSupers:selectedSuperState()'),'scr
 assert(sources['pawaado_worker.js'].includes('gain+=selectedSuperHpDelta(oldHp,newHp)'),'worker life gain must include selected super HP delta');
 assert(sources['pawaado_worker.js'].includes('workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[])'),'worker must apply selected super state');
 assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1052_1059'),'photo_import.js: IMG_1052/1059 HP-super templates missing');
-assert(!/IGNORED_SUPER_IMAGE_NAMES[^\n]*(?:タフネス|そよかぜの加護)/.test(sources['photo_import.js']),'photo_import.js: HP-dependent supers must not remain ignored');
+assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1064'),'photo_import.js: IMG_1064 鉄壁の盾 template missing');
+assert(!/IGNORED_SUPER_IMAGE_NAMES[^\n]*(?:タフネス|そよかぜの加護|鉄壁の盾)/.test(sources['photo_import.js']),'photo_import.js: variable-score supers must not remain ignored');
+assert(sources['pawaado_worker.js'].includes("if(def.job&&def.job!==job.value)continue;"),'worker must reject job-specific supers for the wrong job');
 assert(sources['resistance_patch.js'].includes('査定が変動する超特殊能力'),'variable-score super UI title missing');
 assert(sources['script.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'script must expose super-to-lower ownership sync');
 assert(sources['script.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'script must remove an upper super when an included lower ability is manually removed');

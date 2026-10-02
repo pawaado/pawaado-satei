@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1052-1059-hp-super-2';
+  const PHOTO_IMPORT_BUILD='20261003-img1064-ironwall-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -10,7 +10,7 @@
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances||{}),...Object.keys(D.superScoreRules||{}),...Object.keys(D.superPrerequisites||{})])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','魔力探求','魔力開眼','鉄壁の盾','魔族キラー']);
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','魔力探求','魔力開眼','魔族キラー']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
@@ -327,6 +327,19 @@
     ]
   };
   for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1052_1059)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
+
+  // 2026-10-03 IMG_1064 実画像。重戦士専用「鉄壁の盾」を査定変動超特として入力対象化。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1064={
+    "鉄壁の盾":[
+      "AAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdx/gA/wAAAD/n+Pz+AAAAH+d5/P+AAAAfz/s2/wAAAB/n+2bzAAI=",
+      "AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHcf4AP8AAAA/5/j8/gAAAB/nefz/gAAAH8/7Nv8AAAAf5/tm8wACAB3H827/AAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB3H+AD/AAAAP+f4/P4AAAAf53n8/4AAAB/P+zb/AAAAH+f7ZvMAAgAdx/Nu/wACAB/n8dz/AAI="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1064)){
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
   }

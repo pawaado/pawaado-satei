@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261003-variable-super-hp-1');
+importScripts('./data.js?v=20261003-ironwall-hp-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -146,7 +146,9 @@ function normalizeSelectedSupers(rows){
     const name=String(row?.name||'');
     const level=Number(row?.level||0);
     if(!name||seen.has(name)||(level!==1&&level!==2))continue;
-    if(!D.superResistances?.[name]&&!D.superScoreRules?.[name])continue;
+    const def=D.superResistances?.[name]||D.superScoreRules?.[name];
+    if(!def)continue;
+    if(def.job&&def.job!==job.value)continue;
     seen.add(name);
     out.push({name,level});
   }

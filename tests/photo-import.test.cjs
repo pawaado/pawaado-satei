@@ -27,7 +27,7 @@ function setup(){
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
-   stubOneSuperAbilityCell(row=3,col=2){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:true}];elementalAttackByImage=()=>'';levelByImage=()=>1;},
+   stubOneSuperAbilityCell(row=3,col=2,level=1){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:true}];elementalAttackByImage=()=>'';levelByImage=()=>level;},
    stubOneRawAbilityCell(row=1,col=1){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:false}];},
    stubPairCandidateCell(stem,mark){abilityCells=()=>[{rect:[0,0,136,34],row:2,col:3,superCell:false}];abilityByImage=()=>'';elementalAttackByImage=()=>'';collectSpecialReads=async()=>[{text:stem,label:'test'}];hybridPairStem=()=>({stem,candidate:true});pairStemByImage=()=>stem;markShapeByImage=()=>'';pairMarkByImage=()=>mark;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
@@ -518,9 +518,24 @@ test('IMG_1052/1059 confirmed HP-dependent supers keep their Lv and do not becom
   assert(!r.warnings.some(w=>w.includes(name)),name);
  }
 });
+test('IMG_1064 鉄壁の盾 is recognized as a confirmed variable-score super',()=>{
+ const {h}=setup();
+ const r=h.cellAbility('鉄壁の盾','',true);
+ assert.equal(r.supers.length,1);
+ assert.equal(r.supers[0].name,'鉄壁の盾');
+ assert.equal(r.supers[0].confirmed,true);
+});
+test('IMG_1064 exact mask recognizes 鉄壁の盾 and keeps Lv2',async()=>{
+ const iron='AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHcf4AP8AAAA/5/j8/gAAAB/nefz/gAAAH8/7Nv8AAAAf5/tm8wACAB3H827/AAI=';
+ const {h}=setup();h.stubOneSuperAbilityCell(2,2,2);h.stubAbilityMask(iron);
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:true}),'鉄壁の盾');
+ const r=await h.readAbilityCells({},1);
+ assert.equal(r.supers.find(x=>x.name==='鉄壁の盾')?.level,2);
+ assert(!r.warnings.some(w=>w.includes('鉄壁の盾')));
+});
 test('ignored gold abilities never become variable-score supers',()=>{
  const {h}=setup();
- for(const name of ['鉄壁の盾','魔族キラー','剛力']){
+ for(const name of ['魔族キラー','剛力']){
   const r=h.cellAbility(name,'',true);
   assert.equal(r.supers.length,0,name);
   assert.equal(r.candidate,false,name);
