@@ -21,13 +21,9 @@ const mutualGroups=[
   ['力学の理解','魔法の理解']
 ];
 
-const __workerElements=new Map();
-const document={getElementById(id){return __workerElement(id);}};
-self.document=document;
-globalThis.document=document;
-const academy=document.getElementById('academy');
-const job=document.getElementById('job');
-
+const academy={value:''};
+const job={value:''};
+const basicValues={}; basicNames.forEach(n=>basicValues[n]=1);
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
@@ -38,7 +34,6 @@ D.special.forEach((s,i)=>{
   if(s[2]) specialReqIndex.set(String(s[2]),i);
 });
 
-let cancelRequested=false;
 const EMPTY_ITEMS=[];
 const EMPTY_BITS=0n;
 const specialBitCache=[];
@@ -58,15 +53,6 @@ let mixedHpDeltaCache=new Map();
 let mixedSpecialTemplateCache=new Map();
 let mixedLimitsCache=null;
 let mixedHpDependentMetaCache=null;
-
-function __workerElement(id){
-  if(!__workerElements.has(id)) __workerElements.set(id,{id,value:''});
-  return __workerElements.get(id);
-}
-
-function throwIfCancelled(){
-  if(cancelRequested) throw new CalculationCancelledError();
-}
 
 function specialBit(i){
   if(specialBitCache[i]===undefined) specialBitCache[i]=(1n<<BigInt(i));
@@ -149,7 +135,7 @@ function fixedAddIndex(){if(['剣士','弓使い','重戦士','双剣士'].inclu
 function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
 
 function initialLifeValue(){
-  return Number(document.getElementById('basic_生命力')?.value||1);
+  return Number(basicValues['生命力']||1);
 }
 
 function ownedHpDependentBreakdown(life){
@@ -283,7 +269,7 @@ function basicCostVector(name,costRow,hint){
   ];
 }
 
-function basicMilestoneTargets(name,current,max){
+function basicMilestoneTargets(current,max){
   const targets=[];
   const nextTen=Math.ceil((current+1)/10)*10;
 
@@ -366,7 +352,7 @@ function mixedLimits(){
 function mixedInitialLevels(){
   const lim=mixedLimits();
   return basicNames.map(name=>{
-    const cur=Number(document.getElementById('basic_'+name)?.value||1);
+    const cur=Number(basicValues[name]||1);
     return basicOwned[name] && lim[name]!=null ? Number(lim[name]) : cur;
   });
 }
@@ -459,7 +445,7 @@ function mixedBasicActions(st,exp){
     if(!Number.isFinite(max)||from>=max) continue;
 
     const targets=[from+1];
-    const milestones=basicMilestoneTargets(name,from,max);
+    const milestones=basicMilestoneTargets(from,max);
     if(milestones.length) targets.push(milestones[0]);
 
     for(const to of [...new Set(targets)]){
@@ -620,7 +606,7 @@ function mixedActionSort(a,b){
   return a.costSum-b.costSum;
 }
 
-function mixedBuildLifeHpSetAction(st,lifeOp,hpOp){
+function mixedBuildLifeHpSetAction(lifeOp,hpOp){
   const totalCost=addCost(lifeOp.cost,hpOp.cost);
   const lifeGain=Number(lifeOp.gain||0);
   const hpGain=Number(hpOp.gain||0);
@@ -698,7 +684,7 @@ function mixedCandidateActions(st,exp){
       for(const hpOp of futureSpecials){
         const combinedCost=addCost(st.cost,addCost(lifeOp.cost,hpOp.cost));
         if(!leq(combinedCost,exp)) continue;
-        setCandidates.push(mixedBuildLifeHpSetAction(st,lifeOp,hpOp));
+        setCandidates.push(mixedBuildLifeHpSetAction(lifeOp,hpOp));
       }
       if(setCandidates.length){
         const comparison=normalActions.concat(setCandidates);
@@ -798,7 +784,7 @@ function mixedApplyAction(st,op){
   };
 }
 
-function optimizeMixedAsync(exp,onProgress){
+function optimizeMixedAsync(exp){
   clearMixedSearchCaches();
   const levels=mixedInitialLevels();
   const initialLife=levels[0];
@@ -816,7 +802,6 @@ function optimizeMixedAsync(exp,onProgress){
   const branch=MIXED_BRANCH_NORMAL;
 
   for(let step=0;step<MIXED_MAX_STEPS;step++){
-    throwIfCancelled();
     const next=new Map();
     let expanded=0;
 
@@ -901,7 +886,7 @@ function __applyWorkerPayload(payload){
     job.value=String(payload.job||'');
 
     for(const name of basicNames){
-      document.getElementById('basic_'+name).value=String(Number(payload.basicValues?.[name]||1));
+      basicValues[name]=Number(payload.basicValues?.[name]||1);
       basicOwned[name]=!!payload.basicOwned?.[name];
       basicHints[name]=Number(payload.basicHints?.[name]||0);
     }
@@ -923,7 +908,6 @@ function __applyWorkerPayload(payload){
 
   // 経験点ごとの探索状態は optimizeMixedAsync 内で毎回新規作成する。
   // 同一設定の連続計算では、候補生成など設定依存の安全なキャッシュだけを再利用する。
-  cancelRequested=false;
 }
 
 function collapseDualResultItems(items){
@@ -949,10 +933,6 @@ function collapseDualResultItems(items){
 let __workerConfigKey='';
 self.onmessage=async(event)=>{
   const data=event.data||{};
-  if(data.type==='cancel'){
-    cancelRequested=true;
-    return;
-  }
   if(data.type!=='calculate') return;
 
   try{
@@ -967,7 +947,7 @@ self.onmessage=async(event)=>{
       const req=Number(DUAL_MASTER.levels?.[workerDualLevel]?.reqDex||0);
       if(dex<req) throw new Error(`取得条件を満たしていません（通常攻撃Lv${workerDualLevel}には器用さ${req}以上が必要です）。`);
     }
-    const finalCandidate=await optimizeMixedAsync(exp,null);
+    const finalCandidate=await optimizeMixedAsync(exp);
     const items=collapseDualResultItems(restoreItems(finalCandidate).map(item=>({...item})));
 
     self.postMessage({
@@ -983,14 +963,10 @@ self.onmessage=async(event)=>{
       }
     });
   }catch(error){
-    if(error?.name==='CalculationCancelledError'){
-      self.postMessage({type:'cancelled'});
-    }else{
-      self.postMessage({
-        type:'error',
-        name:error?.name||'Error',
-        message:error?.message||'Worker内で原因不明のエラーが発生しました。'
-      });
-    }
+    self.postMessage({
+      type:'error',
+      name:error?.name||'Error',
+      message:error?.message||'Worker内で原因不明のエラーが発生しました。'
+    });
   }
 };
