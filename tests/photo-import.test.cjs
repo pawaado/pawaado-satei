@@ -78,7 +78,7 @@ test('ability data plus training is accepted without an ability-up screenshot',a
  assert(importedTraining);assert.equal(importedTraining.length,1);
  assert.equal(get('photoStatus').textContent,'自動入力しました。');
 });
-test('training patterns are still applied when character import fails',async()=>{
+test('training patterns are still applied and treated as success when character import needs confirmation',async()=>{
  const {h,get,c}=setup();let importedTraining=null;
  c.__PAWAADO_IMPORT_PHOTO__=()=>{throw Error('アカデミーとジョブを確認してください。');};
  c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{importedTraining=patterns;};
@@ -90,7 +90,9 @@ test('training patterns are still applied when character import fails',async()=>
  }),null);
  await get('readPhotos').onclick();
  assert(importedTraining);assert.equal(importedTraining.length,2);
- assert.match(get('photoStatus').textContent,/読み取りに失敗しました/);
+ assert.equal(get('photoStatus').textContent,'自動入力しました。');
+ assert.equal(get('photoUncertain').hidden,false);
+ assert.doesNotMatch(get('photoStatus').textContent,/失敗/);
 });
 test('a third screenshot cannot erase an EXP conflict',async()=>{
  const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'剣士',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,'剣士');assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));
@@ -130,6 +132,19 @@ test('OCR teardown failure always restores controls and permits retry',async()=>
  const {h,get,c}=setup();c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=()=>{};
  h.prepareUi(async()=>({abilityUpScreens:0,dataScreens:0,trainingPatterns:[{exp:{}}],warnings:[]}),{terminate:async()=>{throw Error('terminated')}});
  await get('readPhotos').onclick();assert.equal(h.busy(),false);for(const id of ['choosePhotos','photoFiles','resetBtn','topResetBtn','calcBtn'])assert.equal(get(id).disabled,false,id);
+});
+test('fatal import errors never render duplicated Japanese punctuation',async()=>{
+ const {h,get,c}=setup();
+ c.__PAWAADO_IMPORT_PHOTO__=()=>{throw Error('経験点を確認してください。');};
+ h.prepareUi(async()=>({
+   abilityUpScreens:1,dataScreens:1,academy:'パワフルアカデミー',job:'剣士',
+   exp:{筋力:100,敏捷:100,技術:100,知力:100,精神:100},
+   basic:{生命力:50,パワー:50,魔力:50,器用さ:50,耐久力:50,精神力:50},
+   specials:[],supers:[],trainingPatterns:[],warnings:[]
+ }),null);
+ await get('readPhotos').onclick();
+ assert.doesNotMatch(get('photoStatus').textContent,/。。/);
+ assert.match(get('photoStatus').textContent,/経験点を確認してください。手入力/);
 });
 test('reset/calculation are locked during reading and detailed warnings survive import errors',async()=>{
  const {h,get,c}=setup();let release;const ready=new Promise(r=>release=r);
