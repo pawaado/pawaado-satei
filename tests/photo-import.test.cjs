@@ -26,7 +26,6 @@ function setup(){
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
    stubTrainingGains(presentFn,valueFn,colorFn=()=>null,ratioFn=()=>0){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;trainingGainColorNumber=colorFn;trainingBubbleRatio=ratioFn;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
-   stubExactActionPair(initialName,mark){abilityCells=()=>[{rect:[0,0,136,34],row:2,col:3,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>initialName;abilityNameExactByImage=()=>true;pairMarkByImage=()=>mark;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
    stubOneSuperAbilityCell(row=3,col=2,level=1){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:true}];elementalAttackByImage=()=>'';levelByImage=()=>level;},
@@ -296,14 +295,6 @@ test('IMG_1020 user-confirmed アクションスキル◎ exact template wins wi
  const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
  assert.match(photo,/markWidth<=11\|\|\(stem==='アクションスキル'&&markWidth<=12\)/);
  assert.doesNotMatch(photo,/if\(ex-sx<=12\)return '';/);
-});
-test('IMG_1080 アクションスキル◎ overrides an exact ○ guess without touching other pairs',async()=>{
- const {h}=setup();
- h.stubExactActionPair('アクションスキル○','◎');
- const r=await h.readAbilityCells({},1);
- assert(r.specials.includes('アクションスキル○'));
- assert(r.specials.includes('アクションスキル◎'));
- assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
 });
 test('IMG_1080 アクションスキル◎ cannot stay as ○ when the same-name ◎ template confirms it',async()=>{
  const {h}=setup();
