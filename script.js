@@ -1176,19 +1176,18 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     else if(mark==='○')owned.add(stem+'○');
   }
 
-  // 上位の超特殊能力が確認できたら、対応する下位◎は必ず取得済み。
-  // 例：平常心→通常攻撃◎、トリックスター→アクションスキル◎、ゴブリンキラー→対ゴブリン◎。
-  // これは通常特殊能力側の○/◎表示よりゲーム仕様上強い条件として扱う。
-  for(const entry of data.supers||[]){
+  // 画像からの超特殊能力は、名前とLvの両方を確定できたものだけ入力に使う。
+  const confirmedSupers=(data.supers||[]).filter(entry=>
+    entry.confirmed===true&&(entry.level===1||entry.level===2)
+  );
+  // 確定した上位超特だけ、対応する下位能力を取得済みに補完する。
+  for(const entry of confirmedSupers){
     for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]){
       owned.add(name);
     }
   }
   for(const name of owned){const i=specialNameIndex.get(name);if(i!==undefined) setSpecialOwned(i,true);}
-  // Lvを確定できない耐性超特は自動選択しない。名称だけ入った未確定状態を作らないため。
-  window.__PAWAADO_SET_SUPERS__?.((data.supers||[]).filter(entry=>
-    D.superResistances[entry.name]&&(entry.level===1||entry.level===2)
-  ));
+  window.__PAWAADO_SET_SUPERS__?.(confirmedSupers.filter(entry=>D.superResistances[entry.name]));
   calcResultCache.clear();validateAllInline();
   document.getElementById('result').textContent='';
   document.dispatchEvent(new Event('change',{bubbles:true}));
