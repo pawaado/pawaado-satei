@@ -37,7 +37,18 @@ assert(!sources['resistance_patch.js'].includes('PAWAADO_EFFECT_RULES'),'resista
 assert(!sources['resistance_patch.js'].includes('syncUsageNoteOnly'),'resistance_patch.js must not overwrite usage notes');
 assert(sources['resistance_patch.js'].includes("value=event.target.value?'2':''"),'manual super selection must default to Lv2');
 assert(sources['script.js'].includes('D.superResistances?.[superName]?.includes'),'script worker payload must include lower abilities implied by selected supers');
+assert(sources['script.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'script must expose super-to-lower ownership sync');
+assert(sources['script.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'script must remove an upper super when an included lower ability is manually removed');
+assert(sources['resistance_patch.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'resistance UI must expose lower-to-super removal sync');
+assert(sources['resistance_patch.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'resistance UI must apply lower abilities for selected supers');
 assert(!sources['script.js'].includes("addEventListener('pawaado-super-change'"),'legacy one-way super ownership event must stay removed');
+assert(sources['academy_runtime.js'].includes('__PAWAADO_DUAL_ATTACK_SIGNATURE__'),'dual attack UI must expose cache identity');
+assert(sources['script.js'].includes("'dualAttack:'+dualPart"),'calculation cache key must include dual attack level/hint');
+assert(sources['script.js'].includes('disabledBeforeCalc'),'calculation must restore prior disabled states');
+assert(!sources['script.js'].includes("querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;})"),'calculation must not blindly enable every control');
+for(const deadName of ['TARGET_DEBUG','function optimizeMixedAsync','function optimizeSpecialsForLife','function buildBasicStates']){
+ assert(!sources['script.js'].includes(deadName),`script.js: obsolete local calculation/debug code remained: ${deadName}`);
+}
 for(const r of refs.filter(r=>['pawaado_worker.js','resistance_patch.js'].includes(r.file)))assert.equal(r.url.split('?v=')[1],workerVersion,`${r.from}: worker cache mismatch`);
 const baseIndex=process.argv.indexOf('--base');
 if(baseIndex>=0){
