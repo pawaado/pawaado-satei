@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,readImages,levelByImage,matchesTemplate,academyOf,
+  window.h={jobFromText,profileIdentityOf,readImages,levelByImage,matchesTemplate,academyOf,cellAbility,findSpecials,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
@@ -67,6 +67,27 @@ test('a third screenshot cannot erase conflicting ○/◎ observations',async()=
 });
 test('unrecognized glyph width does not fabricate a Lv, and supers stay within Lv1–2',()=>{
  const {h}=setup();h.stubGlyph('',10);assert.equal(h.levelByImage({}, {rect:[0,0]}),null);h.stubGlyph('6',14);assert.equal(h.levelByImage({}, {rect:[0,0]}),null);assert.equal(h.levelByImage({}, {rect:[0,0]},6),6);
+});
+test('super abilities are exact-only and never guessed from near text',()=>{
+ const {h}=setup();
+ const exact=h.cellAbility('対魔の盾','',true);
+ assert.equal(exact.supers.length,1);
+ assert.equal(exact.supers[0].name,'対魔の盾');
+ assert.equal(exact.supers[0].confirmed,true);
+ const near=h.cellAbility('対魔の楯','',true);
+ assert.equal(near.supers.length,0);
+ assert.equal(near.candidate,true);
+ assert.equal(near.suggestedSuper,'対魔の盾');
+ const fakeRetsu=h.cellAbility('珠','',true);
+ assert.equal(fakeRetsu.supers.length,0);
+});
+test('ignored gold abilities never become resistance supers',()=>{
+ const {h}=setup();
+ for(const name of ['鉄壁の盾','タフネス','剛力']){
+  const r=h.cellAbility(name,'',true);
+  assert.equal(r.supers.length,0,name);
+  assert.equal(r.candidate,false,name);
+ }
 });
 test('template downloads recover after one failed request',async()=>{
  const {h,failImages}=setup();h.stubPixels();failImages(1);await assert.rejects(h.matchesTemplate({},'modal',[0,0,1,1]));assert.equal(await h.matchesTemplate({},'modal',[0,0,1,1]),true);
