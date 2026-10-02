@@ -16,7 +16,7 @@ function setup(){
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
   window.h={jobFromText,profileIdentityOf,readImages,levelByImage,matchesTemplate,academyOf,
-   stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||'',attribute:im.attribute||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async()=>null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
+   stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||'',attribute:im.attribute||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
@@ -32,6 +32,26 @@ test('ability data icon identity fills job and attribute',async()=>{
  const {h}=setup();h.stubReads();
  const r=await h.readImages([{kind:'data',dataJob:'重戦士',attribute:'火属性'},{job:'重戦士',exp:100}]);
  assert.equal(r.job,'重戦士');assert.equal(r.attribute,'火属性');
+});
+test('ability-up job text wins over a conflicting ability-data job icon',async()=>{
+ const {h}=setup();h.stubReads();
+ const r=await h.readImages([{kind:'data',dataJob:'僧侶',attribute:'水属性'},{job:'剣士',exp:100}]);
+ assert.equal(r.job,'剣士');assert.equal(r.attribute,'水属性');
+ assert(r.warnings.some(w=>w.includes('能力アップ画面の文字判定')&&w.includes('優先')));
+});
+test('ability data plus training is accepted without an ability-up screenshot',async()=>{
+ const {h,get,c}=setup();let importedPhoto=null,importedTraining=null;
+ c.__PAWAADO_IMPORT_PHOTO__=data=>{importedPhoto=data;};
+ c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{importedTraining=patterns;};
+ h.prepareUi(async()=>({
+   abilityUpScreens:0,dataScreens:1,academy:'パワフルアカデミー',job:'剣士',attribute:'風属性',
+   exp:{},basic:{生命力:50,パワー:50,魔力:50,器用さ:50,耐久力:50,精神力:50},
+   specials:[],supers:[],trainingPatterns:[{exp:{筋力:100,敏捷:100,技術:100,知力:100,精神:100}}],warnings:[]
+ }),null);
+ await get('readPhotos').onclick();
+ assert(importedPhoto);assert.equal(importedPhoto.job,'剣士');
+ assert(importedTraining);assert.equal(importedTraining.length,1);
+ assert.equal(get('photoStatus').textContent,'自動入力しました。');
 });
 test('a third screenshot cannot erase a job or EXP conflict',async()=>{
  const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'僧侶',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,null);assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));
