@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-superwarn-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1020-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -259,6 +259,40 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHzBh3B4AAAAf9/3+PwAAAA/zff5zgAAAH/P57mGAAAAf83n+YYADAAfzuPhhgAM=',
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8wYdweAAAAH/f9/j8AAAAP833+c4AAAB/z+e5hgAAAH/N5/mGAAwAH87j4YYADAA43+f53AAM='
   );
+
+  // 2026-10-03 IMG_1020/1021 実画像追加。
+  // 火耐性/回復系/バランス感覚と、圧縮されたアクションスキル○を同じ端末画像で補強。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1020={
+    "火耐性":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAGH7MwAAAAADbft/wAAAAANs/3/AAAAAA2j7fwAAAAAAcP93wAAIAADw/zeAAAgAA5z7MwAACAADDP8/wAAI=",
+      "AAAAAAAAAAAAABh+zMAAAAAA237f8AAAAADbP9/wAAAAANo+38AAAAAAHD/d8AACAAA8P83gAAIAAOc+zMAAAgAAwz/P8AACAAAAAAAAAAI=",
+      "AAAYfszAAAAAANt+3/AAAAAA2z/f8AAAAADaPt/AAAAAABw/3fAAAgAAPD/N4AACAADnPszAAAIAAMM/z/AAAgAAAAAAAAACAAAAAAAAAAI="
+    ],
+    "アクションスキル○":[
+      "AAAAAAAAAAAAAAAAAAAAAABBAAAAICAAfPmAHDw44AAM+IeMBHjgAB2TIIEMMOAAObFngww8+AIgMOeHHP34AiBhwI4+EfACYMGHjDIRYAI=",
+      "AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=",
+      "AEEAAAAgIAB8+YAcPDjgAAz4h4wEeOAAHZMggQww4AA5sWeDDDz4AiAw54cc/fgCIGHAjj4R8AJgwYeMMhFgAgAAAAAAAAACAAAAAAAAAAI="
+    ],
+    "バランス感覚":[
+      "AAAAAAAAAAAAAAAAAAAAAAHAAAAAf5pAG4/jgPx/n+AbAAGAHGcYYBmP4BgYfx/AMYBgODhfj8MxgODwfA2PwzHBw+Dud4/jYMODgcZeneE=",
+      "AAAAAAAAAAABwAAAAH+aQBuP44D8f5/gGwABgBx/GGAZj+AYGH8fwDGAYDg4X47DMYDg8HwNj8MxwcPg7nePw2DDg4HGX53hAAAAAAAAAAE=",
+      "AcAAAAB/mkAbj+OA/H+f4BsAAYAcZxhgGY/gGBh/H8AxgGA4OF+PwzGA4PB8DY/DMcHD4O53j+Ngw4OBxl6d4QAAAAAAAAABAAAAAAAAAAE="
+    ],
+    "風回復":[
+      "AAAAAAAAAAAAAAAAAAAAAAAA/j/N8AAAAAD+P8/wAAAAAP4vz/AAAAAA/ivP8AAAAAD+K93wAAIAAP8vz/AAAgAA/z/P4AACAAC/P8/wAAI=",
+      "AAAAAAAAAAAAAP4/zfAAAAAA/j/P8AAAAAD+L8/wAAAAAP4rz/AAAAAA/ivd8AACAAD/L8/wAAIAAP8/z+AAAgAAvz/P8AACAAAAAAAAAAI=",
+      "AAD+P83wAAAAAP4/z/AAAAAA/i/P8AAAAAD+K8/wAAAAAP4r3fAAAgAA/y/P8AACAAD/P8/gAAIAAL8/z/AAAgAAAAAAAAACAAAAAAAAAAI="
+    ],
+    "水回復":[
+      "AAAAAAAAAAAAAAAAAAAAAAAADD/H8AAAAABtP8+AAAAAAP8/T/AAAAAAPj1P8AAAAAB+PU3wAAMAAG8/T/AAAwAA37/F8AADAAAYP8XwAAE=",
+      "AAAAAAAAAAAAAAw/x/AAAAAAbT/PgAAAAAD/P0/wAAAAAD49T/AAAAAAfj1N8AADAABvP0/wAAMAAN+/xfAAAwAAGD/F8AABAAAAAAAAAAE=",
+      "AAAMP8fwAAAAAG0/z4AAAAAA/z9P8AAAAAA+PU/wAAAAAH49TfAAAwAAbz9P8AADAADfv8XwAAMAABg/xfAAAQAAAAAAAAABAAAAAAAAAAA="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1020)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
 
   // 2026-10-01 実画像追加：対ドラゴンタートル○。
   // 長い能力名では末尾の○が横方向に圧縮されるため、セル全体テンプレートを優先する。
@@ -1397,7 +1431,7 @@
     const [sx,ex]=runs[runs.length-1];
     // 長い能力名では末尾記号が横方向に圧縮され、通常の円半径判定は○を◎にしやすい。
     // 幅11px以下は形状だけで決めず、同名○/◎のセル全体テンプレート比較へ回す。
-    if(ex-sx<=11)return '';
+    if(ex-sx<=12)return '';
     let minY=c.height,maxY=-1;
     for(let yy=5;yy<Math.min(31,c.height);yy++)for(let xx=sx;xx<ex;xx++){
       if(dark[yy*c.width+xx]){minY=Math.min(minY,yy);maxY=Math.max(maxY,yy);}
@@ -1487,7 +1521,7 @@
     const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
-      let visualName=elementalAttackByImage(image,cell)||abilityByImage(image,cell);
+      let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
       if(/[○◎]$/.test(visualName)){
