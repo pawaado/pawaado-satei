@@ -7,6 +7,7 @@ const sources=Object.fromEntries(names.map(n=>[n,read(n)]));
 const refs=[];
 for(const [name,source] of Object.entries(sources)){
  if(name.endsWith('.js'))new vm.Script(source,{filename:name});
+ if(name.endsWith('.html'))for(const m of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)){if(m[1].trim())new vm.Script(m[1],{filename:name+' (inline)'});}
  for(const m of source.matchAll(/(?:src=|href=|importScripts\(|fetch\(|new Worker\()["']([^"']+)["']/g)){
   const url=m[1];if(/^(?:[a-z]+:|\/\/|#)/i.test(url)||url.includes('${'))continue;
   const file=url.split(/[?#]/)[0].replace(/^\.\//,'');if(!file)continue;

@@ -17,7 +17,7 @@ GitHub Pages で公開している査定ツールの保守メモです。
 | `resistance_patch.js` | 耐性に影響する超特殊能力のUIと耐性計算Worker連携。**使い方本文は上書きしない** |
 | `pawaado_worker.js` | 最大査定を求める計算Worker本体 |
 | `pawaado_worker_resistance.js` | 耐性込み計算のWorkerエントリ |
-| `rankings.html` / `rankings_patch.js` | 査定効率ランキング画面 |
+| `rankings.html` | 査定効率ランキング画面 |
 | `assets/` | 画像認識用の固定画像 |
 | `vendor/ocr/` | OCRライブラリ・認識データ |
 
@@ -59,7 +59,7 @@ GitHub Pages で公開している査定ツールの保守メモです。
 - 作業時の継続ルールは `AGENTS.md`。関連ファイルの確認をユーザーが毎回指定する必要はありません。
 - `node scripts/check-integrity.cjs`：構文・参照ファイル・動的画像・版番号・耐性Workerの実起動を確認。
 - `node scripts/check-integrity.cjs --base <変更前コミット>`：変更したJS/CSSの参照元でキャッシュ版が更新されているか確認。
-- `node --test tests/*.test.cjs`：画像入力の回帰テスト。
+- `node --test tests/*.test.cjs`：画像入力・ランキングの回帰テスト。
 - GitHubのpush/PRで `Related-file integrity` を実行。失敗は修正してから完了扱いにする。このワークフロー単独でPagesの公開を停止するものではありません。
 
 2026-10-02 画像入力監査:
@@ -68,3 +68,9 @@ GitHub Pages で公開している査定ツールの保守メモです。
 - 超特殊能力の画像判定をLv1/2に制限。数字の幅だけでLvを決める処理を廃止し、不明時はOCRへ回す。
 - 不使用の旧確認画面・専用CSS・補助関数を削除。訓練の未読増加分を0として扱わず、確認警告を維持。
 - 7つの回帰テストは変更前に失敗・変更後に成功。訓練画像IMG_0980/0981の現在点・増加分・合計をCanvas実画像処理で確認。iPhone/Safariでの全画面OCR精度を保証するテストではありません。
+
+2026-10-02 ランキング監査:
+- ランキングの数値・並び順を3分類の全行で確認。基本能力は区間査定、計算本体は1上昇あたりの近似査定なので、端数の差を不具合として混同しない。
+- 備考・耐性/HP注記・専用スタイルを rankings.html に統合。後付けのDOM監視と rankings_patch.js を削除。
+- 分類ボタンの状態を通常ボタンに対応する aria-pressed に修正。HP基準は data.js の生命力90から取得。コツ・◎・双剣士の比較条件を明記。
+- HTML内JavaScriptも整合性チェックの構文検査対象へ追加。

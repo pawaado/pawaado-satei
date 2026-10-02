@@ -5,6 +5,7 @@
 - 作業開始時に README.md と最新差分を読み、対象機能の関連ファイルを検索する。
 - ゲームデータの正本は data.js、使い方本文の正本は index.html。
 - Workerの変更では pawaado_worker.js / pawaado_worker_resistance.js / script.js / resistance_patch.js / academy_runtime.js と HTML の読み込みを確認する。文字列置換パッチの起動テストを必ず実行する。
+- ランキングの表示・備考・注記の正本は rankings.html。data.js と計算本体の査定定義、3分類の切り替え、同率時の順序まで確認する。
 - 画像入力の変更では photo_import.js / script.js の入力反映関数 / data.js / academy_runtime.js / resistance_patch.js / assets を確認する。
 - JS/CSSを変更したら全参照元の ?v= を更新する。photo_import.js の PHOTO_IMPORT_BUILD と HTML の版も揃える。参照元JS自体が変わった場合も、その参照元まで辿る。
 - 削除はバックアップブランチを作り、動的な画像名・Workerロード・イベント経由の参照まで確認してから行う。OCRのライセンス文書は保持する。
