@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -106,6 +106,19 @@ test('super ability name and Lv are recognized independently',()=>{
  assert.equal(h.classifyGlyph({mask:h.decodeMask(lv1,12*16),w:12,h:16},h.hybridLevelMasks,.23),'1');
  assert.equal(h.abilityMasks['不滅Lv2'],undefined);
  assert.equal(h.abilityMasks['加護Lv1'],undefined);
+});
+test('IMG_1012 加護 Lv1 uses the generic Lv digit template, not a combined name+Lv template',()=>{
+ const {h}=setup();
+ const lv1='A+A+DjHD4D4DIDPDHCDCDCDCDCDCDiD+';
+ assert(h.hybridLevelMasks['1'].includes(lv1));
+ assert.equal(h.classifyGlyph({mask:h.decodeMask(lv1,12*16),w:12,h:16},h.hybridLevelMasks,.23),'1');
+ assert.equal(h.abilityMasks['加護Lv1'],undefined);
+});
+test('IMG_1012 long 対ドラゴンタートル○ prefers the exact ○ cell template',()=>{
+ const {h}=setup();
+ const circle='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABnP4gAAf5tAG4/jgPx/n+AbAAGAHH8QYBmP4BgYfxzAMYBgODhfjMM=';
+ h.stubAbilityMask(circle);
+ assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
 });
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();

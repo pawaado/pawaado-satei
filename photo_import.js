@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-ghostgain-1';
+  const PHOTO_IMPORT_BUILD='20261002-kago-dragon-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -261,11 +261,14 @@
   );
 
   // 2026-10-01 実画像追加：対ドラゴンタートル○。
-  // 長い能力名では汎用の○/◎形状判定が末尾記号以外を拾うことがあるため、能力別テンプレートを優先する。
+  // 長い能力名では末尾の○が横方向に圧縮されるため、セル全体テンプレートを優先する。
   (HYBRID_ABILITY_MASKS['対ドラゴンタートル○']??=[]).push(
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEkHggGAECHA+Qe+weAQY+D5AAZDIBBjYMnPggvvnGIg2eGCGM+e6iI=',
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeCAYAQIcD5B77B4BBj4PkABkMgEGNgyc+CC++cYiDZ4YIYz57qIlkBBjDAEvti6QM+YcAQs+I=',
-    'AAAAAAAAAABJB4IBgBAhwPkHvsHgEGPg+QAGQyAQY2DJz4IL75xiINnhghjPnuoiWQEGMMAS+2LpAz5hwBCz4pkCAEGAEKHCAAAAAAAAAAI='
+    'AAAAAAAAAABJB4IBgBAhwPkHvsHgEGPg+QAGQyAQY2DJz4IL75xiINnhghjPnuoiWQEGMMAS+2LpAz5hwBCz4pkCAEGAEKHCAAAAAAAAAAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABHP4gAAf5pAGw/jgPx/n+AbAAGAHH8QYBmP4BgYXwzAMYBgODhfiMA=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABnP4gAAf5tAG4/jgPx/n+AbAAGAHH8QYBmP4BgYfxzAMYBgODhfjMM=',
+    'AAAAAAAAAAIAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABvP4gAAf5tAG4/jgPx/n+AbAAGAHH8YYBmP4BgYfx/AMYBgODhfnMM='
   );
 
   // 基本能力の数字はOCRを使わず、実画像の数字テンプレート比較だけで判定する。
@@ -371,7 +374,8 @@
   }
 
   const HYBRID_LEVEL_MASKS={
-    '1':['B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI','B/B/HH+BwBwB/BPBHBHBHBHBHBHBB/A4'],
+    // IMG_1012「加護 Lv.1」の数字1も、名称とは分離した汎用Lv数字テンプレートとして追加。
+    '1':['B/B/HBOBwBwBPBPBHBHBBBBBBBBBB/AI','B/B/HH+BwBwB/BPBHBHBHBHBHBHBB/A4','A+A+DjHD4D4DIDPDHCDCDCDCDCDCDiD+'],
     '2':['A/A/BjBBAIgMh4ARBzBCBMcPmAmA3/J+','A/A/BjABAJAcB5AxBzBGIM8PmBmAmBZ/'],
     '6':'AYAcA/BBCZCdCfCCGBGYec+YnBlBli4+'
   };
@@ -966,17 +970,20 @@
     const [x,y]=cell.rect;
     // Lv数字はセル右下にあり、実画像では切り出し上端から約5〜7pxの位置に出る。
     const rect=cell.levelRect||[x+83,y+23,55,28];
-    const components=glyphComponents(image,rect,100)
-      .filter(c=>c.h>=10&&c.x>=8)
-      .sort((a,b)=>a.x-b.x);
-    if(!components.length)return null;
-    const digit=components[components.length-1];
-    // Lv1/2は専用テンプレートを最優先。
-    const matched=classifyGlyph(digit,HYBRID_LEVEL_MASKS,.23);
-    if(matched&&Number(matched)<=maxLevel)return Number(matched);
-    // 双剣士専用通常攻撃はLv6まであるため、一般数字テンプレートでも1〜6を照合する。
-    const generic=classifyGlyph(digit,HYBRID_DIGIT_MASKS,.21);
-    if(generic&&Number(generic)>=1&&Number(generic)<=maxLevel)return Number(generic);
+    // Safari/JPEGのアンチエイリアス差で同じLv1でも閾値100だけだと外れることがある。
+    // 名称とは切り離して、Lv数字だけを複数閾値で照合する。
+    for(const threshold of [90,100,110]){
+      const components=glyphComponents(image,rect,threshold)
+        .filter(c=>c.h>=10&&c.x>=8)
+        .sort((a,b)=>a.x-b.x);
+      if(!components.length)continue;
+      const digit=components[components.length-1];
+      const matched=classifyGlyph(digit,HYBRID_LEVEL_MASKS,.23);
+      if(matched&&Number(matched)<=maxLevel)return Number(matched);
+      // 双剣士専用通常攻撃はLv6まであるため、一般数字テンプレートでも1〜6を照合する。
+      const generic=classifyGlyph(digit,HYBRID_DIGIT_MASKS,.21);
+      if(generic&&Number(generic)>=1&&Number(generic)<=maxLevel)return Number(generic);
+    }
     // 幅だけでLv1/2を決めない。形状が不明なら呼び出し元のOCRへ進む。
     return null;
   }
@@ -1388,6 +1395,9 @@
     }
     if(!runs.length)return '';
     const [sx,ex]=runs[runs.length-1];
+    // 長い能力名では末尾記号が横方向に圧縮され、通常の円半径判定は○を◎にしやすい。
+    // 幅11px以下は形状だけで決めず、同名○/◎のセル全体テンプレート比較へ回す。
+    if(ex-sx<=11)return '';
     let minY=c.height,maxY=-1;
     for(let yy=5;yy<Math.min(31,c.height);yy++)for(let xx=sx;xx<ex;xx++){
       if(dark[yy*c.width+xx]){minY=Math.min(minY,yy);maxY=Math.max(maxY,yy);}
