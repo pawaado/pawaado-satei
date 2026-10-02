@@ -88,6 +88,7 @@ assert(sources['pawaado_worker.js'].includes('workerSelectedSupers=normalizeSele
 assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1052_1059'),'photo_import.js: IMG_1052/1059 HP-super templates missing');
 assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1064'),'photo_import.js: IMG_1064 鉄壁の盾 template missing');
 assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1076'),'photo_import.js: IMG_1076 対ドラゴンタートル◎ template missing');
+assert((sources['photo_import.js'].match(/"生存本能":\[(.*?)\],"護身の構え"/s)?.[1].match(/"[^"]+"/g)||[]).length===4,'photo_import.js: partial mask fragments must stay removed');
 assert(!/IGNORED_SUPER_IMAGE_NAMES[^\n]*(?:タフネス|そよかぜの加護|鉄壁の盾)/.test(sources['photo_import.js']),'photo_import.js: variable-score supers must not remain ignored');
 assert(sources['pawaado_worker.js'].includes("if(def.job&&def.job!==job.value)continue;"),'worker must reject job-specific supers for the wrong job');
 assert(sources['resistance_patch.js'].includes('査定が変動する超特殊能力'),'variable-score super UI title missing');

@@ -237,6 +237,15 @@ test('IMG_1020 exact masks recognize 火耐性・バランス感覚・風回復�
    assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
  }
 });
+test('fragmentary unrelated ability masks stay removed',()=>{
+ const {h}=setup();
+ const variants=h.abilityMasks['生存本能'];
+ assert(Array.isArray(variants)&&variants.length===4);
+ for(const encoded of variants){
+   const ink=[...h.decodeMask(encoded,64*10)].reduce((a,b)=>a+b,0);
+   assert(ink>=100,'template mask too sparse: '+ink);
+ }
+});
 test('IMG_1076 対ドラゴンタートル◎ wins before 生存本能 OCR fallback',async()=>{
  const double='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeCAIAQEADtB55h4BBQAP2AAmEgGFAA6ceCC6+cUAB54IIY755cAnkBgjBAEFgC6QMecMAQ2AI=';
  const {h}=setup();
