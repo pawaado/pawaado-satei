@@ -306,6 +306,19 @@ test('IMG_1080 アクションスキル◎ cannot stay as ○ when the same-name
  assert(r.specials.includes('アクションスキル◎'));
  assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
 });
+test('IMG_1088 keeps アクションスキル◎ while 対ドラゴンタートル stays ○',()=>{
+ const actionDouble='AAAAAAAAAAIAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAQQAAACBgAHz5gBw8OOAADPiHjAT84AA9kyCBjDDgADmxZ4MMPPgCMDDnhxz9+AI=';
+ const {h:action}=setup();
+ action.stubAbilityMask(actionDouble);
+ assert.equal(action.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'アクションスキル◎');
+ assert.equal(action.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'◎');
+
+ const turtleCircle='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeCAYAQIcD5B77B4BBj4PkABkMgEGNgyc+CC++cYiDZ4YIYz57qIlkBBjDAEvti6QM+YcAQs+I=';
+ const {h:turtle}=setup();
+ turtle.stubAbilityMask(turtleCircle);
+ assert.equal(turtle.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'対ドラゴンタートル○');
+ assert.equal(turtle.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
+});
 test('アクションスキル○/◎ exact template sets have no identical masks',()=>{
  const {h}=setup();
  const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
