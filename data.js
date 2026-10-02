@@ -164,11 +164,6 @@ window.PAWAADO_DATA = {
       75
     ]
   ],
-  "attributes": [
-    "火属性",
-    "風属性",
-    "水属性"
-  ],
   "life": [
     [
       "1→10",
