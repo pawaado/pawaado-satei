@@ -192,16 +192,14 @@ test('IMG_1006/IMG_1007 mental 591 digits are each covered by exact single-digit
   assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(encoded,12*16),w:12,h:16},h.trainingCurrentDigitMasks,.24),digit);
  }
 });
-test('current EXP distinguishes narrow 1 from wide 7 before normalization',()=>{
+test('current EXP distinguishes exact 591-one from exact 307-seven before normalization',()=>{
  const {h}=setup();
- const one='A/B/H+P/4/AOAPAPAPAPAPAPAPAPAPAP';
- const seven='////APAGAOAMA4A4BwBgDgDgDAHAHAHA';
+ const one='A/A/B/////5/A/A/A/A/A/A/A/A/A/A/';
+ const seven='f///f/AOAMAcA4AwBwDwDwDgDgDgDADA';
  assert(h.trainingCurrentDigitMasks['1'].includes(one));
  assert(h.trainingCurrentDigitMasks['7'].includes(seven));
- // Width is checked before normalized bitmap comparison, so a narrow current digit is fixed as 1.
- assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(one,12*16),w:8,h:21}),'1');
- // Re-expand the normalized 7 template to the native width observed in the screenshot, then classify it.
- const ref=h.decodeMask(seven,12*16),w=13,height=22,mask=new Uint8Array(w*height);
+ assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(one,12*16),w:8,h:22}),'1');
+ const ref=h.decodeMask(seven,12*16),w=15,height=22,mask=new Uint8Array(w*height);
  for(let y=0;y<height;y++)for(let x=0;x<w;x++)mask[y*w+x]=ref[Math.floor(y*16/height)*12+Math.floor(x*12/w)];
  assert.equal(h.classifyTrainingCurrentGlyph({mask,w,h:height}),'7');
 });
