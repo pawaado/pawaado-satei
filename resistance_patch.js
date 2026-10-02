@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261002-script-audit-2';
+  const PATCH_VERSION='20261002-script-audit-3';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
 
@@ -529,6 +529,29 @@
     group.querySelector('.super-note').textContent=
       !def?.job&&def?.includes&&lv?'下位能力込みの合計値です。':'';
   }
+
+  function removeSupersRequiringSpecial(specialName){
+    const target=String(specialName||'');
+    if(!target) return false;
+    const list=document.getElementById('extraResistanceList');
+    if(!list) return false;
+    let changed=false;
+    [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>{
+      const superName=group.querySelector('.super-name')?.value||'';
+      if(!superName) return;
+      const includes=D.superResistances?.[superName]?.includes||[];
+      if(!includes.includes(target)) return;
+      group.remove();
+      changed=true;
+    });
+    if(changed){
+      renumberResistanceGroups();
+      [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>rebuildSuperNameOptions(group));
+      syncEmptySuperGroup();
+    }
+    return changed;
+  }
+  window.__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__=removeSupersRequiringSpecial;
 
   window.__PAWAADO_SET_SUPERS__=entries=>{
     const list=document.getElementById('extraResistanceList');
