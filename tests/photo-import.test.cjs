@@ -479,9 +479,42 @@ test('super abilities are exact-only and never guessed from near text',()=>{
  const fakeRetsu=h.cellAbility('珠','',true);
  assert.equal(fakeRetsu.supers.length,0);
 });
-test('ignored gold abilities never become resistance supers',()=>{
+test('IMG_1052/1059 HP-dependent supers are recognized as confirmed super names',()=>{
  const {h}=setup();
- for(const name of ['鉄壁の盾','タフネス','剛力']){
+ for(const name of ['タフネス','そよかぜの加護','大真面目']){
+  const r=h.cellAbility(name,'',true);
+  assert.equal(r.supers.length,1,name);
+  assert.equal(r.supers[0].name,name);
+  assert.equal(r.supers[0].confirmed,true);
+ }
+});
+test('IMG_1052/1059 exact masks recognize タフネス・そよかぜの加護・大真面目',()=>{
+ const cases=[
+  ['タフネス','AAAAAAAAAAAAAAAAAAAAAAAAYF8DAAAAAAA/n+fx+AAAAAxgMfwGAAAAB7gMDgOAAAAAfAcPwcAAIAAHA4/4+AAIAAeBwTZ3AAIAA4DgDBjgAIA='],
+  ['そよかぜの加護','AAAAAAAAAAAAAAAAAAAAAAYgQMCcMM7/ANgefnc/P7+ALAc/v9/P7+AfwQb2ZtP7+AXD4byZ5P7+EED+yCB7P7+EHj22D4/P7uEHjw+D4WO7+EA='],
+  ['大真面目','AAAAAAAAAAAAAAAAAAAAAAAAMH+/5/AAAAAcH8HBjAAAAB/mMfx/AAAAAMGMXR/AAAAAeH8XR/AAIAA/H+XR/AAIABzn+fx/AAIABhnOfx/AAIA=']
+ ];
+ for(const [name,encoded] of cases){
+  const {h}=setup();h.stubAbilityMask(encoded);
+  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:true}),name,name);
+ }
+});
+test('IMG_1052/1059 confirmed HP-dependent supers keep their Lv and do not become warnings',async()=>{
+ const cases=[
+  ['タフネス','AAAAAAAAAAAAAAAAAAAAAAAAYF8DAAAAAAA/n+fx+AAAAAxgMfwGAAAAB7gMDgOAAAAAfAcPwcAAIAAHA4/4+AAIAAeBwTZ3AAIAA4DgDBjgAIA='],
+  ['そよかぜの加護','AAAAAAAAAAAAAAAAAAAAAAYgQMCcMM7/ANgefnc/P7+ALAc/v9/P7+AfwQb2ZtP7+AXD4byZ5P7+EED+yCB7P7+EHj22D4/P7uEHjw+D4WO7+EA='],
+  ['大真面目','AAAAAAAAAAAAAAAAAAAAAAAAMH+/5/AAAAAcH8HBjAAAAB/mMfx/AAAAAMGMXR/AAAAAeH8XR/AAIAA/H+XR/AAIABzn+fx/AAIABhnOfx/AAIA=']
+ ];
+ for(const [name,encoded] of cases){
+  const {h}=setup();h.stubOneSuperAbilityCell(1,1);h.stubAbilityMask(encoded);
+  const r=await h.readAbilityCells({},1);
+  assert.equal(r.supers.find(x=>x.name===name)?.level,1,name);
+  assert(!r.warnings.some(w=>w.includes(name)),name);
+ }
+});
+test('ignored gold abilities never become variable-score supers',()=>{
+ const {h}=setup();
+ for(const name of ['鉄壁の盾','魔族キラー','剛力']){
   const r=h.cellAbility(name,'',true);
   assert.equal(r.supers.length,0,name);
   assert.equal(r.candidate,false,name);
