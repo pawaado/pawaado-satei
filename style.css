@@ -583,15 +583,13 @@ body.is-calculating button:not(#calcBtn):not(#cancelCalcBtn),body.is-calculating
 body.is-calculating #calcBtn{box-shadow:inset 0 2px 0 rgba(255,255,255,.55), inset 0 -3px 0 rgba(133,70,4,.22), 0 4px 0 var(--gold-dark), 0 0 0 4px var(--theme-glow), 0 0 18px rgba(255,217,106,.78);filter:saturate(1.05)}
 
 @media(max-width:520px){
-  .site-header{
-  overflow-x:hidden;padding-top:11px}
+  .site-header{padding-top:11px}
   .wood-sign{padding:14px 67px 15px 15px}
   h1{font-size:clamp(25px,7.3vw,32px);letter-spacing:0}
   .usage-button{right:21px;min-width:58px;padding:9px 10px;font-size:13px}
   .top-action-row{margin-top:10px}
   .top-reset-button{font-size:13px;padding:8px 12px}
-  main{
-  overflow-x:hidden;padding-top:8px}
+  main{padding-top:8px}
   .card{padding:13px}
   .section-heading h2,h2{font-size:21px}
   .exp-sample{padding:9px}
@@ -603,7 +601,6 @@ body.is-calculating #calcBtn{box-shadow:inset 0 2px 0 rgba(255,255,255,.55), ins
   .exp-action-btn{font-size:12px;padding:8px 4px}
   .ability-row{grid-template-columns:54px minmax(0,1fr) 75px}
   .skill-row{grid-template-columns:48px minmax(0,1fr)}
-  .hint-btn,.name-btn,.ability-value{min-height:56px}
   .hint-btn{font-size:14px}
   .name-btn{font-size:17px}
   .skill-row .hint-btn{font-size:14px}
@@ -673,14 +670,12 @@ select,input,button{max-width:100%}
 
 
 /* アイコン追加後も縦画面で横方向にはみ出さないための最終ガード */
-.site-header,main,.card,.action-card,.select-control,.ability-row,.skill-row{max-width:100%}
+.select-control,.ability-row,.skill-row{max-width:100%}
 img,svg,canvas{max-width:100%}
 
 /* アカデミー選択肢：iPhoneのネイティブメニューでも長い名称を1行・左揃えで表示 */
 #academy,#academy option{font-size:15px;text-align:left}
 #academy option{white-space:nowrap}
-
-/* アカデミー選択までは経験点の入力をロックする。 */
 
 /* 複数パターン比較時の共通加算経験点 */
 .planned-exp-block{
