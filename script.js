@@ -25,7 +25,6 @@ const jobClassMap={
 };
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
-const attribute=document.getElementById('attribute');
 const DEFAULT_EXP_LIMIT=1000;
 const BOOTRAIN_EXP_LIMITS={筋力:1300,敏捷:1200,技術:1400,知力:1300,精神:1200};
 function expLimit(name){
@@ -89,12 +88,6 @@ function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]
 function hasAcademyJob(){return !!academy.value && !!job.value;}
 function limits(){const r=academyRows()[0]; const m={}; basicNames.forEach((n,i)=>m[n]=r?Number(r[i+2]):null); return m;}
 function initAcademies(){academy.innerHTML='';academy.add(opt('アカデミーを選択',''));Object.keys(jobsByAcademy).forEach(a=>academy.add(opt(a)));updateJobs();}
-function initAttributes(){
-  if(!attribute) return;
-  attribute.innerHTML='';
-  attribute.add(opt('属性を選択',''));
-  for(const name of D.attributes||[]) attribute.add(opt(name));
-}
 function updateInputAvailabilityUI(){
   const jobField=document.getElementById('jobFieldLabel');
   const basicCard=document.getElementById('basicCard');
@@ -116,10 +109,6 @@ academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInlin
 job.addEventListener('change',()=>{
   updateInputAvailabilityUI();
   clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
-});
-attribute?.addEventListener('change',()=>{
-  renderSpecials();
-  syncAttributeAttackLabels();
 });
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
@@ -263,17 +252,8 @@ function renderBasic(){
     </div>`).join('');
   basicNames.forEach(n=>applyBasicVisual(n));
 }
-function selectedAttributeAttackName(){
-  const selected=String(attribute?.value||'');
-  return selected.endsWith('属性') ? selected.slice(0,-2)+'攻撃' : '〜攻撃';
-}
-function syncAttributeAttackLabels(){
-  const label=selectedAttributeAttackName();
-  document.querySelectorAll('.attribute-attack-name').forEach(el=>{el.textContent=label;});
-}
 function renderSkillName(name){
   const s=String(name);
-  if(s==='〜攻撃') return `<span class="skill-name-text attribute-attack-name">${selectedAttributeAttackName()}</span>`;
   let rank=''; let base=s;
   if(s.endsWith('○')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="○">○</span>';}
   else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="◎">◎</span>';}
@@ -702,7 +682,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-attribute-ui-2');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-no-attribute-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1119,7 +1099,6 @@ function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
   academy.value='';
-  if(attribute) attribute.value='';
   updateJobs();
 
   Object.keys(basicOwned).forEach(k=>basicOwned[k]=false);
@@ -1174,10 +1153,6 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
   academy.dispatchEvent(new Event('change',{bubbles:true}));
   job.value=data.job;
   job.dispatchEvent(new Event('change',{bubbles:true}));
-  if(attribute){
-    attribute.value=(D.attributes||[]).includes(data.attribute)?data.attribute:'';
-    attribute.dispatchEvent(new Event('change',{bubbles:true}));
-  }
   if(hasCharacterExp){expSamples=[{...data.exp}]; renderExp();}
   basicNames.forEach(n=>{
     basicHints[n]=0; basicOwned[n]=false;
@@ -1222,5 +1197,5 @@ document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 setupUsageModal();
 removeTemporaryVersionDisplay();
-initAcademies(); initAttributes(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
