@@ -14,6 +14,11 @@ for(const [name,source] of Object.entries(sources)){
   assert(fs.existsSync(file),`${name}: missing ${url}`);refs.push({from:name,file,url});
  }
 }
+const mainStyle=sources['style.css'];
+assert(!/<style(?:\s[^>]*)?>/i.test(sources['index.html']),'index.html must not contain inline style blocks; main-page styles belong in style.css');
+assert(!/basicIconMap|ability-name-svg|magicWandShaft|durability-shield-icon/.test(sources['script.js']),'script.js contains hidden/dead basic ability icon generation');
+assert.equal((mainStyle.match(/{/g)||[]).length,(mainStyle.match(/}/g)||[]).length,'style.css: brace count mismatch');
+for(const dead of ['--paper-deep:','--leather:','--bronze:','--line-soft:','--green:','--green-light:','--blue:','--red:','section-heading-with-action','select-game-arrow','disabled-note','note-title','note-no-break','button.small']) assert(!mainStyle.includes(dead),`style.css: removed/dead style returned: ${dead}`);
 const photo=sources['photo_import.js'];
 for(const [,name] of photo.matchAll(/matchesTemplate\(image,'([^']+)'/g))assert(fs.existsSync(`assets/${name}.png`),`dynamic template missing: ${name}`);
 const references=photo.match(/const REFERENCES=(\[.*?\]);/)[1];
