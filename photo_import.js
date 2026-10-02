@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-training-job-2';
+  const PHOTO_IMPORT_BUILD='20261002-training-job-3';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2003,19 +2003,32 @@
         throw new Error('対応するゲーム画面を判別できませんでした');
       }
       // キャラ側の入力が失敗しても、読み取れた訓練パターンまで捨てない。
-      // 例：ジョブだけ不確定でも、2枚の訓練画像から得た経験点パターンは先に反映する。
+      // 訓練パターンが反映できた場合は「失敗」扱いにせず、要確認項目として残す。
       let characterImportError=null;
       if(hasCharacterScreens){
         try{window.__PAWAADO_IMPORT_PHOTO__(data);}
         catch(error){characterImportError=error;}
       }
       if(hasTraining)window.__PAWAADO_IMPORT_TRAINING_PHOTOS__?.(data.trainingPatterns);
-      if(characterImportError)throw characterImportError;
-      renderUncertain(data.warnings||[]);
+      if(characterImportError){
+        const message=String(characterImportError.message||characterImportError).replace(/[。．.]+$/,'');
+        if(hasTraining){
+          const warnings=[...(data.warnings||[])];
+          if(message&&!warnings.some(w=>w.includes(message)))warnings.push(message+'。');
+          renderUncertain(warnings);
+        }else{
+          throw characterImportError;
+        }
+      }else{
+        renderUncertain(data.warnings||[]);
+      }
       selectionDirty=false;
       status('自動入力しました。');
     }
-    catch(e){status('読み取りに失敗しました：'+e.message+'。手入力でも利用できます。');}
+    catch(e){
+      const message=String(e?.message||e||'').replace(/[。．.]+$/,'');
+      status('読み取りに失敗しました：'+message+'。手入力でも利用できます。');
+    }
     finally{
       const finishedWorker=worker;worker=null;
       try{if(finishedWorker)await finishedWorker.terminate();}
