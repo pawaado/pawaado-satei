@@ -44,7 +44,13 @@ assert(sources['photo_import.js'].includes('const mark=shapeMark||pairMarkByImag
 assert(sources['photo_import.js'].includes('markHint=shapeMark||visualMark'),'photo_import.js: fallback ○/◎ shape must outrank full-cell mark matching');
 assert(sources['photo_import.js'].includes('const shape=markShapeByImage(image,cell)||pairMarkByImage'),'photo_import.js: explicit pair state must use mark shape first');
 assert(sources['photo_import.js'].includes('if(!abilityUpIdentity.job){'),'photo_import.js: data-screen job icon should be skipped after ability-up job is known');
-assert(sources['script.js'].includes("D.superResistances[entry.name]&&(entry.level===1||entry.level===2)"),'script.js: unread super Lv must not be auto-selected');
+assert(sources['script.js'].includes("entry.confirmed===true&&(entry.level===1||entry.level===2)"),'script.js: only confirmed super names with confirmed Lv may affect input');
+assert(sources['script.js'].includes('for(const entry of confirmedSupers)'),'script.js: lower prerequisites must come only from confirmed supers');
+assert(sources['photo_import.js'].includes("if(cell.superCell)return '';"),'photo_import.js: super image matching must not use relaxed fallback');
+assert(sources['photo_import.js'].includes('suggestedSuper:best.name'),'photo_import.js: uncertain super may be suggested but not entered');
+assert(!sources['photo_import.js'].includes("SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/"),'photo_import.js: guessed 烈 recognition returned');
+assert(sources['photo_import.js'].includes('if(entry.confirmed!==true)continue;'),'photo_import.js: unconfirmed supers must not enter image result');
+assert(sources['photo_import.js'].includes('s.level=null;'),'photo_import.js: conflicting super Lv must become unresolved');
 assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
 assert(!sources['rankings.html'].includes("['火攻撃','風攻撃','水攻撃']"),'rankings.html: abandoned elemental expansion returned');
 assert(!sources['rankings.html'].includes('コツLv0で比較しています'),'rankings.html: removed hint-level note returned');
