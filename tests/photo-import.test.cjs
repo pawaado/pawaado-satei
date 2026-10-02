@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -191,6 +191,21 @@ test('IMG_1006/IMG_1007 mental 591 digits are each covered by exact single-digit
   assert(h.trainingCurrentDigitMasks[digit].includes(encoded),digit);
   assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(encoded,12*16),w:12,h:16},h.trainingCurrentDigitMasks,.24),digit);
  }
+});
+test('current EXP distinguishes narrow 1 from wide 7 before normalization',()=>{
+ const {h}=setup();
+ const one='A/B/H+P/4/AOAPAPAPAPAPAPAPAPAPAP';
+ const seven='////APAGAOAMA4A4BwBgDgDgDAHAHAHA';
+ assert(h.trainingCurrentDigitMasks['1'].includes(one));
+ assert(h.trainingCurrentDigitMasks['7'].includes(seven));
+ assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(one,12*16),w:8,h:21}),'1');
+ assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(seven,12*16),w:13,h:22}),'7');
+});
+test('a narrow current-exp glyph can never become 7',()=>{
+ const {h}=setup();
+ const seven='////APAGAOAMA4A4BwBgDgDgDAHAHAHA';
+ // Safari antialiasing can distort the normalized bitmap, but the native width of 1 stays narrow.
+ assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(seven,12*16),w:8,h:22}),'1');
 });
 test('training current EXP never falls back to OCR guessing',async()=>{
  const {h}=setup();
