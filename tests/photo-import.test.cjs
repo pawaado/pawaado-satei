@@ -22,6 +22,7 @@ function setup(){
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
+   stubTrainingGains(presentFn,valueFn){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
@@ -225,17 +226,15 @@ test('single-digit current EXP composition keeps mental at 591',async()=>{
 });
 test('absent blue gain bubble cannot add a ghost +6 to mental EXP',async()=>{
  const {h}=setup();
- h.stubTrainingCurrent([558,420,311,295,591]);
  // Reproduce the actual failure: yellow is real; the generic blue-number fallback sees background as 6.
  for(const yellowGain of [91,10]){
    h.stubTrainingCurrent([558,420,311,295,591]);
-   // Override the stub after setting current values.
    // Only the mental-row yellow bubble exists; no blue bubble exists.
-   const original=h.readTrainingPattern;
-   // These closure bindings are exposed through the injected test scope.
-   trainingBubblePresent=(image,rowY,kind)=>rowY===356&&kind==='yellow';
-   trainingGainNumberByImage=(image,rowY,kind)=>kind==='yellow'?yellowGain:6;
-   const r=await original({});
+   h.stubTrainingGains(
+     (image,rowY,kind)=>rowY===356&&kind==='yellow',
+     (image,rowY,kind)=>kind==='yellow'?yellowGain:6
+   );
+   const r=await h.readTrainingPattern({});
    assert.equal(r.current.精神,591);
    assert.equal(r.gains.精神,yellowGain);
    assert.equal(r.exp.精神,591+yellowGain);
