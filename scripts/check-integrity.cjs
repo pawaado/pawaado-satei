@@ -29,13 +29,15 @@ const checkEffect=(name,type,value)=>{assert(specialNames.has(name),`data.js: un
 for(const pair of resistanceRules.pairSources){for(const type of pair.types||[pair.type]){checkEffect(pair.lower,type,pair.lowerValue);checkEffect(pair.upper,type,Number(pair.upperValue)-Number(pair.lowerValue));}}
 for(const [name,effects] of Object.entries(resistanceRules.directEffects))for(const [type,value] of effects)checkEffect(name,type,value);
 for(const [job,effects] of Object.entries(resistanceRules.jobDefaults||{}))for(const [type,value] of Object.entries(effects)){assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown job resistance type ${type} for ${job}`);assert(Number.isFinite(Number(value))&&Number(value)!==0,`data.js: invalid job resistance for ${job}`);}
-for(const [name,def] of Object.entries(data.superResistances||{}))for(const type of def.types||[])assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown super resistance type ${type} for ${name}`);
+for(const [name,def] of Object.entries(data.superResistances||{})){for(const type of def.types||[])assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown super resistance type ${type} for ${name}`);for(const included of def.includes||[])assert(specialNames.has(String(included)),`data.js: unknown included lower ability ${included} for ${name}`);}
 assert(sources['pawaado_worker_resistance.js'].includes('D.resistanceRules'),'resistance worker must use data.js resistanceRules');
 assert(sources['rankings.html'].includes('D.resistanceRules'),'rankings must use data.js resistanceRules');
 assert(!sources['resistance_patch.js'].includes('window.Map=TrackedMap'),'resistance_patch.js must not replace global Map');
 assert(!sources['resistance_patch.js'].includes('PAWAADO_EFFECT_RULES'),'resistance_patch.js contains duplicated/dead effect rules');
 assert(!sources['resistance_patch.js'].includes('syncUsageNoteOnly'),'resistance_patch.js must not overwrite usage notes');
-assert(!sources['resistance_patch.js'].includes("value=event.target.value?'2':''"),'manual super selection must not auto-select Lv2');
+assert(sources['resistance_patch.js'].includes("value=event.target.value?'2':''"),'manual super selection must default to Lv2');
+assert(sources['script.js'].includes('D.superResistances?.[superName]?.includes'),'script worker payload must include lower abilities implied by selected supers');
+assert(!sources['script.js'].includes("addEventListener('pawaado-super-change'"),'legacy one-way super ownership event must stay removed');
 for(const r of refs.filter(r=>['pawaado_worker.js','resistance_patch.js'].includes(r.file)))assert.equal(r.url.split('?v=')[1],workerVersion,`${r.from}: worker cache mismatch`);
 const baseIndex=process.argv.indexOf('--base');
 if(baseIndex>=0){
