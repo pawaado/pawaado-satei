@@ -2679,7 +2679,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-worker-cleanup-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-worker-cleanup-2');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -2714,9 +2714,6 @@ async function optimizeAsync(exp){
           usedCost:Number(result.usedCost??costSum(result.cost||[0,0,0,0,0])),
           ownedHpDelta:Number(result.ownedHpDelta||0)
         });
-      }else if(data.type==='cancelled'){
-        finishRequest();
-        reject(new CalculationCancelledError());
       }else if(data.type==='error'){
         finishRequest();
         const err=new Error(data.message||'Worker内で計算エラーが発生しました。');
