@@ -532,33 +532,6 @@
 
   function removeSupersRequiringSpecial(specialName){
     const target=String(specialName||'');
-    if(!target) return;
-    const list=document.getElementById('extraResistanceList');
-    if(!list) return;
-
-    let changed=false;
-    [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>{
-      const name=group.querySelector('.super-name')?.value||'';
-      const includes=D.superResistances?.[name]?.includes||[];
-      if(!includes.includes(target)) return;
-
-      const nameSelect=group.querySelector('.super-name');
-      const levelSelect=group.querySelector('.super-level');
-      if(nameSelect) nameSelect.value='';
-      if(levelSelect) levelSelect.value='';
-      syncSuperSelects(group);
-      fillSuperGroup(group);
-      changed=true;
-    });
-
-    if(!changed) return;
-    [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>rebuildSuperNameOptions(group));
-    syncEmptySuperGroup();
-  }
-  window.__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__=removeSupersRequiringSpecial;
-
-  function removeSupersRequiringSpecial(specialName){
-    const target=String(specialName||'');
     if(!target) return false;
     const list=document.getElementById('extraResistanceList');
     if(!list) return false;
