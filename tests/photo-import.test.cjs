@@ -17,6 +17,7 @@ function setup(){
   const hooks=`
   window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
+   stubAbilityResults(fn){readAbilityCells=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
@@ -268,6 +269,30 @@ test('a third screenshot cannot erase conflicting ○/◎ observations',async()=
 });
 test('unrecognized glyph width does not fabricate a Lv, and supers stay within Lv1–2',()=>{
  const {h}=setup();h.stubGlyph('',10);assert.equal(h.levelByImage({}, {rect:[0,0]}),null);h.stubGlyph('6',14);assert.equal(h.levelByImage({}, {rect:[0,0]}),null);assert.equal(h.levelByImage({}, {rect:[0,0]},6),6);
+});
+test('a resolved super Lv from one screenshot suppresses an unresolved duplicate warning',async()=>{
+ const {h}=setup();h.stubReads();
+ h.stubAbilityResults(async im=>({
+   specials:[],
+   supers:[{name:'加護',level:im.good?1:null,confirmed:true}],
+   warnings:[],
+   explicitPairMarks:{}
+ }));
+ const r=await h.readImages([{kind:'data',good:true},{kind:'data',good:false}]);
+ assert.equal(r.supers.find(x=>x.name==='加護')?.level,1);
+ assert(!r.warnings.some(w=>w.includes('加護')&&w.includes('Lv')));
+});
+test('super Lv warning is emitted only when all screenshots fail to resolve it',async()=>{
+ const {h}=setup();h.stubReads();
+ h.stubAbilityResults(async()=>({
+   specials:[],
+   supers:[{name:'加護',level:null,confirmed:true}],
+   warnings:[],
+   explicitPairMarks:{}
+ }));
+ const r=await h.readImages([{kind:'data'},{kind:'data'}]);
+ assert.equal(r.supers.find(x=>x.name==='加護')?.level,null);
+ assert(r.warnings.some(w=>w.includes('加護のLvを読み取れませんでした')));
 });
 test('super abilities are exact-only and never guessed from near text',()=>{
  const {h}=setup();
