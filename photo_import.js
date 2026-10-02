@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-jobmark-primary-1';
+  const PHOTO_IMPORT_BUILD='20261002-current17-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -356,13 +356,13 @@
 
   const TRAINING_CURRENT_EXTRA_MASKS={
     '0':['D4H8P+cPcH8H4H4D4D4D8H8HcPcPP+H8'],
-    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/'],
+    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/','A/B/H+P/4/AOAPAPAPAPAPAPAPAPAPAP'],
     // IMG_1006/1007 の現在精神591を構成する実画像1桁。Safari/元解像度側の再縮小差に備えて5・9も追加。
     '5':['f/f/f/cAYA4A98/fcHAHADADYH8Hf/P8'],
     '9':['H4P8OeYHYH4HYHcPPfP/AHAHAHIGP8H4'],
     '2':['D8P+P/cHcHAHAPAPB8DwDwOAMAcAf///','BwH+P/8H8HAHAHAfA+B8HgPAcA8A////'],
     '3':['H8P/cHADADADAMB8AeAHADABABAD8Pf/','H8P+ffIHAHAHAOB8B+AfADADAD8Hf/P+'],
-    '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA'],
+    '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA','////APAGAOAMA4A4BwBgDgDgDAHAHAHA','//////AeAcA4AwAwBgDgDAHAHAHAHAPA'],
     '8':['AgH8OOYHYDMHMGH8H8OP4D4D4D4HePH8','H8OOcHYDYDYHPcH8fe8H4DwBwD4DePP+']
   };
   for(const [digit,variants] of Object.entries(TRAINING_CURRENT_EXTRA_MASKS)){
@@ -1738,14 +1738,29 @@
     }
     return out.sort((a,b)=>a.x-b.x);
   }
+  function classifyTrainingCurrentGlyph(component){
+    // 「1」と「7」は正規化すると似やすいが、元の横幅は明確に違う。
+    // 実画像では現在経験点の1は幅7〜8px、7は13〜14pxだった。
+    // 正規化前の形を先に使い、591の末尾1を7へ誤変換しない。
+    if(component.h>=18&&component.w<=9)return '1';
+    const digit=classifyTrainingGlyph(component,TRAINING_CURRENT_DIGIT_MASKS,.24);
+    if(digit==='1'&&component.w>=12){
+      const glyph=normalizeGlyph(component.mask,component.w,component.h);
+      const sevenVariants=TRAINING_CURRENT_DIGIT_MASKS['7']||[];
+      const variants=Array.isArray(sevenVariants)?sevenVariants:[sevenVariants];
+      const sevenDistance=Math.min(...variants.map(e=>maskDistance(glyph,decodeMask(e,12*16))));
+      if(sevenDistance<=.24)return '7';
+    }
+    return digit;
+  }
   function trainingCurrentNumberByImage(image,rowIndex){
     const y=120+59*rowIndex,rect=[210,y,90,46];
     // iPhoneの元解像度画像をCanvasで縮小した時、白縁の明度が端末/ブラウザで少し変わる。
-    // 1条件で失敗してOCRへ落とすと591→597のような誤読になるため、複数閾値で1桁ずつ確定する。
+    // 複数閾値で1桁ずつ確定し、現在経験点はOCRへフォールバックしない。
     for(const threshold of [180,170,190,160,200]){
       const components=trainingBrightGlyphComponents(image,rect,threshold);
       if(components.length<1||components.length>4)continue;
-      const digits=components.map(c=>classifyTrainingGlyph(c,TRAINING_CURRENT_DIGIT_MASKS,.24));
+      const digits=components.map(classifyTrainingCurrentGlyph);
       if(digits.every(Boolean))return Number(digits.join(''));
     }
     return null;
@@ -2180,5 +2195,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
