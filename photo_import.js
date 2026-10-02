@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-kago-dragon-1';
+  const PHOTO_IMPORT_BUILD='20261002-superwarn-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1602,8 +1602,12 @@
           const t=(await textAt(image,[cx+83,cy+25,55,35],true)).text;
           entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
         }
-        if(entry.level===1||entry.level===2)result.supers.push(entry);
-        else candidates.push(`${cell.row}段目・左から${cell.col}番目「${entry.name}（Lv不明）」`);
+        // 名称が確定している超特殊能力は、Lvがこの画像で読めなくても一旦保持する。
+        // 複数の能力データ画像に同じ能力が重複して写る場合、別画像でLvが読めていれば
+        // 最終マージ後は確定できるため、この段階では「Lv不明」警告を出さない。
+        // 全画像でLvが読めなかった場合だけ readImages() の最終マージ後に警告する。
+        if(entry.level!==1&&entry.level!==2)entry.level=null;
+        result.supers.push(entry);
       }
       const where=`${cell.row}段目・左から${cell.col}番目`;
       if(parsed.unknown.length)missed.push(where);
