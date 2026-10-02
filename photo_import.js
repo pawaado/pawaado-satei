@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-job-icon-2';
+  const PHOTO_IMPORT_BUILD='20261002-photo-1011-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -93,6 +93,40 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/z/Bw3zGAAD/P8fj8MYAAP8/z/H8xgAAdx+Ns/zmAAD/P8s36PYAgCg/j3No7ACA/x+P42gMAI=',
     'AAAAAAAAAAAD/P8HDfMYAAP8/x+PwxgAA/z/P8fzGAAB3H42z/OYAAP8/yzfo9gCAKD+Pc2jsAID/H4/jaAwAgP8/wsNIDACAAAAAAAAAAI='
   ];
+
+  // 2026-10-02 IMG_1011 実画像追加：
+  // ○/◎が近い物理攻撃・アクションスキルと、名前が近い対魔闘士・対重戦士を補強。
+  const EXTRA_ABILITY_MASKS_20261002_IMG1011={
+    "物理攻撃◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaAfAg7hMAAD/P9/z/MYAAP83z/e97gAA7z/Ft7hBAAB/P8XnvIEAgP83zuP5RQCA7z/O4GDuAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAGgHwIO4TAAA/z/f8/zGAAD/N8/3ve4AAO8/xbe4QQAAfz/F57yBAID/N87j+UUAgO8/zuBg7gCAfzfJ9/zGAI=",
+      "AAAAAAAAAAABoB8CDuEwAAP8/3/P8xgAA/zfP973uAADvP8W3uEEAAH8/xee8gQCA/zfO4/lFAIDvP87gYO4AgH83yff8xgCAZgfBAcAoAI="
+    ],
+    "アクションスキル◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMMAEAAgQAD884AYPDjAAA3yB4gM+cAAKbMggQwhwAA5MWeDGD3YAiBgwIYc/fACYOOHnDYxcAI=",
+      "AAAAAAAAAAAAAAAAAAAAAADDABAAIEAA/POAGDw4wAAN8geIDPnAACmzIIEMIcAAOTFngxg92AIgYMCGHP3wAmDjh5w2MXACQMMHmCYxYAI=",
+      "AAAAAAAAAAAAwwAQACBAAPzzgBg8OMAADfIHiAz5wAApsyCBDCHAADkxZ4MYPdgCIGDAhhz98AJg44ecNjFwAkDDB5gmMWACAAAAAAAAAAI="
+    ],
+    "単体攻撃◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAexsAw7xsAAB/P8/37KoAAP8/xfP8xAAA/zeFt/0AAAD/P8Tj/QAAgH8fz2P4RACA/xeP9/yqAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAHsbAMO8bAAAfz/P9+yqAAD/P8Xz/MQAAP83hbf9AAAA/z/E4/0AAIB/H89j+EQAgP8Xj/f8qgCAGBMBsOBsAI=",
+      "AAAAAAAAAAAB7GwDDvGwAAH8/z/fsqgAA/z/F8/zEAAD/N4W3/QAAAP8/xOP9AACAfx/PY/hEAID/F4/3/KoAgBgTAbDgbACAAAAAAAAAAI="
+    ],
+    "対魔闘士○":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYz/P8GB8AADzP8/wYP4AAP+/z/P8xgAA8z/P9/yDAAD/P8vwYIMAgHc/y/BgxgCA8z/L8GDuAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAGM/z/BgfAAA8z/P8GD+AAD/v8/z/MYAAPM/z/f8gwAA/z/L8GCDAIB3P8vwYMYAgPM/y/Bg7gCA1z/L8/x8AI=",
+      "AAAAAAAAAAABjP8/wYHwAAPM/z/Bg/gAA/7/P8/zGAADzP8/3/IMAAP8/y/BggwCAdz/L8GDGAIDzP8vwYO4AgNc/y/P8fACAAAAAAAAAAI="
+    ],
+    "対重戦士◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIR/L0GBEAAD7v8/QYMIAAP+/z/P8ZQAAcR/P8/wAAAB3H8/wYAAAwDcfz/BgBQDAeR/P8GCmAM=",
+      "AAAAAAAAAAAAAAAAAAAAAACEfy9BgRAAA+7/P0GDCAAD/v8/z/GUAAHEfz/P8AAAAdx/P8GAAAMA3H8/wYAUAwHkfz/BgpgDA1z/m8/xEAE=",
+      "AAAAAAAAAAAAhH8vQYEQAAPu/z9BgwgAA/7/P8/xlAABxH8/z/AAAAHcfz/BgAADANx/P8GAFAMB5H8/wYKYAwNc/5vP8RABAAAAAAAAAAE="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261002_IMG1011)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
 
   // 2026-10-01 過去に受領済みの実ゲーム画像から、未登録だった超特殊能力13種を復旧。
   Object.assign(HYBRID_ABILITY_MASKS,{
@@ -1305,12 +1339,16 @@
           // 2倍/4倍OCRが同じ別能力名を支持し、画像再比較もそれを許す時だけ補正する。
           const consensus=pairStemConsensus(quickReads);
           let stem=originalStem;
-          if(consensus.strong&&consensus.stem&&consensus.stem!==originalStem){
+          const imageStem=pairStemByImage(image,cell);
+          if(imageStem&&imageStem!==originalStem){
+            stem=imageStem;
+          }else if(consensus.strong&&consensus.stem&&consensus.stem!==originalStem){
             const hybrid=hybridPairStem(image,cell,quickReads);
             if(hybrid.stem===consensus.stem&&!hybrid.candidate)stem=hybrid.stem;
           }
           const shapeMark=markShapeByImage(image,cell);
-          const mark=pairMarkByImage(image,cell,stem)||shapeMark;
+          // ○/◎はセル全体テンプレートより、末尾の丸そのものの形を優先する。
+          const mark=shapeMark||pairMarkByImage(image,cell,stem);
           if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
         }
       }
@@ -1345,7 +1383,7 @@
         const shapeMark=stem?markShapeByImage(image,cell):'';
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
         // ○/◎は文字OCRでは決めず、末尾記号そのものの形か○/◎専用画像比較だけで決める。
-        markHint=visualMark||shapeMark;
+        markHint=shapeMark||visualMark;
         // OCRが崩れても、独立した画像名判定と○/◎形状判定が同じ答えなら要確認にしない。
         // 対魔闘士のようにゲームフォントでOCRが弱い能力を、正しく読めているのに警告し続けないため。
         const strongImageStem=stem&&pairStemByImage(image,cell)===stem;
@@ -1381,7 +1419,7 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const shape=pairMarkByImage(image,cell,stem)||markShapeByImage(image,cell);
+            const shape=markShapeByImage(image,cell)||pairMarkByImage(image,cell,stem);
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
@@ -1745,9 +1783,10 @@
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
-        const identity=await profileIdentityOf(image);
-        if(identity.job)mergeField(dataIdentity,'job',identity.job,'能力データのジョブ');
-        else out.warnings.push(`${i+1}枚目：ジョブ固有マークを画像比較で読み取れませんでした。ジョブを確認してください。`);
+        if(!abilityUpIdentity.job){
+          const identity=await profileIdentityOf(image);
+          if(identity.job)mergeField(dataIdentity,'job',identity.job,'能力データのジョブ');
+        }
         // 基本能力6種は画像比較のみ。OCRフォールバックはしない。
         const values=BASICS.map((_,j)=>basicByImageStrict(image,j));
         BASICS.forEach((n,j)=>{
@@ -1793,6 +1832,9 @@
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
     const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
+    if(!abilityUpIdentity.job&&out.dataScreens>0&&!dataIdentity.job&&!dataJobConflict){
+      out.warnings.push('ジョブ固有マークを画像比較で読み取れませんでした。ジョブを確認してください。');
+    }
     if(abilityUpIdentity.job&&dataIdentity.job&&abilityUpIdentity.job!==dataIdentity.job){
       out.warnings.push(`ジョブの読み取り値が一致しません。能力アップ画面の文字判定（${abilityUpIdentity.job}）を優先しました。`);
     }
