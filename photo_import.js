@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-strict-super-1';
+  const PHOTO_IMPORT_BUILD='20261002-training-job-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -137,6 +137,19 @@
     ]
   };
   for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261002_IMG1011)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
+
+  // 2026-10-02 IMG_1009 実画像追加：
+  // 「物理防御○」は正しく表示されているのに既存テンプレートとの差が僅かに閾値を超え、
+  // 要確認へ落ちていたため、実画像のセル文字形状を追加する。
+  const EXTRA_ABILITY_MASKS_20261002_IMG1009={
+    "物理防御○":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261002_IMG1009)){
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
   }
@@ -1004,8 +1017,18 @@
     const best=ranked[0],second=ranked[1];
     return best&&best.error<700&&(!second||(second.error-best.error)>80&&second.error>best.error*1.25)?best.job:'';
   }
+  async function dataJobFromHeader(image){
+    // 能力データ画面の背面上部には現在ジョブ名が文字で残る。
+    // ジョブ固有マークの画像比較が端末差・暗幕の影響で外れた場合だけ、
+    // この明示文字を1回だけOCRして補完する。近似候補は採用しない。
+    const raw=(await textAt(image,[690,8,180,50],false,false,true,false,2)).text;
+    const matched=jobFromText(raw);
+    return matched.job&&!matched.candidate?matched.job:'';
+  }
   async function profileIdentityOf(image){
-    return {job:dataJobByIcon(image)};
+    const iconJob=dataJobByIcon(image);
+    if(iconJob)return {job:iconJob};
+    return {job:await dataJobFromHeader(image)};
   }
   let refs;
   async function academyOf(image){
@@ -1852,7 +1875,7 @@
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
     const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
     if(!abilityUpIdentity.job&&out.dataScreens>0&&!dataIdentity.job&&!dataJobConflict){
-      out.warnings.push('ジョブ固有マークを画像比較で読み取れませんでした。ジョブを確認してください。');
+      out.warnings.push('ジョブを画像から読み取れませんでした。ジョブを確認してください。');
     }
     if(abilityUpIdentity.job&&dataIdentity.job&&abilityUpIdentity.job!==dataIdentity.job){
       out.warnings.push(`ジョブの読み取り値が一致しません。能力アップ画面の文字判定（${abilityUpIdentity.job}）を優先しました。`);
