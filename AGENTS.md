@@ -5,6 +5,7 @@
 - 作業開始時に README.md と最新差分を読み、対象機能の関連ファイルを検索する。
 - ゲームデータの正本は data.js、使い方本文の正本は index.html。
 - 能力アップ画像は1枚前提。ジョブは能力アップの文字判定を能力データのジョブ固有マークより優先する。能力データのジョブ固有マーク認識は photo_import.js で管理する。「能力データ」＋「訓練」で必要情報が揃う場合は能力アップ画像を必須にしない。
+- 超特殊能力の画像入力は推察禁止。近似OCR・1文字違い・似た字形だけで自動入力せず、名前とLvの両方を確定できたものだけ入力・下位能力補完に使う。怪しい候補は警告表示に留める。
 - 耐性超特殊能力UIの見た目は style.css、選択・追加削除・下位能力連動・Worker連携は resistance_patch.js に分ける。resistance_patch.js へCSSを戻さない。
 - Workerの変更では pawaado_worker.js / pawaado_worker_resistance.js / script.js / resistance_patch.js / academy_runtime.js と HTML の読み込みを確認する。文字列置換パッチの起動テストを必ず実行する。
 - Worker payload に条件を追加・変更した場合は、script.js の最終結果キャッシュキーにも同じ条件が含まれるか確認する。
