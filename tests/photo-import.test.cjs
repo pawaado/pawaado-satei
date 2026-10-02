@@ -124,6 +124,14 @@ test('IMG_1012 long 対ドラゴンタートル○ prefers the exact ○ cell te
  h.stubAbilityMask(circle);
  assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
 });
+test('IMG_1038 exact mask recognizes 対僧侶◎ and not 対植物◎',()=>{
+ const {h}=setup();
+ const priestDouble='AAAAAAAAAAAAAAAAAAAAAAAIZvH8JAAAAB5n+fxjAAAAP+/7fPcAAAAV7/t8YIAAAB3n+zhAgAIADef5fiMAAgAeZ/lG9QACAB7n+X5iAAI=';
+ h.stubAbilityMask(priestDouble);
+ const got=h.abilityByImage({}, {rect:[0,0,136,34],superCell:false});
+ assert.equal(got,'対僧侶◎');
+ assert.notEqual(got,'対植物◎');
+});
 test('IMG_1039 exact mask recognizes 通常回復◎',()=>{
  const {h}=setup();
  const normalRecovery='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF8Kj/FgAAAA/z/v8/yCAAAfv+/TfKUAAP+/79H8AAAA/5/PU3wAAE=';
