@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-photo-1011-2';
+  const PHOTO_IMPORT_BUILD='20261002-strict-super-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -10,7 +10,7 @@
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求','魔力開眼','鉄壁の盾','タフネス']);
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','そよかぜの加護','魔力探求','魔力開眼','鉄壁の盾','タフネス']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
@@ -611,11 +611,13 @@
     const accept=(ranked,relaxed=false)=>{
       const best=ranked[0],second=ranked[1];
       if(!best)return '';
+      if(cell.superCell){
+        if(best.d<=.012)return best.name;
+        return best.d<=.035&&(!second||second.d-best.d>=.018)?best.name:'';
+      }
       const limit=(best.name==='烈'||best.name==='備え')?.045:(relaxed?.075:.07);
       if(best.d<=.015)return best.name;
       const treatment=/治療[○◎]$/.test(best.name);
-      // 「○/◎」だけが共通する治療系は端末ごとの字形差で2位との差が小さくなりやすい。
-      // ただし絶対距離も十分小さい場合だけ許可し、並び順からは補完しない。
       const margin=treatment?(relaxed?.003:.006):.01;
       const treatmentLimit=treatment?(relaxed?.065:.055):limit;
       return best.d<=Math.min(limit,treatmentLimit)&&(!second||second.d-best.d>=margin)?best.name:'';
@@ -631,6 +633,7 @@
     const normal=rank(entries,makeSigs(100));
     const hit=accept(normal,false);
     if(hit)return hit;
+    if(cell.superCell)return '';
 
     // 通常比較で落ちたときだけ、上位候補＋治療系を濃淡・位置ずれに強い条件で再比較。
     // これで僧侶治療○を固定位置に頼らず認識しつつ、全セルの計算量増加を抑える。
@@ -1121,7 +1124,7 @@
         if(name.length===1&&!new RegExp('^'+name+'(?:(?:Lv\\.?|レベル)[12])?$','i').test(remaining))continue;
         const tail=remaining.slice(remaining.indexOf(normalize(name))+normalize(name).length);
         const level=tail.match(/^(?:Lv\.?|LV\.?|lv\.?|レベル)([12])/i)?.[1];
-        supers.push({name,level:level?Number(level):null});remaining=remaining.replace(normalize(name),'').replace(/(?:Lv\.?|レベル)[12]/gi,'');
+        supers.push({name,level:level?Number(level):null,confirmed:true});remaining=remaining.replace(normalize(name),'').replace(/(?:Lv\.?|レベル)[12]/gi,'');
       }
       for(const name of names.slice().sort((a,b)=>b.length-a.length)){
         if(remaining.includes(normalize(name))){specials.push(name);remaining=remaining.replace(normalize(name),'');}
@@ -1186,26 +1189,24 @@
     // ここから通常特殊能力へフォールバックすると、未登録の上位能力
     // （例：そよかぜの加護）が生存本能などへ化けるため、系統を完全に分離する。
     if(superCell){
-      // 「剛力」など、このツールで耐性・下位補完に使わない上位能力は警告対象にしない。
-      if(normalize(rawClean)==='剛力')return {specials:[],supers:[],unknown:[],candidate:false};
-      // One-character 烈 is especially prone to 珠/科/杏/吾 in this game font.
-      if(SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/.test(rawClean))return {...findSpecials('烈'),candidate:false};
+      const withoutLevel=clean.replace(/(?:Lv\.?|LV\.?|lv\.?|レベル)[12]$/i,'');
+      const ignored=[...IGNORED_SUPER_IMAGE_NAMES].find(name=>normalize(name)===withoutLevel);
+      if(ignored)return {specials:[],supers:[],unknown:[],candidate:false};
 
-      const exactSuper=findSpecials(clean);
-      if(exactSuper.supers.length)return {...exactSuper,candidate:false};
+      const exactName=SUPER_NAMES.find(name=>normalize(name)===withoutLevel);
+      if(exactName){
+        const exactSuper=findSpecials(clean);
+        return {...exactSuper,candidate:false};
+      }
 
-      // 金色セルのあいまい補正は超特殊能力同士・編集距離1以内に限定。
-      // 未登録の超特殊能力を通常特殊能力へ誤変換しないことを優先する。
       const ranked=SUPER_NAMES.filter(n=>n.length>=2).map(name=>({
         name,
-        d:distance(normalize(name),clean)
+        d:distance(normalize(name),withoutLevel)
       })).sort((a,b)=>a.d-b.d);
       const best=ranked[0],second=ranked[1];
       if(best&&best.d<=1&&(!second||best.d<second.d)){
-        return {...findSpecials(best.name),candidate:true};
+        return {specials:[],supers:[],unknown:[],candidate:true,suggestedSuper:best.name};
       }
-
-      // 金色だと判定できた未登録上位能力は、査定入力に不要なので静かに無視する。
       return {specials:[],supers:[],unknown:[],candidate:false};
     }
 
@@ -1214,7 +1215,8 @@
     const marked=String(text).normalize('NFC').replace(/\s/g,'').match(/^(.+?)[③⑥⑧⑨][ぐく]?$/);
     if(marked){const upper=marked[1]+'◎';if(D.special.some(s=>s[1]===upper))return {...findSpecials(upper),candidate:true};}
     const exact=findSpecials(clean);
-    if(!exact.unknown.length&&(exact.specials.length||exact.supers.length))return {...exact,candidate:false};
+    if(!exact.unknown.length&&exact.specials.length)return {specials:exact.specials,supers:[],unknown:[],candidate:false};
+    if(exact.supers.length)return {specials:[],supers:[],unknown:[clean],candidate:false};
     const names=GENERIC_SPECIAL_NAMES.filter(n=>n.length>=2);
     const best=fuzzyBest(clean,names,false);
     if(best){
@@ -1440,19 +1442,23 @@
 
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
+        if(entry.confirmed!==true)continue;
         const visualLevel=levelByImage(image,cell);
         if(visualLevel!=null)entry.level=visualLevel;
         else{
-          // 画像比較で取れない時だけOCRを補助に使う。Lv表示はセル右下にはみ出す。
           const [cx,cy]=cell.rect;
           const t=(await textAt(image,[cx+83,cy+25,55,35],true)).text;
           entry.level=/[12]$/.test(t)?Number(t.slice(-1)):null;
         }
-        result.supers.push(entry);
+        if(entry.level===1||entry.level===2)result.supers.push(entry);
+        else candidates.push(`${cell.row}段目・左から${cell.col}番目「${entry.name}（Lv不明）」`);
       }
       const where=`${cell.row}段目・左から${cell.col}番目`;
       if(parsed.unknown.length)missed.push(where);
-      if(parsed.candidate)candidates.push(`${where}「${parsed.supers[0]?.name||parsed.specials[0]}」`);
+      if(parsed.candidate){
+        const candidateName=parsed.suggestedSuper||parsed.specials[0]||'';
+        candidates.push(candidateName?`${where}「${candidateName}」`:where);
+      }
     }
     // 画面に直接表示された○/◎を最終優先。
     // 例：列攻撃○が見えているのに、別セルの上位能力誤認や補完で列攻撃◎が混ざるのを防ぐ。
@@ -1887,10 +1893,9 @@
       if(old?.level!=null && s.level==null){
         s.level=old.level;
       }else if(old?.level!=null && s.level!=null && old.level!==s.level){
-        // 重複スクショで一方が誤判定してもLvを空欄に戻さない。
-        // 先に確定できたLvを保持し、確認メッセージだけ出す。
-        s.level=old.level;
-        out.warnings.push(s.name+'のLv候補が画像間で一致しません。表示Lvを確認してください。');
+        s.level=null;
+        s.confirmed=false;
+        out.warnings.push(s.name+'のLv候補が画像間で一致しません。自動入力せず、表示Lvを確認してください。');
       }
       superMap.set(s.name,s);
     }
@@ -1986,5 +1991,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
 })();
