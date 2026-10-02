@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1049-super-recovery-2';
+  const PHOTO_IMPORT_BUILD='20261003-img1053-partial-import-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -10,7 +10,7 @@
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','そよかぜの加護','魔力探求','魔力開眼','鉄壁の盾','タフネス']);
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','そよかぜの加護','魔力探求','魔力開眼','鉄壁の盾','タフネス','魔族キラー']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
@@ -380,6 +380,16 @@
     'AAAAAAAAAAIAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABvP4gAAf5tAG4/jgPx/n+AbAAGAHH8YYBmP4BgYfx/AMYBgODhfnMM='
   );
 
+  // IMG_1053: 査定に影響しない金色セル「魔族キラー」。
+  // 画像上では超特殊能力セルとして検出するが、入力対象にはせず明示的に無視する。
+  Object.assign(HYBRID_ABILITY_MASKS,{
+    '魔族キラー':[
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/H8MD+AAAAP8/z+P4AAAA/zPP4/gAAADeP8GD+f4AAP8/z/AY/gCA/z/P8DgAAI=',
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/x/DA/gAAAD/P8/j+AAAAP8zz+P4AAAA3j/Bg/n+AAD/P8/wGP4AgP8/z/A4AACA/z/BgPAAAI=',
+      'AAAAAAAAAAAAAAAAAAAAAAP8fwwP4AAAA/z/P4/gAAAD/M8/j+AAAAN4/wYP5/gAA/z/P8Bj+AID/P8/wOAAAgP8/wYDwAACA/z7BgOAAAI='
+    ]
+  });
+
   // 基本能力の数字はOCRを使わず、実画像の数字テンプレート比較だけで判定する。
   // 未登録・曖昧な字形は空欄＋警告にして、OCRへはフォールバックしない。
   const HYBRID_DIGIT_MASKS={
@@ -394,6 +404,24 @@
     '8':['B4B4H+GHOHOHHOD8H+PPOH8DMDOHH+D8','D8D8P+MGMGMGMGH8H8OO8H8H4D8HOHH+','H4H4P88O4G8OP8P88+8+4G4H4G8OP8BA','B4B4H+OGOHOGHOH8H+OP8H8D8HOPH+D4','D4D4P+MH8H8HOOH8P++P8H4D4D8HP+D4'],
     '9':['D4D4P++O8H4D4D8H+PP7ADADAH8OP+H4','DwDwH8OO8G8H8H8HPfH/ADAHAGMOP8D4','D4D4P+MGMH8D8DMDOPH/BzBzADAHOOH8']
   };
+
+  // IMG_1053/1054の実画像から追加した、基本能力・現在経験点の1桁テンプレート。
+  // 数字列全体を記憶せず1桁ごとに照合するので、別の数値にも利用できる。
+  const ABILITY_EXP_DIGIT_EXTRA_MASKS={
+    '0':['D4D4H+OO8H8H4D4D4D4D4D8H8HOOP+D4','BwBwH+POOHIH4H4H4H4H4HIHOHOOH+B4'],
+    '1':['A/A/H/////AHAHAHAHAHAHAHAHAHAHAH','APAPB/////5/5/APAPAPAPAPAPAPAPAP'],
+    '2':['D4D4P++P8HAHAHAOB8D4HAOA8A+E////','BwBwH+OO4HAHAGAOA+BwHAOAOA+A///+'],
+    '3':['D4D4P+OOEHAHAOD8D8AOAHADIH8PP+H8'],
+    '4':['A8A8B8B8D8DMGMOMMM4M8+////AMAMAM'],
+    '5':['/8/8/+8A4A4A54/88OAGAHAH4G8+/8H4','P/P/P/MAMAIAIA/+/PADADADADMDPPP+'],
+    '6':['B4B4H+PGOAMA8A98/++H8HMDOHOOH+D4','H8H8P/8C4A4A4A78/+8P4D4D4D4DMPP+'],
+    '7':['////////AOA8B4B4BwDwDwHAHAHAHAGA'],
+    '8':['DwDwP8MO8OMOOcH8P8+O8H4H8H+OP8D4']
+  };
+  for(const [digit,variants] of Object.entries(ABILITY_EXP_DIGIT_EXTRA_MASKS)){
+    const target=HYBRID_DIGIT_MASKS[digit]||(HYBRID_DIGIT_MASKS[digit]=[]);
+    for(const variant of variants)if(!target.includes(variant))target.push(variant);
+  }
 
   // 訓練画面の増加経験点専用。実ゲーム画像の大きい数字から作ったテンプレート.
   const TRAINING_DIGIT_MASKS={
@@ -1448,9 +1476,17 @@
     const ref=document.createElement('canvas');ref.width=1536;ref.height=706;
     ref.getContext('2d').drawImage(c,0,0,1536,706);
     const pixels=ref.getContext('2d').getImageData(0,0,1536,706).data;
-    const blue=(x,y)=>{const i=(y*1536+x)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];return b>r+30&&g>r+15;};
+    const colored=(x,y)=>{const i=(y*1536+x)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];return (b>r+25&&g>r+10)||(r>b+65&&g>b+35);};
+    // 行検出を青セル左端1pxだけに依存させない。
+    // 取得能力が金色の超特殊能力だけの画面（IMG_1053の魔族キラー等）でも、
+    // 各セル内部を横方向にサンプリングして色帯を拾う。
+    const rowHasAbilityColor=y=>[713,852,990,1128].some(x=>{
+      let hits=0;
+      for(let xx=x+3;xx<x+127;xx+=8)if(colored(xx,y))hits++;
+      return hits>=4;
+    });
     const bands=[];for(let y=274;y<537;y++){
-      if(![716,855,993,1131].some(x=>blue(x,y)))continue;
+      if(!rowHasAbilityColor(y))continue;
       if(!bands.length||y>bands[bands.length-1][1]+2)bands.push([y,y]);else bands[bands.length-1][1]=y;
     }
     // 旧レイアウトは約57px、新レイアウトは約50px間隔。固定ピッチではなく
