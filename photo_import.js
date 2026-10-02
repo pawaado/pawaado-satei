@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-attribute-flow-1';
+  const PHOTO_IMPORT_BUILD='20261002-attribute-flow-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1810,10 +1810,13 @@
       }
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
+    const abilityUpJobConflict=conflicts.get(abilityUpIdentity)?.has('job');
+    const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
     if(abilityUpIdentity.job&&dataIdentity.job&&abilityUpIdentity.job!==dataIdentity.job){
       out.warnings.push(`ジョブの読み取り値が一致しません。能力アップ画面の文字判定（${abilityUpIdentity.job}）を優先しました。`);
     }
-    out.job=abilityUpIdentity.job||dataIdentity.job||'';
+    if(abilityUpJobConflict||(!abilityUpIdentity.job&&dataJobConflict))out.job=null;
+    else out.job=abilityUpIdentity.job||dataIdentity.job||'';
     out.attribute=dataIdentity.attribute||'';
 
     // 各訓練画像の左側に表示されている現在経験点を、そのパターンの基準値にする。
