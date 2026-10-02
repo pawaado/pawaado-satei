@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1076-template-cleanup-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1080-action-double-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1721,6 +1721,16 @@
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
       let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
+
+      // IMG_1080: アクションスキルは文字列が長く、末尾の○/◎が横方向に圧縮される。
+      // 全能力共通の判定閾値は変えず、この能力だけ同名○/◎テンプレートの直接比較を最終優先する。
+      // 対ドラゴンタートル等、ほかの○/◎ペアの判定経路には触れない。
+      if(visualExact&&/^アクションスキル[○◎]$/.test(normalize(visualName))){
+        const actionMark=pairMarkByImage(image,cell,'アクションスキル');
+        if(actionMark&&D.special.some(s=>normalize(s[1])==='アクションスキル'+actionMark)){
+          visualName='アクションスキル'+actionMark;
+        }
+      }
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
       if(/[○◎]$/.test(visualName)&&!visualExact){
