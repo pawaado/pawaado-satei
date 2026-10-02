@@ -179,7 +179,7 @@
     </section>
   </main>
 
-  <script src="data.js?v=20261002-data-audit-1"></script>
+  <script src="data.js?v=20261002-resistance-rules-1"></script>
   <script>
   (()=>{
     const D=window.PAWAADO_DATA;
@@ -191,11 +191,10 @@
       return;
     }
 
+  const resistanceRules=D.resistanceRules||{};
   const resistanceImpactSkills=new Set([
-    '物理防御○','物理防御◎','魔法防御○','魔法防御◎','体幹','魔力制御','柔軟な体','無心の構え',
-    '火耐性','風耐性','水耐性','無耐性','がむしゃら','ケガしにくさ○','ケガしにくさ◎','防御態勢',
-    '備え','広い視野','見切り','危機察知','力学の理解','魔法の理解','免疫強化','意志','ガッツ',
-    '局所防衛','再生学','生命管理','ヒーラー魂','バランス感覚','立て直し','冷静沈着','戦況分析'
+    ...(resistanceRules.pairSources||[]).flatMap(rule=>[rule.lower,rule.upper]),
+    ...Object.keys(resistanceRules.directEffects||{})
   ]);
 
     const groupDefs={

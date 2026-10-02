@@ -1,26 +1,9 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261002-worker-cleanup-2';
-  const resistanceTypes=[
-    '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
-    '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
-    '通常攻撃耐性','被ダメージ耐性','アクションスキル耐性','ダメージ状態異常耐性','弱体化状態異常耐性','行動不能状態異常耐性'
-  ];
-
-  window.__PAWAADO_RESISTANCE_PATCH_VERSION__=PATCH_VERSION;
-  window.PAWAADO_EFFECT_RULES=Object.freeze({
-    resistanceScorePerPercent:Object.freeze({
-      '通常攻撃耐性':20,'被ダメージ耐性':140,'物理攻撃耐性':70,'魔法攻撃耐性':70,'必殺技耐性':33,'全体攻撃耐性':50,'単体攻撃耐性':70,
-      '火属性耐性':70,'風属性耐性':70,'水属性耐性':70,'無属性耐性':70,'列攻撃耐性':50,
-      'アクションスキル耐性':18,'ダメージ状態異常耐性':20,'弱体化状態異常耐性':20,'行動不能状態異常耐性':20
-    }),
-    multiplierScorePerPercent:Object.freeze({
-      physical:Object.freeze({givenDamage:45,physicalAttack:45,magicAttack:0,hpRecovery:0,singleHpRecovery:0,normalAttackHpRecovery:0,actionRecovery:0,rowHpRecovery:0,finisherHpRecovery:0}),
-      magic:Object.freeze({givenDamage:45,physicalAttack:0,magicAttack:45,hpRecovery:0,singleHpRecovery:0,normalAttackHpRecovery:0,actionRecovery:0,rowHpRecovery:0,finisherHpRecovery:0}),
-      priest:Object.freeze({givenDamage:45,physicalAttack:0,magicAttack:4.5,hpRecovery:45,singleHpRecovery:45,normalAttackHpRecovery:13,actionRecovery:12,rowHpRecovery:33,finisherHpRecovery:22})
-    })
-  });
+  const PATCH_VERSION='20261002-resistance-audit-1';
+  const D=window.PAWAADO_DATA;
+  const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
 
   function abilityLetter(index){
     let n=Math.max(0,Number(index)||0)+1;
@@ -61,39 +44,7 @@
       .join('|');
   }
 
-  // script.jsの結果キャッシュに耐性入力も含める。
-  const NativeMap=window.Map;
-  const trackedMaps=[];
-  function cacheKeyWithResistance(key){
-    return typeof key==='string'&&key.includes('||')
-      ? `${key}||extraResistance:${resistanceSignature()}`
-      : key;
-  }
-  class TrackedMap extends NativeMap{
-    constructor(iterable){
-      super();
-      trackedMaps.push(this);
-      if(iterable) for(const [key,value] of iterable) this.set(key,value);
-    }
-    get(key){return super.get(cacheKeyWithResistance(key));}
-    set(key,value){return super.set(cacheKeyWithResistance(key),value);}
-    has(key){return super.has(cacheKeyWithResistance(key));}
-    delete(key){return super.delete(cacheKeyWithResistance(key));}
-  }
-  Object.setPrototypeOf(TrackedMap,NativeMap);
-  window.Map=TrackedMap;
-
-  function clearDetectedResultCaches(){
-    for(const map of trackedMaps){
-      if(!map||map.size===0) continue;
-      for(const key of map.keys()){
-        if(typeof key==='string'&&key.includes('||extraResistance:')){
-          map.clear();
-          break;
-        }
-      }
-    }
-  }
+  window.__PAWAADO_RESISTANCE_SIGNATURE__=resistanceSignature;
 
   function validateResistanceValue(row,showMessage=true){
     const input=row?.querySelector('.extra-resistance-value');
@@ -191,7 +142,6 @@
             payload:{
               ...(message.payload||{}),
               extraResistances:getExtraResistances(),
-              resistancePatchVersion:PATCH_VERSION
             }
           };
           if(arguments.length>=2) inner.postMessage(nextMessage,transfer);
@@ -237,7 +187,6 @@
       .extra-resistance-group-rows{display:none!important}
       .usage-subnote{font-size:.88em;font-weight:600;color:#6f5438}
       .extra-resistance-group{padding:6px 7px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
-      .extra-resistance-group-rows{display:grid;gap:8px;margin-top:8px}
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
       .super-control-row{display:block;height:52px;min-height:52px;margin:0!important;padding:0!important}
@@ -258,37 +207,17 @@
       .extra-resistance-group-remove{display:block;margin:0;width:38px;min-width:38px;height:48px;min-height:48px;padding:3px;border-radius:9px;font-size:18px;line-height:1}
       .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{visibility:hidden;pointer-events:none}
       .super-note{margin:4px 0 0;font-size:12px;line-height:1.35}.super-note:empty{display:none}
-      .extra-resistance-type-control{position:relative;min-width:0;z-index:20}
-      .extra-resistance-type-control.is-open{z-index:4000}
-      .extra-resistance-type-button{height:52px;min-height:52px;padding:8px 42px 8px 10px;font-size:14px;font-weight:600}      .extra-resistance-type-control .custom-select-menu{
-        left:0;right:auto;
-        width:min(240px,calc(100vw - 48px));
-        min-width:min(230px,calc(100vw - 48px));
-        max-width:calc(100vw - 32px);
-        font-size:14px;
-      }
-      .extra-resistance-type-control .custom-select-option{font-size:14px;min-height:44px;white-space:nowrap}
       .extra-resistance-value-wrap{width:100%;min-width:0;height:52px;min-height:52px;border:2px solid #b58a52;border-radius:10px;background:linear-gradient(180deg,#fffdf4,#fff2ce);color:var(--ink);box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;overflow:hidden;box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7)}
       .extra-resistance-value{width:100%;min-width:0;height:48px;border:0!important;outline:0!important;background:transparent!important;color:var(--ink);padding:7px 4px 7px 8px!important;text-align:right;font:inherit;font-variant-numeric:tabular-nums;box-shadow:none!important;-webkit-appearance:none;appearance:textfield;caret-color:#5a371d}
       .extra-resistance-value:focus,.extra-resistance-value:focus-visible{outline:0!important;box-shadow:none!important}
       .extra-resistance-value-wrap:focus-within{outline:0!important;border-color:#b58a52!important;box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7)!important}
       .extra-resistance-unit{padding:0 10px 0 4px;color:#6a4a2d;font-weight:800;line-height:1}
-      .extra-resistance-remove,.extra-resistance-remove-placeholder{width:42px;height:52px;min-width:42px;min-height:52px}
-      .extra-resistance-remove{padding:4px;border-radius:9px;font-size:20px;line-height:1}
-      .extra-resistance-remove-placeholder{display:block}
       .extra-resistance-error{grid-column:1/-1;margin:-2px 0 1px;color:#a52f2f;font-size:12px;font-weight:700;line-height:1.45}
       .extra-resistance-row.is-invalid .extra-resistance-value-wrap{border-color:#a52f2f!important;box-shadow:0 0 0 1px rgba(165,47,47,.12)!important}
-      .extra-resistance-group-actions{margin-top:9px}
-      .extra-resistance-actions{margin-top:12px}
-      .extra-resistance-same-add,.extra-resistance-add{width:100%;min-height:52px;font-size:14px}
       @media(max-width:620px){
         .extra-resistance-group{padding:6px 6px}
         .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
-        .extra-resistance-type-button{font-size:13px;padding-left:8px;padding-right:36px}
-        .extra-resistance-type-control .custom-select-menu{width:min(240px,calc(100vw - 36px));min-width:min(230px,calc(100vw - 36px))}
-        .extra-resistance-type-control .custom-select-option{font-size:14px}
         .extra-resistance-value{font-size:14px}
-        .extra-resistance-remove,.extra-resistance-remove-placeholder{width:38px;min-width:38px}
       }
     `;
     document.head.appendChild(style);
@@ -304,71 +233,6 @@
       </label>
       <p class="extra-resistance-error" hidden>耐性値は0以外・100未満の数値で入力してください。</p>
     </div>`;
-  }
-
-  function closeResistanceMenus(except=null){
-    document.querySelectorAll('.extra-resistance-type-control.is-open').forEach(control=>{
-      if(control===except) return;
-      control.classList.remove('is-open');
-      const button=control.querySelector('.extra-resistance-type-button');
-      const menu=control.querySelector('.extra-resistance-type-menu');
-      if(button) button.setAttribute('aria-expanded','false');
-      if(menu) menu.hidden=true;
-    });
-  }
-
-  function initResistanceSelects(root=document){
-    root.querySelectorAll('.extra-resistance-type-control').forEach(control=>{
-      if(control.dataset.ready==='1') return;
-      control.dataset.ready='1';
-      const select=control.querySelector('.extra-resistance-type');
-      const button=control.querySelector('.extra-resistance-type-button');
-      const text=control.querySelector('.extra-resistance-type-text');
-      const menu=control.querySelector('.extra-resistance-type-menu');
-      if(!select||!button||!text||!menu) return;
-
-      const close=()=>{
-        control.classList.remove('is-open');
-        button.setAttribute('aria-expanded','false');
-        menu.hidden=true;
-      };
-      const rebuild=()=>{
-        menu.innerHTML='';
-        for(const option of select.options){
-          if(control.classList.contains('super-level-control')&&!option.value)continue;
-          const item=document.createElement('button');
-          item.type='button';
-          item.className='custom-select-option'+(option.value===select.value?' is-selected':'');
-          item.textContent=option.textContent;
-          item.addEventListener('click',event=>{
-            event.stopPropagation();
-            select.value=option.value;
-            text.textContent=option.textContent;
-            select.dispatchEvent(new Event('change',{bubbles:true}));
-            close();
-          });
-          menu.appendChild(item);
-        }
-      };
-      const sync=()=>{
-        const selected=select.options[select.selectedIndex];
-        text.textContent=selected?.textContent||'耐性を選択';
-        rebuild();
-      };
-      button.addEventListener('click',event=>{
-        event.stopPropagation();
-        const opening=menu.hidden;
-        closeResistanceMenus(opening?control:null);
-        if(opening){
-          rebuild();
-          menu.hidden=false;
-          control.classList.add('is-open');
-          button.setAttribute('aria-expanded','true');
-        }else close();
-      });
-      select.addEventListener('change',sync);
-      sync();
-    });
   }
 
   function superSelectControlHtml(kind,optionsHtml,placeholder,disabled=false){
@@ -584,7 +448,6 @@
     if(!list) return;
     list.innerHTML=resistanceGroupHtml(0);
     initSuperSelects(list);
-    clearDetectedResultCaches();
   }
 
   function injectResistanceUi(){
@@ -606,13 +469,12 @@
     section.addEventListener('input',event=>{
       const row=event.target.closest('.extra-resistance-row');
       if(event.target.matches('.extra-resistance-value')) validateResistanceValue(row,true);
-      clearDetectedResultCaches();
     });
     section.addEventListener('change',event=>{
       if(event.target.matches('.super-name,.super-level')){
         const group=event.target.closest('.extra-resistance-group');
         if(event.target.matches('.super-name')){
-          group.querySelector('.super-level').value=event.target.value?'2':'';
+          group.querySelector('.super-level').value='';
         }
         fillSuperGroup(group);
         if(event.target.matches('.super-name')){
@@ -622,7 +484,6 @@
       }
       const row=event.target.closest('.extra-resistance-row');
       if(event.target.matches('.extra-resistance-value')) validateResistanceValue(row,true);
-      clearDetectedResultCaches();
     });
     section.addEventListener('click',event=>{
       const removeGroup=event.target.closest('.extra-resistance-group-remove');
@@ -631,18 +492,8 @@
         renumberResistanceGroups();
         section.querySelectorAll('.extra-resistance-group').forEach(other=>rebuildSuperNameOptions(other));
         syncEmptySuperGroup();
-        clearDetectedResultCaches();
       }
     });
-  }
-
-  function syncUsageNoteOnly(){
-    // 使い方本文は index.html を正本にする。
-    // ここで上書きすると、index.html 側の更新が画面に反映されなくなるため触らない。
-    const firstNote=document.querySelector('.usage-note-list li');
-    if(firstNote){
-      firstNote.textContent='基本能力の小数点以下の査定が不明であることなどから、本ツールの結果が適切でない場合があります。必殺技、アクションスキル、超特殊能力の査定は割愛しています。あらかじめご了承ください。';
-    }
   }
 
   function fillSuperGroup(group){
@@ -669,11 +520,8 @@
       row.querySelector('.extra-resistance-type-label').textContent=def.types[i];
       row.querySelector('.extra-resistance-value').value=lv?def.levels[lv-1]:'';
     });
-
-    if(def&&lv) document.dispatchEvent(new CustomEvent('pawaado-super-change',{detail:{name}}));
     group.querySelector('.super-note').textContent=
       !def?.job&&def?.includes&&lv?'下位能力込みの合計値です。':'';
-    clearDetectedResultCaches();
   }
 
   window.__PAWAADO_SET_SUPERS__=entries=>{
@@ -690,17 +538,14 @@
       fillSuperGroup(group);
     });
     refreshSuperControlsForJob();
-    clearDetectedResultCaches();
   };
   addStyles();
   injectResistanceUi();
-  syncUsageNoteOnly();
   refreshSuperControlsForJob();
 
   document.getElementById('job')?.addEventListener('change',()=>queueMicrotask(refreshSuperControlsForJob));
 
   document.addEventListener('click',()=>{
-    closeResistanceMenus();
     document.querySelectorAll('.super-custom-select.is-open').forEach(control=>{
       control.classList.remove('is-open');
       control.querySelector('.custom-select-button')?.setAttribute('aria-expanded','false');

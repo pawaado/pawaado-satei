@@ -7,7 +7,7 @@ function load(html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'
  const c={document:{getElementById:id=>elements[id],querySelectorAll:()=>tabs},scrollTo(){}};c.window=c;vm.createContext(c);
  if(data)vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).filter(x=>x.trim()).join('\n');
- vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'window.audit={allItems,basicItems,specialItems,groupDefs,referenceHp};})();'),c);
+ vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'window.audit={allItems,basicItems,specialItems,groupDefs,referenceHp,resistanceImpactSkills};})();'),c);
  return {c,tabs,elements};
 }
 test('all groups have finite, unique, correctly ordered rankings',()=>{
@@ -28,6 +28,11 @@ test('special scores/costs match master data, zero scores are excluded, dual lev
 });
 test('tab clicks render each group and expose a single pressed state',()=>{
  const {c,tabs,elements}=load();for(const tab of tabs){tab.click();assert.equal(tabs.filter(t=>t.attrs['aria-pressed']==='true').length,1);assert.equal(tab.attrs['aria-pressed'],'true');assert.equal((elements.rankingRoot.innerHTML.match(/<tr class=/g)||[]).length,c.audit.allItems(tab.dataset.group).length);assert(elements.rankingRoot.innerHTML.includes('ranking-resistance-marker'));}
+});
+test('resistance-impact markers are derived from canonical data rules',()=>{
+ const {c}=load();const rules=c.PAWAADO_DATA.resistanceRules;
+ const expected=new Set([...(rules.pairSources||[]).flatMap(x=>[x.lower,x.upper]),...Object.keys(rules.directEffects||{})]);
+ assert.deepEqual([...c.audit.resistanceImpactSkills].sort(),[...expected].sort());
 });
 test('HP note is derived from master data and missing data reports an error',()=>{
  const {c,elements}=load();assert.equal(c.audit.referenceHp,1925);assert(elements.referenceHpNote.textContent.includes('HP1925'));assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));

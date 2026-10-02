@@ -21,6 +21,21 @@ for(const [,file] of vm.runInNewContext(references))assert(fs.existsSync(`assets
 const photoVersion=photo.match(/const PHOTO_IMPORT_BUILD='([^']+)'/)[1];
 assert.equal(refs.find(r=>r.file==='photo_import.js').url.split('?v=')[1],photoVersion,'photo build/cache mismatch');
 const workerVersion=sources['resistance_patch.js'].match(/const PATCH_VERSION='([^']+)'/)[1];
+const dataContext={window:{}};new vm.Script(sources['data.js'],{filename:'data.js'}).runInNewContext(dataContext);
+const data=dataContext.window.PAWAADO_DATA,resistanceRules=data.resistanceRules;
+assert(resistanceRules&&resistanceRules.scorePerPercent&&resistanceRules.directEffects&&Array.isArray(resistanceRules.pairSources),'data.js: resistanceRules missing');
+const specialNames=new Set((data.special||[]).map(row=>String(row[1]||'')));
+const checkEffect=(name,type,value)=>{assert(specialNames.has(name),`data.js: unknown resistance skill ${name}`);assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown resistance type ${type} for ${name}`);assert(Number.isFinite(Number(value))&&Number(value)!==0,`data.js: invalid resistance value for ${name}`);};
+for(const pair of resistanceRules.pairSources){for(const type of pair.types||[pair.type]){checkEffect(pair.lower,type,pair.lowerValue);checkEffect(pair.upper,type,Number(pair.upperValue)-Number(pair.lowerValue));}}
+for(const [name,effects] of Object.entries(resistanceRules.directEffects))for(const [type,value] of effects)checkEffect(name,type,value);
+for(const [job,effects] of Object.entries(resistanceRules.jobDefaults||{}))for(const [type,value] of Object.entries(effects)){assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown job resistance type ${type} for ${job}`);assert(Number.isFinite(Number(value))&&Number(value)!==0,`data.js: invalid job resistance for ${job}`);}
+for(const [name,def] of Object.entries(data.superResistances||{}))for(const type of def.types||[])assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown super resistance type ${type} for ${name}`);
+assert(sources['pawaado_worker_resistance.js'].includes('D.resistanceRules'),'resistance worker must use data.js resistanceRules');
+assert(sources['rankings.html'].includes('D.resistanceRules'),'rankings must use data.js resistanceRules');
+assert(!sources['resistance_patch.js'].includes('window.Map=TrackedMap'),'resistance_patch.js must not replace global Map');
+assert(!sources['resistance_patch.js'].includes('PAWAADO_EFFECT_RULES'),'resistance_patch.js contains duplicated/dead effect rules');
+assert(!sources['resistance_patch.js'].includes('syncUsageNoteOnly'),'resistance_patch.js must not overwrite usage notes');
+assert(!sources['resistance_patch.js'].includes("value=event.target.value?'2':''"),'manual super selection must not auto-select Lv2');
 for(const r of refs.filter(r=>['pawaado_worker.js','resistance_patch.js'].includes(r.file)))assert.equal(r.url.split('?v=')[1],workerVersion,`${r.from}: worker cache mismatch`);
 const baseIndex=process.argv.indexOf('--base');
 if(baseIndex>=0){

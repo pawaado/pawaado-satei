@@ -1677,7 +1677,10 @@ function calcCacheKey(exp){
     .sort((a,b)=>Number(a[0])-Number(b[0]))
     .map(([i,st])=>i+':'+(st.hint||0)+':'+(st.own||0))
     .join('|');
-  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart].join('||');
+  const resistancePart=typeof window.__PAWAADO_RESISTANCE_SIGNATURE__==='function'
+    ? window.__PAWAADO_RESISTANCE_SIGNATURE__()
+    : '';
+  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'extraResistance:'+resistancePart].join('||');
 }
 function cloneResult(st){
   const items=restoreItems(st);
@@ -2679,7 +2682,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-worker-cleanup-2');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-resistance-audit-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -3111,11 +3114,6 @@ function resetAll(){
 }
 
 
-
-document.addEventListener('pawaado-super-change',event=>{
-  for(const name of D.superResistances[event.detail.name]?.includes||[]){const i=specialNameIndex.get(name);if(i!==undefined)setSpecialOwned(i,true);}
-  calcResultCache.clear();
-});
 window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   const rows=(patterns||[]).slice(0,MAX_EXP_SAMPLES).filter(p=>p&&p.exp);

@@ -12,75 +12,36 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261002-worker-cleanup-2',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261002-resistance-audit-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
     const resistanceEngine=`// --- resistance-aware scoring patch ---
 let workerExtraResistances=[];
-const RESISTANCE_SCORE_RATES=Object.freeze({
-  '通常攻撃耐性':20,'被ダメージ耐性':140,'物理攻撃耐性':70,'魔法攻撃耐性':70,'必殺技耐性':33,'全体攻撃耐性':50,'単体攻撃耐性':70,
-  '火属性耐性':70,'風属性耐性':70,'水属性耐性':70,'無属性耐性':70,'列攻撃耐性':50,
-  'アクションスキル耐性':18,'ダメージ状態異常耐性':20,'弱体化状態異常耐性':20,'行動不能状態異常耐性':20
-});
-const resistanceScoreCache=new Map();
-const staticResistanceScoreCache=new Map();
-let resistanceRelevantMaskCache=null;
-const RESISTANCE_PAIR_SOURCES=Object.freeze([
-  Object.freeze({lower:'物理防御○',upper:'物理防御◎',type:'物理攻撃耐性',lowerValue:2,upperValue:4,source:'物理防御'}),
-  Object.freeze({lower:'魔法防御○',upper:'魔法防御◎',type:'魔法攻撃耐性',lowerValue:2,upperValue:4,source:'魔法防御'}),
-  Object.freeze({lower:'ケガしにくさ○',upper:'ケガしにくさ◎',types:['物理攻撃耐性','魔法攻撃耐性'],lowerValue:1,upperValue:2,source:'ケガしにくさ'})
-]);
-const RESISTANCE_DIRECT_EFFECTS=Object.freeze({
-  '局所防衛':[['単体攻撃耐性',1]],
-  '再生学':[['アクションスキル耐性',4]],
-  '生命管理':[['ダメージ状態異常耐性',2]],
-  '体幹':[['物理攻撃耐性',1]],
-  '魔力制御':[['魔法攻撃耐性',1]],
-  '柔軟な体':[['物理攻撃耐性',4]],
-  '無心の構え':[['魔法攻撃耐性',4]],
-  '火耐性':[['火属性耐性',2]],
-  '風耐性':[['風属性耐性',2]],
-  '水耐性':[['水属性耐性',2]],
-  '無耐性':[['無属性耐性',2]],
-  'がむしゃら':[['物理攻撃耐性',-2],['魔法攻撃耐性',-2],['通常攻撃耐性',-2]],
-  '防御態勢':[['単体攻撃耐性',2]],
-  '備え':[['列攻撃耐性',2]],
-  '広い視野':[['全体攻撃耐性',2]],
-  '見切り':[['アクションスキル耐性',4]],
-  '危機察知':[['必殺技耐性',4]],
-  '力学の理解':[['物理攻撃耐性',4]],
-  '魔法の理解':[['魔法攻撃耐性',4]],
-  '免疫強化':[['ダメージ状態異常耐性',2]],
-  '意志':[['弱体化状態異常耐性',2]],
-  'ガッツ':[['行動不能状態異常耐性',2]],
-  'ヒーラー魂':[['物理攻撃耐性',-1]],
-  'バランス感覚':[['列攻撃耐性',2]],
-  '立て直し':[['必殺技耐性',2]],
-  '冷静沈着':[['魔法攻撃耐性',2]],
-  '戦況分析':[['全体攻撃耐性',2]]
-});
+const RESISTANCE_RULES=D.resistanceRules||{};
+const RESISTANCE_SCORE_RATES=RESISTANCE_RULES.scorePerPercent||{};
+const RESISTANCE_PAIR_SOURCES=RESISTANCE_RULES.pairSources||[];
+const RESISTANCE_DIRECT_EFFECTS=RESISTANCE_RULES.directEffects||{};
 // data.jsの査定から単独取得時の耐性部分だけを外し、実際の耐性増減分に差し替える。
 // ◎は○取得後の追加分なので、静的査定からは追加分だけを差し引く。
-const STATIC_RESISTANCE_EFFECTS=Object.freeze({
-  '物理防御○':[['物理攻撃耐性',2]],'物理防御◎':[['物理攻撃耐性',2]],
-  '魔法防御○':[['魔法攻撃耐性',2]],'魔法防御◎':[['魔法攻撃耐性',2]],
-  '局所防衛':[['単体攻撃耐性',1]],
-  '再生学':[['アクションスキル耐性',4]],
-  '生命管理':[['ダメージ状態異常耐性',2]],
-  '体幹':[['物理攻撃耐性',1]],'魔力制御':[['魔法攻撃耐性',1]],
-  '柔軟な体':[['物理攻撃耐性',4]],'無心の構え':[['魔法攻撃耐性',4]],
-  '火耐性':[['火属性耐性',2]],'風耐性':[['風属性耐性',2]],'水耐性':[['水属性耐性',2]],'無耐性':[['無属性耐性',2]],
-  'がむしゃら':[['物理攻撃耐性',-2],['魔法攻撃耐性',-2],['通常攻撃耐性',-2]],
-  'ケガしにくさ○':[['物理攻撃耐性',1],['魔法攻撃耐性',1]],
-  'ケガしにくさ◎':[['物理攻撃耐性',1],['魔法攻撃耐性',1]],
-  '防御態勢':[['単体攻撃耐性',2]],'備え':[['列攻撃耐性',2]],'広い視野':[['全体攻撃耐性',2]],
-  '見切り':[['アクションスキル耐性',4]],'危機察知':[['必殺技耐性',4]],
-  '力学の理解':[['物理攻撃耐性',4]],'魔法の理解':[['魔法攻撃耐性',4]],
-  '免疫強化':[['ダメージ状態異常耐性',2]],'意志':[['弱体化状態異常耐性',2]],'ガッツ':[['行動不能状態異常耐性',2]],
-  'ヒーラー魂':[['物理攻撃耐性',-1]],'バランス感覚':[['列攻撃耐性',2]],'立て直し':[['必殺技耐性',2]],
-  '冷静沈着':[['魔法攻撃耐性',2]],'戦況分析':[['全体攻撃耐性',2]]
-});
+const STATIC_RESISTANCE_EFFECTS=(()=>{
+  const out={};
+  const add=(name,type,value)=>{
+    if(!name||!type||!Number.isFinite(Number(value))||Number(value)===0) return;
+    (out[name]||(out[name]=[])).push([type,Number(value)]);
+  };
+  for(const pair of RESISTANCE_PAIR_SOURCES){
+    const types=pair.types||[pair.type];
+    for(const type of types){
+      add(pair.lower,type,Number(pair.lowerValue||0));
+      add(pair.upper,type,Number(pair.upperValue||0)-Number(pair.lowerValue||0));
+    }
+  }
+  for(const [name,effects] of Object.entries(RESISTANCE_DIRECT_EFFECTS)){
+    for(const [type,value] of effects||[]) add(name,type,value);
+  }
+  return out;
+})();
 function hasResistanceEffectName(name){
   return Object.prototype.hasOwnProperty.call(STATIC_RESISTANCE_EFFECTS,String(name||''));
 }
@@ -124,10 +85,9 @@ function resistanceSourcesForBits(bits){
   const byType=new Map();
   const activeBits=bits??EMPTY_BITS;
 
-  // 重戦士は職業デフォルトで物理・魔法攻撃耐性を各2%所持。
-  if(job.value==='重戦士'){
-    addResistanceSource(byType,'物理攻撃耐性','job:重戦士',2);
-    addResistanceSource(byType,'魔法攻撃耐性','job:重戦士',2);
+  // ジョブ固有の初期耐性もdata.jsを正本にする。
+  for(const [type,value] of Object.entries(RESISTANCE_RULES.jobDefaults?.[job.value]||{})){
+    addResistanceSource(byType,type,'job:'+job.value,value);
   }
 
   // 超特殊能力そのものの査定は加算せず、既に所持している耐性としてのみ使う。
