@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-profile-attribute-2';
+  const PHOTO_IMPORT_BUILD='20261002-attribute-flow-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1747,6 +1747,8 @@
   async function readImages(images){
     const out={academy:'',job:'',attribute:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
+    const abilityUpIdentity={job:''};
+    const dataIdentity={job:'',attribute:''};
     const conflicts=new WeakMap();
     function mergeField(target,key,value,label){
       if(value==null||value===''||conflicts.get(target)?.has(key))return;
@@ -1760,9 +1762,9 @@
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
         const identity=await profileIdentityOf(image);
-        if(identity.job)mergeField(out,'job',identity.job,'ジョブ');
+        if(identity.job)mergeField(dataIdentity,'job',identity.job,'能力データのジョブ');
         else out.warnings.push(`${i+1}枚目：ジョブ固有マークを画像比較で読み取れませんでした。ジョブを確認してください。`);
-        if(identity.attribute)mergeField(out,'attribute',identity.attribute,'属性');
+        if(identity.attribute)mergeField(dataIdentity,'attribute',identity.attribute,'属性');
         else out.warnings.push(`${i+1}枚目：属性マークを画像比較で読み取れませんでした。属性を確認してください。`);
         // 基本能力6種は画像比較のみ。OCRフォールバックはしない。
         const values=BASICS.map((_,j)=>basicByImageStrict(image,j));
@@ -1802,11 +1804,18 @@
         if(!knownTab&&!title.includes('能力アップ')&&!jobResult.job&&!enoughExp){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
         out.abilityUpScreens++;
         if(jobResult.candidate)out.warnings.push('ジョブの候補：'+jobResult.job+'（要確認）');
-        mergeField(out,'job',jobResult.job,'ジョブ');
+        mergeField(abilityUpIdentity,'job',jobResult.job,'能力アップのジョブ');
         EXPS.forEach((n,j)=>mergeField(out.exp,n,exp[j],n+'経験点'));
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
       }
     }
+    // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
+    if(abilityUpIdentity.job&&dataIdentity.job&&abilityUpIdentity.job!==dataIdentity.job){
+      out.warnings.push(`ジョブの読み取り値が一致しません。能力アップ画面の文字判定（${abilityUpIdentity.job}）を優先しました。`);
+    }
+    out.job=abilityUpIdentity.job||dataIdentity.job||'';
+    out.attribute=dataIdentity.attribute||'';
+
     // 各訓練画像の左側に表示されている現在経験点を、そのパターンの基準値にする。
     // 背景や能力アップ画面の経験点では補完しない。読めない項目は要確認にする。
     if(out.trainingPatterns.length){
@@ -1849,9 +1858,9 @@
     }
     out.supers=[...superMap.values()];
     for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「耐性に影響する超特殊能力」でLvを確認してください。');
-    if(out.abilityUpScreens||out.dataScreens){
-      if(!out.abilityUpScreens)out.warnings.push('「能力アップ」画面がありません。ジョブと経験点を確認してください。');
-      if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・基本能力・取得済み特殊能力を確認してください。');
+    if(out.abilityUpScreens||out.dataScreens||out.trainingPatterns.length){
+      if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・属性・基本能力・取得済み特殊能力を確認してください。');
+      if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
     }
     return out;
   }
@@ -1903,18 +1912,20 @@
       const images=await Promise.all(urls.map(imageFrom));
       const data=await readImages(images);
       renderUncertain(data.warnings||[]);
-      if(data.abilityUpScreens>0 && data.dataScreens===0){
+      const hasAbilityUp=data.abilityUpScreens>0;
+      const hasData=data.dataScreens>0;
+      const hasTraining=(data.trainingPatterns||[]).length>0;
+      if(hasAbilityUp&&!hasData){
         renderUncertain([]);
         status('能力データ画面を追加してください。');
         return;
       }
-      if(data.dataScreens>0 && data.abilityUpScreens===0){
+      if(hasData&&!hasAbilityUp&&!hasTraining){
         renderUncertain([]);
-        status('能力アップ画面を追加してください。');
+        status('能力アップまたは訓練画面を追加してください。');
         return;
       }
-      const hasCharacterScreens=data.abilityUpScreens>0&&data.dataScreens>0;
-      const hasTraining=(data.trainingPatterns||[]).length>0;
+      const hasCharacterScreens=hasData&&(hasAbilityUp||hasTraining);
       if(!hasCharacterScreens&&!hasTraining){
         throw new Error('対応するゲーム画面を判別できませんでした');
       }
