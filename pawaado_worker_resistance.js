@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261002-resistance-audit-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261002-resistance-audit-2',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -22,6 +22,9 @@ const RESISTANCE_RULES=D.resistanceRules||{};
 const RESISTANCE_SCORE_RATES=RESISTANCE_RULES.scorePerPercent||{};
 const RESISTANCE_PAIR_SOURCES=RESISTANCE_RULES.pairSources||[];
 const RESISTANCE_DIRECT_EFFECTS=RESISTANCE_RULES.directEffects||{};
+const resistanceScoreCache=new Map();
+const staticResistanceScoreCache=new Map();
+let resistanceRelevantMaskCache=null;
 // data.jsの査定から単独取得時の耐性部分だけを外し、実際の耐性増減分に差し替える。
 // ◎は○取得後の追加分なので、静的査定からは追加分だけを差し引く。
 const STATIC_RESISTANCE_EFFECTS=(()=>{
