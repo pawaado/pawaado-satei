@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-digit-compose-1';
+  const PHOTO_IMPORT_BUILD='20261002-align-id-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -357,6 +357,9 @@
   const TRAINING_CURRENT_EXTRA_MASKS={
     '0':['D4H8P+cPcH8H4H4D4D4D8H8HcPcPP+H8'],
     '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/'],
+    // IMG_1006/1007 の現在精神591を構成する実画像1桁。Safari/元解像度側の再縮小差に備えて5・9も追加。
+    '5':['f/f/f/cAYA4A98/fcHAHADADYH8Hf/P8'],
+    '9':['H4P8OeYHYH4HYHcPPfP/AHAHAHIGP8H4'],
     '2':['D8P+P/cHcHAHAPAPB8DwDwOAMAcAf///','BwH+P/8H8HAHAHAfA+B8HgPAcA8A////'],
     '3':['H8P/cHADADADAMB8AeAHADABABAD8Pf/','H8P+ffIHAHAHAOB8B+AfADADAD8Hf/P+'],
     '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA'],
@@ -1024,24 +1027,52 @@
     let sum=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d;}
     return sum/a.length;
   }
-  function dataJobByIcon(image){
-    const sample=grayIconVector(image,DATA_JOB_ICON_RECT);
-    const ranked=Object.entries(dataJobTemplateCache)
-      .map(([job,ref])=>({job,error:byteMse(sample,ref)}))
-      .sort((a,b)=>a.error-b.error);
+  function jobNameFromScores(ranked){
     const best=ranked[0],second=ranked[1];
     // 実画像テンプレートに極めて近い場合は、JPEG再圧縮や縮小で2位との差が狭まっても採用する。
-    // IMG_1009の重戦士アイコンのようなほぼ同一画像を「曖昧」として落とさない。
     if(best&&best.error<120)return best.job;
     return best&&best.error<700&&(!second||(second.error-best.error)>80&&second.error>best.error*1.25)?best.job:'';
   }
+  function alignmentOffsets(radius=2){
+    const out=[[0,0]];
+    for(let d=1;d<=radius;d++){
+      for(let y=-d;y<=d;y++)for(let x=-d;x<=d;x++){
+        if(Math.max(Math.abs(x),Math.abs(y))!==d)continue;
+        out.push([x,y]);
+      }
+    }
+    return out;
+  }
+  function dataJobByIcon(image){
+    const [x,y,w,h]=DATA_JOB_ICON_RECT;
+    const bestByJob=Object.fromEntries(Object.keys(dataJobTemplateCache).map(job=>[job,Infinity]));
+    // 固有アイコンは1pxずれるだけでも縮小後MSEが大きく変わる。
+    // 端末側のリサイズ/Canvas補間差を吸収するため、基準位置の周囲±2pxを探索して最良値を使う。
+    for(const [dx,dy] of alignmentOffsets(2)){
+      const sample=grayIconVector(image,[x+dx,y+dy,w,h]);
+      for(const [job,ref] of Object.entries(dataJobTemplateCache)){
+        const error=byteMse(sample,ref);
+        if(error<bestByJob[job])bestByJob[job]=error;
+      }
+    }
+    const ranked=Object.entries(bestByJob).map(([job,error])=>({job,error})).sort((a,b)=>a.error-b.error);
+    return jobNameFromScores(ranked);
+  }
   async function dataJobFromHeader(image){
     // 能力データ画面の背面上部には現在ジョブ名が文字で残る。
-    // ジョブ固有マークの画像比較が端末差・暗幕の影響で外れた場合だけ、
-    // この明示文字を1回だけOCRして補完する。近似候補は採用しない。
-    const raw=(await textAt(image,[690,8,180,50],false,false,true,false,2)).text;
-    const matched=jobFromText(raw);
-    return matched.job&&!matched.candidate?matched.job:'';
+    // 固有アイコンが外れた場合も、位置/二値化条件を少し変えて明示文字を再確認する。
+    const plans=[
+      [[660,0,250,55],false],
+      [[690,8,180,50],false],
+      [[660,0,250,55],145],
+      [[660,0,250,55],185]
+    ];
+    for(const [rect,threshold] of plans){
+      const raw=(await textAt(image,rect,false,false,true,threshold,2)).text;
+      const matched=jobFromText(raw);
+      if(matched.job&&!matched.candidate)return matched.job;
+    }
+    return '';
   }
   async function profileIdentityOf(image){
     const iconJob=dataJobByIcon(image);
@@ -1056,10 +1087,25 @@
     if(best.error<300)return best.name;
     return second&&best.error<1400&&second.error>best.error*1.35?best.name:'';
   }
+  function rgbaVectorMse(a,b){
+    let error=0,count=0;
+    for(let i=0;i<a.length;i++)if(i%4!==3){error+=(a[i]-b[i])**2;count++;}
+    return count?error/count:Infinity;
+  }
   async function academyOf(image){
     refs ||= Promise.all(REFERENCES.map(async ([name,file])=>({name,pixels:vector(await imageFrom(`./assets/academies/${file}.png`))}))).catch(error=>{refs=null;throw error;});
-    const pixels=vector(canvasCrop(image,[417,280,104,115],1));
-    const scores=(await refs).map(ref=>{let error=0;for(let i=0;i<pixels.length;i++)if(i%4!==3)error+=(pixels[i]-ref.pixels[i])**2;return {name:ref.name,error:error/(32*32*3)};}).sort((a,b)=>a.error-b.error);
+    const loaded=await refs;
+    const best=Object.fromEntries(loaded.map(ref=>[ref.name,Infinity]));
+    // 学院判定も固定1点切り出しでは端末差で数pxずれることがある。
+    // キャラ＋学院紋章の周囲±3pxを照合し、学院ごとの最小誤差を採用する。
+    for(const [dx,dy] of alignmentOffsets(3)){
+      const pixels=vector(canvasCrop(image,[417+dx,280+dy,104,115],1));
+      for(const ref of loaded){
+        const error=rgbaVectorMse(pixels,ref.pixels);
+        if(error<best[ref.name])best[ref.name]=error;
+      }
+    }
+    const scores=Object.entries(best).map(([name,error])=>({name,error})).sort((a,b)=>a.error-b.error);
     return academyNameFromScores(scores);
   }
   async function getWorker(){
@@ -1624,12 +1670,12 @@
     if(ranked[1]&&ranked[1].d-ranked[0].d<.015)return '';
     return ranked[0].value;
   }
-  function trainingBrightGlyphComponents(image,rect){
+  function trainingBrightGlyphComponents(image,rect,threshold=180){
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
     const w=c.width,h=c.height,bright=new Uint8Array(w*h);
     for(let y=0;y<h;y++)for(let x=0;x<w;x++){
       const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
-      if(r>180&&g>180&&b>180)bright[y*w+x]=1;
+      if(r>threshold&&g>threshold&&b>threshold)bright[y*w+x]=1;
     }
     const seen=new Uint8Array(w*h),out=[],stack=[];
     for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
@@ -1652,11 +1698,16 @@
     return out.sort((a,b)=>a.x-b.x);
   }
   function trainingCurrentNumberByImage(image,rowIndex){
-    const y=120+59*rowIndex;
-    const components=trainingBrightGlyphComponents(image,[210,y,90,46]);
-    if(components.length<1||components.length>4)return null;
-    const digits=components.map(c=>classifyTrainingGlyph(c,TRAINING_CURRENT_DIGIT_MASKS,.20));
-    return digits.every(Boolean)?Number(digits.join('')):null;
+    const y=120+59*rowIndex,rect=[210,y,90,46];
+    // iPhoneの元解像度画像をCanvasで縮小した時、白縁の明度が端末/ブラウザで少し変わる。
+    // 1条件で失敗してOCRへ落とすと591→597のような誤読になるため、複数閾値で1桁ずつ確定する。
+    for(const threshold of [180,170,190,160,200]){
+      const components=trainingBrightGlyphComponents(image,rect,threshold);
+      if(components.length<1||components.length>4)continue;
+      const digits=components.map(c=>classifyTrainingGlyph(c,TRAINING_CURRENT_DIGIT_MASKS,.24));
+      if(digits.every(Boolean))return Number(digits.join(''));
+    }
+    return null;
   }
 
   async function looksLikeTrainingScreen(image){
@@ -1912,6 +1963,7 @@
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
     const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
+    if(out.dataScreens>0&&!out.academy)out.warnings.push('アカデミーを画像から読み取れませんでした。アカデミーを確認してください。');
     if(!abilityUpIdentity.job&&out.dataScreens>0&&!dataIdentity.job&&!dataJobConflict){
       out.warnings.push('ジョブを画像から読み取れませんでした。ジョブを確認してください。');
     }
@@ -2041,6 +2093,10 @@
         catch(error){characterImportError=error;}
       }
       if(hasTraining)window.__PAWAADO_IMPORT_TRAINING_PHOTOS__?.(data.trainingPatterns);
+      if(characterImportError&&hasData){
+        try{window.__PAWAADO_IMPORT_IDENTITY_ONLY__?.(data);}
+        catch(error){console.warn('アカデミー・ジョブの部分反映に失敗しました。',error);}
+      }
       // アカデミー/ジョブ/基本能力の検証でキャラ全体入力が止まっても、
       // 能力データから確定できた特殊能力・超特殊能力まで捨てない。
       if(characterImportError&&hasData&&(data.specials?.length||data.supers?.length)){
@@ -2082,5 +2138,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores};
 })();
