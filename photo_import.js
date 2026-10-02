@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-datajob-mental-1';
+  const PHOTO_IMPORT_BUILD='20261002-jobmark-primary-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1027,11 +1027,28 @@
     let sum=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d;}
     return sum/a.length;
   }
+  function byteCorrelation(a,b){
+    if(!a||!b||a.length!==b.length||!a.length)return -1;
+    let am=0,bm=0;for(let i=0;i<a.length;i++){am+=a[i];bm+=b[i];}
+    am/=a.length;bm/=b.length;
+    let num=0,aa=0,bb=0;
+    for(let i=0;i<a.length;i++){const x=a[i]-am,y=b[i]-bm;num+=x*y;aa+=x*x;bb+=y*y;}
+    return aa&&bb?num/Math.sqrt(aa*bb):-1;
+  }
   function jobNameFromScores(ranked){
     const best=ranked[0],second=ranked[1];
     // 実画像テンプレートに極めて近い場合は、JPEG再圧縮や縮小で2位との差が狭まっても採用する。
     if(best&&best.error<120)return best.job;
     return best&&best.error<700&&(!second||(second.error-best.error)>80&&second.error>best.error*1.25)?best.job:'';
+  }
+  function jobNameFromIconScores(mseRanked,corrRanked){
+    const mseJob=jobNameFromScores(mseRanked);
+    if(mseJob)return mseJob;
+    const best=corrRanked[0],second=corrRanked[1];
+    // 明るさ/コントラストが変わるとMSEは増えるが、固有マークの形は保たれる。
+    // 相関は明るさ変化に強いので、十分高く、2位との差もある時だけ採用する。
+    if(best&&best.corr>=.97&&best.error<=1500&&(!second||best.corr-second.corr>=.025))return best.job;
+    return '';
   }
   function alignmentOffsets(radius=2){
     const out=[[0,0]];
@@ -1045,18 +1062,21 @@
   }
   function dataJobByIcon(image){
     const [x,y,w,h]=DATA_JOB_ICON_RECT;
-    const bestByJob=Object.fromEntries(Object.keys(dataJobTemplateCache).map(job=>[job,Infinity]));
-    // 固有アイコンは1pxずれるだけでも縮小後MSEが大きく変わる。
-    // 端末側のリサイズ/Canvas補間差を吸収するため、基準位置の周囲±2pxを探索して最良値を使う。
-    for(const [dx,dy] of alignmentOffsets(2)){
+    const bestMse=Object.fromEntries(Object.keys(dataJobTemplateCache).map(job=>[job,Infinity]));
+    const bestCorr=Object.fromEntries(Object.keys(dataJobTemplateCache).map(job=>[job,-1]));
+    // ジョブ固有マークを主判定にする。数pxのズレと端末側の明るさ/圧縮差を吸収するため、
+    // 周囲±3pxを走査し、MSE(絶対差)と相関(形状差)の両方で照合する。
+    for(const [dx,dy] of alignmentOffsets(3)){
       const sample=grayIconVector(image,[x+dx,y+dy,w,h]);
       for(const [job,ref] of Object.entries(dataJobTemplateCache)){
-        const error=byteMse(sample,ref);
-        if(error<bestByJob[job])bestByJob[job]=error;
+        const error=byteMse(sample,ref),corr=byteCorrelation(sample,ref);
+        if(error<bestMse[job])bestMse[job]=error;
+        if(corr>bestCorr[job])bestCorr[job]=corr;
       }
     }
-    const ranked=Object.entries(bestByJob).map(([job,error])=>({job,error})).sort((a,b)=>a.error-b.error);
-    return jobNameFromScores(ranked);
+    const mseRanked=Object.keys(bestMse).map(job=>({job,error:bestMse[job],corr:bestCorr[job]})).sort((a,b)=>a.error-b.error);
+    const corrRanked=Object.keys(bestCorr).map(job=>({job,error:bestMse[job],corr:bestCorr[job]})).sort((a,b)=>b.corr-a.corr);
+    return jobNameFromIconScores(mseRanked,corrRanked);
   }
   function dataJobByHeaderImage(image){
     // 能力データ画面では、モーダルの背面上部にジョブ名そのものが残っている。
@@ -1092,9 +1112,12 @@
     return '';
   }
   async function profileIdentityOf(image){
+    // 能力データ画面はジョブ固有マークを第一判定にする。
+    const iconJob=dataJobByIcon(image);
+    if(iconJob)return {job:iconJob};
+    // 固有マークが確定できない端末だけ、背面のジョブ名画像→OCRの順で補完する。
     const headerJob=dataJobByHeaderImage(image);
     if(headerJob)return {job:headerJob};
-    // モーダル内の青/赤丸アイコンはジョブ固有ではないため、ジョブ判定には使わない。
     return {job:await dataJobFromHeader(image)};
   }
   let refs;
@@ -2157,5 +2180,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
