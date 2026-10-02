@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-training-job-1';
+  const PHOTO_IMPORT_BUILD='20261002-training-job-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1371,23 +1371,30 @@
       if(/[○◎]$/.test(visualName)){
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
-          const quickObservations=await collectSpecialReads(image,cell);
-          const quickReads=quickObservations.map(o=>o.text);
-          // abilityByImage が既に高信頼で拾えた能力名は基本的に保持。
-          // 2倍/4倍OCRが同じ別能力名を支持し、画像再比較もそれを許す時だけ補正する。
-          const consensus=pairStemConsensus(quickReads);
-          let stem=originalStem;
+          // 全体テンプレート、能力名本体、末尾記号の3系統が一致したセルは
+          // 追加OCRを回さず確定する。高信頼セルごとの4回OCRを省き、読み取り時間を短縮する。
           const imageStem=pairStemByImage(image,cell);
-          if(imageStem&&imageStem!==originalStem){
-            stem=imageStem;
-          }else if(consensus.strong&&consensus.stem&&consensus.stem!==originalStem){
-            const hybrid=hybridPairStem(image,cell,quickReads);
-            if(hybrid.stem===consensus.stem&&!hybrid.candidate)stem=hybrid.stem;
-          }
           const shapeMark=markShapeByImage(image,cell);
-          // ○/◎はセル全体テンプレートより、末尾の丸そのものの形を優先する。
-          const mark=shapeMark||pairMarkByImage(image,cell,stem);
-          if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
+          const fastName=imageStem===originalStem&&shapeMark&&D.special.some(s=>normalize(s[1])===originalStem+shapeMark)
+            ? originalStem+shapeMark : '';
+          if(fastName){
+            visualName=fastName;
+          }else{
+            const quickObservations=await collectSpecialReads(image,cell);
+            const quickReads=quickObservations.map(o=>o.text);
+            // 画像系の判定が食い違うセルだけOCRを使い、名前の誤認を防ぐ。
+            const consensus=pairStemConsensus(quickReads);
+            let stem=originalStem;
+            if(imageStem&&imageStem!==originalStem){
+              stem=imageStem;
+            }else if(consensus.strong&&consensus.stem&&consensus.stem!==originalStem){
+              const hybrid=hybridPairStem(image,cell,quickReads);
+              if(hybrid.stem===consensus.stem&&!hybrid.candidate)stem=hybrid.stem;
+            }
+            // ○/◎はセル全体テンプレートより、末尾の丸そのものの形を優先する。
+            const mark=shapeMark||pairMarkByImage(image,cell,stem);
+            if(mark&&D.special.some(s=>normalize(s[1])===stem+mark))visualName=stem+mark;
+          }
         }
       }
       if(visualName===DUAL_NORMAL_ATTACK){
@@ -1995,8 +2002,15 @@
       if(!hasCharacterScreens&&!hasTraining){
         throw new Error('対応するゲーム画面を判別できませんでした');
       }
-      if(hasCharacterScreens)window.__PAWAADO_IMPORT_PHOTO__(data);
+      // キャラ側の入力が失敗しても、読み取れた訓練パターンまで捨てない。
+      // 例：ジョブだけ不確定でも、2枚の訓練画像から得た経験点パターンは先に反映する。
+      let characterImportError=null;
+      if(hasCharacterScreens){
+        try{window.__PAWAADO_IMPORT_PHOTO__(data);}
+        catch(error){characterImportError=error;}
+      }
       if(hasTraining)window.__PAWAADO_IMPORT_TRAINING_PHOTOS__?.(data.trainingPatterns);
+      if(characterImportError)throw characterImportError;
       renderUncertain(data.warnings||[]);
       selectionDirty=false;
       status('自動入力しました。');
