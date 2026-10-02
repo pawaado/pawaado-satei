@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1088-action-double-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1088-action-double-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1720,13 +1720,22 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
-      // アクションスキルだけは○/◎の全体像が非常に近いため、一般照合が○を返した時だけ
-      // 同じ能力名の○/◎専用比較で再確認する。◎側の実画像テンプレートも完全一致する場合に限って
-      // ◎へ補正するので、対ドラゴンタートル等ほかの○/◎能力の判定には影響させない。
-      if(normalize(visualName)==='アクションスキル○'){
-        const actionMark=pairMarkByImage(image,cell,'アクションスキル');
-        if(actionMark==='◎'&&abilityNameExactByImage(image,cell,'アクションスキル◎')){
+      // アクションスキルは○/◎が非常に近い。IMG_1088ではSafari側の2者比較が
+      // 曖昧になると、一般照合で先に○へ寄った値がそのまま確定してしまう経路があった。
+      // そこで同名○/◎の「片側だけが実画像テンプレートに完全一致」する場合は、その記号を最優先する。
+      // 両方一致/両方不一致の時だけ従来の同名ペア比較へ回す。ほかの○/◎能力には適用しない。
+      if(/^アクションスキル[○◎]$/.test(normalize(visualName))){
+        const actionCircleExact=abilityNameExactByImage(image,cell,'アクションスキル○');
+        const actionDoubleExact=abilityNameExactByImage(image,cell,'アクションスキル◎');
+        if(actionDoubleExact&&!actionCircleExact){
           visualName='アクションスキル◎';
+        }else if(actionCircleExact&&!actionDoubleExact){
+          visualName='アクションスキル○';
+        }else{
+          const actionMark=pairMarkByImage(image,cell,'アクションスキル');
+          if(actionMark&&D.special.some(s=>normalize(s[1])==='アクションスキル'+actionMark)){
+            visualName='アクションスキル'+actionMark;
+          }
         }
       }
       let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
@@ -1829,7 +1838,15 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
+            let exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
+            // アクションスキルは最終の明示記号でも、◎だけが完全一致している場合は◎を正本にする。
+            // ここで○へ戻ると、applyRecognizedPhotoAbilities() が◎を削除して○だけ取得済みにしてしまう。
+            if(stem==='アクションスキル'){
+              const actionCircleExact=abilityNameExactByImage(image,cell,'アクションスキル○');
+              const actionDoubleExact=abilityNameExactByImage(image,cell,'アクションスキル◎');
+              if(actionDoubleExact&&!actionCircleExact)exactPairMark='◎';
+              else if(actionCircleExact&&!actionDoubleExact)exactPairMark='○';
+            }
             const shape=exactPairMark||markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
             if(shape)explicitPairMarks.set(stem,shape);
           }
