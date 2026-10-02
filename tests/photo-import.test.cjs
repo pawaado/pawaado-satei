@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,jobNameFromScores,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -40,6 +40,11 @@ test('ability data job icon fills job',async()=>{
 test('near-exact data job icon is accepted even when the second-place margin is narrow',()=>{
  const {h}=setup();h.stubDataJobScores([100,150,900,900,900,900,900]);
  assert.equal(h.dataJobByIcon({}),'重戦士');
+});
+test('job candidate remains deterministic across crop-drift scoring',()=>{
+ const {h}=setup();
+ assert.equal(h.jobNameFromScores([{job:'重戦士',error:110},{job:'剣士',error:155}]),'重戦士');
+ assert.equal(h.jobNameFromScores([{job:'重戦士',error:500},{job:'剣士',error:900}]),'重戦士');
 });
 test('near-exact academy crop is accepted despite a narrow score ratio',()=>{
  const {h}=setup();
@@ -154,6 +159,18 @@ test('training gain reads one digit at a time and composes arbitrary numbers',()
  assert.equal(h.digitSequenceToNumber(['1','0']),10);
  assert.equal(h.digitSequenceToNumber(['1','0','5']),105);
 });
+test('IMG_1006/IMG_1007 mental 591 digits are each covered by exact single-digit templates',()=>{
+ const {h}=setup();
+ const samples=[
+  ['5','f/f/f/cAYA4A98/fcHAHADADYH8Hf/P8'],
+  ['9','H4P8OeYHYH4HYHcPPfP/AHAHAHIGP8H4'],
+  ['1','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/']
+ ];
+ for(const [digit,encoded] of samples){
+  assert(h.trainingCurrentDigitMasks[digit].includes(encoded),digit);
+  assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(encoded,12*16),w:12,h:16},h.trainingCurrentDigitMasks,.24),digit);
+ }
+});
 test('IMG_1006/IMG_1007 mental 591 final digit is locked to 1',()=>{
  const {h}=setup();
  const encoded='A/A/B/////5/A/A/A/A/A/A/A/A/A/A/';
@@ -212,6 +229,12 @@ test('fatal import errors never render duplicated Japanese punctuation',async()=
  await get('readPhotos').onclick();
  assert.doesNotMatch(get('photoStatus').textContent,/。。/);
  assert.match(get('photoStatus').textContent,/経験点を確認してください。手入力/);
+});
+test('partial identity import hook is shipped so a recognized academy is not discarded when job is uncertain',()=>{
+ const script=fs.readFileSync(path.join(root,'script.js'),'utf8');
+ assert.match(script,/__PAWAADO_IMPORT_IDENTITY_ONLY__/);
+ const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+ assert.match(photo,/__PAWAADO_IMPORT_IDENTITY_ONLY__/);
 });
 test('missing planned EXP confirmation uses the requested two-line wording',()=>{
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
