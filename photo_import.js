@@ -357,6 +357,9 @@
   const TRAINING_CURRENT_EXTRA_MASKS={
     '0':['D4H8P+cPcH8H4H4D4D4D8H8HcPcPP+H8'],
     '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/'],
+    // IMG_1006/1007 の現在精神591を構成する実画像1桁。Safari/元解像度側の再縮小差に備えて5・9も追加。
+    '5':['f/f/f/cAYA4A98/fcHAHADADYH8Hf/P8'],
+    '9':['H4P8OeYHYH4HYHcPPfP/AHAHAHIGP8H4'],
     '2':['D8P+P/cHcHAHAPAPB8DwDwOAMAcAf///','BwH+P/8H8HAHAHAfA+B8HgPAcA8A////'],
     '3':['H8P/cHADADADAMB8AeAHADABABAD8Pf/','H8P+ffIHAHAHAOB8B+AfADADAD8Hf/P+'],
     '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA'],
@@ -1667,12 +1670,12 @@
     if(ranked[1]&&ranked[1].d-ranked[0].d<.015)return '';
     return ranked[0].value;
   }
-  function trainingBrightGlyphComponents(image,rect){
+  function trainingBrightGlyphComponents(image,rect,threshold=180){
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
     const w=c.width,h=c.height,bright=new Uint8Array(w*h);
     for(let y=0;y<h;y++)for(let x=0;x<w;x++){
       const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
-      if(r>180&&g>180&&b>180)bright[y*w+x]=1;
+      if(r>threshold&&g>threshold&&b>threshold)bright[y*w+x]=1;
     }
     const seen=new Uint8Array(w*h),out=[],stack=[];
     for(let sy=0;sy<h;sy++)for(let sx=0;sx<w;sx++){
@@ -1695,11 +1698,16 @@
     return out.sort((a,b)=>a.x-b.x);
   }
   function trainingCurrentNumberByImage(image,rowIndex){
-    const y=120+59*rowIndex;
-    const components=trainingBrightGlyphComponents(image,[210,y,90,46]);
-    if(components.length<1||components.length>4)return null;
-    const digits=components.map(c=>classifyTrainingGlyph(c,TRAINING_CURRENT_DIGIT_MASKS,.20));
-    return digits.every(Boolean)?Number(digits.join('')):null;
+    const y=120+59*rowIndex,rect=[210,y,90,46];
+    // iPhoneの元解像度画像をCanvasで縮小した時、白縁の明度が端末/ブラウザで少し変わる。
+    // 1条件で失敗してOCRへ落とすと591→597のような誤読になるため、複数閾値で1桁ずつ確定する。
+    for(const threshold of [180,170,190,160,200]){
+      const components=trainingBrightGlyphComponents(image,rect,threshold);
+      if(components.length<1||components.length>4)continue;
+      const digits=components.map(c=>classifyTrainingGlyph(c,TRAINING_CURRENT_DIGIT_MASKS,.24));
+      if(digits.every(Boolean))return Number(digits.join(''));
+    }
+    return null;
   }
 
   async function looksLikeTrainingScreen(image){
@@ -2085,6 +2093,10 @@
         catch(error){characterImportError=error;}
       }
       if(hasTraining)window.__PAWAADO_IMPORT_TRAINING_PHOTOS__?.(data.trainingPatterns);
+      if(characterImportError&&hasData){
+        try{window.__PAWAADO_IMPORT_IDENTITY_ONLY__?.(data);}
+        catch(error){console.warn('アカデミー・ジョブの部分反映に失敗しました。',error);}
+      }
       // アカデミー/ジョブ/基本能力の検証でキャラ全体入力が止まっても、
       // 能力データから確定できた特殊能力・超特殊能力まで捨てない。
       if(characterImportError&&hasData&&(data.specials?.length||data.supers?.length)){
@@ -2126,5 +2138,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores};
 })();
