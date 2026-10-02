@@ -39,6 +39,12 @@ test('ability-up job text wins over a conflicting ability-data job icon',async()
  assert.equal(r.job,'剣士');
  assert(r.warnings.some(w=>w.includes('能力アップ画面の文字判定')&&w.includes('優先')));
 });
+test('readable ability-up job suppresses an unreadable data job-icon warning',async()=>{
+ const {h}=setup();h.stubReads();
+ const r=await h.readImages([{job:'重戦士',exp:100},{kind:'data',dataJob:''}]);
+ assert.equal(r.job,'重戦士');
+ assert(!r.warnings.some(w=>w.includes('ジョブ固有マーク')));
+});
 test('ability data plus training is accepted without an ability-up screenshot',async()=>{
  const {h,get,c}=setup();let importedPhoto=null,importedTraining=null;
  c.__PAWAADO_IMPORT_PHOTO__=data=>{importedPhoto=data;};
