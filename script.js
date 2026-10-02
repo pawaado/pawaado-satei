@@ -2652,6 +2652,28 @@ async function optimizeMixedAsync(exp,onProgress){
   return best;
 }
 
+function workerSpecialState(){
+  const effective=new Map(
+    [...specialState.entries()].map(([index,state])=>[
+      String(index),
+      {hint:Number(state?.hint||0),own:Number(state?.own||0)}
+    ])
+  );
+  const resistanceRows=typeof window.__PAWAADO_GET_EXTRA_RESISTANCES__==='function'
+    ? window.__PAWAADO_GET_EXTRA_RESISTANCES__()
+    : [];
+  const selectedSupers=new Set(resistanceRows.map(row=>String(row?.name||'')).filter(Boolean));
+  for(const superName of selectedSupers){
+    for(const name of D.superResistances?.[superName]?.includes||[]){
+      const index=specialNameIndex.get(String(name));
+      if(index===undefined) continue;
+      const key=String(index);
+      const state=effective.get(key)||{hint:0,own:0};
+      effective.set(key,{...state,own:1});
+    }
+  }
+  return [...effective.entries()];
+}
 function buildWorkerPayload(exp){
   const basicValues={};
   for(const name of basicNames){
@@ -2664,10 +2686,7 @@ function buildWorkerPayload(exp){
     basicValues,
     basicOwned:{...basicOwned},
     basicHints:{...basicHints},
-    specialState:[...specialState.entries()].map(([index,state])=>[
-      String(index),
-      {hint:Number(state?.hint||0),own:Number(state?.own||0)}
-    ])
+    specialState:workerSpecialState()
   };
 }
 function cleanupActiveWorker(){
@@ -2682,7 +2701,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-resistance-audit-2');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-resistance-audit-3');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
