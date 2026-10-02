@@ -124,6 +124,12 @@ test('IMG_1012 long 対ドラゴンタートル○ prefers the exact ○ cell te
  h.stubAbilityMask(circle);
  assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
 });
+test('IMG_1040 exact mask recognizes 火回復',()=>{
+ const {h}=setup();
+ const fire='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGD/F8AAAAADbP8/wAAAAANsvz/AAAAAAWy/P8AAAAAAcK93wAAI=';
+ h.stubAbilityMask(fire);
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'火回復');
+});
 test('IMG_1020 exact masks recognize 火耐性・バランス感覚・風回復・水回復',()=>{
  const {h}=setup();
  const cases=[
