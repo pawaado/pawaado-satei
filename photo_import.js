@@ -787,6 +787,19 @@
     const robustSigs=[85,115,135].flatMap(makeSigs);
     return accept(rank(candidates,robustSigs,6,3),true);
   }
+  function abilityNameExactByImage(image,cell,name){
+    const raw=HYBRID_ABILITY_MASKS[name];if(!raw)return false;
+    const variants=Array.isArray(raw)?raw:[raw];
+    const [x,y,w]=cell.rect;
+    const sigs=[0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,100).mask);
+    let best=1;
+    for(const encoded of variants){
+      const ref=decodeMask(encoded,64*10);
+      for(const sig of sigs)best=Math.min(best,shiftedMaskDistance(sig,ref,64,10,3,2));
+    }
+    return best<=.015;
+  }
+
   // ○/◎は能力名全体の比較だと差が小さすぎるため、同じ能力名の○版・◎版だけを
   // 比較して、2者で差が出る画素に重みを付けて判定する。能力名と記号を分離して扱う。
   function pairStemCandidatesFromTexts(rawTexts,maxCount=4){
@@ -1599,9 +1612,10 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
+      let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
-      if(/[○◎]$/.test(visualName)){
+      if(/[○◎]$/.test(visualName)&&!visualExact){
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
           // 全体テンプレート、能力名本体、末尾記号の3系統が一致したセルは
@@ -1697,7 +1711,8 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const shape=markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
+            const exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
+            const shape=exactPairMark||markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
@@ -2330,5 +2345,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
