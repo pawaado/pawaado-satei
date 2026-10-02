@@ -5,6 +5,7 @@
 - 作業開始時に README.md と最新差分を読み、対象機能の関連ファイルを検索する。
 - ゲームデータの正本は data.js、使い方本文の正本は index.html。
 - Workerの変更では pawaado_worker.js / pawaado_worker_resistance.js / script.js / resistance_patch.js / academy_runtime.js と HTML の読み込みを確認する。文字列置換パッチの起動テストを必ず実行する。
+- Worker payload に条件を追加・変更した場合は、script.js の最終結果キャッシュキーにも同じ条件が含まれるか確認する。
 - ランキングの表示・備考・注記の正本は rankings.html。data.js と計算本体の査定定義、3分類の切り替え、同率時の順序まで確認する。
 - 耐性効果・耐性1%あたり査定・ジョブ固有初期耐性の正本は data.js の resistanceRules。耐性Workerやランキング側へ同じ一覧・倍率を複製しない。
 - 画像入力の変更では photo_import.js / script.js の入力反映関数 / data.js / academy_runtime.js / resistance_patch.js / assets を確認する。
