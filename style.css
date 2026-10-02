@@ -747,7 +747,7 @@ img,svg,canvas{max-width:100%}
       transform:translateY(-70%) rotate(45deg);
       pointer-events:none;
     }
-    #academySelectButton,#jobSelectButton,#attributeSelectButton{height:52px;min-height:52px}
+    #academySelectButton,#jobSelectButton{height:52px;min-height:52px}
 
     .custom-select-button:active:not(:disabled){
       transform:none;
@@ -829,8 +829,7 @@ img,svg,canvas{max-width:100%}
 
     /* アカデミー・ジョブの見出しを他の見出しと同じ文字色に統一する。 */
     #academyFieldLabel > .select-label-text,
-    #jobFieldLabel > .select-label-text,
-    #attributeFieldLabel > .select-label-text{
+    #jobFieldLabel > .select-label-text{
       color:var(--ink);
       text-shadow:none;
     }
