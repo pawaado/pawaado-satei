@@ -152,14 +152,25 @@ test('general ability match outranks elemental-attack shortcut',async()=>{
  assert(r.specials.includes('火耐性'));
  assert(!r.specials.includes('〜攻撃'));
 });
-test('IMG_1020 アクションスキル○ exact template wins ○/◎ pair comparison without globally widening 12px',()=>{
+test('IMG_1020 user-confirmed アクションスキル◎ exact template wins without globally widening 12px',()=>{
  const {h}=setup();
- const circle='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
- h.stubAbilityMask(circle);
- assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'○');
+ const double='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
+ h.stubAbilityMask(double);
+ assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'◎');
  const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
  assert.match(photo,/markWidth<=11\|\|\(stem==='アクションスキル'&&markWidth<=12\)/);
  assert.doesNotMatch(photo,/if\(ex-sx<=12\)return '';/);
+});
+test('アクションスキル○/◎ exact template sets have no identical masks',()=>{
+ const {h}=setup();
+ const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+ const get=key=>{
+   const m=photo.match(new RegExp('["\\\']'+key+'["\\\']\\s*:\\s*\\[([^\\]]*)\\]'));
+   assert(m,key);
+   return [...m[1].matchAll(/["']([^"']+)["']/g)].map(x=>x[1]);
+ };
+ const c=get('アクションスキル○'),d=get('アクションスキル◎');
+ assert.deepEqual(c.filter(x=>d.includes(x)),[]);
 });
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();
