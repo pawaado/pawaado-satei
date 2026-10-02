@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-training-blue-guard-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1076-dragon-double-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -416,6 +416,22 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABnP4gAAf5tAG4/jgPx/n+AbAAGAHH8QYBmP4BgYfxzAMYBgODhfjMM=',
     'AAAAAAAAAAIAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABvP4gAAf5tAG4/jgPx/n+AbAAGAHH8YYBmP4BgYfx/AMYBgODhfnMM='
   );
+
+  // 2026-10-03 IMG_1076 実画像。
+  // 対ドラゴンタートル◎は既存テンプレートと「生存本能」が僅差になり、
+  // 画像比較が未確定→OCRへ落ちた際に生存本能へ誤認する経路があった。
+  // 実画像のセル全体を◎側へ追加し、OCR推測より前に確定させる。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1076={
+    "対ドラゴンタートル◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeCAIAQEADtB55h4BBQAP2AAmEgGFAA6ceCC6+cUAB54IIY755cAnkBgjBAEFgC6QMecMAQ2AI=",
+      "AAAAAAAAAAAAAAAAAAAAAEkHggCAEBAA7QeeYeAQUAD9gAJhIBhQAOnHgguvnFAAeeCCGO+eXAJ5AYIwQBBYAukDHnDAENgC2QMAQYAQUAI=",
+      "AAAAAAAAAABJB4IAgBAQAO0HnmHgEFAA/YACYSAYUADpx4ILr5xQAHngghjvnlwCeQGCMEAQWALpAx5wwBDYAtkDAEGAEFACAAAAAAAAAAI="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1076)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
 
   // IMG_1053: 査定に影響しない金色セル「魔族キラー」。
   // 画像上では超特殊能力セルとして検出するが、入力対象にはせず明示的に無視する。

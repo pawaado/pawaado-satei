@@ -237,6 +237,30 @@ test('IMG_1020 exact masks recognize 火耐性・バランス感覚・風回復�
    assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
  }
 });
+test('IMG_1076 対ドラゴンタートル◎ wins before 生存本能 OCR fallback',async()=>{
+ const double='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeCAIAQEADtB55h4BBQAP2AAmEgGFAA6ceCC6+cUAB54IIY755cAnkBgjBAEFgC6QMecMAQ2AI=';
+ const {h}=setup();
+ h.stubOneRawAbilityCell(3,3);
+ h.stubAbilityMask(double);
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'対ドラゴンタートル◎');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('対ドラゴンタートル○'));
+ assert(r.specials.includes('対ドラゴンタートル◎'));
+ assert(!r.specials.includes('生存本能'));
+ assert.equal(r.explicitPairMarks['対ドラゴンタートル'],'◎');
+ assert(!r.warnings.some(w=>w.includes('対ドラゴンタートル')||w.includes('生存本能')));
+});
+test('対ドラゴンタートル○/◎ exact template sets do not share IMG_1076 masks',()=>{
+ const {h}=setup();
+ const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+ const get=key=>{
+   const m=photo.match(new RegExp('["\\\']'+key+'["\\\']\\s*:\\s*\\[([^\\]]*)\\]'));
+   assert(m,key);
+   return [...m[1].matchAll(/["']([^"']+)["']/g)].map(x=>x[1]);
+ };
+ const circle=get('対ドラゴンタートル○'),double=get('対ドラゴンタートル◎');
+ assert.deepEqual(circle.filter(x=>double.includes(x)),[]);
+});
 test('IMG_1021 バランス感覚 is not substituted with 対ドラゴンタートル○',async()=>{
  const {h}=setup();
  const balance='AAAAAAAAAAABwAAAAH+aQBuP44D8f5/gGwABgBx/GGAZj+AYGH8fwDGAYDg4X47DMYDg8HwNj8MxwcPg7nePw2DDg4HGX53hAAAAAAAAAAE=';
