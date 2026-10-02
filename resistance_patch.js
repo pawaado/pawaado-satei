@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261002-resistance-audit-2';
+  const PATCH_VERSION='20261002-resistance-audit-3';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
 
@@ -93,8 +93,13 @@
     for(const group of groups){
       const name=group.querySelector('.super-name')?.value;
       if(!name) continue;
-      const def=window.PAWAADO_DATA.superResistances[name];
+      const def=D?.superResistances?.[name];
       const level=group.querySelector('.super-level')?.value;
+      if(!def){
+        group.querySelector('.super-note').textContent='';
+        showResistanceCalcError('超特殊能力を確認してください。');
+        return false;
+      }
       if(!level || names.has(name) || (def.job&&def.job!==document.getElementById('job').value)){
         group.querySelector('.super-note').textContent='';
         showResistanceCalcError(!level?'耐性に影響する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
@@ -115,7 +120,7 @@
   const NativeWorker=window.Worker;
   if(typeof NativeWorker==='function'){
     function ResistanceWorkerProxy(_url,options){
-      if(!String(_url).includes('pawaado_worker')&&!String(_url).includes('academy_runtime')) return new NativeWorker(_url,options);
+      if(!String(_url).includes('pawaado_worker')) return new NativeWorker(_url,options);
       let inner=null;
       let terminated=false;
       const proxy={
@@ -185,7 +190,6 @@
       .extra-resistance-list{display:grid;gap:4px}
       /* 耐性の内訳は内部計算にだけ使い、画面には表示しない */
       .extra-resistance-group-rows{display:none!important}
-      .usage-subnote{font-size:.88em;font-weight:600;color:#6f5438}
       .extra-resistance-group{padding:6px 7px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
       .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
       .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
@@ -274,9 +278,9 @@
   function currentJob(){return document.getElementById('job')?.value||'';}
   function allAvailableSuperNames(job=currentJob()){
     if(!job)return [];
-    return Object.keys(window.PAWAADO_DATA.superResistances)
+    return Object.keys(D.superResistances)
       .filter(name=>{
-        const def=window.PAWAADO_DATA.superResistances[name];
+        const def=D.superResistances[name];
         return !def.job||def.job===job;
       })
       .sort((a,b)=>(SUPER_ORDER_INDEX.get(a)??999)-(SUPER_ORDER_INDEX.get(b)??999));
@@ -474,7 +478,8 @@
       if(event.target.matches('.super-name,.super-level')){
         const group=event.target.closest('.extra-resistance-group');
         if(event.target.matches('.super-name')){
-          group.querySelector('.super-level').value='';
+          // 手入力ではLv2を既定値にし、必要ならユーザーがLv1へ変更する。
+          group.querySelector('.super-level').value=event.target.value?'2':'';
         }
         fillSuperGroup(group);
         if(event.target.matches('.super-name')){
