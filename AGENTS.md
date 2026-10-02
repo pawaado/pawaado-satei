@@ -4,6 +4,8 @@
 
 - 作業開始時に README.md と最新差分を読み、対象機能の関連ファイルを検索する。
 - ゲームデータの正本は data.js、使い方本文の正本は index.html。
+- 属性の選択肢と順序の正本は data.js の attributes。能力データ画像のジョブ固有マーク・属性マーク認識は photo_import.js で管理する。
+- 耐性超特殊能力UIの見た目は style.css、選択・追加削除・下位能力連動・Worker連携は resistance_patch.js に分ける。resistance_patch.js へCSSを戻さない。
 - Workerの変更では pawaado_worker.js / pawaado_worker_resistance.js / script.js / resistance_patch.js / academy_runtime.js と HTML の読み込みを確認する。文字列置換パッチの起動テストを必ず実行する。
 - Worker payload に条件を追加・変更した場合は、script.js の最終結果キャッシュキーにも同じ条件が含まれるか確認する。
 - ランキングの表示・備考・注記の正本は rankings.html。data.js と計算本体の査定定義、3分類の切り替え、同率時の順序まで確認する。
