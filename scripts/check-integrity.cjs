@@ -39,6 +39,12 @@ assert(sources['photo_import.js'].includes('function dataJobByIcon('),'photo_imp
 assert(sources['photo_import.js'].includes("else out.job=abilityUpIdentity.job||dataIdentity.job||''"),'photo_import.js: ability-up job must have priority over ability-data icon');
 assert(sources['photo_import.js'].includes("if(jobResult.job)abilityUpIdentity.job=jobResult.job;"),'photo_import.js: the single ability-up job should be assigned directly');
 assert(sources['photo_import.js'].includes('const hasCharacterScreens=hasData&&(hasAbilityUp||hasTraining)'),'photo_import.js: ability data plus training must be accepted without ability-up');
+assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261002_IMG1011'),'photo_import.js: IMG_1011 regression templates missing');
+assert(sources['photo_import.js'].includes('const mark=shapeMark||pairMarkByImage'),'photo_import.js: explicit ○/◎ shape must outrank full-cell mark matching');
+assert(sources['photo_import.js'].includes('markHint=shapeMark||visualMark'),'photo_import.js: fallback ○/◎ shape must outrank full-cell mark matching');
+assert(sources['photo_import.js'].includes('const shape=markShapeByImage(image,cell)||pairMarkByImage'),'photo_import.js: explicit pair state must use mark shape first');
+assert(sources['photo_import.js'].includes('if(!abilityUpIdentity.job){'),'photo_import.js: data-screen job icon should be skipped after ability-up job is known');
+assert(sources['script.js'].includes("D.superResistances[entry.name]&&(entry.level===1||entry.level===2)"),'script.js: unread super Lv must not be auto-selected');
 assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
 assert(!sources['rankings.html'].includes("['火攻撃','風攻撃','水攻撃']"),'rankings.html: abandoned elemental expansion returned');
 assert(!sources['rankings.html'].includes('コツLv0で比較しています'),'rankings.html: removed hint-level note returned');
