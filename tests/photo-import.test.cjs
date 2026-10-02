@@ -26,6 +26,7 @@ function setup(){
    stubTrainingGains(presentFn,valueFn){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
+   stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
@@ -135,6 +136,15 @@ test('IMG_1020 exact masks recognize 火耐性・バランス感覚・風回復�
    assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
  }
 });
+test('IMG_1021 バランス感覚 is not substituted with 対ドラゴンタートル○',async()=>{
+ const {h}=setup();
+ const balance='AAAAAAAAAAABwAAAAH+aQBuP44D8f5/gGwABgBx/GGAZj+AYGH8fwDGAYDg4X47DMYDg8HwNj8MxwcPg7nePw2DDg4HGX53hAAAAAAAAAAE=';
+ h.stubOneAbilityCell();
+ h.stubAbilityMask(balance);
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('バランス感覚'));
+ assert(!r.specials.includes('対ドラゴンタートル○'));
+});
 test('general ability match outranks elemental-attack shortcut',async()=>{
  const {h}=setup();
  h.stubAbilityChoice('火耐性','火攻撃');
@@ -142,13 +152,25 @@ test('general ability match outranks elemental-attack shortcut',async()=>{
  assert(r.specials.includes('火耐性'));
  assert(!r.specials.includes('〜攻撃'));
 });
-test('IMG_1020 アクションスキル○ exact template wins ○/◎ pair comparison',()=>{
+test('IMG_1020 user-confirmed アクションスキル◎ exact template wins without globally widening 12px',()=>{
  const {h}=setup();
- const circle='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
- h.stubAbilityMask(circle);
- assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'○');
+ const double='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
+ h.stubAbilityMask(double);
+ assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'◎');
  const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
- assert.match(photo,/if\(ex-sx<=12\)return '';/);
+ assert.match(photo,/markWidth<=11\|\|\(stem==='アクションスキル'&&markWidth<=12\)/);
+ assert.doesNotMatch(photo,/if\(ex-sx<=12\)return '';/);
+});
+test('アクションスキル○/◎ exact template sets have no identical masks',()=>{
+ const {h}=setup();
+ const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+ const get=key=>{
+   const m=photo.match(new RegExp('["\\\']'+key+'["\\\']\\s*:\\s*\\[([^\\]]*)\\]'));
+   assert(m,key);
+   return [...m[1].matchAll(/["']([^"']+)["']/g)].map(x=>x[1]);
+ };
+ const c=get('アクションスキル○'),d=get('アクションスキル◎');
+ assert.deepEqual(c.filter(x=>d.includes(x)),[]);
 });
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();
@@ -252,6 +274,24 @@ test('a narrow current-exp glyph can never become 7',()=>{
  const seven='////APAGAOAMA4A4BwBgDgDgDAHAHAHA';
  // Safari antialiasing can distort the normalized bitmap, but the native width of 1 stays narrow.
  assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(seven,12*16),w:8,h:22}),'1');
+});
+test('IMG_1017 yellow +285 middle digit is classified as 8, not ambiguous 8/6',()=>{
+ const {h}=setup();
+ const eight='B4H+P/P/eHeHeHPPP/H+P/eHcD8D8D4D';
+ assert(h.trainingGainColorMasks['8'].includes(eight));
+ assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(eight,12*16),w:12,h:16},h.trainingGainColorMasks,.24),'8');
+});
+test('IMG_1017 mental EXP totals 209 + 285 + 198 = 692',async()=>{
+ const {h}=setup();
+ h.stubTrainingCurrent([260,149,103,2,209]);
+ h.stubTrainingGains(
+   (image,rowY,kind)=>rowY===356,
+   (image,rowY,kind)=>kind==='yellow'?285:198
+ );
+ const r=await h.readTrainingPattern({});
+ assert.equal(r.current.精神,209);
+ assert.equal(r.gains.精神,483);
+ assert.equal(r.exp.精神,692);
 });
 test('training current EXP never falls back to OCR guessing',async()=>{
  const {h}=setup();
