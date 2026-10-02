@@ -40,6 +40,8 @@ assert(sources['photo_import.js'].includes("else out.job=abilityUpIdentity.job||
 assert(sources['photo_import.js'].includes("if(jobResult.job)abilityUpIdentity.job=jobResult.job;"),'photo_import.js: the single ability-up job should be assigned directly');
 assert(sources['photo_import.js'].includes('const hasCharacterScreens=hasData&&(hasAbilityUp||hasTraining)'),'photo_import.js: ability data plus training must be accepted without ability-up');
 assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261002_IMG1011'),'photo_import.js: IMG_1011 regression templates missing');
+assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1049'),'photo_import.js: IMG_1049 regression templates missing');
+assert(sources['photo_import.js'].includes('superCell:isSuperAbilityCellByColor(yellow)'),'photo_import.js: long gold super cells must use the relaxed color classifier');
 assert(sources['photo_import.js'].includes('const mark=shapeMark||pairMarkByImage'),'photo_import.js: explicit ○/◎ shape must outrank full-cell mark matching');
 assert(sources['photo_import.js'].includes('markHint=shapeMark||visualMark'),'photo_import.js: fallback ○/◎ shape must outrank full-cell mark matching');
 assert(sources['photo_import.js'].includes('const shape=exactPairMark||markShapeByImage(image,cell,stem)||pairMarkByImage'),'photo_import.js: exact full-cell pair mark must outrank shape/full-cell fallback');

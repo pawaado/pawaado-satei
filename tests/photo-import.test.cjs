@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,abilityNameExactByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubAbilityResults(fn){readAbilityCells=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
@@ -27,6 +27,7 @@ function setup(){
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
+   stubOneSuperAbilityCell(row=3,col=2){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:true}];elementalAttackByImage=()=>'';levelByImage=()=>1;},
    stubOneRawAbilityCell(row=1,col=1){abilityCells=()=>[{rect:[0,0,136,34],row,col,superCell:false}];},
    stubPairCandidateCell(stem,mark){abilityCells=()=>[{rect:[0,0,136,34],row:2,col:3,superCell:false}];abilityByImage=()=>'';elementalAttackByImage=()=>'';collectSpecialReads=async()=>[{text:stem,label:'test'}];hybridPairStem=()=>({stem,candidate:true});pairStemByImage=()=>stem;markShapeByImage=()=>'';pairMarkByImage=()=>mark;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
@@ -162,6 +163,40 @@ test('IMG_1037 風耐性 exact image is not replaced by ～攻撃 fallback',asyn
  const r=await h.readAbilityCells({},2);
  assert(r.specials.includes('風耐性'));
  assert(!r.specials.includes('〜攻撃'));
+});
+test('IMG_1049 long gold cells stay in the super-ability path',()=>{
+ const {h}=setup();
+ assert.equal(h.isSuperAbilityCellByColor(30),true);
+ assert.equal(h.isSuperAbilityCellByColor(37),true);
+ assert.equal(h.isSuperAbilityCellByColor(0),false);
+});
+test('IMG_1049 exact masks recognize 火事場の馬鹿力 and 回復効果◎',()=>{
+ const {h}=setup();
+ const cases=[
+  ['火事場の馬鹿力','AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABh/L4Yf38MAWn89nx4fz8Baf3+/n5/P4Fp+P7afn8JgGB8/rJ/fxmI=',true],
+  ['回復効果◎','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8fz0P4bAAAwT/P8/iqAAD9P8/zeEQAAPU/3/P5AAAA/TfO9/0AAI=',false]
+ ];
+ for(const [name,encoded,superCell] of cases){
+   h.stubAbilityMask(encoded);
+   assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell}),name,name);
+   assert.equal(h.abilityNameExactByImage({}, {rect:[0,0,136,34],superCell},name),true,name+' exact');
+ }
+});
+test('IMG_1049 火事場の馬鹿力 Lv1 is entered instead of only warned',async()=>{
+ const {h}=setup();
+ h.stubOneSuperAbilityCell(3,2);
+ h.stubAbilityMask('AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABh/L4Yf38MAWn89nx4fz8Baf3+/n5/P4Fp+P7afn8JgGB8/rJ/fxmI=');
+ const r=await h.readAbilityCells({},4);
+ assert.equal(r.supers.find(x=>x.name==='火事場の馬鹿力')?.level,1);
+ assert(!r.warnings.some(w=>w.includes('火事場の馬鹿力')));
+});
+test('IMG_1049 回復効果◎ exact cell does not leave a 回復効果○ warning',async()=>{
+ const {h}=setup();
+ h.stubOneRawAbilityCell(4,3);
+ h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8fz0P4bAAAwT/P8/iqAAD9P8/zeEQAAPU/3/P5AAAA/TfO9/0AAI=');
+ const r=await h.readAbilityCells({},4);
+ assert(r.specials.includes('回復効果◎'));
+ assert(!r.warnings.some(w=>w.includes('回復効果○')));
 });
 test('IMG_1038 exact mask recognizes 対僧侶◎ and not 対植物◎',()=>{
  const {h}=setup();

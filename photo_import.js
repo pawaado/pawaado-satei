@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1037-defense-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1049-super-recovery-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -285,6 +285,26 @@
     ]
   };
   for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1037)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
+
+  // 2026-10-03 IMG_1049 実画像。
+  // 長い金色セル「火事場の馬鹿力」と、回復効果◎を同じ画面から補強。
+  // 回復効果◎はOCRが○候補を返しても、セル全体の実画像一致を正本にする。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1049={
+    "火事場の馬鹿力":[
+      "AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABh/L4Yf38MAWn89nx4fz8Baf3+/n5/P4Fp+P7afn8JgGB8/rJ/fxmI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGH8vhh/fwwBafz2fHh/PwFp/f7+fn8/gWn4/tp+fwmAYHz+sn9/GYjx/f72f38ZiZn9/u5vfzMI=",
+      "AAAAAAAAAAYfy+GH9/DAFp/PZ8eH8/AWn9/v5+fz+Bafj+2n5/CYBgfP6yf38ZiPH9/vZ/fxmJmf3+7m9/MwsMYB5s7383CABAAAAAAAAA="
+    ],
+    "回復効果◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8fz0P4bAAAwT/P8/iqAAD9P8/zeEQAAPU/3/P5AAAA/TfO9/0AAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/x/PQ/hsAADBP8/z+KoAAP0/z/N4RAAA9T/f8/kAAAD9N873/QAAgP0/xvHwxgCA/xfP8/yqAI=",
+      "AAAAAAAAAAD/H89D+GwAAME/z/P4qgAA/T/P83hEAAD1P9/z+QAAAP03zvf9AACA/T/G8fDGAID/F8/z/KoAgP8fyPJMbACAAAAAAAAAAI="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1049)){
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
   }
@@ -1421,6 +1441,9 @@
     }
     return hits>Math.max(18,total*.018);
   }
+  // 長い金色セルは文字が背景を覆い、従来の yellow>60 では超特殊能力扱いから外れることがある。
+  // IMG_1049では火事場の馬鹿力=30、そよかぜの加護=37、通常の青セル=0だったため、色自体が確認できる20以上を採用する。
+  function isSuperAbilityCellByColor(yellow){return yellow>=20;}
   function abilityCells(image){
     const c=canvasCrop(image,[0,0,1536,706],1),ctx=c.getContext('2d');
     // Work in reference coordinates even for resized screenshots.
@@ -1440,7 +1463,7 @@
       const x=[713,852,990,1128][col];let colored=0,yellow=0;
       for(let yy=y+5;yy<Math.min(537,y+35);yy++)for(let xx=x+3;xx<x+127;xx+=8){const i=(yy*1536+xx)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];if((b>r+25&&g>r+10)||(r>b+65&&g>b+35))colored++;if(r>175&&g>125&&b<120&&r>b+65&&g>b+35)yellow++;}
       // Long names such as 対ウンディーネ and 無頼漢の教え need almost the full cell width.
-      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:rowIndex+1,col:col+1,superCell:yellow>60});
+      if(colored>30)cells.push({rect:[x+1,y+2,136,34],levelRect:[x+103,y+25,32,24],row:rowIndex+1,col:col+1,superCell:isSuperAbilityCellByColor(yellow)});
     }});
     return cells;
   }
@@ -2345,5 +2368,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
