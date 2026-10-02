@@ -28,6 +28,14 @@ assert.equal(refs.find(r=>r.file==='photo_import.js').url.split('?v=')[1],photoV
 const workerVersion=sources['resistance_patch.js'].match(/const PATCH_VERSION='([^']+)'/)[1];
 const dataContext={window:{}};new vm.Script(sources['data.js'],{filename:'data.js'}).runInNewContext(dataContext);
 const data=dataContext.window.PAWAADO_DATA,resistanceRules=data.resistanceRules;
+assert.deepEqual(Array.from(data.attributes||[]),['火属性','風属性','水属性'],'data.js: attribute order must be 火属性 → 風属性 → 水属性');
+assert(sources['index.html'].includes('id="attribute"'),'index.html: attribute selector missing');
+assert(sources['script.js'].includes('function initAttributes()'),'script.js: attribute options must come from data.js');
+assert(sources['script.js'].includes("attribute.value=(D.attributes||[]).includes(data.attribute)?data.attribute:''"),'script.js: screenshot attribute import missing');
+assert(!sources['resistance_patch.js'].includes("createElement('style')"),'resistance_patch.js must contain behavior only; resistance appearance belongs in style.css');
+for(const selector of ['.extra-resistance-list{','.super-controls{','.extra-resistance-group-remove{'])assert(mainStyle.includes(selector),`style.css: resistance UI style missing: ${selector}`);
+assert(sources['photo_import.js'].includes('DATA_JOB_GRAY_TEMPLATES'),'photo_import.js: ability-data job icon templates missing');
+assert(sources['photo_import.js'].includes('function attributeByIcon('),'photo_import.js: ability-data attribute icon recognition missing');
 assert(resistanceRules&&resistanceRules.scorePerPercent&&resistanceRules.directEffects&&Array.isArray(resistanceRules.pairSources),'data.js: resistanceRules missing');
 const specialNames=new Set((data.special||[]).map(row=>String(row[1]||'')));
 const checkEffect=(name,type,value)=>{assert(specialNames.has(name),`data.js: unknown resistance skill ${name}`);assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown resistance type ${type} for ${name}`);assert(Number.isFinite(Number(value))&&Number(value)!==0,`data.js: invalid resistance value for ${name}`);};
