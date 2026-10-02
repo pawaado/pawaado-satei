@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-priest-pair-2';
+  const PHOTO_IMPORT_BUILD='20261003-img1037-defense-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -259,6 +259,35 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHzBh3B4AAAAf9/3+PwAAAA/zff5zgAAAH/P57mGAAAAf83n+YYADAAfzuPhhgAM=',
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8wYdweAAAAH/f9/j8AAAAP833+c4AAAB/z+e5hgAAAH/N5/mGAAwAH87j4YYADAA43+f53AAM='
   );
+
+  // 2026-10-03 IMG_1037 実画像。
+  // 柔軟な体の候補警告、風耐性/無耐性の～攻撃化、列回復◎→列攻撃◎を同じ画面から補強。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1037={
+    "柔軟な体":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/DIGAmAAAAB8f87CYAAAAf5+n+f4AAAB/n+MRnAAAACYe4zG8AAAAf97m+f4ABAAfDee5/gAA=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/DMGAmAAAAB8f9/GYAAAAf5/3+f4AAAB/n+MRvAAAACYe4zG8AAQAf97m+f4ADAAfDee5/gAM=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/DMGA2AAAAD8f9/HYAAAAf9/3+f4AAAB/n+MxvAAAACae4zG8AAwAf97m+f4ADAA/D+e9/gAM="
+    ],
+    "風耐性":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+fMzAAAAAAP583eAAAAAA/n3f8AAAAAD+fN/AAAAAAL5/3eAAAgAAun3N4AACAACffMzAAAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+fMzAAAAAAP583eAAAAAA/n3f8AAAAAD+fN/AAAAAAP5/3eAAAgAA/n3N4AACAACffMzAAAI=",
+      "AAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAD+fMzAAAAAAP5+3eAAAAAA/n/f8AAAAAD+ft/AAAAAAP5/3eAAAgAA/n3N4AACAACffMzAAAI="
+    ],
+    "無耐性":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgPsRAAAAAAP8+1/AAAAAA/z/X8AAAAAD/PtdAAAAAAH8/1fAAAgAA/z/F8AACAAD/PsRAAAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgPsRAAAAAAP8+1/AAAAAA/z/X8AAAAAD/PtdAAAAAAH8/1fAAAgAA/z/F8AACAAD/PsTAAAI=",
+      "AAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAADwPsRAAAAAAP8+3/AAAAAA/z/f8AAAAAD/Pt9AAAAAAP8/1fAAAgAA/z/F8AACAAD/PsTgAAI="
+    ],
+    "列回復◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB7v+b4+AAAAHu/74FUAAAAe7fn+owAAAB7tef5AgAAAHu17/ECAAgAO7fn8IwACABxuGbxBAAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/v+f4+AAAAHu/7/FcAAAAe7/n+pwAAAB7vef5AgAAAHu97/kCAAgAO7/n8owACABxuOfx1AAI=",
+      "AAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAB/v+f4+AAAAHu/7/lcAAAAe7/n+pwAAAB7vef5AgAAAHu97/kKAAgAO7/n8owACABxv+fx1AAI="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1037)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
 
   // 2026-10-03 IMG_1038「対僧侶◎」実画像。
   // このセルは既存の対僧侶○/◎テンプレートとの差が同程度で、ペア名判定へ落ちた際に
@@ -696,7 +725,21 @@
     ranked.sort((a,b)=>a.head-b.head||a.full-b.full);
     const best=ranked[0],second=ranked[1];
     if(!best)return '';
-    return best.head<=.06&&best.full<=.075&&(!second||second.head-best.head>=.03)?best.name:'';
+
+    // 火/風/水で始まる耐性・回復は、先頭1文字だけを見ると属性攻撃へ寄りやすい。
+    // 攻撃以外の近縁セルが同等以上なら「～攻撃」へフォールバックしない。
+    const negativeNames=['火耐性','風耐性','水耐性','無耐性','火回復','風回復','水回復'];
+    let negativeBest=1;
+    for(const name of negativeNames){
+      const raw=HYBRID_ABILITY_MASKS[name];if(!raw)continue;
+      const variants=Array.isArray(raw)?raw:[raw];
+      for(const encoded of variants){
+        const ref=decodeMask(encoded,64*10);
+        for(const sig of sigs)negativeBest=Math.min(negativeBest,shiftedMaskDistance(sig,ref,64,10,3,2));
+      }
+    }
+    const beatsNegative=negativeBest-best.full>=.012;
+    return best.head<=.06&&best.full<=.075&&beatsNegative&&(!second||second.head-best.head>=.03)?best.name:'';
   }
 
   function abilityByImage(image,cell){
@@ -744,6 +787,19 @@
     const robustSigs=[85,115,135].flatMap(makeSigs);
     return accept(rank(candidates,robustSigs,6,3),true);
   }
+  function abilityNameExactByImage(image,cell,name){
+    const raw=HYBRID_ABILITY_MASKS[name];if(!raw)return false;
+    const variants=Array.isArray(raw)?raw:[raw];
+    const [x,y,w]=cell.rect;
+    const sigs=[0,2,4,6,8,10,12,14].map(offset=>inkMask(image,[x+4,y+offset,w-8,20],2,2,100).mask);
+    let best=1;
+    for(const encoded of variants){
+      const ref=decodeMask(encoded,64*10);
+      for(const sig of sigs)best=Math.min(best,shiftedMaskDistance(sig,ref,64,10,3,2));
+    }
+    return best<=.015;
+  }
+
   // ○/◎は能力名全体の比較だと差が小さすぎるため、同じ能力名の○版・◎版だけを
   // 比較して、2者で差が出る画素に重みを付けて判定する。能力名と記号を分離して扱う。
   function pairStemCandidatesFromTexts(rawTexts,maxCount=4){
@@ -1556,9 +1612,10 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
+      let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
       // ○/◎付き能力は「能力名本体」と「○/◎」を別々に判定する。
       // 全体テンプレートが別の能力名に引っ張られた場合も、名前本体を再比較して補正する。
-      if(/[○◎]$/.test(visualName)){
+      if(/[○◎]$/.test(visualName)&&!visualExact){
         const originalStem=normalize(visualName).slice(0,-1);
         if(PAIR_STEMS.includes(originalStem)){
           // 全体テンプレート、能力名本体、末尾記号の3系統が一致したセルは
@@ -1654,7 +1711,8 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const shape=markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
+            const exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
+            const shape=exactPairMark||markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
@@ -2287,5 +2345,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
