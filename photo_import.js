@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-training-blue-1';
+  const PHOTO_IMPORT_BUILD='20261003-training-blue-guard-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1877,7 +1877,7 @@
     if(await matchesTemplate(image,'swordsman',[685,22,165,32]))return {job:'剣士',candidate:false,raw:''};
     return {job:'',candidate:false,raw:''};
   }
-  function trainingBubblePresent(image,rowY,kind){
+  function trainingBubbleRatio(image,rowY,kind){
     const rect=kind==='blue'?[382,rowY,105,45]:[292,rowY,94,45];
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
     let hit=0,total=0;
@@ -1891,7 +1891,10 @@
         if(r>235&&g>220&&b>185&&(r-b)>20)hit++;
       }
     }
-    const ratio=total?hit/total:0;
+    return total?hit/total:0;
+  }
+  function trainingBubblePresent(image,rowY,kind){
+    const ratio=trainingBubbleRatio(image,rowY,kind);
     return kind==='blue'?ratio>.15:ratio>.24;
   }
   async function trainingNumber(image,rect,maxDigits=4){
@@ -2177,8 +2180,11 @@
         // 吹き出し背景が淡くて閾値を下回っても、色付き数字そのものを読めた場合は実在する増加分。
         // IMG_1061では敏捷・精神の青「+2」が背景判定だけだと落ちていた。
         const colorValue=trainingGainColorNumber(image,y,kind);
-        const present=Number.isInteger(colorValue)||trainingBubblePresent(image,y,kind);
-        // 色付き数字を先に使うことで、背景の観客席を汎用数字として拾う経路は増やさない。
+        const hardBubble=trainingBubblePresent(image,y,kind);
+        // 青だけはIMG_1061の薄い吹き出しを救うため少し緩い背景比率も併用する。
+        // ただし「青い数字らしき形」だけでは採用せず、背景側の弱いシグナルも必須にして誤加算を防ぐ。
+        const softBlueBubble=kind==='blue'&&Number.isInteger(colorValue)&&trainingBubbleRatio(image,y,kind)>.12;
+        const present=hardBubble||softBlueBubble;
         if(!present)continue;
         const v=Number.isInteger(colorValue)?colorValue:trainingGainNumberByImage(image,y,kind);
         if(Number.isInteger(v))gain+=v;

@@ -100,7 +100,8 @@ assert(sources['academy_runtime.js'].includes('for(let level=DUAL.initialLevel;l
 assert(sources['academy_runtime.js'].includes('dual-level-badge">Lv.${level}'),'dual attack UI must display Lv. punctuation');
 assert(sources['resistance_patch.js'].includes('super-level-label">Lv.</span>'),'variable-score super UI must display Lv. punctuation');
 assert(sources['rankings.html'].includes('通常攻撃(双剣士) Lv.${lv}'),'ranking dual levels must display Lv. punctuation');
-assert(sources['photo_import.js'].includes('const colorValue=trainingGainColorNumber(image,y,kind)'),'training gains must trust recognized colored digits even when bubble background is faint');
+assert(sources['photo_import.js'].includes('const colorValue=trainingGainColorNumber(image,y,kind)'),'training gains must inspect colored digits');
+assert(sources['photo_import.js'].includes("const softBlueBubble=kind==='blue'&&Number.isInteger(colorValue)&&trainingBubbleRatio(image,y,kind)>.12"),'faint blue gains must require both digit and bubble-background signals');
 assert(sources['script.js'].includes("'dualAttack:'+dualPart"),'calculation cache key must include dual attack level/hint');
 assert(sources['script.js'].includes('disabledBeforeCalc'),'calculation must restore prior disabled states');
 assert(!sources['script.js'].includes("querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;})"),'calculation must not blindly enable every control');

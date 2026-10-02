@@ -23,7 +23,7 @@ function setup(){
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
-   stubTrainingGains(presentFn,valueFn,colorFn=()=>null){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;trainingGainColorNumber=colorFn;},
+   stubTrainingGains(presentFn,valueFn,colorFn=()=>null,ratioFn=()=>0){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;trainingGainColorNumber=colorFn;trainingBubbleRatio=ratioFn;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
@@ -428,10 +428,27 @@ test('IMG_1061 faint blue +2 gains are kept from colored digits',async()=>{
    (image,rowY,kind)=>{
      if(kind!=='blue')return null;
      return rowY===120?3:rowY===179?2:rowY===356?2:null;
+   },
+   (image,rowY,kind)=>{
+     if(kind!=='blue')return 0;
+     return rowY===120?.218:rowY===179?.135:rowY===356?.140:0;
    }
  );
  const r=await h.readTrainingPattern({});
  assert.deepEqual({...r.exp},{筋力:983,敏捷:1115,技術:1009,知力:210,精神:635});
+});
+test('blue-colored false positive is ignored when no bubble-background signal exists',async()=>{
+ const {h}=setup();
+ h.stubTrainingCurrent([100,100,100,100,100]);
+ h.stubTrainingGains(
+   ()=>false,
+   ()=>9,
+   (image,rowY,kind)=>kind==='blue'?2:null,
+   ()=>0.08
+ );
+ const r=await h.readTrainingPattern({});
+ assert.deepEqual({...r.gains},{筋力:0,敏捷:0,技術:0,知力:0,精神:0});
+ assert.deepEqual({...r.exp},{筋力:100,敏捷:100,技術:100,知力:100,精神:100});
 });
 test('absent blue gain bubble cannot add a ghost +6 to mental EXP',async()=>{
  const {h}=setup();
