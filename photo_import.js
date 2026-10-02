@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1064-ironwall-2';
+  const PHOTO_IMPORT_BUILD='20261003-training-blue-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2174,12 +2174,13 @@
 
       let gain=0,unread=false;
       for(const kind of ['yellow','blue']){
-        const present=trainingBubblePresent(image,y,kind);
-        // 吹き出しが実際に存在する色だけ読む。
-        // 存在しない青吹き出しまで数字探索すると、背景の観客席などを「6」と誤認して
-        // 黄色91/10に+6され、682→688・601→607になることがある。
+        // 吹き出し背景が淡くて閾値を下回っても、色付き数字そのものを読めた場合は実在する増加分。
+        // IMG_1061では敏捷・精神の青「+2」が背景判定だけだと落ちていた。
+        const colorValue=trainingGainColorNumber(image,y,kind);
+        const present=Number.isInteger(colorValue)||trainingBubblePresent(image,y,kind);
+        // 色付き数字を先に使うことで、背景の観客席を汎用数字として拾う経路は増やさない。
         if(!present)continue;
-        const v=trainingGainNumberByImage(image,y,kind);
+        const v=Number.isInteger(colorValue)?colorValue:trainingGainNumberByImage(image,y,kind);
         if(Number.isInteger(v))gain+=v;
         else unread=true;
       }

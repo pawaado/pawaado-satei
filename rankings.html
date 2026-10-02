@@ -322,7 +322,7 @@
             const exp=(d.cost||[]).reduce((s,n)=>s+Number(n||0),0);
             const score=Number(d.score||0);
             if(exp>0&&score!==0){
-              items.push({ability:`通常攻撃(双剣士) Lv${lv}`,eff:score/exp,exp,score,type:'special'});
+              items.push({ability:`通常攻撃(双剣士) Lv.${lv}`,eff:score/exp,exp,score,type:'special'});
             }
           });
         }

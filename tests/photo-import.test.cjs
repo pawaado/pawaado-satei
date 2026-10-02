@@ -23,7 +23,7 @@ function setup(){
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
-   stubTrainingGains(presentFn,valueFn){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;},
+   stubTrainingGains(presentFn,valueFn,colorFn=()=>null){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;trainingGainColorNumber=colorFn;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
@@ -416,6 +416,23 @@ test('single-digit current EXP composition keeps mental at 591',async()=>{
  assert.equal(r.current.精神,591);
  assert.equal(r.exp.精神,591);
 });
+test('IMG_1061 faint blue +2 gains are kept from colored digits',async()=>{
+ const {h}=setup();
+ h.stubTrainingCurrent([925,1066,1009,210,581]);
+ h.stubTrainingGains(
+   (image,rowY,kind)=>kind==='yellow'&&[120,179,356].includes(rowY),
+   (image,rowY,kind)=>{
+     if(kind!=='yellow')return null;
+     return rowY===120?55:rowY===179?47:rowY===356?52:null;
+   },
+   (image,rowY,kind)=>{
+     if(kind!=='blue')return null;
+     return rowY===120?3:rowY===179?2:rowY===356?2:null;
+   }
+ );
+ const r=await h.readTrainingPattern({});
+ assert.deepEqual({...r.exp},{筋力:983,敏捷:1115,技術:1009,知力:210,精神:635});
+});
 test('absent blue gain bubble cannot add a ghost +6 to mental EXP',async()=>{
  const {h}=setup();
  // Reproduce the actual failure: yellow is real; the generic blue-number fallback sees background as 6.
@@ -512,10 +529,12 @@ test('IMG_1052/1059 confirmed HP-dependent supers keep their Lv and do not becom
   ['大真面目','AAAAAAAAAAAAAAAAAAAAAAAAMH+/5/AAAAAcH8HBjAAAAB/mMfx/AAAAAMGMXR/AAAAAeH8XR/AAIAA/H+XR/AAIABzn+fx/AAIABhnOfx/AAIA=']
  ];
  for(const [name,encoded] of cases){
-  const {h}=setup();h.stubOneSuperAbilityCell(1,1);h.stubAbilityMask(encoded);
-  const r=await h.readAbilityCells({},1);
-  assert.equal(r.supers.find(x=>x.name===name)?.level,1,name);
-  assert(!r.warnings.some(w=>w.includes(name)),name);
+  for(const level of [1,2]){
+   const {h}=setup();h.stubOneSuperAbilityCell(1,1,level);h.stubAbilityMask(encoded);
+   const r=await h.readAbilityCells({},1);
+   assert.equal(r.supers.find(x=>x.name===name)?.level,level,name+' Lv.'+level);
+   assert(!r.warnings.some(w=>w.includes(name)),name+' Lv.'+level);
+  }
  }
 });
 test('IMG_1064 鉄壁の盾 is recognized as a confirmed variable-score super',()=>{

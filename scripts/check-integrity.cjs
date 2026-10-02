@@ -96,6 +96,11 @@ assert(sources['resistance_patch.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRIN
 assert(sources['resistance_patch.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'resistance UI must apply lower abilities for selected supers');
 assert(!sources['script.js'].includes("addEventListener('pawaado-super-change'"),'legacy one-way super ownership event must stay removed');
 assert(sources['academy_runtime.js'].includes('__PAWAADO_DUAL_ATTACK_SIGNATURE__'),'dual attack UI must expose cache identity');
+assert(sources['academy_runtime.js'].includes('for(let level=DUAL.initialLevel;level<=maxShown;level++)'),'dual attack UI must show initial Lv1 row');
+assert(sources['academy_runtime.js'].includes('dual-level-badge">Lv.${level}'),'dual attack UI must display Lv. punctuation');
+assert(sources['resistance_patch.js'].includes('super-level-label">Lv.</span>'),'variable-score super UI must display Lv. punctuation');
+assert(sources['rankings.html'].includes('通常攻撃(双剣士) Lv.${lv}'),'ranking dual levels must display Lv. punctuation');
+assert(sources['photo_import.js'].includes('const colorValue=trainingGainColorNumber(image,y,kind)'),'training gains must trust recognized colored digits even when bubble background is faint');
 assert(sources['script.js'].includes("'dualAttack:'+dualPart"),'calculation cache key must include dual attack level/hint');
 assert(sources['script.js'].includes('disabledBeforeCalc'),'calculation must restore prior disabled states');
 assert(!sources['script.js'].includes("querySelectorAll('button,input,select').forEach(el=>{el.disabled=false;})"),'calculation must not blindly enable every control');

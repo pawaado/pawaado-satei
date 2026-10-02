@@ -204,7 +204,7 @@ function ownedHpDependentBreakdown(life){
     const after=finalHp*rate;
     const delta=after-before;
     if(delta===0)continue;
-    rows.push({name:`${entry.name} Lv${entry.level}`,before,after,delta});
+    rows.push({name:`${entry.name} Lv.${entry.level}`,before,after,delta});
     total+=delta;
   }
 
@@ -539,11 +539,11 @@ function mixedDualAction(st,exp){
 
   const finalCost=addCost(st.cost,cost);
   if(!leq(finalCost,exp)) return null;
-  items.push({type:'special',idx:DUAL_SKILL_INDEX,name:`${DUAL_MASTER.skillName} Lv${toLevel}`,dualLevel:toLevel});
+  items.push({type:'special',idx:DUAL_SKILL_INDEX,name:`${DUAL_MASTER.skillName} Lv.${toLevel}`,dualLevel:toLevel});
   const cs=costSum(cost);
   return {
     kind:'dual',
-    name:`${DUAL_MASTER.skillName} Lv${toLevel}`,
+    name:`${DUAL_MASTER.skillName} Lv.${toLevel}`,
     fromLevel,
     toLevel,
     toDex:targetDex,
@@ -967,7 +967,7 @@ function collapseDualResultItems(items){
   if(!dualItems.length) return items;
   const levels=dualItems.map(it=>Number(it.dualLevel)).sort((a,b)=>a-b);
   const first=levels[0],last=levels[levels.length-1];
-  const label=first===last?`Lv${last}`:`Lv${first}→Lv${last}`;
+  const label=first===last?`Lv.${last}`:`Lv.${first}→Lv.${last}`;
   const combined={type:'special',idx:DUAL_SKILL_INDEX,name:`${DUAL_MASTER.skillName} ${label}`};
   const out=[];
   let inserted=false;
@@ -996,7 +996,7 @@ self.onmessage=async(event)=>{
     if(workerDualEnabled&&DUAL_MASTER&&workerDualLevel>Number(DUAL_MASTER.initialLevel||1)){
       const dex=Number(payload.basicValues?.['器用さ']||1);
       const req=Number(DUAL_MASTER.levels?.[workerDualLevel]?.reqDex||0);
-      if(dex<req) throw new Error(`取得条件を満たしていません（通常攻撃Lv${workerDualLevel}には器用さ${req}以上が必要です）。`);
+      if(dex<req) throw new Error(`取得条件を満たしていません（通常攻撃 Lv.${workerDualLevel}には器用さ${req}以上が必要です）。`);
     }
     const finalCandidate=await optimizeMixedAsync(exp);
     const items=collapseDualResultItems(restoreItems(finalCandidate).map(item=>({...item})));

@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261003-ironwall-hp-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261003-dual-training-ui-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 

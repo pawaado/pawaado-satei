@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261003-ironwall-hp-1';
+  const PATCH_VERSION='20261003-dual-training-ui-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -341,7 +341,7 @@
       <div class="super-control-row">
         <div class="super-controls">
           <div class="super-field super-name-field">${superSelectControlHtml('name',nameOptions,'超特殊能力を選択',!job)}</div>
-          <div class="super-field super-level-field"><span class="super-level-label">Lv</span>${superSelectControlHtml('level',levelOptions,'')}</div>
+          <div class="super-field super-level-field"><span class="super-level-label">Lv.</span>${superSelectControlHtml('level',levelOptions,'')}</div>
           <button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>
         </div>
       </div>

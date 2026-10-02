@@ -125,15 +125,15 @@
 
       const maxShown=Math.min(DUAL.maxLevel,dualLevel>=DUAL.maxLevel?DUAL.maxLevel:dualLevel+1);
       let anchor=base;
-      for(let level=DUAL.initialLevel+1;level<=maxShown;level++){
+      for(let level=DUAL.initialLevel;level<=maxShown;level++){
         const owned=level<=dualLevel;
         const row=document.createElement('div');
         row.className=`skill-row dual-attack-row${owned?' owned':''}`;
         row.dataset.dualLevel=String(level);
         row.innerHTML=`
-          <button type="button" class="hint-btn dual-hint-btn" data-dual-action="hint" aria-label="通常攻撃のコツレベルを設定する">${dualHint>0?`Lv${dualHint}`:'＋'}</button>
-          <button type="button" class="name-btn dual-level-label" data-dual-action="acquire" aria-label="通常攻撃Lv${level}${owned?'の取得済みを解除する':'を取得する'}">
-            <span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv${level}</span></span>${owned?'<span class="owned-label">✓取得済</span>':''}
+          <button type="button" class="hint-btn dual-hint-btn" data-dual-action="hint" aria-label="通常攻撃のコツレベルを設定する">${dualHint>0?`Lv.${dualHint}`:'＋'}</button>
+          <button type="button" class="name-btn dual-level-label" data-dual-action="acquire" aria-label="通常攻撃 Lv.${level}${owned?'の取得済みを解除する':'を取得する'}">
+            <span class="dual-level-text"><span>${DUAL.skillName}</span><span class="dual-level-badge">Lv.${level}</span></span>${owned?'<span class="owned-label">✓取得済</span>':''}
           </button>
           <div class="dual-level-error" role="alert" aria-live="polite">${(!owned && level===dualLevel+1)?dualError:''}</div>`;
         anchor.insertAdjacentElement('afterend',row);
@@ -189,7 +189,7 @@
       if(button.id==='calcBtn'&&isDual()&&!currentLevelIsValid()){
         event.preventDefault();event.stopImmediatePropagation();
         const req=requiredDex(dualLevel);
-        dualError=`取得条件を満たしていません（通常攻撃Lv${dualLevel}には器用さ${req}以上が必要です）。`;
+        dualError=`取得条件を満たしていません（通常攻撃 Lv.${dualLevel}には器用さ${req}以上が必要です）。`;
         renderDualRows();
         const result=document.getElementById('result');
         if(result) result.innerHTML=`<div class="error-box"><ul class="error-box-list"><li>${dualError}</li></ul></div>`;
@@ -200,7 +200,7 @@
       if(event.target?.id==='basic_器用さ'&&isDual()){
         if(!currentLevelIsValid()){
           const req=requiredDex(dualLevel);
-          dualError=`取得条件を満たしていません（通常攻撃Lv${dualLevel}には器用さ${req}以上が必要です）。`;
+          dualError=`取得条件を満たしていません（通常攻撃 Lv.${dualLevel}には器用さ${req}以上が必要です）。`;
         }else dualError='';
         renderDualRows();
       }
