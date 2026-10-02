@@ -149,9 +149,6 @@
       dualHint=Math.max(0,Math.min(5,Number(hint)||0));
       setDualLevel(level);
     };
-    global.__PAWAADO_DUAL_ATTACK_SIGNATURE__=()=>isDual()
-      ? [dualLevel,dualHint].join(':')
-      : '';
     function tryAcquireLevel(level){
       const target=Number(level);
       if(target<=dualLevel){
