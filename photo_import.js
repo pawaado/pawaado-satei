@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1017-exp-1';
+  const PHOTO_IMPORT_BUILD='20261003-pairwarn-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1658,7 +1658,14 @@
       if(parsed.unknown.length)missed.push(where);
       if(parsed.candidate){
         const candidateName=parsed.suggestedSuper||parsed.specials[0]||'';
-        candidates.push(candidateName?`${where}「${candidateName}」`:where);
+        // ○/◎付き能力は、この同じセルから末尾記号を画像で直接確定できているなら
+        // OCR側が candidate 扱いでも要確認にはしない。最終入力と警告が矛盾するのを防ぐ。
+        const normalizedCandidate=normalize(candidateName);
+        const candidateStem=/[○◎]$/.test(normalizedCandidate)?normalizedCandidate.slice(0,-1):'';
+        const candidateMark=candidateStem?normalizedCandidate.slice(-1):'';
+        const explicitMark=candidateStem?explicitPairMarks.get(candidateStem):'';
+        const resolvedByExplicitPair=!!candidateStem&&!!explicitMark&&explicitMark===candidateMark;
+        if(!resolvedByExplicitPair)candidates.push(candidateName?`${where}「${candidateName}」`:where);
       }
     }
     // 画面に直接表示された○/◎を最終優先。

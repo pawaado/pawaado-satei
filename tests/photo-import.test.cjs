@@ -27,6 +27,7 @@ function setup(){
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubOneAbilityCell(){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';},
+   stubPairCandidateCell(stem,mark){abilityCells=()=>[{rect:[0,0,136,34],row:2,col:3,superCell:false}];abilityByImage=()=>'';elementalAttackByImage=()=>'';collectSpecialReads=async()=>[{text:stem,label:'test'}];hybridPairStem=()=>({stem,candidate:true});pairStemByImage=()=>stem;markShapeByImage=()=>'';pairMarkByImage=()=>mark;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
@@ -171,6 +172,14 @@ test('アクションスキル○/◎ exact template sets have no identical mask
  };
  const c=get('アクションスキル○'),d=get('アクションスキル◎');
  assert.deepEqual(c.filter(x=>d.includes(x)),[]);
+});
+test('resolved explicit pair mark suppresses stale candidate warning',async()=>{
+ const {h}=setup();
+ h.stubPairCandidateCell('アクションスキル','◎');
+ const r=await h.readAbilityCells({},3);
+ assert(r.specials.includes('アクションスキル◎'));
+ assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
+ assert(!r.warnings.some(w=>w.includes('アクションスキル◎')&&w.includes('取得状態')));
 });
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();
