@@ -15,8 +15,10 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,readImages,levelByImage,matchesTemplate,academyOf,cellAbility,findSpecials,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,abilityByImage,readImages,levelByImage,matchesTemplate,academyOf,cellAbility,findSpecials,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
+   stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
+   stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
@@ -33,6 +35,15 @@ test('ability data job icon fills job',async()=>{
  const r=await h.readImages([{kind:'data',dataJob:'重戦士'},{job:'重戦士',exp:100}]);
  assert.equal(r.job,'重戦士');
 });
+test('ability data falls back to the visible header job text when icon comparison misses',async()=>{
+ const {h}=setup();h.stubDataJobHeader('重戦士');
+ assert.equal((await h.profileIdentityOf({})).job,'重戦士');
+});
+test('IMG_1009 physical defense circle cell is accepted by image comparison',()=>{
+ const {h}=setup();
+ h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI=');
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'物理防御○');
+});
 test('ability-up job text wins over a conflicting ability-data job icon',async()=>{
  const {h}=setup();h.stubReads();
  const r=await h.readImages([{kind:'data',dataJob:'僧侶'},{job:'剣士',exp:100}]);
@@ -43,7 +54,7 @@ test('readable ability-up job suppresses an unreadable data job-icon warning',as
  const {h}=setup();h.stubReads();
  const r=await h.readImages([{job:'重戦士',exp:100},{kind:'data',dataJob:''}]);
  assert.equal(r.job,'重戦士');
- assert(!r.warnings.some(w=>w.includes('ジョブ固有マーク')));
+ assert(!r.warnings.some(w=>w.includes('ジョブを画像から読み取れません')));
 });
 test('ability data plus training is accepted without an ability-up screenshot',async()=>{
  const {h,get,c}=setup();let importedPhoto=null,importedTraining=null;
