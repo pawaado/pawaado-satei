@@ -320,6 +320,30 @@ test('IMG_1088 keeps アクションスキル◎ while 対ドラゴンタート�
  assert.equal(turtle.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'対ドラゴンタートル○');
  assert.equal(turtle.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
 });
+test('IMG_1090 real action-skill circle stays ○',async()=>{
+ const circle='AAAAAAAAAAAAAAAAAAAAAHzBABg8IGHAfPGEHDx44+AMkgeIDPjiYDmTIIEMMOogODFngwx9+iIgYMCGHPnyYmDjh5w2EXPiYMEHiCIRYcI=';
+ const {h}=setup();
+ h.stubOneRawAbilityCell();
+ h.stubAbilityMask(circle);
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'アクションスキル○');
+ assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'○');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('アクションスキル○'));
+ assert(!r.specials.includes('アクションスキル◎'));
+ assert.equal(r.explicitPairMarks['アクションスキル'],'○');
+});
+test('IMG_1092 real action-skill double-circle stays ◎',async()=>{
+ const double='AAAAAAAAAAAAAAAAAAAAAHzBABg8IGAAfPGFHDx44AAMkgeIDPjgADmTIIEMMOgAODFngwx9+AIgYMCGHPnwAmDjh5w2EXACYMEHiCIRYAI=';
+ const {h}=setup();
+ h.stubOneRawAbilityCell();
+ h.stubAbilityMask(double);
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'アクションスキル◎');
+ assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'◎');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('アクションスキル○'));
+ assert(r.specials.includes('アクションスキル◎'));
+ assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
+});
 test('IMG_1088 unique ◎ exact match wins even when pair comparison is ambiguous',async()=>{
  const {h}=setup();
  h.stubAbilityChoice('アクションスキル○','');
