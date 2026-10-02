@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261002-worker-cleanup-1';
+  const PATCH_VERSION='20261002-worker-cleanup-2';
   const resistanceTypes=[
     '物理攻撃耐性','魔法攻撃耐性','必殺技耐性','全体攻撃耐性','単体攻撃耐性',
     '火属性耐性','風属性耐性','水属性耐性','無属性耐性','列攻撃耐性',
@@ -172,13 +172,6 @@
         onerror:null,
         postMessage(message,transfer){
           if(terminated) return;
-          if(message?.type==='cancel'){
-            if(inner){
-              if(arguments.length>=2) inner.postMessage(message,transfer);
-              else inner.postMessage(message);
-            }
-            return;
-          }
           if(message?.type!=='calculate'){
             if(inner){
               if(arguments.length>=2) inner.postMessage(message,transfer);
