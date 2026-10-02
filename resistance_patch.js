@@ -1,9 +1,18 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261002-no-attribute-2';
+  const PATCH_VERSION='20261003-variable-super-hp-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
+  const superScoreRules=D?.superScoreRules||{};
+
+  function superDefinition(name){
+    const key=String(name||'');
+    const resistance=D?.superResistances?.[key]||null;
+    const score=superScoreRules[key]||null;
+    if(!resistance&&!score)return null;
+    return {resistance,score,job:resistance?.job||score?.job||''};
+  }
 
   function abilityLetter(index){
     let n=Math.max(0,Number(index)||0)+1;
@@ -19,6 +28,18 @@
   function groupSourceName(group){
     return group?.querySelector('.super-name')?.value || `超特殊能力${abilityLetter(Number(group?.dataset?.groupIndex||0))}`;
   }
+
+  function getSelectedSupers(){
+    const out=[];
+    document.querySelectorAll('.extra-resistance-group').forEach(group=>{
+      const name=group.querySelector('.super-name')?.value||'';
+      if(!name)return;
+      const level=Number(group.querySelector('.super-level')?.value||0);
+      out.push({name,level:level===1||level===2?level:0});
+    });
+    return out;
+  }
+  window.__PAWAADO_GET_SELECTED_SUPERS__=getSelectedSupers;
 
   function getExtraResistances(){
     const out=[];
@@ -39,9 +60,10 @@
   window.__PAWAADO_GET_EXTRA_RESISTANCES__=getExtraResistances;
 
   function resistanceSignature(){
-    return getExtraResistances()
-      .map(row=>`${row.name}:${row.type}:${Number(row.value)}`)
-      .join('|');
+    return [
+      ...getSelectedSupers().map(row=>`super:${row.name}:Lv${row.level||''}`),
+      ...getExtraResistances().map(row=>`resistance:${row.name}:${row.type}:${Number(row.value)}`)
+    ].join('|');
   }
 
   window.__PAWAADO_RESISTANCE_SIGNATURE__=resistanceSignature;
@@ -80,7 +102,7 @@
     const result=document.getElementById('result');
     if(!result)return;
     const safe=String(message).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-    const formatted=safe==='耐性に影響する超特殊能力のLvを選択してください。'
+    const formatted=safe==='査定が変動する超特殊能力のLvを選択してください。'
       ? '<span class="error-no-break">耐性に影響する超特殊能力のLvを</span><wbr><span class="error-no-break">選択してください。</span>'
       : safe;
     result.innerHTML='<div class="error-box"><ul class="error-box-list"><li>'+formatted+'</li></ul></div>';
@@ -93,7 +115,7 @@
     for(const group of groups){
       const name=group.querySelector('.super-name')?.value;
       if(!name) continue;
-      const def=D?.superResistances?.[name];
+      const def=superDefinition(name);
       const level=group.querySelector('.super-level')?.value;
       if(!def){
         group.querySelector('.super-note').textContent='';
@@ -102,7 +124,7 @@
       }
       if(!level || names.has(name) || (def.job&&def.job!==document.getElementById('job').value)){
         group.querySelector('.super-note').textContent='';
-        showResistanceCalcError(!level?'耐性に影響する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
+        showResistanceCalcError(!level?'査定が変動する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
         return false;
       }
       names.add(name);
@@ -213,13 +235,16 @@
     '安全運転',
     'ウィンドプロテクション',
     'ウォータープロテクション',
+    '大真面目',
     '加護',
     '火事場の馬鹿力',
     'カチカチボディ',
     '救援者',
     '慈愛の祈り',
+    'そよかぜの加護',
     '対魔の盾',
     '戦い抜く覚悟',
+    'タフネス',
     '超免疫',
     '鉄人',
     '百戦の生存術',
@@ -235,10 +260,10 @@
   function currentJob(){return document.getElementById('job')?.value||'';}
   function allAvailableSuperNames(job=currentJob()){
     if(!job)return [];
-    return Object.keys(D.superResistances)
+    return [...new Set([...Object.keys(D.superResistances||{}),...Object.keys(superScoreRules)])]
       .filter(name=>{
-        const def=D.superResistances[name];
-        return !def.job||def.job===job;
+        const def=superDefinition(name);
+        return def&&(!def.job||def.job===job);
       })
       .sort((a,b)=>(SUPER_ORDER_INDEX.get(a)??999)-(SUPER_ORDER_INDEX.get(b)??999));
   }
@@ -422,7 +447,7 @@
     section.className='card';
     section.setAttribute('aria-labelledby','extraResistanceTitle');
     section.innerHTML=`
-      <div class="section-heading no-heading-diamond"><h2 id="extraResistanceTitle">耐性に影響する超特殊能力</h2></div>
+      <div class="section-heading no-heading-diamond"><h2 id="extraResistanceTitle">査定が変動する超特殊能力</h2></div>
       <div id="extraResistanceList" class="extra-resistance-list">${resistanceGroupHtml(0)}</div>`;
     specialCard.insertAdjacentElement('afterend',section);
     initSuperSelects(section);
