@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1052-1059-hp-super-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1052-1059-hp-super-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -408,8 +408,6 @@
   // 画像上では超特殊能力セルとして検出するが、入力対象にはせず明示的に無視する。
   Object.assign(HYBRID_ABILITY_MASKS,{
     '魔族キラー':[
-      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/H8MD+AAAAP8/z+P4AAAA/zPP4/gAAADeP8GD+f4AAP8/z/AY/gCA/z/P8DgAAI=',
-      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/x/DA/gAAAD/P8/j+AAAAP8zz+P4AAAA3j/Bg/n+AAD/P8/wGP4AgP8/z/A4AACA/z/BgPAAAI=',
       'AAAAAAAAAAAAAAAAAAAAAAP8fwwP4AAAA/z/P4/gAAAD/M8/j+AAAAN4/wYP5/gAA/z/P8Bj+AID/P8/wOAAAgP8/wYDwAACA/z7BgOAAAI='
     ]
   });
