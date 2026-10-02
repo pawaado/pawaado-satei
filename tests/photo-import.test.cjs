@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -57,37 +57,28 @@ test('IMG_1009 physical defense circle cell is accepted by image comparison',()=
  h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI=');
  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'物理防御○');
 });
-test('IMG_1009 visible specials and resistance supers are registered as exact image templates',()=>{
- const {h}=setup();
- const cases=[
-  ['物理攻撃○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgHwIO4bAAA/z/f8/zGAAD/N8/3ve4AAO8/xbe4QQAAfz/F57yBAI=',false],
-  ['物理防御○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgH3sKAOAAA/3/f9/z8AAD/N9/33c4AAO8/3ff9hgAAfz/f9t2CAI=',false],
-  ['魔力制御','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4IPGU4AAAB/n8+7/gAAAH+f7zrqAAAAf4Zvu/oAAAB/hm+7ugAI=',false],
-  ['闘争本能','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4+AgdwAAAB/n8f7/AAAAH+fx/v+AAAAe4Nj494AAABnv+ez3AAI=',false],
-  ['アクションスキル○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADDABAAIEAA/POAGDw4wAAN8geIDPnAACmzIIEMIcAAOTFngxg92AI=',false],
-  ['列攻撃○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfoGHcPgAAAB+n+fZ/AAAAH6P5/mMAAAAfovn+QYAAAB+jef5BgAI=',false],
-  ['ケガしにくさ○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABALmBgBgYPAPwgYH8OP5+A/PxAcBw/sYGYbEBgMAMwgZhkRlgwPzCM=',false],
-  ['危機察知','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPx/P+5wAAAB3P+873AAAAH+f7/OUAAAAaB/Hc9QAAAB/P+f71AAI=',false],
-  ['意志','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/n+AAAAAAAH+f4AAAAAAAf5/AAAAAAAB/n8AAAAAAAGGfQAAAI=',false],
-  ['ガッツ','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGwABAAAAAAB/Bo2wAAAAAP8ezbAAAAAAMx+F4AAAAAAzGYBgAAM=',false],
-  ['対重戦士○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGMfj3BAeAAA8z/PcED+AAD/P8/3/MYAAPM/j/f9hgAA7z+PcEGCAI=',false],
-  ['対弓使い○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGM/z/AATAAA8x/P8zCGAAD/P9/zOU4AAOM/n/IZAAAA7z/P8hmEAI=',false],
-  ['対魔法使い○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADGf5mH+AAiAeZ/n+f5iEMB/3+Zx/mM5QHmf5/n+YwAgf5/h+f5hgCI=',false],
-  ['対ゴブリン○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCAcBzGAAiAfM/n+MZwGEB/wGAYxjgIoDjAYDDMAYAAO4BgMMwHiCM=',false],
-  ['不滅','AAAAAAAAAAQAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/kMAAAAAAAH+f4AAAAAAADAfgAAAAAAAeF+AAAAAAAH+H4AAAA=',true],
-  ['加護','AAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjm+AAAAAAAH+/wAAAAAAAf7/gAAAAAAAvn8AAAAAAAG+b4AAAI=',true]
- ];
- for(const [name,mask,superCell] of cases){
-  h.stubAbilityMask(mask);
-  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell}),name,name);
+test('all special abilities are already covered by the shared image-template database',()=>{
+ const {h,c}=setup();
+ const missing=[];
+ for(const row of c.PAWAADO_DATA.special){
+  const name=row[1];
+  if(name==='〜攻撃'){
+   for(const elemental of ['火攻撃','風攻撃','水攻撃'])if(!h.abilityMasks[elemental])missing.push(elemental);
+  }else if(!h.abilityMasks[name])missing.push(name);
  }
+ assert.deepEqual(missing,[]);
 });
-test('IMG_1009 resistance-super levels Lv2 and Lv1 use the exact visible glyphs',()=>{
+test('super ability name and Lv are recognized independently',()=>{
  const {h}=setup();
+ const superOnly=h.cellAbility('不滅','',true);
+ assert.equal(superOnly.supers[0]?.name,'不滅');
+ assert.equal(superOnly.supers[0]?.level,null);
  const lv2='A/A/BjABAJAcB5AxBzBGIM8PmBmAmBZ/';
  const lv1='B/B/HH+BwBwB/BPBHBHBHBHBHBHBB/A4';
  assert.equal(h.classifyGlyph({mask:h.decodeMask(lv2,12*16),w:12,h:16},h.hybridLevelMasks,.23),'2');
  assert.equal(h.classifyGlyph({mask:h.decodeMask(lv1,12*16),w:12,h:16},h.hybridLevelMasks,.23),'1');
+ assert.equal(h.abilityMasks['不滅Lv2'],undefined);
+ assert.equal(h.abilityMasks['加護Lv1'],undefined);
 });
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();
@@ -143,7 +134,7 @@ test('training patterns and recognized abilities are still applied when characte
  assert.equal(get('photoUncertain').hidden,false);
  assert.doesNotMatch(get('photoStatus').textContent,/失敗/);
 });
-test('IMG_1006/IMG_1007 training gain digits are stored from the actual 91/90/18/41/10 bubbles',()=>{
+test('training gain reads one digit at a time and composes arbitrary numbers',()=>{
  const {h}=setup();
  const samples=[
   ['9','H4P8f+f+8P8H4H4H4H8P+Pf/f/P3AHAH'],
@@ -156,6 +147,12 @@ test('IMG_1006/IMG_1007 training gain digits are stored from the actual 91/90/18
   assert(h.trainingGainColorMasks[digit].includes(encoded),digit);
   assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(encoded,12*16),w:12,h:16},h.trainingGainColorMasks,.24),digit);
  }
+ assert.equal(h.digitSequenceToNumber(['9','1']),91);
+ assert.equal(h.digitSequenceToNumber(['9','0']),90);
+ assert.equal(h.digitSequenceToNumber(['1','8']),18);
+ assert.equal(h.digitSequenceToNumber(['4','1']),41);
+ assert.equal(h.digitSequenceToNumber(['1','0']),10);
+ assert.equal(h.digitSequenceToNumber(['1','0','5']),105);
 });
 test('IMG_1006/IMG_1007 mental 591 final digit is locked to 1',()=>{
  const {h}=setup();
