@@ -15,11 +15,13 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,jobNameFromScores,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
+   stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
+   stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
@@ -56,6 +58,11 @@ test('near-exact academy crop is accepted despite a narrow score ratio',()=>{
 test('ability data falls back to the visible header job text when icon comparison misses',async()=>{
  const {h}=setup();h.stubDataJobHeader('重戦士');
  assert.equal((await h.profileIdentityOf({})).job,'重戦士');
+});
+test('IMG_1009 data-screen header image identifies 重戦士 before OCR',()=>{
+ const {h}=setup();
+ h.stubDataHeaderMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/f/B4AAAAAAAAAAP7f/h4AAAAAAAAAAcH/XhYAAAAAAAAAAYA+X/fgAAAAAAAAAfP9BwBgAAAA8AAAAJN4fwBgAAAAwAAAAJN9b/fgAAAAAAAAAPP4ZhYAAAAAAAAAAYB97/fAAAAAAAAAAfPwA/PgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+ assert.equal(h.dataJobByHeaderImage({}),'重戦士');
 });
 test('IMG_1009 physical defense circle cell is accepted by image comparison',()=>{
  const {h}=setup();
@@ -170,6 +177,20 @@ test('IMG_1006/IMG_1007 mental 591 digits are each covered by exact single-digit
   assert(h.trainingCurrentDigitMasks[digit].includes(encoded),digit);
   assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(encoded,12*16),w:12,h:16},h.trainingCurrentDigitMasks,.24),digit);
  }
+});
+test('training current EXP never falls back to OCR guessing',async()=>{
+ const {h}=setup();
+ h.stubTrainingCurrent([558,420,311,295,null]);
+ const r=await h.readTrainingPattern({});
+ assert.equal(r.current.精神,null);
+ assert.equal(r.exp.精神,null);
+});
+test('single-digit current EXP composition keeps mental at 591',async()=>{
+ const {h}=setup();
+ h.stubTrainingCurrent([558,420,311,295,591]);
+ const r=await h.readTrainingPattern({});
+ assert.equal(r.current.精神,591);
+ assert.equal(r.exp.精神,591);
 });
 test('IMG_1006/IMG_1007 mental 591 final digit is locked to 1',()=>{
  const {h}=setup();

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-align-id-1';
+  const PHOTO_IMPORT_BUILD='20261002-datajob-mental-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1058,9 +1058,26 @@
     const ranked=Object.entries(bestByJob).map(([job,error])=>({job,error})).sort((a,b)=>a.error-b.error);
     return jobNameFromScores(ranked);
   }
+  function dataJobByHeaderImage(image){
+    // 能力データ画面では、モーダルの背面上部にジョブ名そのものが残っている。
+    // IMG_1009の「重戦士」は茶色背景なので、通常の閾値100では背景まで黒扱いになる。
+    // 30〜50の低い閾値と数pxの位置ずれを走査し、既存のジョブ文字テンプレートへ直接照合する。
+    const bestByJob=Object.fromEntries(Object.keys(HYBRID_JOB_MASKS).map(job=>[job,1]));
+    for(const threshold of [30,35,40,45,50]){
+      for(const [dx,dy] of alignmentOffsets(2)){
+        const sig=inkMask(image,[670+dx,20+dy,192,32],2,2,threshold).mask;
+        for(const [job,encoded] of Object.entries(HYBRID_JOB_MASKS)){
+          const d=shiftedMaskDistance(sig,decodeMask(encoded,96*16),96,16,4,2);
+          if(d<bestByJob[job])bestByJob[job]=d;
+        }
+      }
+    }
+    const ranked=Object.entries(bestByJob).map(([job,d])=>({job,d})).sort((a,b)=>a.d-b.d);
+    const best=ranked[0],second=ranked[1];
+    return best&&best.d<=.07&&(!second||second.d-best.d>=.025)?best.job:'';
+  }
   async function dataJobFromHeader(image){
-    // 能力データ画面の背面上部には現在ジョブ名が文字で残る。
-    // 固有アイコンが外れた場合も、位置/二値化条件を少し変えて明示文字を再確認する。
+    // 画像比較が確定しなかった場合だけOCRで補完する。
     const plans=[
       [[660,0,250,55],false],
       [[690,8,180,50],false],
@@ -1075,8 +1092,9 @@
     return '';
   }
   async function profileIdentityOf(image){
-    const iconJob=dataJobByIcon(image);
-    if(iconJob)return {job:iconJob};
+    const headerJob=dataJobByHeaderImage(image);
+    if(headerJob)return {job:headerJob};
+    // モーダル内の青/赤丸アイコンはジョブ固有ではないため、ジョブ判定には使わない。
     return {job:await dataJobFromHeader(image)};
   }
   let refs;
@@ -1872,8 +1890,9 @@
     const current=[],gains=[];
     for(let i=0;i<5;i++){
       const y=120+59*i;
-      let cur=trainingCurrentNumberByImage(image,i);
-      if(cur==null)cur=await trainingNumber(image,[210,y+2,88,42],4);
+      // 現在経験点は0〜9の1桁画像テンプレートを組み合わせて読む。
+      // OCRへ落とすと「591→597」のような推測誤読が起きるため、画像比較に失敗した項目は未読(null)のままにする。
+      const cur=trainingCurrentNumberByImage(image,i);
       current.push(cur);
 
       let gain=0,unread=false;
@@ -2138,5 +2157,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,jobNameFromScores};
 })();
