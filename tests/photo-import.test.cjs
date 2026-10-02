@@ -223,6 +223,24 @@ test('single-digit current EXP composition keeps mental at 591',async()=>{
  assert.equal(r.current.精神,591);
  assert.equal(r.exp.精神,591);
 });
+test('absent blue gain bubble cannot add a ghost +6 to mental EXP',async()=>{
+ const {h}=setup();
+ h.stubTrainingCurrent([558,420,311,295,591]);
+ // Reproduce the actual failure: yellow is real; the generic blue-number fallback sees background as 6.
+ for(const yellowGain of [91,10]){
+   h.stubTrainingCurrent([558,420,311,295,591]);
+   // Override the stub after setting current values.
+   // Only the mental-row yellow bubble exists; no blue bubble exists.
+   const original=h.readTrainingPattern;
+   // These closure bindings are exposed through the injected test scope.
+   trainingBubblePresent=(image,rowY,kind)=>rowY===356&&kind==='yellow';
+   trainingGainNumberByImage=(image,rowY,kind)=>kind==='yellow'?yellowGain:6;
+   const r=await original({});
+   assert.equal(r.current.精神,591);
+   assert.equal(r.gains.精神,yellowGain);
+   assert.equal(r.exp.精神,591+yellowGain);
+ }
+});
 test('IMG_1006/IMG_1007 mental 591 final digit is locked to 1',()=>{
  const {h}=setup();
  const encoded='A/A/B/////5/A/A/A/A/A/A/A/A/A/A/';
