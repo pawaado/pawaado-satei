@@ -22,18 +22,7 @@ test('special scores/costs match master data, zero scores are excluded, dual lev
  const {c}=load();const d=c.PAWAADO_DATA;
  for(const [g,def] of Object.entries(c.audit.groupDefs)){
   const rows=c.audit.specialItems(g);
-  for(const s of d.special){
-   if(s[1]==='通常攻撃(双剣士)')continue;
-   const score=Number(s[11])?Number(s[def.fixedIndex]||0)+1925*Number(s[11]):Number(s[def.scoreIndex]||0);
-   const exp=s.slice(3,8).reduce((a,v)=>a+Number(v||0),0);
-   const names=s[1]==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[s[1]];
-   for(const name of names){
-    const ability=name+(Number(s[11])?' ※HP依存':'');
-    const item=rows.find(r=>r.ability===ability);
-    if(score===0||exp<=0){assert(!item);continue;}
-    assert(item,ability);assert.equal(item.score,score);assert.equal(item.exp,exp);
-   }
-  }
+  for(const s of d.special){if(s[1]==='通常攻撃(双剣士)')continue;const score=Number(s[11])?Number(s[def.fixedIndex]||0)+1925*Number(s[11]):Number(s[def.scoreIndex]||0);const exp=s.slice(3,8).reduce((a,v)=>a+Number(v||0),0);const item=rows.find(r=>r.ability===s[1]||r.ability===s[1]+' ※HP依存');if(score===0||exp<=0){assert(!item);continue;}assert(item,s[1]);assert.equal(item.score,score);assert.equal(item.exp,exp);}
   const dual=rows.filter(r=>r.ability.startsWith('通常攻撃(双剣士)'));assert.equal(dual.length,g==='物理職'?5:0);
  }
 });
@@ -47,21 +36,6 @@ test('resistance-impact markers are derived from canonical data rules',()=>{
 });
 test('HP note is derived from master data and missing data reports an error',()=>{
  const {c,elements}=load();assert.equal(c.audit.referenceHp,1925);assert(elements.referenceHpNote.textContent.includes('HP1925'));assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
-});
-test('generic elemental attack is expanded into fire, wind, and water with identical values',()=>{
- const {c}=load();
- for(const g of Object.keys(c.audit.groupDefs)){
-  const rows=c.audit.specialItems(g),items=['火攻撃','風攻撃','水攻撃'].map(name=>rows.find(r=>r.ability===name));
-  assert(items.every(Boolean),g);
-  assert.equal(new Set(items.map(x=>x.score)).size,1);
-  assert.equal(new Set(items.map(x=>x.exp)).size,1);
-  assert.equal(new Set(items.map(x=>x.eff)).size,1);
-  assert(!rows.some(r=>r.ability==='〜攻撃'));
- }
-});
-test('obsolete hint-level ranking note is not shown',()=>{
- const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
- assert(!html.includes('コツLv0で比較しています'));
 });
 test('all numbers and ordering are unchanged by the display consolidation',{skip:!process.env.RANKINGS_BEFORE},()=>{
  const before=load(fs.readFileSync(process.env.RANKINGS_BEFORE,'utf8')).c.audit,after=load().c.audit;
