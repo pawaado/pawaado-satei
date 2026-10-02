@@ -198,8 +198,12 @@ test('current EXP distinguishes narrow 1 from wide 7 before normalization',()=>{
  const seven='////APAGAOAMA4A4BwBgDgDgDAHAHAHA';
  assert(h.trainingCurrentDigitMasks['1'].includes(one));
  assert(h.trainingCurrentDigitMasks['7'].includes(seven));
+ // Width is checked before normalized bitmap comparison, so a narrow current digit is fixed as 1.
  assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(one,12*16),w:8,h:21}),'1');
- assert.equal(h.classifyTrainingCurrentGlyph({mask:h.decodeMask(seven,12*16),w:13,h:22}),'7');
+ // Re-expand the normalized 7 template to the native width observed in the screenshot, then classify it.
+ const ref=h.decodeMask(seven,12*16),w=13,height=22,mask=new Uint8Array(w*height);
+ for(let y=0;y<height;y++)for(let x=0;x<w;x++)mask[y*w+x]=ref[Math.floor(y*16/height)*12+Math.floor(x*12/w)];
+ assert.equal(h.classifyTrainingCurrentGlyph({mask,w,h:height}),'7');
 });
 test('a narrow current-exp glyph can never become 7',()=>{
  const {h}=setup();
