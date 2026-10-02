@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261002-resistance-audit-3';
+  const PATCH_VERSION='20261002-script-audit-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
 
@@ -504,7 +504,7 @@
   function fillSuperGroup(group){
     const name=group.querySelector('.super-name').value;
     syncSuperRemoveButton(group);
-    const def=window.PAWAADO_DATA.superResistances[name];
+    const def=D.superResistances[name];
     const levelSelect=group.querySelector('.super-level');
     const levelButton=group.querySelector('.super-level-button');
     if(!name){
@@ -525,9 +525,37 @@
       row.querySelector('.extra-resistance-type-label').textContent=def.types[i];
       row.querySelector('.extra-resistance-value').value=lv?def.levels[lv-1]:'';
     });
+    if(def&&lv) window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__?.(name);
     group.querySelector('.super-note').textContent=
       !def?.job&&def?.includes&&lv?'下位能力込みの合計値です。':'';
   }
+
+  function removeSupersRequiringSpecial(specialName){
+    const target=String(specialName||'');
+    if(!target) return;
+    const list=document.getElementById('extraResistanceList');
+    if(!list) return;
+
+    let changed=false;
+    [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>{
+      const name=group.querySelector('.super-name')?.value||'';
+      const includes=D.superResistances?.[name]?.includes||[];
+      if(!includes.includes(target)) return;
+
+      const nameSelect=group.querySelector('.super-name');
+      const levelSelect=group.querySelector('.super-level');
+      if(nameSelect) nameSelect.value='';
+      if(levelSelect) levelSelect.value='';
+      syncSuperSelects(group);
+      fillSuperGroup(group);
+      changed=true;
+    });
+
+    if(!changed) return;
+    [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>rebuildSuperNameOptions(group));
+    syncEmptySuperGroup();
+  }
+  window.__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__=removeSupersRequiringSpecial;
 
   window.__PAWAADO_SET_SUPERS__=entries=>{
     const list=document.getElementById('extraResistanceList');
