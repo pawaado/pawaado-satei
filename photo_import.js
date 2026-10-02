@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-photo-audit-1';
+  const PHOTO_IMPORT_BUILD='20261002-profile-attribute-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -12,6 +12,24 @@
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
   const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求','魔力開眼']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
+  // 能力データ画面：キャラ右上の左アイコン=ジョブ、右アイコン=属性。
+  // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
+  const DATA_JOB_REFERENCES=[
+    ['重戦士','profile-job-heavy'],
+    ['剣士','profile-job-swordsman'],
+    ['弓使い','profile-job-archer'],
+    ['魔法使い','profile-job-mage'],
+    ['僧侶','profile-job-priest'],
+    ['魔闘士','profile-job-spellblade'],
+    ['双剣士','profile-job-dual']
+  ];
+  const ATTRIBUTE_REFERENCES=[
+    ['火属性','profile-attribute-fire'],
+    ['風属性','profile-attribute-wind'],
+    ['水属性','profile-attribute-water']
+  ];
+  const DATA_JOB_ICON_RECT=[600,181,38,38];
+  const ATTRIBUTE_ICON_RECT=[643,181,38,38];
 
   // OCRだけに依存しないハイブリッド認識。
   // 提供済みの実ゲーム画像から、誤読しやすい文字列・数字を「黒画素の形」として登録している。
@@ -906,11 +924,29 @@
     c.getContext('2d').drawImage(image,0,0,32,32);return c.getContext('2d').getImageData(0,0,32,32).data;
   }
   const layoutRefs={};
-  async function matchesTemplate(image,name,rect){
+  async function templateError(image,name,rect){
     layoutRefs[name] ||= imageFrom('./assets/'+name+'.png').then(vector).catch(error=>{delete layoutRefs[name];throw error;});
     const a=vector(canvasCrop(image,rect,1)),b=await layoutRefs[name];let error=0;
     for(let i=0;i<a.length;i++)if(i%4!==3)error+=(a[i]-b[i])**2;
-    return error/(32*32*3)<900;
+    return error/(32*32*3);
+  }
+  async function matchesTemplate(image,name,rect){
+    return (await templateError(image,name,rect))<900;
+  }
+  async function bestProfileReference(image,references,rect,{maxError,ratio}){
+    const scores=await Promise.all(references.map(async ([name,file])=>({name,error:await templateError(image,file,rect)})));
+    scores.sort((a,b)=>a.error-b.error);
+    const best=scores[0],second=scores[1];
+    if(!best||best.error>=maxError)return '';
+    if(second&&second.error<=best.error*ratio)return '';
+    return best.name;
+  }
+  async function profileIdentityOf(image){
+    const [job,attribute]=await Promise.all([
+      bestProfileReference(image,DATA_JOB_REFERENCES,DATA_JOB_ICON_RECT,{maxError:1500,ratio:1.25}),
+      bestProfileReference(image,ATTRIBUTE_REFERENCES,ATTRIBUTE_ICON_RECT,{maxError:2500,ratio:1.6})
+    ]);
+    return {job,attribute};
   }
   let refs;
   async function academyOf(image){
@@ -1684,7 +1720,7 @@
   }
 
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',attribute:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     const conflicts=new WeakMap();
     function mergeField(target,key,value,label){
@@ -1698,6 +1734,11 @@
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
+        const identity=await profileIdentityOf(image);
+        if(identity.job)mergeField(out,'job',identity.job,'ジョブ');
+        else out.warnings.push(`${i+1}枚目：ジョブ固有マークを画像比較で読み取れませんでした。ジョブを確認してください。`);
+        if(identity.attribute)mergeField(out,'attribute',identity.attribute,'属性');
+        else out.warnings.push(`${i+1}枚目：属性マークを画像比較で読み取れませんでした。属性を確認してください。`);
         // 基本能力6種は画像比較のみ。OCRフォールバックはしない。
         const values=BASICS.map((_,j)=>basicByImageStrict(image,j));
         BASICS.forEach((n,j)=>{
@@ -1871,5 +1912,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
 })();
