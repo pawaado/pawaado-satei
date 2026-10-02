@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-current17-1';
+  const PHOTO_IMPORT_BUILD='20261002-current17-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -356,13 +356,13 @@
 
   const TRAINING_CURRENT_EXTRA_MASKS={
     '0':['D4H8P+cPcH8H4H4D4D4D8H8HcPcPP+H8'],
-    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/','A/B/H+P/4/AOAPAPAPAPAPAPAPAPAPAP'],
+    '1':['AOA/B/P///w/A/A/A/A/A/A/A/A/A/A/','AeA/D/P/I+AeAeAfAfAfAeAeAfAfAfAf','A+A+B////+AOAPAPAPAOAPAPAPAPAPAP','A/A/B/////5/A/A/A/A/A/A/A/A/A/A/','A/B/H+P/4/AOAPAPAPAPAPAPAPAPAPAP','A/B/H/////A/A/A/A/A/A/A/A/A/A/A/','A/A/B/////4/A/A/A/APA/A/APAPA/AP','APA/B/////4/APAPAPAPAPAPAPAPAPAP'],
     // IMG_1006/1007 の現在精神591を構成する実画像1桁。Safari/元解像度側の再縮小差に備えて5・9も追加。
     '5':['f/f/f/cAYA4A98/fcHAHADADYH8Hf/P8'],
     '9':['H4P8OeYHYH4HYHcPPfP/AHAHAHIGP8H4'],
     '2':['D8P+P/cHcHAHAPAPB8DwDwOAMAcAf///','BwH+P/8H8HAHAHAfA+B8HgPAcA8A////'],
     '3':['H8P/cHADADADAMB8AeAHADABABAD8Pf/','H8P+ffIHAHAHAOB8B+AfADADAD8Hf/P+'],
-    '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA','////APAGAOAMA4A4BwBgDgDgDAHAHAHA','//////AeAcA4AwAwBgDgDAHAHAHAHAPA'],
+    '7':['f///f/AOAMAcA4AwBwDwDwDgDgDgDADA','////APAGAOAMA4A4BwBgDgDgDAHAHAHA','//////AeAcA4AwAwBgDgDAHAHAHAHAPA','//////AOAMAYA4BwBwDwDgDgDgDgHAHA','//////AOAMAYA4BwBwDwDgDgDgDgDAHA','//////AOAcA8A4AwBgBgDgDAHAHAHAHA'],
     '8':['AgH8OOYHYDMHMGH8H8OP4D4D4D4HePH8','H8OOcHYDYDYHPcH8fe8H4DwBwD4DePP+']
   };
   for(const [digit,variants] of Object.entries(TRAINING_CURRENT_EXTRA_MASKS)){
@@ -1740,7 +1740,7 @@
   }
   function classifyTrainingCurrentGlyph(component){
     // 「1」と「7」は正規化すると似やすいが、元の横幅は明確に違う。
-    // 実画像では現在経験点の1は幅7〜8px、7は13〜14pxだった。
+    // 実画像では現在経験点の1は幅8px、307末尾の7は14〜15pxだった。
     // 正規化前の形を先に使い、591の末尾1を7へ誤変換しない。
     if(component.h>=18&&component.w<=9)return '1';
     const digit=classifyTrainingGlyph(component,TRAINING_CURRENT_DIGIT_MASKS,.24);
