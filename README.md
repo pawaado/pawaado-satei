@@ -45,7 +45,7 @@ GitHub Pages で公開している査定ツールの保守メモです。
 ## 整理履歴
 
 2026-10-02:
-- 実行経路のない手動回帰テスト `tests/` を削除。
+- 実行経路のない旧手動回帰テストを削除。現在の `tests/` にはCIで実行する画像入力・ランキングの自動回帰テストだけを残している。
 - OCR依存関係の出所を再確認し、`vendor/ocr/lang/LICENSE` を `tesseract-ocr/tessdata_fast` の正本へ差し替え。英語・日本語の traineddata も同リポジトリの正本と一致することを確認。
 - 古い `pawaado_worker_resistance_v2.js` を廃止し、`pawaado_worker_resistance.js` を正本に統合。
 - `resistance_patch.js` が使い方本文を上書きしないように変更。
