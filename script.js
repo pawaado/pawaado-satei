@@ -117,6 +117,10 @@ job.addEventListener('change',()=>{
   updateInputAvailabilityUI();
   clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
 });
+attribute?.addEventListener('change',()=>{
+  renderSpecials();
+  syncAttributeAttackLabels();
+});
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
 function setBasicOwnedState(name,on,{clearValueOnRelease=false}={}){
@@ -259,8 +263,17 @@ function renderBasic(){
     </div>`).join('');
   basicNames.forEach(n=>applyBasicVisual(n));
 }
+function selectedAttributeAttackName(){
+  const selected=String(attribute?.value||'');
+  return selected.endsWith('属性') ? selected.slice(0,-2)+'攻撃' : '〜攻撃';
+}
+function syncAttributeAttackLabels(){
+  const label=selectedAttributeAttackName();
+  document.querySelectorAll('.attribute-attack-name').forEach(el=>{el.textContent=label;});
+}
 function renderSkillName(name){
   const s=String(name);
+  if(s==='〜攻撃') return `<span class="skill-name-text attribute-attack-name">${selectedAttributeAttackName()}</span>`;
   let rank=''; let base=s;
   if(s.endsWith('○')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="○">○</span>';}
   else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="◎">◎</span>';}
@@ -1150,11 +1163,13 @@ window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
 window.__PAWAADO_IMPORT_PHOTO__=data=>{
   if(isCalculating) throw new Error('計算が終わってから読み込んでください。');
   if(!jobsByAcademy[data.academy]?.includes(data.job)) throw new Error('アカデミーとジョブを確認してください。');
-  if(!expNames.every(n=>Number.isInteger(data.exp[n])&&data.exp[n]>=0)) throw new Error('経験点を確認してください。');
+  const hasCharacterExp=expNames.every(n=>Number.isInteger(data.exp?.[n])&&data.exp[n]>=0);
+  const hasTrainingPatterns=Array.isArray(data.trainingPatterns)&&data.trainingPatterns.length>0;
+  if(!hasCharacterExp&&!hasTrainingPatterns) throw new Error('経験点を確認してください。');
   const row=D.academies.find(r=>r[0]===data.academy&&r[1]===data.job);
   if(!basicNames.every((n,i)=>Number.isInteger(data.basic[n])&&data.basic[n]>=1&&data.basic[n]<=row[i+2])) throw new Error('基本能力とアカデミー・ジョブの組み合わせを確認してください。');
   const max=data.academy==='ブートレインアカデミー'?BOOTRAIN_EXP_LIMITS:Object.fromEntries(expNames.map(n=>[n,1000]));
-  if(!expNames.every(n=>data.exp[n]<=max[n])) throw new Error('経験点が保持上限を超えています。');
+  if(hasCharacterExp&&!expNames.every(n=>data.exp[n]<=max[n])) throw new Error('経験点が保持上限を超えています。');
   academy.value=data.academy;
   academy.dispatchEvent(new Event('change',{bubbles:true}));
   job.value=data.job;
@@ -1163,7 +1178,7 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     attribute.value=(D.attributes||[]).includes(data.attribute)?data.attribute:'';
     attribute.dispatchEvent(new Event('change',{bubbles:true}));
   }
-  expSamples=[{...data.exp}]; renderExp();
+  if(hasCharacterExp){expSamples=[{...data.exp}]; renderExp();}
   basicNames.forEach(n=>{
     basicHints[n]=0; basicOwned[n]=false;
     document.getElementById('basic_'+n).value=data.basic[n]; applyBasicVisual(n);
