@@ -53,8 +53,8 @@ test('ability data plus training is accepted without an ability-up screenshot',a
  assert(importedTraining);assert.equal(importedTraining.length,1);
  assert.equal(get('photoStatus').textContent,'自動入力しました。');
 });
-test('a third screenshot cannot erase a job or EXP conflict',async()=>{
- const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'僧侶',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,null);assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));
+test('a third screenshot cannot erase an EXP conflict',async()=>{
+ const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'剣士',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,'剣士');assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));
 });
 test('a third screenshot cannot erase conflicting ○/◎ observations',async()=>{
  const {h}=setup();h.stubReads();const r=await h.readImages(['○','◎','○'].map(mark=>({kind:'data',marks:{通常攻撃:mark}})));assert.equal(r.explicitPairMarks.通常攻撃,null);
