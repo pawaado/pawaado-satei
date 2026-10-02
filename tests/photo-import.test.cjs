@@ -15,10 +15,11 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,abilityByImage,readImages,levelByImage,matchesTemplate,academyOf,cellAbility,findSpecials,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,cellAbility,findSpecials,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
+   stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
@@ -43,6 +44,13 @@ test('IMG_1009 physical defense circle cell is accepted by image comparison',()=
  const {h}=setup();
  h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI=');
  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'物理防御○');
+});
+test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
+ const {h}=setup();
+ const calls=h.stubFastPairCell('物理防御○','物理防御','○');
+ const r=await h.readAbilityCells({},1);
+ assert.equal(calls(),0);
+ assert(r.specials.includes('物理防御○'));
 });
 test('ability-up job text wins over a conflicting ability-data job icon',async()=>{
  const {h}=setup();h.stubReads();
@@ -69,6 +77,20 @@ test('ability data plus training is accepted without an ability-up screenshot',a
  assert(importedPhoto);assert.equal(importedPhoto.job,'剣士');
  assert(importedTraining);assert.equal(importedTraining.length,1);
  assert.equal(get('photoStatus').textContent,'自動入力しました。');
+});
+test('training patterns are still applied when character import fails',async()=>{
+ const {h,get,c}=setup();let importedTraining=null;
+ c.__PAWAADO_IMPORT_PHOTO__=()=>{throw Error('アカデミーとジョブを確認してください。');};
+ c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{importedTraining=patterns;};
+ h.prepareUi(async()=>({
+   abilityUpScreens:0,dataScreens:1,academy:'パワフルアカデミー',job:'',
+   exp:{},basic:{},specials:[],supers:[],
+   trainingPatterns:[{exp:{筋力:649,敏捷:510,技術:311,知力:295,精神:682}},{exp:{筋力:558,敏捷:420,技術:329,知力:336,精神:601}}],
+   warnings:['ジョブを画像から読み取れませんでした。ジョブを確認してください。']
+ }),null);
+ await get('readPhotos').onclick();
+ assert(importedTraining);assert.equal(importedTraining.length,2);
+ assert.match(get('photoStatus').textContent,/読み取りに失敗しました/);
 });
 test('a third screenshot cannot erase an EXP conflict',async()=>{
  const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'剣士',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,'剣士');assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));
