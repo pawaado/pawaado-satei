@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-photo-1011-1';
+  const PHOTO_IMPORT_BUILD='20261002-photo-1011-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -10,7 +10,7 @@
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances),...Object.keys(D.superPrerequisites)])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求','魔力開眼']);
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求','魔力開眼','鉄壁の盾','タフネス']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
@@ -93,6 +93,19 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/z/Bw3zGAAD/P8fj8MYAAP8/z/H8xgAAdx+Ns/zmAAD/P8s36PYAgCg/j3No7ACA/x+P42gMAI=',
     'AAAAAAAAAAAD/P8HDfMYAAP8/x+PwxgAA/z/P8fzGAAB3H42z/OYAAP8/yzfo9gCAKD+Pc2jsAID/H4/jaAwAgP8/wsNIDACAAAAAAAAAAI='
   ];
+
+  Object.assign(HYBRID_ABILITY_MASKS,{
+    "鉄壁の盾":[
+      "AAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHMfwAP8AAAA/5/j8/wAAAB/nefz/AAAAH8/7tv8AAAAf5/tm/wACAB3H827/AAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAcx/AA/wAAAD/n+Pz/AAAAH+d5/P8AAAAfz/u2/wAAAB/n+2b/AAIAHcfzbv8AAgAf5/Hc/wACAB9n+Nj/AAI=",
+      "ABzH8AD/AAAAP+f4/P8AAAAf53n8/wAAAB/P+7b/AAAAH+f7Zv8AAgAdx/Nu/wACAB/n8dz/AAIAH2f42P8AAgAAAAAAAAACAAAAAAAAAAI="
+    ],
+    "タフネス":[
+      "AAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAMAAAAAAH9/j8PwAAAA/gGPwGAAAAD2A4PAYAAAAD4DB0DgABAAHAcf4fAAE=",
+      "AAAAAAAAAAAAAAAAAAAAAAADAAAwAAAAAAf3+Pw/AAAAD+AY/AYAAAAPYDg8BgAAAAPgMHQOAAEAAcBx/h8AAQADgeGyO4ABAAcBwDBxgAE=",
+      "AAMAADAAAAAAB/f4/D8AAAAP4Bj8BgAAAA9gODwGAAAAA+AwdA4AAQABwHH+HwABAAOB4bI7gAEABwHAMHGAAQAAAAAAAAAAAAAAAAAAAAA="
+    ]
+  });
 
   // 2026-10-02 IMG_1011 実画像追加：
   // ○/◎が近い物理攻撃・アクションスキルと、名前が近い対魔闘士・対重戦士を補強。
