@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-attribute-flow-3';
+  const PHOTO_IMPORT_BUILD='20261002-job-icon-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -12,10 +12,9 @@
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
   const IGNORED_SUPER_IMAGE_NAMES=new Set(['魔力増強','そよかぜの加護','魔力探求','魔力開眼']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
-  // 能力データ画面：キャラ右上の左アイコン=ジョブ、右アイコン=属性。
+  // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
   const DATA_JOB_ICON_RECT=[600,181,38,38];
-  const ATTRIBUTE_ICON_RECT=[643,181,38,38];
   const DATA_JOB_GRAY_TEMPLATES={
     '重戦士':'9fX19OChYjwwPWKf4PX19PX18blUQmaFj4VoQ1S38PT18aE8cKObkI+PnaJvOaPy9Lw9gp6NlZudnJWLnII+tudbap5+l5yXlpidl4KeaEe3P559dbXYjr2Q27V3fJ4ze1ibcnTb1M3vzNfYcXOcYVV1jnN76cj8/vfQ4XB0i35Jfo1ydODP3/Xb0dtwc4WHX22Sbmqu0X/bf9Wpam6Od41NoGtpbHV75nV4aGlrnVHLQZWAY2JefuV3X2JkfZMt73pNn3FcXGCIXlxcb6FOa/bYUF2gfl9WUVZdeqFgT8v19MtZS4ydlImSnYtMTLfg9fX13HkxPV5oXj4ubs3p4g==',
     '剣士':'9fX19N+hYj0wPGKf4PX19PX18blUQmeGkIVoQ1S38PX18aE9caWbj4+PnaJvOaTy9Lw8g6CPlZudl5SJnII+tedbaJ+Bmp2dl77nq4GcaEi1P559epCUkKbz/K14e54ze1mccnR5foXf/eZ9c3ObYVZ2j3N0cnC71OyybHVzi39Ifo1ya3SJr3zVfnFyc4aIYGySb2iaucKcrWZvb2+PeI9Mn2tpXq7wun1lampqnlLKQJSAYnbdnX6TXWRjepQu8HtPoHBytWNZV1lccaJOa/XZT12hfV5VV1hde6JgT8r19MtYSYydk4iTnYtLTLff9fX13HkyPV5pXT4ubs3p4Q==',
@@ -955,23 +954,8 @@
     const best=ranked[0],second=ranked[1];
     return best&&best.error<700&&(!second||(second.error-best.error)>80&&second.error>best.error*1.25)?best.job:'';
   }
-  function attributeByIcon(image){
-    const c=canonicalCrop(image,ATTRIBUTE_ICON_RECT),ctx=c.getContext('2d'),d=ctx.getImageData(0,0,c.width,c.height).data;
-    const cx=(c.width-1)/2,cy=(c.height-1)/2,radius=Math.min(c.width,c.height)*.34;
-    const counts={火属性:0,風属性:0,水属性:0};
-    for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
-      if(Math.hypot(x-cx,y-cy)>radius)continue;
-      const i=(y*c.width+x)*4,r=d[i],g=d[i+1],b=d[i+2];
-      if(r>g+25&&r>b+25)counts.火属性++;
-      else if(g>r+20&&g>b+15)counts.風属性++;
-      else if(b>r+20&&b>g+10)counts.水属性++;
-    }
-    const ranked=Object.entries(counts).map(([attribute,count])=>({attribute,count})).sort((a,b)=>b.count-a.count);
-    const best=ranked[0],second=ranked[1];
-    return best&&best.count>=80&&(!second||best.count>second.count*2)?best.attribute:'';
-  }
   async function profileIdentityOf(image){
-    return {job:dataJobByIcon(image),attribute:attributeByIcon(image)};
+    return {job:dataJobByIcon(image)};
   }
   let refs;
   async function academyOf(image){
@@ -1745,10 +1729,10 @@
   }
 
   async function readImages(images){
-    const out={academy:'',job:'',attribute:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     const abilityUpIdentity={job:''};
-    const dataIdentity={job:'',attribute:''};
+    const dataIdentity={job:''};
     const conflicts=new WeakMap();
     function mergeField(target,key,value,label){
       if(value==null||value===''||conflicts.get(target)?.has(key))return;
@@ -1764,8 +1748,6 @@
         const identity=await profileIdentityOf(image);
         if(identity.job)mergeField(dataIdentity,'job',identity.job,'能力データのジョブ');
         else out.warnings.push(`${i+1}枚目：ジョブ固有マークを画像比較で読み取れませんでした。ジョブを確認してください。`);
-        if(identity.attribute)mergeField(dataIdentity,'attribute',identity.attribute,'属性');
-        else out.warnings.push(`${i+1}枚目：属性マークを画像比較で読み取れませんでした。属性を確認してください。`);
         // 基本能力6種は画像比較のみ。OCRフォールバックはしない。
         const values=BASICS.map((_,j)=>basicByImageStrict(image,j));
         BASICS.forEach((n,j)=>{
@@ -1816,7 +1798,6 @@
     }
     if(!abilityUpIdentity.job&&dataJobConflict)out.job=null;
     else out.job=abilityUpIdentity.job||dataIdentity.job||'';
-    out.attribute=dataIdentity.attribute||'';
 
     // 各訓練画像の左側に表示されている現在経験点を、そのパターンの基準値にする。
     // 背景や能力アップ画面の経験点では補完しない。読めない項目は要確認にする。
@@ -1861,7 +1842,7 @@
     out.supers=[...superMap.values()];
     for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「耐性に影響する超特殊能力」でLvを確認してください。');
     if(out.abilityUpScreens||out.dataScreens||out.trainingPatterns.length){
-      if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・属性・基本能力・取得済み特殊能力を確認してください。');
+      if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・基本能力・取得済み特殊能力を確認してください。');
       if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
     }
     return out;
@@ -1950,5 +1931,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,attributeByIcon,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
 })();
