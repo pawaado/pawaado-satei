@@ -4635,6 +4635,14 @@ window.PAWAADO_DATA.superResistances={
   }
 };
 
+// Canonical score rules for already-owned super abilities whose appraisal changes with HP.
+// hpRates are multipliers of current HP; Lv2 replaces Lv1.
+window.PAWAADO_DATA.superScoreRules={
+  "大真面目": {"hpRates": [0.06, 0.10]},
+  "そよかぜの加護": {"hpRates": [0.11, 0.22]},
+  "タフネス": {"hpRates": [0.10, 0.20]}
+};
+
 // A recognized upper ability implies ownership of its prerequisite chain.
 window.PAWAADO_DATA.superPrerequisites={
   "平常心": [
