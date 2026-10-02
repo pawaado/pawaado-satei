@@ -65,6 +65,9 @@ assert.equal(Number(healingHeart[13]||0),0,'data.js: 癒やしの心 magic fixed
 assert.equal(Number(healingHeart[14]||0),90,'data.js: 癒やしの心 priest fixed score must be 90');
 assert(resistanceRules&&resistanceRules.scorePerPercent&&resistanceRules.directEffects&&Array.isArray(resistanceRules.pairSources),'data.js: resistanceRules missing');
 const specialNames=new Set((data.special||[]).map(row=>String(row[1]||'')));
+assert.deepEqual(data.superScoreRules?.['タフネス']?.hpRates,[0.10,0.20],'data.js: タフネス HP rates');
+assert.deepEqual(data.superScoreRules?.['そよかぜの加護']?.hpRates,[0.11,0.22],'data.js: そよかぜの加護 HP rates');
+assert.deepEqual(data.superScoreRules?.['大真面目']?.hpRates,[0.06,0.10],'data.js: 大真面目 HP rates');
 const checkEffect=(name,type,value)=>{assert(specialNames.has(name),`data.js: unknown resistance skill ${name}`);assert(Object.prototype.hasOwnProperty.call(resistanceRules.scorePerPercent,type),`data.js: unknown resistance type ${type} for ${name}`);assert(Number.isFinite(Number(value))&&Number(value)!==0,`data.js: invalid resistance value for ${name}`);};
 for(const pair of resistanceRules.pairSources){for(const type of pair.types||[pair.type]){checkEffect(pair.lower,type,pair.lowerValue);checkEffect(pair.upper,type,Number(pair.upperValue)-Number(pair.lowerValue));}}
 for(const [name,effects] of Object.entries(resistanceRules.directEffects))for(const [type,value] of effects)checkEffect(name,type,value);
@@ -77,6 +80,12 @@ assert(!sources['resistance_patch.js'].includes('PAWAADO_EFFECT_RULES'),'resista
 assert(!sources['resistance_patch.js'].includes('syncUsageNoteOnly'),'resistance_patch.js must not overwrite usage notes');
 assert(sources['resistance_patch.js'].includes("value=event.target.value?'2':''"),'manual super selection must default to Lv2');
 assert(sources['script.js'].includes('D.superResistances?.[superName]?.includes'),'script worker payload must include lower abilities implied by selected supers');
+assert(sources['script.js'].includes('selectedSupers:selectedSuperState()'),'script worker payload must include selected variable-score supers');
+assert(sources['pawaado_worker.js'].includes('gain+=selectedSuperHpDelta(oldHp,newHp)'),'worker life gain must include selected super HP delta');
+assert(sources['pawaado_worker.js'].includes('workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[])'),'worker must apply selected super state');
+assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1052_1059'),'photo_import.js: IMG_1052/1059 HP-super templates missing');
+assert(!/IGNORED_SUPER_IMAGE_NAMES[^\n]*(?:タフネス|そよかぜの加護)/.test(sources['photo_import.js']),'photo_import.js: HP-dependent supers must not remain ignored');
+assert(sources['resistance_patch.js'].includes('査定が変動する超特殊能力'),'variable-score super UI title missing');
 assert(sources['script.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'script must expose super-to-lower ownership sync');
 assert(sources['script.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'script must remove an upper super when an included lower ability is manually removed');
 assert(sources['resistance_patch.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'resistance UI must expose lower-to-super removal sync');
