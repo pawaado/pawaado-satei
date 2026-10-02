@@ -36,7 +36,7 @@ assert(!sources['resistance_patch.js'].includes("createElement('style')"),'resis
 for(const selector of ['.extra-resistance-list{','.super-controls{','.extra-resistance-group-remove{'])assert(mainStyle.includes(selector),`style.css: resistance UI style missing: ${selector}`);
 assert(sources['photo_import.js'].includes('DATA_JOB_GRAY_TEMPLATES'),'photo_import.js: ability-data job icon templates missing');
 assert(sources['photo_import.js'].includes('function attributeByIcon('),'photo_import.js: ability-data attribute icon recognition missing');
-assert(sources['photo_import.js'].includes("out.job=abilityUpIdentity.job||dataIdentity.job||''"),'photo_import.js: ability-up job must have priority over ability-data icon');
+assert(sources['photo_import.js'].includes("else out.job=abilityUpIdentity.job||dataIdentity.job||''"),'photo_import.js: ability-up job must have priority over ability-data icon');
 assert(sources['photo_import.js'].includes('const hasCharacterScreens=hasData&&(hasAbilityUp||hasTraining)'),'photo_import.js: ability data plus training must be accepted without ability-up');
 assert(sources['script.js'].includes("s==='〜攻撃'"),'script.js: generic elemental attack display mapping missing');
 assert(sources['script.js'].includes("selected.slice(0,-2)+'攻撃'"),'script.js: selected attribute must drive elemental attack display');
