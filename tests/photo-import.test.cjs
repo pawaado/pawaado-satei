@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -42,6 +42,20 @@ test('ability data job icon fills job',async()=>{
 test('near-exact data job icon is accepted even when the second-place margin is narrow',()=>{
  const {h}=setup();h.stubDataJobScores([100,150,900,900,900,900,900]);
  assert.equal(h.dataJobByIcon({}),'重戦士');
+});
+test('job-specific mark stays readable after brightness changes by correlation',()=>{
+ const {h}=setup();
+ assert.equal(h.jobNameFromIconScores(
+  [{job:'重戦士',error:1006,corr:1.0},{job:'魔闘士',error:1275,corr:.88}],
+  [{job:'重戦士',error:1006,corr:1.0},{job:'魔闘士',error:1275,corr:.88}]
+ ),'重戦士');
+});
+test('ambiguous job-specific mark is not guessed',()=>{
+ const {h}=setup();
+ assert.equal(h.jobNameFromIconScores(
+  [{job:'剣士',error:850,corr:.965},{job:'魔法使い',error:860,corr:.958}],
+  [{job:'剣士',error:850,corr:.965},{job:'魔法使い',error:860,corr:.958}]
+ ),'');
 });
 test('job candidate remains deterministic across crop-drift scoring',()=>{
  const {h}=setup();
