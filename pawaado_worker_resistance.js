@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261002-no-attribute-2',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261003-variable-super-hp-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -210,9 +210,9 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
 
     source=replaceOnce(
       source,
-`    specialPart
+`    selectedSuperPart
   ]);`,
-`    specialPart,
+`    selectedSuperPart,
     (payload.extraResistances||[]).map(row=>[String(row?.name||''),String(row?.type||''),Number(row?.value||0)])
   ]);`,
       'worker config cache key'
