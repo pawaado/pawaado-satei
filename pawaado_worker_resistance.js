@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261002-worker-cleanup-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261002-worker-cleanup-2',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -203,8 +203,8 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
 
     source=replaceOnce(
       source,
-      `let cancelRequested=false;\n`,
-      `let cancelRequested=false;\n\n${resistanceEngine}\n`,
+      `const specialItemCache=new Map();\n`,
+      `const specialItemCache=new Map();\n\n${resistanceEngine}\n`,
       'insert resistance engine v2'
     );
 
