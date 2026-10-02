@@ -25,6 +25,7 @@ const jobClassMap={
 };
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
+const attribute=document.getElementById('attribute');
 const DEFAULT_EXP_LIMIT=1000;
 const BOOTRAIN_EXP_LIMITS={筋力:1300,敏捷:1200,技術:1400,知力:1300,精神:1200};
 function expLimit(name){
@@ -88,6 +89,12 @@ function academyRows(){return D.academies.filter(r=>r[0]===academy.value && r[1]
 function hasAcademyJob(){return !!academy.value && !!job.value;}
 function limits(){const r=academyRows()[0]; const m={}; basicNames.forEach((n,i)=>m[n]=r?Number(r[i+2]):null); return m;}
 function initAcademies(){academy.innerHTML='';academy.add(opt('アカデミーを選択',''));Object.keys(jobsByAcademy).forEach(a=>academy.add(opt(a)));updateJobs();}
+function initAttributes(){
+  if(!attribute) return;
+  attribute.innerHTML='';
+  attribute.add(opt('属性を選択',''));
+  for(const name of D.attributes||[]) attribute.add(opt(name));
+}
 function updateInputAvailabilityUI(){
   const jobField=document.getElementById('jobFieldLabel');
   const basicCard=document.getElementById('basicCard');
@@ -682,7 +689,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-script-audit-3');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-attribute-ui-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1099,6 +1106,7 @@ function resetAll(){
   document.querySelectorAll('input[type="number"]').forEach(i=>{i.value='';});
 
   academy.value='';
+  if(attribute) attribute.value='';
   updateJobs();
 
   Object.keys(basicOwned).forEach(k=>basicOwned[k]=false);
@@ -1151,6 +1159,10 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
   academy.dispatchEvent(new Event('change',{bubbles:true}));
   job.value=data.job;
   job.dispatchEvent(new Event('change',{bubbles:true}));
+  if(attribute){
+    attribute.value=(D.attributes||[]).includes(data.attribute)?data.attribute:'';
+    attribute.dispatchEvent(new Event('change',{bubbles:true}));
+  }
   expSamples=[{...data.exp}]; renderExp();
   basicNames.forEach(n=>{
     basicHints[n]=0; basicOwned[n]=false;
@@ -1195,5 +1207,5 @@ document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 setupUsageModal();
 removeTemporaryVersionDisplay();
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); initAttributes(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
 })();
