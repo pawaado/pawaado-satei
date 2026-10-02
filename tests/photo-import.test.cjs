@@ -21,6 +21,7 @@ function setup(){
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
+   stubAbilityExact(fn){abilityNameExactByImage=(image,cell,name)=>fn(name);},
    stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
    stubTrainingGains(presentFn,valueFn,colorFn=()=>null,ratioFn=()=>0){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;trainingGainColorNumber=colorFn;trainingBubbleRatio=ratioFn;},
@@ -301,6 +302,16 @@ test('IMG_1080 アクションスキル◎ overrides an exact ○ guess without 
  h.stubExactActionPair('アクションスキル○','◎');
  const r=await h.readAbilityCells({},1);
  assert(r.specials.includes('アクションスキル○'));
+ assert(r.specials.includes('アクションスキル◎'));
+ assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
+});
+test('IMG_1080 アクションスキル◎ cannot stay as ○ when the same-name ◎ template confirms it',async()=>{
+ const {h}=setup();
+ const double='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
+ h.stubAbilityChoice('アクションスキル○','');
+ h.stubAbilityMask(double);
+ h.stubAbilityExact(name=>name==='アクションスキル○'||name==='アクションスキル◎');
+ const r=await h.readAbilityCells({},1);
  assert(r.specials.includes('アクションスキル◎'));
  assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
 });
