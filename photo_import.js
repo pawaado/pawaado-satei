@@ -873,6 +873,15 @@
     return '';
   }
 
+  function pairSymbolByImage(image,cell,stem){
+    // 長い能力名はセル内で文字列＋末尾記号全体が横圧縮される。
+    // 固定半径の○/◎形状判定より、同じ能力名の○版/◎版セル全体比較を優先する。
+    if(normalize(stem).length>=7){
+      return pairMarkByImage(image,cell,stem);
+    }
+    return markShapeByImage(image,cell)||pairMarkByImage(image,cell,stem);
+  }
+
   function normalizeGlyph(mask,w,h,outW=12,outH=16){
     const out=new Uint8Array(outW*outH);
     for(let oy=0;oy<outH;oy++){const sy=Math.min(h-1,Math.floor(oy*h/outH));
@@ -1431,6 +1440,11 @@
     return sawCircle?'○':'';
   }
   async function abilityMarkHint(image,cell,rawTexts=[],stem=''){
+    if(stem&&normalize(stem).length>=7){
+      const paired=pairMarkByImage(image,cell,stem);
+      if(paired)return paired;
+      return await ocrMarkHint(image,cell,rawTexts);
+    }
     const shape=markShapeByImage(image,cell);
     if(shape)return shape;
     const ocr=await ocrMarkHint(image,cell,rawTexts);
@@ -1496,7 +1510,7 @@
           // 全体テンプレート、能力名本体、末尾記号の3系統が一致したセルは
           // 追加OCRを回さず確定する。高信頼セルごとの4回OCRを省き、読み取り時間を短縮する。
           const imageStem=pairStemByImage(image,cell);
-          const shapeMark=markShapeByImage(image,cell);
+          const shapeMark=pairSymbolByImage(image,cell,originalStem);
           const fastName=imageStem===originalStem&&shapeMark&&D.special.some(s=>normalize(s[1])===originalStem+shapeMark)
             ? originalStem+shapeMark : '';
           if(fastName){
@@ -1547,12 +1561,10 @@
         const preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         const hybrid=hybridPairStem(image,cell,reads);
         const stem=hybrid.stem;
-        const shapeMark=stem?markShapeByImage(image,cell):'';
-        const visualMark=stem?pairMarkByImage(image,cell,stem):'';
-        // ○/◎は文字OCRでは決めず、末尾記号そのものの形か○/◎専用画像比較だけで決める。
-        markHint=shapeMark||visualMark;
-        // OCRが崩れても、独立した画像名判定と○/◎形状判定が同じ答えなら要確認にしない。
-        // 対魔闘士のようにゲームフォントでOCRが弱い能力を、正しく読めているのに警告し続けないため。
+        const shapeMark=stem?pairSymbolByImage(image,cell,stem):'';
+        // ○/◎は文字OCRでは決めず、末尾記号の形または同名○/◎セル全体比較で決める。
+        markHint=shapeMark;
+        // OCRが崩れても、独立した画像名判定と○/◎画像判定が同じ答えなら要確認にしない。
         const strongImageStem=stem&&pairStemByImage(image,cell)===stem;
         const pairCertain=!!stem&&!!shapeMark&&(!hybrid.candidate||strongImageStem);
         const parsedReads=reads.map((t,i)=>({text:t,parsed:cellAbility(t,markHint,cell.superCell,pairCertain),i}));
@@ -1586,7 +1598,7 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const shape=markShapeByImage(image,cell)||pairMarkByImage(image,cell,stem);
+            const shape=pairSymbolByImage(image,cell,stem);
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
@@ -2208,5 +2220,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairSymbolByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
