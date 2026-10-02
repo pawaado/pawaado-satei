@@ -633,6 +633,13 @@ function ensureCancelButton(){
 }
 
 
+function selectedSuperState(){
+  return typeof window.__PAWAADO_GET_SELECTED_SUPERS__==='function'
+    ? window.__PAWAADO_GET_SELECTED_SUPERS__()
+      .filter(row=>row?.name&&(Number(row.level)===1||Number(row.level)===2))
+      .map(row=>({name:String(row.name),level:Number(row.level)}))
+    : [];
+}
 function workerSpecialState(){
   const effective=new Map(
     [...specialState.entries()].map(([index,state])=>[
@@ -640,10 +647,7 @@ function workerSpecialState(){
       {hint:Number(state?.hint||0),own:Number(state?.own||0)}
     ])
   );
-  const resistanceRows=typeof window.__PAWAADO_GET_EXTRA_RESISTANCES__==='function'
-    ? window.__PAWAADO_GET_EXTRA_RESISTANCES__()
-    : [];
-  const selectedSupers=new Set(resistanceRows.map(row=>String(row?.name||'')).filter(Boolean));
+  const selectedSupers=new Set(selectedSuperState().map(row=>String(row.name||'')).filter(Boolean));
   for(const superName of selectedSupers){
     for(const name of D.superResistances?.[superName]?.includes||[]){
       const index=specialNameIndex.get(String(name));
@@ -667,7 +671,8 @@ function buildWorkerPayload(exp){
     basicValues,
     basicOwned:{...basicOwned},
     basicHints:{...basicHints},
-    specialState:workerSpecialState()
+    specialState:workerSpecialState(),
+    selectedSupers:selectedSuperState()
   };
 }
 function cleanupActiveWorker(){
@@ -682,7 +687,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261002-no-attribute-2');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261003-variable-super-hp-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1173,16 +1178,16 @@ function applyRecognizedPhotoAbilities(data,{replace=false}={}){
     if(i!==undefined)setSpecialOwned(i,true);
   }
 
-  const resistanceSupers=confirmedSupers.filter(entry=>{
-    const def=D.superResistances[entry.name];
+  const variableScoreSupers=confirmedSupers.filter(entry=>{
+    const def=D.superResistances?.[entry.name]||D.superScoreRules?.[entry.name];
     if(!def)return false;
     if(!def.job)return true;
     return def.job===data.job||def.job===job.value;
   });
   // 全体入力では空配列でもリセットする。部分入力では確定値がある時だけ既存欄を置き換える。
-  if(replace||resistanceSupers.length)window.__PAWAADO_SET_SUPERS__?.(resistanceSupers);
+  if(replace||variableScoreSupers.length)window.__PAWAADO_SET_SUPERS__?.(variableScoreSupers);
 
-  return {owned:[...owned],confirmedSupers,resistanceSupers};
+  return {owned:[...owned],confirmedSupers,resistanceSupers:variableScoreSupers,variableScoreSupers};
 }
 
 window.__PAWAADO_IMPORT_IDENTITY_ONLY__=data=>{
