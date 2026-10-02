@@ -50,3 +50,4 @@ GitHub Pages で公開している査定ツールの保守メモです。
 - `resistance_patch.js` が使い方本文を上書きしないように変更。
 - 古いスクショ入力説明ファイルをこのREADMEへ統合。
 - `data.js` を全件監査し、未使用の旧 `settings` / `multiplierScorePerPercent` を削除。`癒やしの心`（僧侶）の固定査定を90へ正本化し、Worker/ランキング側の個別上書きを廃止。
+- `pawaado_worker.js` を監査し、付与予定経験点の加算で使用経験点が1500を超えた場合に状態キーが衝突し得る問題を修正。耐性Workerのパッチ適用箇所も再照合。
