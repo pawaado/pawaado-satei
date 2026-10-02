@@ -1,6 +1,5 @@
 (function(){
-// v8.0 高精度専用：安全な総経験点Upper Boundを追加。査定条件・保持上限・候補集合は変更なし。
-// Speed optimized v5: high-accuracy path overhead reduction; calculation progress is shown only on the button.
+// Browser UI, validation, result caching, and Worker orchestration.
 const D=window.PAWAADO_DATA;
 const expNames=['筋力','敏捷','技術','知力','精神'];
 const MAX_EXP_SAMPLES=6;
@@ -25,7 +24,6 @@ const jobClassMap={
   '僧侶':'job-priest',
   '魔闘士':'job-spellblade'
 };
-const orderedJobNames=Object.keys(jobClassMap);
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
 const DEFAULT_EXP_LIMIT=1000;
@@ -59,7 +57,6 @@ class CalculationCancelledError extends Error{
 function throwIfCancelled(){
   if(cancelRequested) throw new CalculationCancelledError();
 }
-const EMPTY_ITEMS=[];
 const EMPTY_BITS=0n;
 const specialBitCache=[];
 function specialBit(i){
@@ -75,64 +72,6 @@ function specialItemsBits(items){
     }
   }
   return bits;
-}
-const bitsKeyCache=new Map([[EMPTY_BITS,'0']]);
-function bitsKey(bits){
-  const value=bits||EMPTY_BITS;
-  const cached=bitsKeyCache.get(value);
-  if(cached!==undefined) return cached;
-
-  const converted=value.toString(36);
-  bitsKeyCache.set(value,converted);
-  return converted;
-}
-
-
-const scopeKeyCache=new Map();
-function scopeKeyFor(life,bits){
-  const lifePart=life==null?'':Number(life).toString(36);
-  let byBits=scopeKeyCache.get(lifePart);
-  if(!byBits){
-    byBits=new Map();
-    scopeKeyCache.set(lifePart,byBits);
-  }
-
-  const bitValue=bits??EMPTY_BITS;
-  const cached=byBits.get(bitValue);
-  if(cached!==undefined) return cached;
-
-  const value=lifePart+'|'+bitsKey(bitValue);
-  byBits.set(bitValue,value);
-  return value;
-}
-function pruneScopeKey(st){
-  if(st._pruneScopeKey) return st._pruneScopeKey;
-  const v=scopeKeyFor(st.life,st.bits??EMPTY_BITS);
-  st._pruneScopeKey=v;
-  return v;
-}
-const mutualMaskByIndex=[];
-function initSpecialBitMeta(){
-  mutualGroups.forEach(g=>{
-    let mask=EMPTY_BITS;
-    g.forEach(n=>{
-      const i=specialNameIndex.get(String(n)) ?? -1;
-      if(i>=0) mask|=specialBit(i);
-    });
-    g.forEach(n=>{
-      const i=specialNameIndex.get(String(n)) ?? -1;
-      if(i>=0) mutualMaskByIndex[i]=mask & ~specialBit(i);
-    });
-  });
-}
-initSpecialBitMeta();
-function conflictBitsFor(bits){
-  let mask=EMPTY_BITS;
-  for(let i=0;i<D.special.length;i++){
-    const bit=specialBit(i);
-    if((bits & bit)!==EMPTY_BITS) mask |= (mutualMaskByIndex[i]||EMPTY_BITS);
-  }
-  return mask;
 }
 function removeTemporaryVersionDisplay(){
   const nodes=document.querySelectorAll('body *');
@@ -345,7 +284,7 @@ function lowerIndex(i){const req=D.special[i]?.[2]; if(!req)return -1; return sp
 function upperIndex(i){const name=D.special[i]?.[1]; return specialReqIndex.get(String(name)) ?? -1;}
 function pairIndex(i){const li=lowerIndex(i); if(li>=0)return li; return upperIndex(i);}
 function specialOwned(i){return getSpecialState(i).own===1;}
-function specialHint(i){return Number(getSpecialState(i).hint||0);}
+
 function shouldShowSpecial(i){
   if(!isUpperSpecial(i)) return true;
   const li=lowerIndex(i);
@@ -399,7 +338,7 @@ function applySkillVisual(i){
   const btn=row.querySelector('.name-btn');
   btn.innerHTML=`<span>${renderSkillName(D.special[i][1])}</span>${ownedLabel(Number(st.own)===1)}`;
 }
-function baseNameOfSkill(i){return String(D.special[i][1]).replace(/[○◎]$/,'');}
+
 function inMutualGroup(name){return mutualGroups.find(g=>g.includes(name));}
 function setSpecialOwned(i,on,chain=true){
   const st=getSpecialState(i); st.own=on?1:0;
@@ -535,39 +474,11 @@ function finalizeScore(value){
   const nearest=Math.round(score);
   return Math.floor(Math.abs(score-nearest)<1e-9?nearest:score);
 }
-function jobScoreIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
-function fixedAddIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
-function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
-
-
-
-const SPECIAL_DISCOUNT=[0,.5,.6,.7,.8,.9];
-function costAfter(cost,hint,basic=false){const disc=basic?hint*0.02:(SPECIAL_DISCOUNT[hint]||0); return Math.floor(cost*(1-disc));}
-const hpByLifeCache=new Map();
-function currentHpForLife(life){
-  const key=Number(life)||0;
-  const cached=hpByLifeCache.get(key);
-  if(cached!==undefined) return cached;
-  let hp=50;
-  for(const r of D.hp){if(key>=Number(r[0])) hp=Number(r[1]);}
-  hpByLifeCache.set(key,hp);
-  return hp;
-}
-
-
-function addCost(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2],a[3]+b[3],a[4]+b[4]];}
-
 function key5(c0,c1,c2,c3,c4){
   if(c0>1500||c1>1500||c2>1500||c3>1500||c4>1500) return 'x:'+c0+','+c1+','+c2+','+c3+','+c4;
   return String(((((c0*1501+c1)*1501+c2)*1501+c3)*1501+c4));
 }
 function key(c){return key5(c[0],c[1],c[2],c[3],c[4]);}
-function stateKey(st){
-  if(st._stateKey!==undefined && st._stateKey!==null) return st._stateKey;
-  const value=key(st.cost)+'|'+scopeKeyFor(st.life,st.bits??EMPTY_BITS);
-  st._stateKey=value;
-  return value;
-}
 function costSum(c){return c[0]+c[1]+c[2]+c[3]+c[4];}
 
 function itemLenOf(st){return st?.itemLen ?? (st?.items?.length || 0);}
@@ -625,237 +536,11 @@ function restoreItems(st){
 }
 
 
-// 基本能力の途中prune専用。
-// 現在査定だけでなく、残経験点から取得できそうな高効率特殊能力の見込み査定も加えて並べる。
-// 完全な混在探索ではなく、候補を早期に落としすぎないための保守的な中間評価。
-const BASIC_SPECIAL_LOOKAHEAD_GROUPS=14;
-function estimateSpecialPotentialForBasicState(st,exp){
-  if(!st || !exp) return 0;
-
-  const remain=[
-    Math.max(0,Number(exp[0]||0)-Number(st.cost?.[0]||0)),
-    Math.max(0,Number(exp[1]||0)-Number(st.cost?.[1]||0)),
-    Math.max(0,Number(exp[2]||0)-Number(st.cost?.[2]||0)),
-    Math.max(0,Number(exp[3]||0)-Number(st.cost?.[3]||0)),
-    Math.max(0,Number(exp[4]||0)-Number(st.cost?.[4]||0))
-  ];
-
-  const hp=currentHpForLife(st.life);
-  const groups=specialChoiceGroupsCached(hp);
-  let bonus=0;
-  let checked=0;
-
-  for(let gi=0;gi<groups.length && checked<BASIC_SPECIAL_LOOKAHEAD_GROUPS;gi++){
-    const g=groups[gi];
-
-    // コツなしHP依存グループは、見込み査定でも後回し。
-    if(g.hpPriorityPenalty) continue;
-
-    let chosen=null;
-    for(const op of g.opts){
-      if(op.cost[0]>remain[0]||op.cost[1]>remain[1]||op.cost[2]>remain[2]||
-         op.cost[3]>remain[3]||op.cost[4]>remain[4]) continue;
-      chosen=op;
-      break;
-    }
-
-    checked++;
-    if(!chosen) continue;
-
-    remain[0]-=chosen.cost[0];
-    remain[1]-=chosen.cost[1];
-    remain[2]-=chosen.cost[2];
-    remain[3]-=chosen.cost[3];
-    remain[4]-=chosen.cost[4];
-    bonus+=Number(chosen.score||0);
-  }
-
-  return bonus;
-}
-function basicPruneProjectedScore(st,exp){
-  if(st._basicProjectedScoreKey===key(exp) && Number.isFinite(st._basicProjectedScore)){
-    return st._basicProjectedScore;
-  }
-  const projected=Number(st.score||0)+estimateSpecialPotentialForBasicState(st,exp);
-  st._basicProjectedScore=projected;
-  st._basicProjectedScoreKey=key(exp);
-  return projected;
-}
-
 function yieldToBrowser(){
   return new Promise(r=>setTimeout(r,0)).then(()=>{
     throwIfCancelled();
   });
 }
-function prune(states,limit=12000,mode=currentCalcMode(),context='generic',expForProjection=null){
-  const arr=Array.from(states.values());
-  arr.sort((a,b)=>{
-    if(context==='basic' && expForProjection){
-      const bp=basicPruneProjectedScore(b,expForProjection);
-      const ap=basicPruneProjectedScore(a,expForProjection);
-      if(bp!==ap) return bp-ap;
-    }
-    if(b.score!==a.score) return b.score-a.score;
-    return a.usedCost-b.usedCost;
-  });
-
-  if(mode==='normal'){
-    const preLimit=Math.min(arr.length,Math.floor(Math.max(limit*1.4,limit+500)));
-    const keep=[];
-
-    outer: for(let si=0;si<preLimit;si++){
-      const st=arr[si];
-      const stScope=pruneScopeKey(st);
-      const checkMax=Math.min(keep.length,320);
-      for(let i=0;i<checkMax;i++){
-        const k=keep[i];
-        if(pruneScopeKey(k)===stScope && k.score>=st.score){
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
-        }
-      }
-      keep.push(st);
-      if(keep.length>=limit) break;
-    }
-
-    const m=new Map();
-    for(let i=0;i<keep.length;i++){
-      const st=keep[i];
-      m.set(stateKey(st),st);
-    }
-    return m;
-  }
-
-  const preLimit=Math.min(arr.length,Math.max(limit*4,limit+2600));
-  let usedTotal=0;
-  for(let i=0;i<preLimit;i++) usedTotal+=arr[i].usedCost;
-  const avgExp=preLimit?usedTotal/preLimit:0;
-  const EXACT_CHECK_LIMIT=avgExp>1500?1200:900;
-  const BUCKET_SIZE=avgExp>1500?70:45;
-  const BUCKET_KEEP_LIMIT=avgExp>1500?220:150;
-  const BUCKET_BASE=32;
-
-  const keep=[];
-  const skylineByScope=new Map();
-  const bucketsByScope=new Map();
-
-  function bucketCode(b0,b1,b2,b3,b4){
-    return ((((b0*BUCKET_BASE+b1)*BUCKET_BASE+b2)*BUCKET_BASE+b3)*BUCKET_BASE+b4);
-  }
-
-  outer: for(let si=0;si<preLimit;si++){
-    const st=arr[si];
-    const scope=pruneScopeKey(st);
-    const skyline=skylineByScope.get(scope);
-
-    if(skyline){
-      const max=Math.min(skyline.length,EXACT_CHECK_LIMIT);
-      for(let i=0;i<max;i++){
-        const k=skyline[i];
-        if(k.score<st.score) break;
-        if(k.usedCost>st.usedCost) continue;
-        const kc=k.cost, sc=st.cost;
-        if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
-      }
-    }
-
-    const c=st.cost;
-    const b0=Math.floor(c[0]/BUCKET_SIZE);
-    const b1=Math.floor(c[1]/BUCKET_SIZE);
-    const b2=Math.floor(c[2]/BUCKET_SIZE);
-    const b3=Math.floor(c[3]/BUCKET_SIZE);
-    const b4=Math.floor(c[4]/BUCKET_SIZE);
-    const scopeBuckets=bucketsByScope.get(scope);
-
-    if(scopeBuckets){
-      for(let mask=0;mask<32;mask++){
-        const n0=b0-((mask&1)?1:0);
-        const n1=b1-((mask&2)?1:0);
-        const n2=b2-((mask&4)?1:0);
-        const n3=b3-((mask&8)?1:0);
-        const n4=b4-((mask&16)?1:0);
-        if(n0<0||n1<0||n2<0||n3<0||n4<0) continue;
-
-        const list=scopeBuckets.get(bucketCode(n0,n1,n2,n3,n4));
-        if(!list) continue;
-        for(let i=0;i<list.length;i++){
-          const k=list[i];
-          if(k.score<st.score || k.usedCost>st.usedCost) continue;
-          const kc=k.cost, sc=st.cost;
-          if(kc[0]<=sc[0]&&kc[1]<=sc[1]&&kc[2]<=sc[2]&&kc[3]<=sc[3]&&kc[4]<=sc[4]) continue outer;
-        }
-      }
-    }
-
-    keep.push(st);
-
-    if(skyline) skyline.push(st);
-    else skylineByScope.set(scope,[st]);
-
-    let activeBuckets=scopeBuckets;
-    if(!activeBuckets){
-      activeBuckets=new Map();
-      bucketsByScope.set(scope,activeBuckets);
-    }
-    const code=bucketCode(b0,b1,b2,b3,b4);
-    let list=activeBuckets.get(code);
-    if(!list){
-      list=[];
-      activeBuckets.set(code,list);
-    }
-
-    if(list.length<BUCKET_KEEP_LIMIT){
-      list.push(st);
-    }else{
-      let worstIdx=0;
-      let worst=list[0];
-      for(let wi=1;wi<list.length;wi++){
-        const cand=list[wi];
-        if(cand.score<worst.score || (cand.score===worst.score && cand.usedCost>worst.usedCost)){
-          worst=cand;
-          worstIdx=wi;
-        }
-      }
-      if(st.score>worst.score || (st.score===worst.score && st.usedCost<worst.usedCost)){
-        list[worstIdx]=st;
-      }
-    }
-
-    if(keep.length>=limit) break;
-  }
-
-  const m=new Map();
-  for(let i=0;i<keep.length;i++){
-    const st=keep[i];
-    m.set(stateKey(st),st);
-  }
-  return m;
-}
-const rangeRowCache=new WeakMap();
-const valueRowCache=new WeakMap();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const specialItemCache=new Map();
-const specialGroupCache=new Map();
-const filteredSpecialGroupCache=new Map();
-const orderedSpecialGroupCache=new Map();
 const calcResultCache=new Map();
 
 function calcCacheKey(exp){
@@ -900,140 +585,6 @@ function setCachedResult(cacheKey,result){
   }
   calcResultCache.set(cacheKey,cloneResult(result));
 }
-function itemForSpecialIndex(i,hp,includeLower=false){
-  const s=D.special[i]; if(!s) return null;
-  const cacheKey=[i,hp,includeLower?1:0,specialHint(i),specialOwned(i)?1:0].join('|');
-  const cachedItem=specialItemCache.get(cacheKey);
-  if(cachedItem!==undefined) return cachedItem;
-
-  const score=skillScore(s,hp);
-  if(score<=0){
-    specialItemCache.set(cacheKey,null);
-    return null;
-  }
-
-  const hint=specialHint(i);
-  const rawCosts=[s[3],s[4],s[5],s[6],s[7]].map(c=>Number(c||0));
-  const costs=rawCosts.map(c=>costAfter(c,hint,false));
-
-  let totalCost=costs.slice();
-  let totalScore=score;
-  let items=[{type:'special',idx:i,name:s[1]}];
-
-  if(includeLower){
-    const li=lowerIndex(i);
-    if(li>=0 && !specialOwned(li)){
-      const lower=itemForSpecialIndex(li,hp,false);
-      if(lower){
-        totalCost=addCost(totalCost,lower.cost);
-        totalScore+=lower.score;
-        items=lower.items.concat(items);
-      }
-    }
-  }
-
-  const bits=specialItemsBits(items);
-  const result={type:'choice',cost:totalCost,score:totalScore,items,itemLen:items.length,bits,conflictBits:conflictBitsFor(bits),idx:i,name:s[1]};
-  specialItemCache.set(cacheKey,result);
-  return result;
-}
-function specialChoiceGroups(hp){
-  const used=new Set(); const groups=[];
-  D.special.forEach((s,i)=>{
-    if(used.has(i)) return;
-    const ui=upperIndex(i);
-    const li=lowerIndex(i);
-    if(li>=0) return;
-    if(ui>=0){
-      used.add(i); used.add(ui);
-      const opts=[];
-      if(!specialOwned(i)){
-        const lower=itemForSpecialIndex(i,hp,false); if(lower) opts.push(lower);
-        if(!specialOwned(ui)){const upper=itemForSpecialIndex(ui,hp,true); if(upper) opts.push(upper);}
-      }else if(!specialOwned(ui)){
-        const upperOnly=itemForSpecialIndex(ui,hp,false); if(upperOnly) opts.push(upperOnly);
-      }
-      if(opts.length) groups.push({kind:'pair',base:baseNameOfSkill(i),opts});
-    }
-  });
-  mutualGroups.forEach(g=>{
-    const opts=[];
-    const already=g.some(n=>{const i=specialNameIndex.get(String(n)) ?? -1; return i>=0 && specialOwned(i);});
-    if(!already){
-      g.forEach(n=>{const i=specialNameIndex.get(String(n)) ?? -1; if(i>=0 && !used.has(i) && !specialOwned(i)){const it=itemForSpecialIndex(i,hp,false); if(it) opts.push(it); used.add(i);}});
-    }else{
-      g.forEach(n=>{const i=specialNameIndex.get(String(n)) ?? -1; if(i>=0) used.add(i);});
-    }
-    if(opts.length) groups.push({kind:'mutual',opts});
-  });
-  D.special.forEach((s,i)=>{
-    if(used.has(i) || specialOwned(i)) return;
-    if(isUpperSpecial(i)) return;
-    const it=itemForSpecialIndex(i,hp,false); if(it) groups.push({kind:'single',opts:[it]});
-  });
-  return groups;
-}
-function specialOptionIsHpDependent(op){
-  return !!op?.items?.some(it=>
-    it?.type==='special' && Number(D.special[Number(it.idx)]?.[11]||0)!==0
-  );
-}
-function specialOptionHasHint(op){
-  return !!op?.items?.some(it=>
-    it?.type==='special' && specialHint(Number(it.idx))>0
-  );
-}
-function specialOptionIsUnhintedHpDependent(op){
-  return specialOptionIsHpDependent(op) && !specialOptionHasHint(op);
-}
-function specialGroupIsHpDependent(g){
-  return !!g?.opts?.length && g.opts.every(specialOptionIsHpDependent);
-}
-function specialGroupIsUnhintedHpDependent(g){
-  return !!g?.opts?.length && g.opts.every(specialOptionIsUnhintedHpDependent);
-}
-function specialChoiceGroupsCached(hp){
-  const k=String(hp);
-  const cachedGroups=specialGroupCache.get(k);
-  if(cachedGroups!==undefined) return cachedGroups;
-
-  // v4.5: 特殊能力候補はHPごとに事前整形・事前ソートしてキャッシュする。
-  // 計算本体では原則ソートし直さず、フィルタだけ行う。
-  const groups=specialChoiceGroups(hp)
-    .map(g=>{
-      const opts=g.opts.map(op=>{
-        const cs=costSum(op.cost);
-        const bits=op.bits ?? specialItemsBits(op.items);
-        return {...op,bits,conflictBits:op.conflictBits ?? conflictBitsFor(bits),costSum:cs,eff:op.score/(1+cs)};
-      }).sort((a,b)=>{
-        // HP依存はコツなしの場合だけ後回し。
-        // コツが付いているHP依存能力は、通常能力と同じく実効率で比較する。
-        const ah=specialOptionIsUnhintedHpDependent(a)?1:0;
-        const bh=specialOptionIsUnhintedHpDependent(b)?1:0;
-        if(ah!==bh) return ah-bh;
-        if(b.eff!==a.eff) return b.eff-a.eff;
-        return b.score-a.score;
-      });
-      const maxScore=opts.reduce((m,o)=>Math.max(m,o.score),0);
-      const bestEfficiency=opts.reduce((m,o)=>Math.max(m,o.eff),0);
-      const hpDependent=specialGroupIsHpDependent({opts});
-      const hpPriorityPenalty=specialGroupIsUnhintedHpDependent({opts});
-      return {...g,opts,maxScore,bestEfficiency,hpDependent,hpPriorityPenalty};
-    })
-    .filter(g=>g.opts.length>0)
-    .sort((a,b)=>{
-      if(!!a.hpPriorityPenalty!==!!b.hpPriorityPenalty) return a.hpPriorityPenalty?1:-1;
-      if(b.bestEfficiency!==a.bestEfficiency) return b.bestEfficiency-a.bestEfficiency;
-      return b.maxScore-a.maxScore;
-    });
-
-  specialGroupCache.set(k,groups);
-  return groups;
-}
-
-
-
-
 function currentCalcMode(){return 'high';}
 
 function ensureCancelButton(){
@@ -1092,36 +643,6 @@ function ensureCancelButton(){
   return cancelBtn;
 }
 
-
-async 
-
-// v11.8: Web Worker高速版。進捗表示を固定の「計算中」に戻す。
-// 各状態から「基本能力の次の1」「基本能力の次節目」「取得可能な特殊能力」を
-// 同じ査定効率で比較し、上位候補へ分岐する。
-const MIXED_BRANCH_NORMAL=7;
-const MIXED_MAX_STEPS=90;
-
-// 混在探索高速化用。計算条件が変わるたびに初期化する。
-let mixedBasicOptionCache=new Map();
-let mixedHpDeltaCache=new Map();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-async 
 
 function workerSpecialState(){
   const effective=new Map(
