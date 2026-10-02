@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,decodeMask,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,abilityByImage,readAbilityCells,readImages,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyGlyph,decodeMask,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -57,6 +57,38 @@ test('IMG_1009 physical defense circle cell is accepted by image comparison',()=
  h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI=');
  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'物理防御○');
 });
+test('IMG_1009 visible specials and resistance supers are registered as exact image templates',()=>{
+ const {h}=setup();
+ const cases=[
+  ['物理攻撃○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgHwIO4bAAA/z/f8/zGAAD/N8/3ve4AAO8/xbe4QQAAfz/F57yBAI=',false],
+  ['物理防御○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgH3sKAOAAA/3/f9/z8AAD/N9/33c4AAO8/3ff9hgAAfz/f9t2CAI=',false],
+  ['魔力制御','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4IPGU4AAAB/n8+7/gAAAH+f7zrqAAAAf4Zvu/oAAAB/hm+7ugAI=',false],
+  ['闘争本能','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4+AgdwAAAB/n8f7/AAAAH+fx/v+AAAAe4Nj494AAABnv+ez3AAI=',false],
+  ['アクションスキル○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADDABAAIEAA/POAGDw4wAAN8geIDPnAACmzIIEMIcAAOTFngxg92AI=',false],
+  ['列攻撃○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfoGHcPgAAAB+n+fZ/AAAAH6P5/mMAAAAfovn+QYAAAB+jef5BgAI=',false],
+  ['ケガしにくさ○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABALmBgBgYPAPwgYH8OP5+A/PxAcBw/sYGYbEBgMAMwgZhkRlgwPzCM=',false],
+  ['危機察知','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPx/P+5wAAAB3P+873AAAAH+f7/OUAAAAaB/Hc9QAAAB/P+f71AAI=',false],
+  ['意志','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/n+AAAAAAAH+f4AAAAAAAf5/AAAAAAAB/n8AAAAAAAGGfQAAAI=',false],
+  ['ガッツ','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGwABAAAAAAB/Bo2wAAAAAP8ezbAAAAAAMx+F4AAAAAAzGYBgAAM=',false],
+  ['対重戦士○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGMfj3BAeAAA8z/PcED+AAD/P8/3/MYAAPM/j/f9hgAA7z+PcEGCAI=',false],
+  ['対弓使い○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGM/z/AATAAA8x/P8zCGAAD/P9/zOU4AAOM/n/IZAAAA7z/P8hmEAI=',false],
+  ['対魔法使い○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADGf5mH+AAiAeZ/n+f5iEMB/3+Zx/mM5QHmf5/n+YwAgf5/h+f5hgCI=',false],
+  ['対ゴブリン○','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCAcBzGAAiAfM/n+MZwGEB/wGAYxjgIoDjAYDDMAYAAO4BgMMwHiCM=',false],
+  ['不滅','AAAAAAAAAAQAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/kMAAAAAAAH+f4AAAAAAADAfgAAAAAAAeF+AAAAAAAH+H4AAAA=',true],
+  ['加護','AAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjm+AAAAAAAH+/wAAAAAAAf7/gAAAAAAAvn8AAAAAAAG+b4AAAI=',true]
+ ];
+ for(const [name,mask,superCell] of cases){
+  h.stubAbilityMask(mask);
+  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell}),name,name);
+ }
+});
+test('IMG_1009 resistance-super levels Lv2 and Lv1 use the exact visible glyphs',()=>{
+ const {h}=setup();
+ const lv2='A/A/BjABAJAcB5AxBzBGIM8PmBmAmBZ/';
+ const lv1='B/B/HH+BwBwB/BPBHBHBHBHBHBHBB/A4';
+ assert.equal(h.classifyGlyph({mask:h.decodeMask(lv2,12*16),w:12,h:16},h.hybridLevelMasks,.23),'2');
+ assert.equal(h.classifyGlyph({mask:h.decodeMask(lv1,12*16),w:12,h:16},h.hybridLevelMasks,.23),'1');
+});
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();
  const calls=h.stubFastPairCell('物理防御○','物理防御','○');
@@ -90,21 +122,40 @@ test('ability data plus training is accepted without an ability-up screenshot',a
  assert(importedTraining);assert.equal(importedTraining.length,1);
  assert.equal(get('photoStatus').textContent,'自動入力しました。');
 });
-test('training patterns are still applied and treated as success when character import needs confirmation',async()=>{
- const {h,get,c}=setup();let importedTraining=null;
+test('training patterns and recognized abilities are still applied when character import needs confirmation',async()=>{
+ const {h,get,c}=setup();let importedTraining=null,importedAbilities=null;
  c.__PAWAADO_IMPORT_PHOTO__=()=>{throw Error('アカデミーとジョブを確認してください。');};
  c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{importedTraining=patterns;};
+ c.__PAWAADO_IMPORT_ABILITIES_ONLY__=data=>{importedAbilities=data;};
  h.prepareUi(async()=>({
    abilityUpScreens:0,dataScreens:1,academy:'パワフルアカデミー',job:'',
-   exp:{},basic:{},specials:[],supers:[],
+   exp:{},basic:{},
+   specials:['物理攻撃○','闘争本能'],
+   supers:[{name:'不滅',level:2,confirmed:true},{name:'加護',level:1,confirmed:true}],
    trainingPatterns:[{exp:{筋力:649,敏捷:510,技術:311,知力:295,精神:682}},{exp:{筋力:558,敏捷:420,技術:329,知力:336,精神:601}}],
    warnings:['ジョブを画像から読み取れませんでした。ジョブを確認してください。']
  }),null);
  await get('readPhotos').onclick();
  assert(importedTraining);assert.equal(importedTraining.length,2);
+ assert(importedAbilities);assert(importedAbilities.specials.includes('物理攻撃○'));
+ assert.equal(importedAbilities.supers.find(x=>x.name==='不滅')?.level,2);
  assert.equal(get('photoStatus').textContent,'自動入力しました。');
  assert.equal(get('photoUncertain').hidden,false);
  assert.doesNotMatch(get('photoStatus').textContent,/失敗/);
+});
+test('IMG_1006/IMG_1007 training gain digits are stored from the actual 91/90/18/41/10 bubbles',()=>{
+ const {h}=setup();
+ const samples=[
+  ['9','H4P8f+f+8P8H4H4H4H8P+Pf/f/P3AHAH'],
+  ['1','APA/A/B/P///P/P/A/A/A/A/A/A/A/A/'],
+  ['0','DwH8P+f+ef+P8P8H4H4H4H4H4H8H8OYP'],
+  ['8','H8P+f/ef8P8PcPePP+f+f/+f8H4H4H4H'],
+  ['4','AeA+A+B+B+D+D+HOPOOOeOcOcO////79']
+ ];
+ for(const [digit,encoded] of samples){
+  assert(h.trainingGainColorMasks[digit].includes(encoded),digit);
+  assert.equal(h.classifyTrainingGlyph({mask:h.decodeMask(encoded,12*16),w:12,h:16},h.trainingGainColorMasks,.24),digit);
+ }
 });
 test('IMG_1006/IMG_1007 mental 591 final digit is locked to 1',()=>{
  const {h}=setup();
@@ -164,6 +215,10 @@ test('fatal import errors never render duplicated Japanese punctuation',async()=
  await get('readPhotos').onclick();
  assert.doesNotMatch(get('photoStatus').textContent,/。。/);
  assert.match(get('photoStatus').textContent,/経験点を確認してください。手入力/);
+});
+test('missing planned EXP confirmation uses the requested two-line wording',()=>{
+ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ assert.match(html,/訓練後の付与予定経験点が入力されていませんが、<br><span class="planned-exp-confirm-question">よろしいですか。<\/span>/);
 });
 test('reset/calculation are locked during reading and detailed warnings survive import errors',async()=>{
  const {h,get,c}=setup();let release;const ready=new Promise(r=>release=r);
