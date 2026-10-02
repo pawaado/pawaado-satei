@@ -22,6 +22,7 @@ function setup(){
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubAbilityExact(fn){abilityNameExactByImage=(image,cell,name)=>fn(name);},
+   stubPairMark(value){pairMarkByImage=()=>value;},
    stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
    stubTrainingGains(presentFn,valueFn,colorFn=()=>null,ratioFn=()=>0){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;trainingGainColorNumber=colorFn;trainingBubbleRatio=ratioFn;},
@@ -318,6 +319,17 @@ test('IMG_1088 keeps アクションスキル◎ while 対ドラゴンタート�
  turtle.stubAbilityMask(turtleCircle);
  assert.equal(turtle.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'対ドラゴンタートル○');
  assert.equal(turtle.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
+});
+test('IMG_1088 unique ◎ exact match wins even when pair comparison is ambiguous',async()=>{
+ const {h}=setup();
+ h.stubAbilityChoice('アクションスキル○','');
+ h.stubAbilityExact(name=>name==='アクションスキル◎');
+ // Safari/JPEG差で同名○/◎の2者比較が未確定になる経路を再現する。
+ h.stubOneAbilityCell();
+ h.stubPairMark('');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('アクションスキル◎'));
+ assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
 });
 test('アクションスキル○/◎ exact template sets have no identical masks',()=>{
  const {h}=setup();
