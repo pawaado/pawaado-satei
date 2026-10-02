@@ -25,6 +25,7 @@ function setup(){
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
    stubTrainingGains(presentFn,valueFn){trainingBubblePresent=presentFn;trainingGainNumberByImage=valueFn;},
    stubFastPairCell(name,stem,mark){let calls=0;abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];elementalAttackByImage=()=>'';abilityByImage=()=>name;pairStemByImage=()=>stem;markShapeByImage=()=>mark;collectSpecialReads=async()=>{calls++;return[];};return ()=>calls;},
+   stubAbilityChoice(normalName,elementalName){abilityCells=()=>[{rect:[0,0,136,34],row:1,col:1,superCell:false}];abilityByImage=()=>normalName;elementalAttackByImage=()=>elementalName;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
@@ -120,6 +121,34 @@ test('IMG_1012 long 対ドラゴンタートル○ prefers the exact ○ cell te
  const circle='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABnP4gAAf5tAG4/jgPx/n+AbAAGAHH8QYBmP4BgYfxzAMYBgODhfjMM=';
  h.stubAbilityMask(circle);
  assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, '対ドラゴンタートル'),'○');
+});
+test('IMG_1020 exact masks recognize 火耐性・バランス感覚・風回復・水回復',()=>{
+ const {h}=setup();
+ const cases=[
+  ['火耐性','AAAAAAAAAAAAABh+zMAAAAAA237f8AAAAADbP9/wAAAAANo+38AAAAAAHD/d8AACAAA8P83gAAIAAOc+zMAAAgAAwz/P8AACAAAAAAAAAAI='],
+  ['バランス感覚','AAAAAAAAAAABwAAAAH+aQBuP44D8f5/gGwABgBx/GGAZj+AYGH8fwDGAYDg4X47DMYDg8HwNj8MxwcPg7nePw2DDg4HGX53hAAAAAAAAAAE='],
+  ['風回復','AAAAAAAAAAAAAP4/zfAAAAAA/j/P8AAAAAD+L8/wAAAAAP4rz/AAAAAA/ivd8AACAAD/L8/wAAIAAP8/z+AAAgAAvz/P8AACAAAAAAAAAAI='],
+  ['水回復','AAAAAAAAAAAAAAw/x/AAAAAAbT/PgAAAAAD/P0/wAAAAAD49T/AAAAAAfj1N8AADAABvP0/wAAMAAN+/xfAAAwAAGD/F8AABAAAAAAAAAAE=']
+ ];
+ for(const [name,encoded] of cases){
+   h.stubAbilityMask(encoded);
+   assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
+ }
+});
+test('general ability match outranks elemental-attack shortcut',async()=>{
+ const {h}=setup();
+ h.stubAbilityChoice('火耐性','火攻撃');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('火耐性'));
+ assert(!r.specials.includes('〜攻撃'));
+});
+test('IMG_1020 アクションスキル○ exact template wins ○/◎ pair comparison',()=>{
+ const {h}=setup();
+ const circle='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
+ h.stubAbilityMask(circle);
+ assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'○');
+ const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+ assert.match(photo,/if\(ex-sx<=12\)return '';/);
 });
 test('high-confidence circle/double-circle image matches skip redundant OCR',async()=>{
  const {h}=setup();
