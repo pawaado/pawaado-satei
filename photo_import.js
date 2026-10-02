@@ -14,22 +14,17 @@
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上の左アイコン=ジョブ、右アイコン=属性。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
-  const DATA_JOB_REFERENCES=[
-    ['重戦士','profile-job-heavy'],
-    ['剣士','profile-job-swordsman'],
-    ['弓使い','profile-job-archer'],
-    ['魔法使い','profile-job-mage'],
-    ['僧侶','profile-job-priest'],
-    ['魔闘士','profile-job-spellblade'],
-    ['双剣士','profile-job-dual']
-  ];
-  const ATTRIBUTE_REFERENCES=[
-    ['火属性','profile-attribute-fire'],
-    ['風属性','profile-attribute-wind'],
-    ['水属性','profile-attribute-water']
-  ];
   const DATA_JOB_ICON_RECT=[600,181,38,38];
   const ATTRIBUTE_ICON_RECT=[643,181,38,38];
+  const DATA_JOB_GRAY_TEMPLATES={
+    '重戦士':'9fX19OChYjwwPWKf4PX19PX18blUQmaFj4VoQ1S38PT18aE8cKObkI+PnaJvOaPy9Lw9gp6NlZudnJWLnII+tudbap5+l5yXlpidl4KeaEe3P559dbXYjr2Q27V3fJ4ze1ibcnTb1M3vzNfYcXOcYVV1jnN76cj8/vfQ4XB0i35Jfo1ydODP3/Xb0dtwc4WHX22Sbmqu0X/bf9Wpam6Od41NoGtpbHV75nV4aGlrnVHLQZWAY2JefuV3X2JkfZMt73pNn3FcXGCIXlxcb6FOa/bYUF2gfl9WUVZdeqFgT8v19MtZS4ydlImSnYtMTLfg9fX13HkxPV5oXj4ubs3p4g==',
+    '剣士':'9fX19N+hYj0wPGKf4PX19PX18blUQmeGkIVoQ1S38PX18aE9caWbj4+PnaJvOaTy9Lw8g6CPlZudl5SJnII+tedbaJ+Bmp2dl77nq4GcaEi1P559epCUkKbz/K14e54ze1mccnR5foXf/eZ9c3ObYVZ2j3N0cnC71OyybHVzi39Ifo1ya3SJr3zVfnFyc4aIYGySb2iaucKcrWZvb2+PeI9Mn2tpXq7wun1lampqnlLKQJSAYnbdnX6TXWRjepQu8HtPoHBytWNZV1lccaJOa/XZT12hfV5VV1hde6JgT8r19MtYSYydk4iTnYtLTLff9fX13HkyPV5pXT4ubs3p4Q==',
+    '弓使い':'9fX19OChYj0wPWGf4PX19PX18bpTQmaGkIVmQ1S38PX18aJBcaKcj4yPnKJvOaTy9Lw9g6CNlpaZmZeNnYI+tudcap6BmpShvpycm4KdaUe3P6B9eomTiqXLkZB7fKAyelmccWt7eX570pxvc3ObYFV2jmuUe25ycMuNiHdujH9Ifo131aaLi43attelaISHYG2TZHJzZWtlyIhqa22Od45NnmtmbHBmatKMZWprnVLKP5N/ZGBobJ+ZX2RkfJMt73tNoXJcWXOVWVxdcKJPavXZT12hfV5VV1dee6FfT8r19MtZSoydk4mRnItLTbff9fX13XkyPF9pXj0ubc3p4g==',
+    '魔法使い':'9fX19eCiYj0wPWKf3/X19fX18bpUQmaGkIVnQlO38PX18aI8cqObjoaMnqJuOaLy9Lw9gqCNlKKwnouMm4I9tudba5+AmKPWpMHEnIKbZ0e4Pp59e4yvyL78/cR2e54zfFmdc3V3j9TM/f2+bXSZYVV1j3R1dW+26/PEfXJ0i39Ifo5zc3NumPTObG9zc4WHYG2Tb29va8/cemdwb26Od45NoGxqZYrsjWRqamlqnlHLP5SAY1/It2BjY2Rje5Mu8HtPoHBtw2pcXVxccKBOavXZUF+gfGNUVlhefKJeT8r19MtYSoudk4mSnYxKTLfg9fX13HoxPV5oXj8ubs3p4g==',
+    '僧侶':'9fX19OCiYz0wPWGf4PX19fX18bpVQmWFkIVnQlS38PX18KI/cKOei4eOnaNvOaTx9Lw9g5+OlaPDlJWOnII+tudbaZ+Ampus4qisk32baEm3Pp58epCUjsjKuayWdKA0e1ibc3R5f3it1cLXnWycYVZ1j3R1dHNxwZ5pcGxzjH9Jf41yc3Nunb5ucnNzc4WHYG2Sbm9vb8V7bW9vb2+Odo5Nn2xqZZibY2tqampqnlHLQJR/YmmpYWNkY2Nje5Iu8HxOoW9yb1tcXFxccKFOavXZUV6geFtWVldde6JgT8v19MpXSoydk4mSnotMTbff9fb13HoxPF5oXT8ubs7p4Q==',
+    '魔闘士':'9fX19OChYz4wPWKh4fX19PX18btVQmaGj4VnQ1S38PX18aNAcKKckI6PnKNwOaPx9Lw9g6CPlZmdm5SLm4I9t+daaqCAm5eflp65qHecaEi2P6B9eouZ0qLf2IhrfZ8yfFmdc22Qztfb+tancHOcYlZ1j2+J0bqQs9X6wm90i39Jfo5rur6tnqO20HNvc4aHYWyTaMGrisePmtWrbG6Od45Nn2imyrqHscLVgGJqnlHLQJV+bcPJr8PPgV9jfJQw73tOoG9ij6GZblpccKFOa/XZUF2gflpQUFZee6BgT8r19MtYSouclImSnoxLTbjf9fb13XkyPF5oXz8ubs3p4g==',
+    '双剣士':'9fX19eWra0U5Q2mm4/X19fX18sFdQWGCkYNkRFi58PT18q9BaaSxuMC7tadxO6Px9MdDf6mjzufs6NKoqIk/tOpkaK6dh5mn0amWh6Kvcke/QauftZGYjX6IlZO2o685hFuzj7CJhFyGaHmFspCtb153qYiLl2SHQYFrko2GnpBUepyKelBfTGo5YlF3iZSNZmGWinBnlWVcZZBvbYmVcpNIm39mpHBSZ1Bup216mlXNQYx8aWpvfYN+cGhvcZAv8H5NmnWAjY2MjY2AcppUYvXaUlymn5OUlpWTm6hnSMP19MxXT5eurqmrsJpTR7Lf9fX13HkxR2t6bEkuZMfo4Q=='
+  };
 
   // OCRだけに依存しないハイブリッド認識。
   // 提供済みの実ゲーム画像から、誤読しやすい文字列・数字を「黒画素の形」として登録している。
@@ -933,20 +928,50 @@
   async function matchesTemplate(image,name,rect){
     return (await templateError(image,name,rect))<900;
   }
-  async function bestProfileReference(image,references,rect,{maxError,ratio}){
-    const scores=await Promise.all(references.map(async ([name,file])=>({name,error:await templateError(image,file,rect)})));
-    scores.sort((a,b)=>a.error-b.error);
-    const best=scores[0],second=scores[1];
-    if(!best||best.error>=maxError)return '';
-    if(second&&second.error<=best.error*ratio)return '';
-    return best.name;
+  const dataJobTemplateCache=Object.fromEntries(Object.entries(DATA_JOB_GRAY_TEMPLATES).map(([name,b64])=>{
+    const raw=atob(b64),bytes=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+    return [name,bytes];
+  }));
+  function grayIconVector(image,rect){
+    const crop=canonicalCrop(image,rect),c=document.createElement('canvas');
+    c.width=16;c.height=16;
+    const ctx=c.getContext('2d');
+    ctx.drawImage(crop,0,0,16,16);
+    const d=ctx.getImageData(0,0,16,16).data,out=new Uint8Array(256);
+    for(let p=0,i=0;p<256;p++,i+=4)out[p]=Math.round(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
+    return out;
+  }
+  function byteMse(a,b){
+    if(!a||!b||a.length!==b.length)return Infinity;
+    let sum=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d;}
+    return sum/a.length;
+  }
+  function dataJobByIcon(image){
+    const sample=grayIconVector(image,DATA_JOB_ICON_RECT);
+    const ranked=Object.entries(dataJobTemplateCache)
+      .map(([job,ref])=>({job,error:byteMse(sample,ref)}))
+      .sort((a,b)=>a.error-b.error);
+    const best=ranked[0],second=ranked[1];
+    return best&&best.error<700&&(!second||(second.error-best.error)>80&&second.error>best.error*1.25)?best.job:'';
+  }
+  function attributeByIcon(image){
+    const c=canonicalCrop(image,ATTRIBUTE_ICON_RECT),ctx=c.getContext('2d'),d=ctx.getImageData(0,0,c.width,c.height).data;
+    const cx=(c.width-1)/2,cy=(c.height-1)/2,radius=Math.min(c.width,c.height)*.34;
+    const counts={火属性:0,風属性:0,水属性:0};
+    for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
+      if(Math.hypot(x-cx,y-cy)>radius)continue;
+      const i=(y*c.width+x)*4,r=d[i],g=d[i+1],b=d[i+2];
+      if(r>g+25&&r>b+25)counts.火属性++;
+      else if(g>r+20&&g>b+15)counts.風属性++;
+      else if(b>r+20&&b>g+10)counts.水属性++;
+    }
+    const ranked=Object.entries(counts).map(([attribute,count])=>({attribute,count})).sort((a,b)=>b.count-a.count);
+    const best=ranked[0],second=ranked[1];
+    return best&&best.count>=80&&(!second||best.count>second.count*2)?best.attribute:'';
   }
   async function profileIdentityOf(image){
-    const [job,attribute]=await Promise.all([
-      bestProfileReference(image,DATA_JOB_REFERENCES,DATA_JOB_ICON_RECT,{maxError:1500,ratio:1.25}),
-      bestProfileReference(image,ATTRIBUTE_REFERENCES,ATTRIBUTE_ICON_RECT,{maxError:2500,ratio:1.6})
-    ]);
-    return {job,attribute};
+    return {job:dataJobByIcon(image),attribute:attributeByIcon(image)};
   }
   let refs;
   async function academyOf(image){
@@ -1912,5 +1937,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,attributeByIcon,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
 })();
