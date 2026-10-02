@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1020-1';
+  const PHOTO_IMPORT_BUILD='20261003-img1017-exp-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -366,10 +366,14 @@
   // IMG_1006/1007から得た「1桁ずつ」の追加サンプル。91/90/18/41/10を丸ごと記憶しない。
   // 9・1・0・8・4などを各桁として判定し、左から連結して任意の増加経験点を読む。
   const TRAINING_GAIN_EXTRA_DIGIT_MASKS={
-    '9':['H4P8f+f+8P8H4H4H4H8P+Pf/f/P3AHAH','DwH8P+f/eP8H8H8H8H8HePf/f/P/DzAD','DwP4f8f++f8P8H4H4H8H8P//f/P/HHAH'],
-    '1':['APA/A/B/P///P/P/A/A/A/A/A/A/A/A/','AOA/B/H/P///P/A/A/A/A/A/APAPAPAO','A+A/B/H///////I/A/A/A/A/A/A/A/A+','A/A/B/P///P/P/A/A/A/A/A/A/A+AOAG','A/A/A/B/H/P///P/A/A/A/A/A/A/A/A/'],
+    '9':['H4P8f+f+8P8H4H4H4H8P+Pf/f/P3AHAH','DwH8P+f/eP8H8H8H8H8HePf/f/P/DzAD','DwP4f8f++f8P8H4H4H8H8P//f/P/HHAH','DQH4f+b++f8P4H4H8H+Pf/P/BHAHADAC'],
+    '1':['APA/A/B/P///P/P/A/A/A/A/A/A/A/A/','AOA/B/H/P///P/A/A/A/A/A/APAPAPAO','A+A/B/H///////I/A/A/A/A/A/A/A/A+','A/A/B/P///P/P/A/A/A/A/A/A/A+AOAG','A/A/A/B/H/P///P/A/A/A/A/A/A/A/A/','AeA/D/P///////A/A/A/A/A/A+AeAeAe'],
     '0':['DwH8P+f+ef+P8P8H4H4H4H4H4H8H8OYP','BwD4H8P+P+ePePcHcH8H8H8HcHcHeHcH'],
-    '8':['H8P+f/ef8P8PcPePP+f+f/+f8H4H4H4H'],
+    '2':['DwP4f8f+++8PYPIPAeAeA+D8H4PwfAeA'],
+    '5':['/8/+/+/+8A8A8A/4/+//8PAPAHADAHAG'],
+    // IMG_1017 精神：黄+285の8と青+198の8。旧テンプレートでは黄8が6と僅差になり、
+    // フォールバック側で285→265となって最終692→672になるため、1桁8として追加する。
+    '8':['H8P+f/ef8P8PcPePP+f+f/+f8H4H4H4H','B4H+P/P/eHeHeHPPP/H+P/eHcD8D8D4D','AQH8P+P+ePcHcPOfP+P+P++P8H8H4DcD'],
     '4':['AeA+A+B+B+D+D+HOPOOOeOcOcO////79']
   };
   for(const [digit,variants] of Object.entries(TRAINING_GAIN_EXTRA_DIGIT_MASKS)){
@@ -1402,7 +1406,7 @@
     }
     return {specials:[],supers:[],unknown:[clean],candidate:false};
   }
-  function markShapeByImage(image,cell){
+  function markShapeByImage(image,cell,stem=''){
     // ○/◎は能力名と切り離し、末尾の丸そのものの形だけを見る。
     // ○は外周1本、◎は内外2本なので、外周の少し内側（半径約6px）の黒さで分離する。
     const [x,y,w,h]=cell.rect;
@@ -1430,8 +1434,10 @@
     if(!runs.length)return '';
     const [sx,ex]=runs[runs.length-1];
     // 長い能力名では末尾記号が横方向に圧縮され、通常の円半径判定は○を◎にしやすい。
-    // 幅11px以下は形状だけで決めず、同名○/◎のセル全体テンプレート比較へ回す。
-    if(ex-sx<=12)return '';
+    // 従来どおり11px以下はテンプレート比較へ回す。IMG_1020のアクションスキル○だけは
+    // 実測12pxだったため、この能力に限って12pxも形状判定を使わない。
+    const markWidth=ex-sx;
+    if(markWidth<=11||(stem==='アクションスキル'&&markWidth<=12))return '';
     let minY=c.height,maxY=-1;
     for(let yy=5;yy<Math.min(31,c.height);yy++)for(let xx=sx;xx<ex;xx++){
       if(dark[yy*c.width+xx]){minY=Math.min(minY,yy);maxY=Math.max(maxY,yy);}
@@ -1465,7 +1471,7 @@
     return sawCircle?'○':'';
   }
   async function abilityMarkHint(image,cell,rawTexts=[],stem=''){
-    const shape=markShapeByImage(image,cell);
+    const shape=markShapeByImage(image,cell,stem);
     if(shape)return shape;
     const ocr=await ocrMarkHint(image,cell,rawTexts);
     if(ocr)return ocr;
@@ -1530,7 +1536,7 @@
           // 全体テンプレート、能力名本体、末尾記号の3系統が一致したセルは
           // 追加OCRを回さず確定する。高信頼セルごとの4回OCRを省き、読み取り時間を短縮する。
           const imageStem=pairStemByImage(image,cell);
-          const shapeMark=markShapeByImage(image,cell);
+          const shapeMark=markShapeByImage(image,cell,originalStem);
           const fastName=imageStem===originalStem&&shapeMark&&D.special.some(s=>normalize(s[1])===originalStem+shapeMark)
             ? originalStem+shapeMark : '';
           if(fastName){
@@ -1581,7 +1587,7 @@
         const preliminary=reads.map(t=>cellAbility(t,'',cell.superCell));
         const hybrid=hybridPairStem(image,cell,reads);
         const stem=hybrid.stem;
-        const shapeMark=stem?markShapeByImage(image,cell):'';
+        const shapeMark=stem?markShapeByImage(image,cell,stem):'';
         const visualMark=stem?pairMarkByImage(image,cell,stem):'';
         // ○/◎は文字OCRでは決めず、末尾記号そのものの形か○/◎専用画像比較だけで決める。
         markHint=shapeMark||visualMark;
@@ -1620,7 +1626,7 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            const shape=markShapeByImage(image,cell)||pairMarkByImage(image,cell,stem);
+            const shape=markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
