@@ -37,6 +37,9 @@ for(const selector of ['.extra-resistance-list{','.super-controls{','.extra-resi
 assert(sources['photo_import.js'].includes('DATA_JOB_GRAY_TEMPLATES'),'photo_import.js: ability-data job icon templates missing');
 assert(sources['photo_import.js'].includes('function attributeByIcon('),'photo_import.js: ability-data attribute icon recognition missing');
 assert(sources['photo_import.js'].includes("else out.job=abilityUpIdentity.job||dataIdentity.job||''"),'photo_import.js: ability-up job must have priority over ability-data icon');
+assert(sources['photo_import.js'].includes("if(jobResult.job)abilityUpIdentity.job=jobResult.job;"),'photo_import.js: the single ability-up job should be assigned directly, not conflict-merged');
+assert(sources['script.js'].includes("function hasAcademyJob(){return !!academy.value && !!job.value;}"),'script.js: attribute must remain optional for calculation');
+assert(!sources['script.js'].includes("!!attribute.value"),'script.js: attribute must not become a required calculation condition');
 assert(sources['photo_import.js'].includes('const hasCharacterScreens=hasData&&(hasAbilityUp||hasTraining)'),'photo_import.js: ability data plus training must be accepted without ability-up');
 assert(sources['script.js'].includes("s==='〜攻撃'"),'script.js: generic elemental attack display mapping missing');
 assert(sources['script.js'].includes("selected.slice(0,-2)+'攻撃'"),'script.js: selected attribute must drive elemental attack display');
