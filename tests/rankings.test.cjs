@@ -37,6 +37,11 @@ test('resistance-impact markers are derived from canonical data rules',()=>{
 test('HP note is derived from master data and missing data reports an error',()=>{
  const {c,elements}=load();assert.equal(c.audit.referenceHp,1925);assert(elements.referenceHpNote.textContent.includes('HP1925'));assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
 });
+test('ranking notes use the generic elemental attack explanation and omit the hint-level note',()=>{
+ const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ assert(html.includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'));
+ assert(!html.includes('コツLv0で比較しています'));
+});
 test('all numbers and ordering are unchanged by the display consolidation',{skip:!process.env.RANKINGS_BEFORE},()=>{
  const before=load(fs.readFileSync(process.env.RANKINGS_BEFORE,'utf8')).c.audit,after=load().c.audit;
  for(const group of Object.keys(after.groupDefs))assert.equal(JSON.stringify(after.allItems(group)),JSON.stringify(before.allItems(group)));
