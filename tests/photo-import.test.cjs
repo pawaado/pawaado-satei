@@ -90,6 +90,12 @@ test('IMG_1009 physical defense circle cell is accepted by image comparison',()=
  h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI=');
  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'物理防御○');
 });
+test('all ability image masks are valid base64',()=>{
+ const {h}=setup();
+ for(const [name,raw] of Object.entries(h.abilityMasks)){
+  for(const encoded of (Array.isArray(raw)?raw:[raw])) assert.doesNotThrow(()=>atob(encoded),name);
+ }
+});
 test('all special abilities are already covered by the shared image-template database',()=>{
  const {h,c}=setup();
  const missing=[];
