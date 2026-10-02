@@ -1185,6 +1185,23 @@ function applyRecognizedPhotoAbilities(data,{replace=false}={}){
   return {owned:[...owned],confirmedSupers,resistanceSupers};
 }
 
+window.__PAWAADO_IMPORT_IDENTITY_ONLY__=data=>{
+  if(isCalculating)throw new Error('計算が終わってから読み込んでください。');
+  const academyName=String(data?.academy||'');
+  const jobName=String(data?.job||'');
+  if(jobsByAcademy[academyName]){
+    academy.value=academyName;
+    academy.dispatchEvent(new Event('change',{bubbles:true}));
+    if(jobsByAcademy[academyName].includes(jobName)){
+      job.value=jobName;
+      job.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+  }
+  calcResultCache.clear();
+  validateAllInline();
+  document.dispatchEvent(new Event('change',{bubbles:true}));
+};
+
 window.__PAWAADO_IMPORT_ABILITIES_ONLY__=data=>{
   if(isCalculating)throw new Error('計算が終わってから読み込んでください。');
   applyRecognizedPhotoAbilities(data,{replace:false});
