@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261002-img1009-2';
+  const PHOTO_IMPORT_BUILD='20261002-digit-compose-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -283,36 +283,6 @@
     '9':['D4D4P++O8H4D4D8H+PP7ADADAH8OP+H4','DwDwH8OO8G8H8H8HPfH/ADAHAGMOP8D4','D4D4P+MGMH8D8DMDOPH/BzBzADAHOOH8']
   };
 
-// IMG_1009実画像。特殊能力名・耐性に影響する超特殊能力を、OCRだけに依存せず確定する。
-const IMG_1009_ABILITY_MASKS={
-  '物理攻撃○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgHwIO4bAAA/z/f8/zGAAD/N8/3ve4AAO8/xbe4QQAAfz/F57yBAI=',
-  '物理防御○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgH3sKAOAAA/3/f9/z8AAD/N9/33c4AAO8/3ff9hgAAfz/f9t2CAI=',
-  '不滅':'AAAAAAAAAAQAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/kMAAAAAAAH+f4AAAAAAADAfgAAAAAAAeF+AAAAAAAH+H4AAAA=',
-  '体幹':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAyDMAAAAAAADcf4AAAAAAAf5/gAAAAAABnH+AAAAAAAG+f4AAAE=',
-  '魔力制御':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4IPGU4AAAB/n8+7/gAAAH+f7zrqAAAAf4Zvu/oAAAB/hm+7ugAI=',
-  '鉄壁の盾':'AAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcx/AA/wAAAD/n+Pz/AAAAH+d5/P8AAAAfz/u2/wAAAB/n+2b/AAI=',
-  'そよかぜの加護':'AAAAAAAAAAYAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGYMCBmADA/gZg8ZmY+P4eA8Dz+/39/v4P8MPr/az+9A/zwSmZZP7eI=',
-  'タフネス':'AAAAAAAAAAYAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAwAAAAAAf3+Pw/AAAAD+AY/AYAAAAPYDg8BgAAAAPgMHQOAAE=',
-  '闘争本能':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4+AgdwAAAB/n8f7/AAAAH+fx/v+AAAAe4Nj494AAABnv+ez3AAI=',
-  'アクションスキル○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADDABAAIEAA/POAGDw4wAAN8geIDPnAACmzIIEMIcAAOTFngxg92AI=',
-  '列攻撃○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfoGHcPgAAAB+n+fZ/AAAAH6P5/mMAAAAfovn+QYAAAB+jef5BgAI=',
-  'ケガしにくさ○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABALmBgBgYPAPwgYH8OP5+A/PxAcBw/sYGYbEBgMAMwgZhkRlgwPzCM=',
-  '加護':'AAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjm+AAAAAAAH+/wAAAAAAAf7/gAAAAAAAvn8AAAAAAAG+b4AAAI=',
-  '危機察知':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPx/P+5wAAAB3P+873AAAAH+f7/OUAAAAaB/Hc9QAAAB/P+f71AAI=',
-  '意志':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/n+AAAAAAAH+f4AAAAAAAf5/AAAAAAAB/n8AAAAAAAGGfQAAAI=',
-  'ガッツ':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGwABAAAAAAB/Bo2wAAAAAP8ezbAAAAAAMx+F4AAAAAAzGYBgAAM=',
-  '対重戦士○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGMfj3BAeAAA8z/PcED+AAD/P8/3/MYAAPM/j/f9hgAA7z+PcEGCAI=',
-  '対弓使い○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGM/z/AATAAA8x/P8zCGAAD/P9/zOU4AAOM/n/IZAAAA7z/P8hmEAI=',
-  '対魔法使い○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADGf5mH+AAiAeZ/n+f5iEMB/3+Zx/mM5QHmf5/n+YwAgf5/h+f5hgCI=',
-  '対ゴブリン○':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCAcBzGAAiAfM/n+MZwGEB/wGAYxjgIoDjAYDDMAYAAO4BgMMwHiCM='
-};
-for(const [name,encoded] of Object.entries(IMG_1009_ABILITY_MASKS)){
-  const current=HYBRID_ABILITY_MASKS[name];
-  if(!current)HYBRID_ABILITY_MASKS[name]=[encoded];
-  else if(Array.isArray(current)){if(!current.includes(encoded))current.push(encoded);}
-  else if(current!==encoded)HYBRID_ABILITY_MASKS[name]=[current,encoded];
-}
-
   // 訓練画面の増加経験点専用。実ゲーム画像の大きい数字から作ったテンプレート.
   const TRAINING_DIGIT_MASKS={
     '0':['D4AAIGQAQhhRhQhQiQgQhRhRQBYDIGH4','D4AAL+aKRhxRhQjQjQjQxRxRQBYDIGH4'],
@@ -356,15 +326,16 @@ for(const [name,encoded] of Object.entries(IMG_1009_ABILITY_MASKS)){
     '9':['CQH8d8f++f8P8H8H8H+Pf/P/DHADADAC']
   };
 
-  // IMG_1006/1007の訓練でもらえる点数。実画像の色付き数字をそのまま追加する。
-  const TRAINING_GAIN_IMG_1006_1007_MASKS={
+  // IMG_1006/1007から得た「1桁ずつ」の追加サンプル。91/90/18/41/10を丸ごと記憶しない。
+  // 9・1・0・8・4などを各桁として判定し、左から連結して任意の増加経験点を読む。
+  const TRAINING_GAIN_EXTRA_DIGIT_MASKS={
     '9':['H4P8f+f+8P8H4H4H4H8P+Pf/f/P3AHAH','DwH8P+f/eP8H8H8H8H8HePf/f/P/DzAD','DwP4f8f++f8P8H4H4H8H8P//f/P/HHAH'],
     '1':['APA/A/B/P///P/P/A/A/A/A/A/A/A/A/','AOA/B/H/P///P/A/A/A/A/A/APAPAPAO','A+A/B/H///////I/A/A/A/A/A/A/A/A+','A/A/B/P///P/P/A/A/A/A/A/A/A+AOAG','A/A/A/B/H/P///P/A/A/A/A/A/A/A/A/'],
     '0':['DwH8P+f+ef+P8P8H4H4H4H4H4H8H8OYP','BwD4H8P+P+ePePcHcH8H8H8HcHcHeHcH'],
     '8':['H8P+f/ef8P8PcPePP+f+f/+f8H4H4H4H'],
     '4':['AeA+A+B+B+D+D+HOPOOOeOcOcO////79']
   };
-  for(const [digit,variants] of Object.entries(TRAINING_GAIN_IMG_1006_1007_MASKS)){
+  for(const [digit,variants] of Object.entries(TRAINING_GAIN_EXTRA_DIGIT_MASKS)){
     const target=TRAINING_GAIN_COLOR_MASKS[digit]||(TRAINING_GAIN_COLOR_MASKS[digit]=[]);
     for(const variant of variants)if(!target.includes(variant))target.push(variant);
   }
@@ -1785,11 +1756,15 @@ for(const [name,encoded] of Object.entries(IMG_1009_ABILITY_MASKS)){
     }
     return out.sort((a,b)=>a.x-b.x);
   }
+  function digitSequenceToNumber(digits,maxDigits=3){
+    if(!Array.isArray(digits)||digits.length<1||digits.length>maxDigits||!digits.every(d=>/^[0-9]$/.test(String(d))))return null;
+    return Number(digits.join(''));
+  }
   function trainingGainColorNumber(image,rowY,kind){
     const pieces=trainingGainColorComponents(image,rowY,kind);
     if(pieces.length<1||pieces.length>3)return null;
     const digits=pieces.map(piece=>classifyTrainingGlyph(piece,TRAINING_GAIN_COLOR_MASKS,.24));
-    return digits.every(Boolean)?Number(digits.join('')):null;
+    return digitSequenceToNumber(digits,3);
   }
 
   function trainingGainNumberByImage(image,rowY,kind){
@@ -1803,7 +1778,8 @@ for(const [name,encoded] of Object.entries(IMG_1009_ABILITY_MASKS)){
           .sort((a,b)=>a.x-b.x);
         if(pieces.length<1||pieces.length>3)continue;
         const digits=pieces.map(piece=>classifyTrainingGlyph(piece,TRAINING_DIGIT_MASKS,.22));
-        if(digits.every(Boolean))return Number(digits.join(''));
+        const value=digitSequenceToNumber(digits,3);
+        if(value!=null)return value;
       }
       return null;
     }
@@ -1831,7 +1807,8 @@ for(const [name,encoded] of Object.entries(IMG_1009_ABILITY_MASKS)){
         prevEnd=piece.x+piece.w;
         if(digits.length===3)break;
       }
-      if(digits.length)return Number(digits.join(''));
+      const value=digitSequenceToNumber(digits,3);
+      if(value!=null)return value;
     }
     return null;
   }
@@ -2105,5 +2082,5 @@ for(const [name,encoded] of Object.entries(IMG_1009_ABILITY_MASKS)){
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,cellAbility,findSpecials,readImages,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber};
 })();
