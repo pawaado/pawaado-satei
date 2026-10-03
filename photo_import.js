@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-img1090-1092-action-pair-1';
+  const PHOTO_IMPORT_BUILD='20261003-native-pair-mark-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1620,54 +1620,104 @@
     }
     return {specials:[],supers:[],unknown:[clean],candidate:false};
   }
-  function markShapeByImage(image,cell,stem=''){
-    // ○/◎は能力名と切り離し、末尾の丸そのものの形だけを見る。
-    // ○は外周1本、◎は内外2本なので、外周の少し内側（半径約6px）の黒さで分離する。
-    const [x,y,w,h]=cell.rect;
-    const c=canonicalCrop(image,[x+45,y,Math.max(40,w-51),h]);
-    const ctx=c.getContext('2d'),data=ctx.getImageData(0,0,c.width,c.height).data;
-    const dark=new Uint8Array(c.width*c.height);
-    for(let yy=0;yy<c.height;yy++)for(let xx=0;xx<c.width;xx++){
-      const i=(yy*c.width+xx)*4;
-      const lum=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
-      if(lum<160)dark[yy*c.width+xx]=1;
-    }
-    const proj=new Uint16Array(c.width);
-    for(let xx=0;xx<c.width;xx++)for(let yy=7;yy<Math.min(29,c.height);yy++)proj[xx]+=dark[yy*c.width+xx];
-    const runs=[];let start=-1;
-    for(let xx=0;xx<=c.width;xx++){
-      const on=xx<c.width&&proj[xx]>=2;
-      if(on&&start<0){start=xx;continue;}
-      if(!on&&start>=0){
-        const end=xx,width=end-start;
-        // 右端のセル枠を除外し、末尾の○/◎らしい幅だけ残す。
-        if(width>=8&&width<=20&&end<c.width-4)runs.push([start,end]);
+  function sourcePixelCrop(image,rect){
+    const r=sourceRect(image,rect),c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(r[2]));c.height=Math.max(1,Math.round(r[3]));
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(image,...r,0,0,c.width,c.height);
+    return c;
+  }
+  function darkRunCount(data,width,y,x0,x1,threshold,minRunPixels=1){
+    let runs=0,start=-1;
+    for(let x=x0;x<=x1;x++){
+      const dark=x<x1&&data[(y*width+x)*4]*.299+data[(y*width+x)*4+1]*.587+data[(y*width+x)*4+2]*.114<threshold;
+      if(dark&&start<0){start=x;continue;}
+      if(!dark&&start>=0){
+        if(x-start>=minRunPixels)runs++;
         start=-1;
       }
     }
-    if(!runs.length)return '';
-    const [sx,ex]=runs[runs.length-1];
-    // 長い能力名では末尾記号が横方向に圧縮され、通常の円半径判定は○を◎にしやすい。
-    // 従来どおり11px以下はテンプレート比較へ回す。IMG_1020のアクションスキル○だけは
-    // 実測12pxだったため、この能力に限って12pxも形状判定を使わない。
-    const markWidth=ex-sx;
-    if(markWidth<=11||(stem==='アクションスキル'&&markWidth<=12))return '';
-    let minY=c.height,maxY=-1;
-    for(let yy=5;yy<Math.min(31,c.height);yy++)for(let xx=sx;xx<ex;xx++){
-      if(dark[yy*c.width+xx]){minY=Math.min(minY,yy);maxY=Math.max(maxY,yy);}
-    }
-    if(maxY<minY)return '';
-    const cx=(sx+ex-1)/2,cy=(minY+maxY)/2;
-    let ink=0,total=0;
-    for(let yy=0;yy<c.height;yy++)for(let xx=0;xx<c.width;xx++){
-      const r=Math.hypot(xx-cx,yy-cy);
-      if(r>=5.3&&r<=6.7){ink+=dark[yy*c.width+xx];total++;}
-    }
-    if(total<20)return '';
-    const ratio=ink/total;
-    if(ratio<=.50)return '◎';
-    if(ratio>=.70)return '○';
+    return runs;
+  }
+  function classifyMarkCrossingScore(scores){
+    const values=(scores||[]).filter(Number.isFinite).sort((a,b)=>a-b);
+    if(!values.length)return '';
+    const mid=Math.floor(values.length/2);
+    const median=values.length%2?values[mid]:(values[mid-1]+values[mid])/2;
+    // ○は中心付近の横線で外周を2回、◎は内外輪を3〜4回以上横切る。
+    // 2.25〜2.75は端末差・JPEG差の曖昧帯として自動確定しない。
+    if(median>=2.75)return '◎';
+    if(median<=2.25)return '○';
     return '';
+  }
+  function nativeMarkRun(cellCanvas,referenceWidth,threshold){
+    const ctx=cellCanvas.getContext('2d',{willReadFrequently:true});
+    const data=ctx.getImageData(0,0,cellCanvas.width,cellCanvas.height).data;
+    const w=cellCanvas.width,h=cellCanvas.height;
+    const scaleX=w/Math.max(1,referenceWidth);
+    const y0=Math.max(0,Math.round(h*.32)),y1=Math.min(h,Math.round(h*.90));
+    const x0=Math.max(0,Math.round(w*.25)),x1=Math.min(w,Math.round(w*.94));
+    const minInk=Math.max(1,Math.round((y1-y0)*.08));
+    const projection=new Uint16Array(w);
+    for(let x=x0;x<x1;x++){
+      let dark=0;
+      for(let y=y0;y<y1;y++){
+        const i=(y*w+x)*4,lum=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+        if(lum<threshold)dark++;
+      }
+      projection[x]=dark;
+    }
+    const runs=[];let start=-1;
+    for(let x=x0;x<=x1;x++){
+      const on=x<x1&&projection[x]>=minInk;
+      if(on&&start<0){start=x;continue;}
+      if(!on&&start>=0){
+        const end=x,refWidth=(end-start)/Math.max(.01,scaleX);
+        const rightPadding=w-end;
+        if(refWidth>=6&&refWidth<=24&&rightPadding>=Math.max(3,Math.round(4*scaleX)))runs.push([start,end]);
+        start=-1;
+      }
+    }
+    return runs[runs.length-1]||null;
+  }
+  function markShapeByImage(image,cell,stem=''){
+    if(!stem||cell.superCell)return '';
+    // セル全体を基準サイズへ縮小してから判定すると、長い能力名の末尾○/◎が潰れる。
+    // ここだけは元スクショの画素数を維持して末尾記号を切り出し、4倍へ拡大して形を見る。
+    const cellCanvas=sourcePixelCrop(image,cell.rect);
+    let run=null;
+    for(const threshold of [175,195]){
+      run=nativeMarkRun(cellCanvas,cell.rect[2],threshold);
+      if(run)break;
+    }
+    if(!run)return '';
+
+    const scaleX=cellCanvas.width/Math.max(1,cell.rect[2]);
+    const padX=Math.max(1,Math.round(scaleX));
+    const sx=Math.max(0,run[0]-padX),ex=Math.min(cellCanvas.width,run[1]+padX);
+    const sy=Math.max(0,Math.round(cellCanvas.height*.35)),ey=Math.min(cellCanvas.height,Math.round(cellCanvas.height*.90));
+    if(ex-sx<4||ey-sy<6)return '';
+
+    const zoom=4,mark=document.createElement('canvas');
+    mark.width=(ex-sx)*zoom;mark.height=(ey-sy)*zoom;
+    const mctx=mark.getContext('2d',{willReadFrequently:true});
+    mctx.imageSmoothingEnabled=false;
+    mctx.drawImage(cellCanvas,sx,sy,ex-sx,ey-sy,0,0,mark.width,mark.height);
+    const data=mctx.getImageData(0,0,mark.width,mark.height).data;
+    const means=[];
+    for(const threshold of [170,185,200]){
+      const counts=[];
+      const y0=Math.round(mark.height*.08),y1=Math.round(mark.height*.92);
+      for(let y=y0;y<y1;y++){
+        const runs=darkRunCount(data,mark.width,y,0,mark.width,threshold,Math.max(2,Math.round(zoom*.5)));
+        if(runs>0)counts.push(runs);
+      }
+      if(counts.length>=Math.max(8,Math.round(mark.height*.25))){
+        means.push(counts.reduce((a,b)=>a+b,0)/counts.length);
+      }
+    }
+    return classifyMarkCrossingScore(means);
   }
 
   async function ocrMarkHint(image,cell,rawTexts=[]){
@@ -1687,9 +1737,10 @@
   async function abilityMarkHint(image,cell,rawTexts=[],stem=''){
     const shape=markShapeByImage(image,cell,stem);
     if(shape)return shape;
-    const ocr=await ocrMarkHint(image,cell,rawTexts);
-    if(ocr)return ocr;
-    return stem?pairMarkByImage(image,cell,stem):'';
+    const visual=stem?pairMarkByImage(image,cell,stem):'';
+    if(visual)return visual;
+    // 元画像の形と同名○/◎比較の両方で決められない時だけOCRを補助に使う。
+    return await ocrMarkHint(image,cell,rawTexts);
   }
   async function collectSpecialReads(image,cell){
     const observations=[];
@@ -1742,22 +1793,16 @@
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
       let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
-      // アクションスキルは○/◎が非常に近い。IMG_1088ではSafari側の2者比較が
-      // 曖昧になると、一般照合で先に○へ寄った値がそのまま確定してしまう経路があった。
-      // そこで同名○/◎の「片側だけが実画像テンプレートに完全一致」する場合は、その記号を最優先する。
-      // 両方一致/両方不一致の時だけ従来の同名ペア比較へ回す。ほかの○/◎能力には適用しない。
-      if(/^アクションスキル[○◎]$/.test(normalize(visualName))){
-        const actionCircleExact=abilityNameExactByImage(image,cell,'アクションスキル○');
-        const actionDoubleExact=abilityNameExactByImage(image,cell,'アクションスキル◎');
-        if(actionDoubleExact&&!actionCircleExact){
-          visualName='アクションスキル◎';
-        }else if(actionCircleExact&&!actionDoubleExact){
-          visualName='アクションスキル○';
-        }else{
-          const actionMark=pairMarkByImage(image,cell,'アクションスキル');
-          if(actionMark&&D.special.some(s=>normalize(s[1])==='アクションスキル'+actionMark)){
-            visualName='アクションスキル'+actionMark;
-          }
+      // ○/◎は能力名の全体テンプレートより、元スクショから切り出した末尾記号を優先する。
+      // 高信頼で判定できない場合だけ、同じ能力名の○/◎テンプレート比較へフォールバックする。
+      const visualPair=normalize(visualName).match(/^(.+)([○◎])$/);
+      if(visualPair&&PAIR_STEMS.includes(visualPair[1])){
+        const stem=visualPair[1];
+        const sourceMark=markShapeByImage(image,cell,stem);
+        const fallbackMark=sourceMark?'':pairMarkByImage(image,cell,stem);
+        const resolvedMark=sourceMark||fallbackMark;
+        if(resolvedMark&&D.special.some(s=>normalize(s[1])===stem+resolvedMark)){
+          visualName=stem+resolvedMark;
         }
       }
       let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
@@ -1860,16 +1905,11 @@
         if(pairName){
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
-            let exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
-            // アクションスキルは最終の明示記号でも、◎だけが完全一致している場合は◎を正本にする。
-            // ここで○へ戻ると、applyRecognizedPhotoAbilities() が◎を削除して○だけ取得済みにしてしまう。
-            if(stem==='アクションスキル'){
-              const actionCircleExact=abilityNameExactByImage(image,cell,'アクションスキル○');
-              const actionDoubleExact=abilityNameExactByImage(image,cell,'アクションスキル◎');
-              if(actionDoubleExact&&!actionCircleExact)exactPairMark='◎';
-              else if(actionCircleExact&&!actionDoubleExact)exactPairMark='○';
-            }
-            const shape=exactPairMark||markShapeByImage(image,cell,stem)||pairMarkByImage(image,cell,stem);
+            const sourceMark=markShapeByImage(image,cell,stem);
+            const visualMark=sourceMark?'':pairMarkByImage(image,cell,stem);
+            const exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
+            // 元画像の末尾記号 > 同名○/◎比較 > セル全体テンプレートの順で正本を決める。
+            const shape=sourceMark||visualMark||exactPairMark;
             if(shape)explicitPairMarks.set(stem,shape);
           }
         }
