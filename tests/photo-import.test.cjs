@@ -15,13 +15,14 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,classifyMarkCrossingScore,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubAbilityResults(fn){readAbilityCells=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
    stubAbilityExact(fn){abilityNameExactByImage=(image,cell,name)=>fn(name);},
+   stubMarkShape(value){markShapeByImage=()=>value;},
    stubPairMark(value){pairMarkByImage=()=>value;},
    stubDataHeaderMask(encoded){inkMask=()=>({mask:decodeMask(encoded,96*16),w:96,h:16});},
    stubTrainingCurrent(values){looksLikeTrainingScreen=async()=>true;trainingCurrentNumberByImage=(image,row)=>values[row]??null;trainingNumber=async()=>{throw Error('current EXP OCR fallback must not run');};trainingBubblePresent=()=>false;trainingGainNumberByImage=()=>null;},
@@ -288,14 +289,33 @@ test('general ability match outranks elemental-attack shortcut',async()=>{
  assert(r.specials.includes('火耐性'));
  assert(!r.specials.includes('〜攻撃'));
 });
-test('IMG_1020 user-confirmed アクションスキル◎ exact template wins without globally widening 12px',()=>{
+test('native mark crossing score separates IMG_1090 ○ and IMG_1092 ◎ observations',()=>{
  const {h}=setup();
- const double='AAAAAAAAAAAAQQAAACAgAHz5gBw8OOAADPiHjAR44AAdkyCBDDDgADmxZ4MMPPgCIDDnhxz9+AIgYcCOPhHwAmDBh4wyEWACAAAAAAAAAAI=';
- h.stubAbilityMask(double);
- assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]}, 'アクションスキル'),'◎');
- const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
- assert.match(photo,/markWidth<=11\|\|\(stem==='アクションスキル'&&markWidth<=12\)/);
- assert.doesNotMatch(photo,/if\(ex-sx<=12\)return '';/);
+ assert.equal(h.classifyMarkCrossingScore([1.86,1.86,2.00]),'○');
+ assert.equal(h.classifyMarkCrossingScore([2.93,3.29,3.50]),'◎');
+ assert.equal(h.classifyMarkCrossingScore([2.45,2.55,2.60]),'');
+});
+test('source-resolution mark overrides a wrong full-cell ○/◎ rank generically',async()=>{
+ const {h}=setup();
+ h.stubAbilityChoice('アクションスキル○','');
+ h.stubAbilityExact(name=>name==='アクションスキル◎');
+ h.stubMarkShape('◎');
+ h.stubPairMark('');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('アクションスキル○'));
+ assert(r.specials.includes('アクションスキル◎'));
+ assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
+});
+test('source-resolution ○ can also correct a wrong ◎ rank without action-specific logic',async()=>{
+ const {h}=setup();
+ h.stubAbilityChoice('物理防御◎','');
+ h.stubAbilityExact(name=>name==='物理防御○');
+ h.stubMarkShape('○');
+ h.stubPairMark('');
+ const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('物理防御○'));
+ assert(!r.specials.includes('物理防御◎'));
+ assert.equal(r.explicitPairMarks['物理防御'],'○');
 });
 test('IMG_1080 アクションスキル◎ cannot stay as ○ when the same-name ◎ template confirms it',async()=>{
  const {h}=setup();
