@@ -44,7 +44,9 @@ assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1049
 assert(sources['photo_import.js'].includes('superCell:isSuperAbilityCellByColor(yellow)'),'photo_import.js: long gold super cells must use the relaxed color classifier');
 assert(sources['photo_import.js'].includes('const mark=shapeMark||pairMarkByImage'),'photo_import.js: explicit ○/◎ shape must outrank full-cell mark matching');
 assert(sources['photo_import.js'].includes('markHint=shapeMark||visualMark'),'photo_import.js: fallback ○/◎ shape must outrank full-cell mark matching');
-assert(sources['photo_import.js'].includes('const shape=exactPairMark||markShapeByImage(image,cell,stem)||pairMarkByImage'),'photo_import.js: exact full-cell pair mark must outrank shape/full-cell fallback');
+assert(sources['photo_import.js'].includes('function sourcePixelCrop('),'photo_import.js: source-resolution ○/◎ crop missing');
+assert(sources['photo_import.js'].includes('mark.width=(ex-sx)*zoom'),'photo_import.js: source ○/◎ mark must be enlarged before shape classification');
+assert(sources['photo_import.js'].includes('const shape=sourceMark||visualMark||exactPairMark'),'photo_import.js: source ○/◎ shape must outrank same-name and full-cell fallback');
 assert(sources['photo_import.js'].includes('if(!abilityUpIdentity.job){'),'photo_import.js: data-screen job icon should be skipped after ability-up job is known');
 assert(sources['script.js'].includes("entry.confirmed===true&&(entry.level===1||entry.level===2)"),'script.js: only confirmed super names with confirmed Lv may affect input');
 assert(sources['script.js'].includes('for(const entry of confirmedSupers)'),'script.js: lower prerequisites must come only from confirmed supers');
