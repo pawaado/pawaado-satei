@@ -680,12 +680,13 @@ img,svg,canvas{max-width:100%}
 
 /* 複数パターン比較時の共通加算経験点 */
 .planned-exp-block{
-  margin:0 0 12px;
+  /* 経験点見出しの下線→タイトル、タイトル→5種ラベルをパターン見出しと同程度に詰める */
+  margin:-8px 0 12px;
   padding:0 2px 12px;
   border-bottom:1px solid rgba(133,83,28,.34);
 }
 .planned-exp-title{
-  margin:0 0 8px;
+  margin:0 0 5px;
   font-family:"Kaisei Decol",serif;
   font-size:17px;
   font-weight:700;
