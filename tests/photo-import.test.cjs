@@ -364,14 +364,15 @@ test('IMG_1092 real action-skill double-circle stays ◎',async()=>{
  assert(r.specials.includes('アクションスキル◎'));
  assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
 });
-test('IMG_1088 unique ◎ exact match wins even when pair comparison is ambiguous',async()=>{
+test('IMG_1088 native ◎ shape wins even when same-name pair comparison is ambiguous',async()=>{
  const {h}=setup();
  h.stubAbilityChoice('アクションスキル○','');
  h.stubAbilityExact(name=>name==='アクションスキル◎');
- // Safari/JPEG差で同名○/◎の2者比較が未確定になる経路を再現する。
- h.stubOneAbilityCell();
+ // Safari/JPEG差で同名○/◎比較が未確定でも、元画像の記号形状を正本にする。
+ h.stubMarkShape('◎');
  h.stubPairMark('');
  const r=await h.readAbilityCells({},1);
+ assert(r.specials.includes('アクションスキル○'));
  assert(r.specials.includes('アクションスキル◎'));
  assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
 });
