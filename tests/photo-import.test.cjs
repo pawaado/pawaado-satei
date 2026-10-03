@@ -246,6 +246,21 @@ test('IMG_1096 fire-recovery real mask is recognized',()=>{
  h.stubAbilityMask(fire);
  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'火回復');
 });
+test('IMG_1096/1097 verified pair cells keep their confirmed ◎ labels',()=>{
+ const cases=[
+  ['通常攻撃◎','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3x+Og7zMAADPP9/37OoAAB8/xbe9RgAA3xmFt7yBAADfH4Tj+IEAgFc/zuBhRgCA/zff9/yqAI='],
+  ['対ドラゴンタートル◎','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQAAAIAQEADpB55h4BBQAP0AAmGgEFAA6ceCC6+cUAB54IIY755cAnkhgjhAElgCaQMecMAQ2AI='],
+  ['通常回復◎','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXx/P8/xGAABfP+wT/KcAAB+/79HsRQAA/5/PU/wAAAB/n4/TcAAAwH+/z9P8JQDA/7bP8TjCAM='],
+  ['列回復◎','AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/v+f5GAAAAGOwb/GUAAAAe7/n+owAAAB7ve/5AgAAAHu97/ECAAgAO7/n8pwACABzv+bxTAAI=']
+ ];
+ for(const [name,encoded] of cases){
+   const {h}=setup();
+   h.stubAbilityMask(encoded);
+   assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
+   const stem=name.slice(0,-1);
+   assert.equal(h.pairMarkByImage({}, {rect:[0,0,136,34]},stem),'◎',name);
+ }
+});
 test('fragmentary unrelated ability masks stay removed',()=>{
  const {h}=setup();
  const variants=h.abilityMasks['生存本能'];
@@ -423,6 +438,16 @@ test('high-confidence circle/double-circle image matches skip redundant OCR',asy
  const r=await h.readAbilityCells({},1);
  assert.equal(calls(),0);
  assert(r.specials.includes('物理防御○'));
+});
+test('cross-image ○/◎ disagreement never exports a null authoritative mark',async()=>{
+ const {h}=setup();h.stubReads();
+ const r=await h.readImages([
+  {kind:'data',dataJob:'魔法使い',marks:{'列回復':'○'}},
+  {kind:'data',dataJob:'魔法使い',marks:{'列回復':'◎'}},
+  {kind:'data',dataJob:'魔法使い',marks:{'列回復':'◎'}}
+ ]);
+ assert.equal(Object.prototype.hasOwnProperty.call(r.explicitPairMarks,'列回復'),false);
+ assert(r.warnings.some(w=>w.includes('列回復')&&w.includes('画像間で一致しません')));
 });
 test('ability-up job text wins over a conflicting ability-data job icon',async()=>{
  const {h}=setup();h.stubReads();

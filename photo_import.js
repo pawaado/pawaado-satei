@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-native-pair-mark-2';
+  const PHOTO_IMPORT_BUILD='20261003-native-pair-mark-3';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -437,6 +437,43 @@
     'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABh/z/AAAAAA23/f4AAAAADbf9/gAAAAANp73+AAAAAAOHvf4AACAAB8f9/gAAI=',
     'AAAAAAAAAAAAAAAAAAAAAAAAGH/P8AAAAADbf9/gAAAAANt/3+AAAAAA2nvf4AAAAAA4e9/gAAIAAHx/3+AAAgAA53/P4AACAADDf8/gAAI='
   );
+
+  // 2026-10-03 IMG_1096 / IMG_1097 実画像。
+  // 今回の能力データで誤判定した○/◎付き能力を、ユーザー確認済みの表示へ紐づける。
+  // 末尾記号だけでなく能力名本体も同時に一致する実画像テンプレートなので、
+  // 通常回復◎→列回復系など別名への誤寄せも防ぐ。
+  const EXTRA_ABILITY_MASKS_20261003_IMG1096_1097={
+    "通常攻撃◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADfH46DvMwAAM8/3/fs6gAAHz/Ft71GAADfGYW3vIEAAN8fhOP4gQCAVz/O4GFGAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3x+Og7zMAADPP9/37OoAAB8/xbe9RgAA3xmFt7yBAADfH4Tj+IEAgFc/zuBhRgCA/zff9/yqAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAN8fjoO8zAAAzz/f9+zqAAAfP8W3vUYAAN8Zhbe8gQAA3x+E4/iBAIBXP87gYUYAgP833/f8qgCA/zfBseBsAI="
+    ],
+    "対ドラゴンタートル◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJB55AgBAQAP0HnmHgEFAAfYACISAYUADp54ILr5xQAHlgghjnllwCaQGCMMAQWAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQeeQIAQEAD9B55h4BBQAH2AAiEgGFAA6eeCC6+cUAB5YIIY55ZcAmkBgjDAEFgC6QMeYcAQ0AI=",
+      "AAAAAAAAAAAAAAAAAAAAAEkHnkCAEBAA/QeeYeAQUAB9gAIhIBhQAOnngguvnFAAeWCCGOeWXAJpAYIwwBBYAukDHmHAENAC2QMAQYAQEAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJAAAAgBAQAOkHnmHgEFAA/QACYaAQUADpx4ILr5xQAHngghjvnlwCeSGCOEASWAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASQAAAIAQEADpB55h4BBQAP0AAmGgEFAA6ceCC6+cUAB54IIY755cAnkhgjhAElgCaQMecMAQ2AI=",
+      "AAAAAAAAAAAAAAAAAAAAAEkAAACAEBAA6QeeYeAQUAD9AAJhoBBQAOnHgguvnFAAeeCCGO+eXAJ5IYI4QBJYAmkDHnDAENgC+QMeYYAQ0AI="
+    ],
+    "通常回復◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABfH8/z/EYAAF8/7BP8pwAAH7/v0exFAAD/n89T/AAAAH+fj9NwAADAf7/P0/wlAM=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXx/P8/xGAABfP+wT/KcAAB+/79HsRQAA/5/PU/wAAAB/n4/TcAAAwH+/z9P8JQDA/7bP8TjCAM=",
+      "AAAAAAAAAAAAAAAAAAAAAAF8fz/P8RgAAXz/sE/ynAAAfv+/R7EUAAP+fz1P8AAAAf5+P03AAAMB/v8/T/CUAwP+2z/E4wgDAX5LP8ewEAE=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADfGs/x/AQAAG8/7/Pg4gAAH7Bv0/wBAAD/n89T/AAAAH+fz1N8AADAf7/P0/wFAM=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3xrP8fwEAABvP+/z4OIAAB+wb9P8AQAA/5/PU/wAAAB/n89TfAAAwH+/z9P8BQDAf7/P8XyGAM=",
+      "AAAAAAAAAAAAAAAAAAAAAAN8az/H8BAAAbz/v8+DiAAAfsG/T/AEAAP+fz1P8AAAAf5/PU3wAAMB/v8/T/AUAwH+/z/F8hgDA/7LP8XwCAE="
+    ],
+    "列回復◎":[
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH+/5/kYAAAAY7Bv8ZQAAAB7v+f6jAAAAHu97/kCAAAAe73v8QIACAA7v+fynAAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/v+f5GAAAAGOwb/GUAAAAe7/n+owAAAB7ve/5AgAAAHu97/ECAAgAO7/n8pwACABzv+bxTAAI=",
+      "AAAAAAAAAAAAAAAAAAAAAAAf7/n+RgAAABjsG/xlAAAAHu/5/qMAAAAe73v+QIAAAB7ve/xAgAIADu/5/KcAAgAc7/m8UwACABjv+f42AAI="
+    ]
+  };
+  for(const [name,variants] of Object.entries(EXTRA_ABILITY_MASKS_20261003_IMG1096_1097)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
 
   // 2026-10-01 実画像追加：対ドラゴンタートル○。
   // 長い能力名では末尾の○が横方向に圧縮されるため、セル全体テンプレートを優先する。
@@ -2350,6 +2387,7 @@
     const abilityUpIdentity={job:''};
     const dataIdentity={job:''};
     const conflicts=new WeakMap();
+    const pairMarkConflicts=new Set();
     function mergeField(target,key,value,label){
       if(value==null||value===''||conflicts.get(target)?.has(key))return;
       if(target[key]!=null&&target[key]!==''&&target[key]!==value){if(!conflicts.has(target))conflicts.set(target,new Set());conflicts.get(target).add(key);target[key]=null;out.warnings.push(label+'の読み取り値が一致しません。画像の数値を確認して入力してください。');}
@@ -2374,11 +2412,15 @@
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
+          if(pairMarkConflicts.has(stem))continue;
           const old=out.explicitPairMarks[stem];
           if(old&&old!==mark){
-            out.explicitPairMarks[stem]=null;
+            // 不一致は要確認に残すが、nullを「正本」として渡さない。
+            // nullを渡すと入力反映側が○/◎を両方削除してしまうため、キー自体を外す。
+            delete out.explicitPairMarks[stem];
+            pairMarkConflicts.add(stem);
             out.warnings.push(stem+'の○/◎判定が画像間で一致しません。表示を確認してください。');
-          }else if(old!==null){
+          }else{
             out.explicitPairMarks[stem]=mark;
           }
         }
