@@ -638,7 +638,7 @@ test('a third screenshot cannot erase an EXP conflict',async()=>{
  const {h}=setup();h.stubReads();const r=await h.readImages([{job:'剣士',exp:100},{job:'剣士',exp:200},{job:'剣士',exp:100}]);assert.equal(r.job,'剣士');assert.equal(r.exp.筋力,null);assert(r.warnings.some(w=>w.includes('一致しません')));
 });
 test('a third screenshot cannot erase conflicting ○/◎ observations',async()=>{
- const {h}=setup();h.stubReads();const r=await h.readImages(['○','◎','○'].map(mark=>({kind:'data',marks:{通常攻撃:mark}})));assert.equal(r.explicitPairMarks.通常攻撃,null);
+ const {h}=setup();h.stubReads();const r=await h.readImages(['○','◎','○'].map(mark=>({kind:'data',marks:{通常攻撃:mark}})));assert.equal(Object.prototype.hasOwnProperty.call(r.explicitPairMarks,'通常攻撃'),false);
 });
 test('unrecognized glyph width does not fabricate a Lv, and supers stay within Lv1–2',()=>{
  const {h}=setup();h.stubGlyph('',10);assert.equal(h.levelByImage({}, {rect:[0,0]}),null);h.stubGlyph('6',14);assert.equal(h.levelByImage({}, {rect:[0,0]}),null);assert.equal(h.levelByImage({}, {rect:[0,0]},6),6);
