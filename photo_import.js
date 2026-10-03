@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-native-pair-mark-1';
+  const PHOTO_IMPORT_BUILD='20261003-native-pair-mark-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -427,6 +427,16 @@
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...cleaned])];
   }
+
+  // 2026-10-03 IMG_1096 / IMG_1097 実画像。
+  // 同じ能力データを上下にスクロールした画像で「火回復」が落ちたため、文字そのものを実画像で補強。
+  // ○/◎とは無関係な能力なので、末尾記号の推測は行わない。
+  (HYBRID_ABILITY_MASKS['火回復']??=[]).push(
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABh/z/AAAAAA22Df4AAAAADbf8/gAAAAANp73+AAAAAAPH/fgAACAAB+f8/gAAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAGH/P8AAAAADbYN/gAAAAANt/z+AAAAAA2nvf4AAAAAA8f9+AAAIAAH5/z+AAAgAA53/N4AACAADDf8/gAAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABh/z/AAAAAA23/f4AAAAADbf9/gAAAAANp73+AAAAAAOHvf4AACAAB8f9/gAAI=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAGH/P8AAAAADbf9/gAAAAANt/3+AAAAAA2nvf4AAAAAA4e9/gAAIAAHx/3+AAAgAA53/P4AACAADDf8/gAAI='
+  );
 
   // 2026-10-01 実画像追加：対ドラゴンタートル○。
   // 長い能力名では末尾の○が横方向に圧縮されるため、セル全体テンプレートを優先する。
@@ -1660,26 +1670,52 @@
     const x0=Math.max(0,Math.round(w*.25)),x1=Math.min(w,Math.round(w*.94));
     const minInk=Math.max(1,Math.round((y1-y0)*.08));
     const projection=new Uint16Array(w);
+
+    // 青いセル枠は暗く見えるため、輝度だけで探すと末尾記号ではなく右枠を拾うことがある。
+    // ○/◎と文字はほぼ無彩色なので、低彩度の暗画素だけを「記号候補」として使う。
     for(let x=x0;x<x1;x++){
       let dark=0;
       for(let y=y0;y<y1;y++){
-        const i=(y*w+x)*4,lum=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
-        if(lum<threshold)dark++;
+        const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+        const lum=r*.299+g*.587+b*.114;
+        const chroma=Math.max(r,g,b)-Math.min(r,g,b);
+        if(lum<threshold&&chroma<=80)dark++;
       }
       projection[x]=dark;
     }
-    const runs=[];let start=-1;
+
+    // ◎は外輪・内輪が別々の縦投影になる端末があるため、近接した断片をまとめて1記号にする。
+    // ただし直前の文字まで巻き込まないよう、結合後の幅は基準座標28pxまでに制限する。
+    const rawRuns=[];let start=-1;
     for(let x=x0;x<=x1;x++){
       const on=x<x1&&projection[x]>=minInk;
       if(on&&start<0){start=x;continue;}
       if(!on&&start>=0){
         const end=x,refWidth=(end-start)/Math.max(.01,scaleX);
-        const rightPadding=w-end;
-        if(refWidth>=6&&refWidth<=24&&rightPadding>=Math.max(3,Math.round(4*scaleX)))runs.push([start,end]);
+        if(refWidth>=1&&refWidth<=24)rawRuns.push([start,end]);
         start=-1;
       }
     }
-    return runs[runs.length-1]||null;
+
+    const candidates=[];
+    const enoughRightPadding=end=>w-end>=Math.max(3,Math.round(4*scaleX));
+    for(let i=0;i<rawRuns.length;i++){
+      let [candidateStart,candidateEnd]=rawRuns[i];
+      const ownWidth=(candidateEnd-candidateStart)/Math.max(.01,scaleX);
+      if(ownWidth>=6&&ownWidth<=24&&enoughRightPadding(candidateEnd))candidates.push([candidateStart,candidateEnd]);
+
+      for(let j=i-1;j>=Math.max(0,i-2);j--){
+        const [prevStart,prevEnd]=rawRuns[j];
+        const gap=(candidateStart-prevEnd)/Math.max(.01,scaleX);
+        const combinedWidth=(candidateEnd-prevStart)/Math.max(.01,scaleX);
+        if(gap>2.5||combinedWidth>28)break;
+        candidateStart=prevStart;
+        if(combinedWidth>=10&&enoughRightPadding(candidateEnd))candidates.push([candidateStart,candidateEnd]);
+      }
+    }
+    if(!candidates.length)return null;
+    candidates.sort((a,b)=>a[1]-b[1]||(a[1]-a[0])-(b[1]-b[0]));
+    return candidates[candidates.length-1];
   }
   function markShapeByImage(image,cell,stem=''){
     if(!stem||cell.superCell)return '';

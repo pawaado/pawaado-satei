@@ -15,7 +15,7 @@ function setup(){
   c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
-  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,classifyMarkCrossingScore,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
+  window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,classifyMarkCrossingScore,nativeMarkRun,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
    stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubAbilityResults(fn){readAbilityCells=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
@@ -240,6 +240,12 @@ test('IMG_1020 exact masks recognize 火耐性・バランス感覚・風回復�
    assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),name,name);
  }
 });
+test('IMG_1096 fire-recovery real mask is recognized',()=>{
+ const {h}=setup();
+ const fire='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABh/z/AAAAAA22Df4AAAAADbf8/gAAAAANp73+AAAAAAPH/fgAACAAB+f8/gAAI=';
+ h.stubAbilityMask(fire);
+ assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'火回復');
+});
 test('fragmentary unrelated ability masks stay removed',()=>{
  const {h}=setup();
  const variants=h.abilityMasks['生存本能'];
@@ -294,6 +300,22 @@ test('native mark crossing score separates IMG_1090 ○ and IMG_1092 ◎ observa
  assert.equal(h.classifyMarkCrossingScore([1.86,1.86,2.00]),'○');
  assert.equal(h.classifyMarkCrossingScore([2.93,3.29,3.50]),'◎');
  assert.equal(h.classifyMarkCrossingScore([2.45,2.55,2.60]),'');
+});
+
+test('native mark locator ignores the saturated blue cell border',()=>{
+ const {h}=setup();
+ const width=136,height=34,data=new Uint8ClampedArray(width*height*4);
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+   const i=(y*width+x)*4;data[i]=230;data[i+1]=248;data[i+2]=252;data[i+3]=255;
+ }
+ for(let y=12;y<31;y++)for(let x=96;x<112;x++){
+   const i=(y*width+x)*4;data[i]=75;data[i+1]=75;data[i+2]=75;
+ }
+ for(let y=11;y<31;y++)for(let x=121;x<128;x++){
+   const i=(y*width+x)*4;data[i]=35;data[i+1]=70;data[i+2]=220;
+ }
+ const canvas={width,height,getContext:()=>({getImageData:()=>({data})})};
+ assert.deepEqual(Array.from(h.nativeMarkRun(canvas,width,195)),[96,112]);
 });
 test('source-resolution mark overrides a wrong full-cell ○/◎ rank generically',async()=>{
  const {h}=setup();
