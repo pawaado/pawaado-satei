@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261003-native-pair-mark-4';
+  const PHOTO_IMPORT_BUILD='20261008-training-blue-bubble-single-cell-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1607,7 +1607,9 @@
     });
     const bands=[];for(let y=274;y<537;y++){
       if(!rowHasAbilityColor(y))continue;
-      if(!bands.length||y>bands[bands.length-1][1]+2)bands.push([y,y]);else bands[bands.length-1][1]=y;
+      // 青い単独セルは文字の白抜きで色帯が数段に分裂する。7px以内の切れ目を同一行として統合する。
+      // セル間隔（約50px）まで結合せず、通常の複数行は別々に検出する。
+      if(!bands.length||y>bands[bands.length-1][1]+7)bands.push([y,y]);else bands[bands.length-1][1]=y;
     }
     // 旧レイアウトは約57px、新レイアウトは約50px間隔。固定ピッチではなく
     // 実際の青/黄セル帯を行として使う。ヘッダの細い線は25px未満なので除外。
@@ -2277,6 +2279,20 @@
       const cw=maxX-minX+1,ch=maxY-minY+1;
       // 数字は吹き出し上寄り。三角マークは下寄りなのでここで除外。
       if(minY>17||cw<5||cw>16||ch<15||ch>22||area<50)continue;
+      if(kind==='blue'){
+        // 吹き出しの右にある背景の青い紋章を「1」と誤認すると、
+        // 例：青+3 が青+31 となり経験点を過大加算する。
+        // 数字の周辺に薄水色の吹き出し地が実在する候補だけ採用する。
+        let bubblePixels=0,nearPixels=0;
+        for(let yy=Math.max(0,minY-5);yy<Math.min(h,maxY+6);yy++){
+          for(let xx=Math.max(0,minX-5);xx<Math.min(w,maxX+6);xx++){
+            const k=(yy*w+xx)*4,r=data[k],g=data[k+1],b=data[k+2];
+            nearPixels++;
+            if(r>190&&g>220&&b>225&&(b-r)<80)bubblePixels++;
+          }
+        }
+        if(!nearPixels||bubblePixels/nearPixels<.12)continue;
+      }
       const local=new Uint8Array(cw*ch);
       for(const [x,y] of pixels)local[(y-minY)*cw+(x-minX)]=1;
       out.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
