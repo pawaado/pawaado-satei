@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261008-isolated-special-cell-2';
+  const PHOTO_IMPORT_BUILD='20261008-merged-special-bands-3';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1611,14 +1611,25 @@
       // セル間隔（約50px）まで結合せず、通常の複数行は別々に検出する。
       if(!bands.length||y>bands[bands.length-1][1]+7)bands.push([y,y]);else bands[bands.length-1][1]=y;
     }
-    // 旧レイアウトは約57px、新レイアウトは約50px間隔。固定ピッチではなく
-    // 実際の青/黄セル帯を行として使う。ヘッダの細い線は25px未満なので除外。
-    const rows=bands.filter(([a,b])=>b-a+1>=25);
+    // 色付きセルの文字・Lv表示で横方向の色帯が上下に分断される場合がある。
+    // 途切れた帯を別々の「段」として扱うと、1個しかない通常攻撃が
+    // 「2段目・左から1番目が未読」と誤警告される。
+    // 実ゲームの段間隔は約50〜57px。開始位置が44px未満の近接帯は
+    // 同じ段としてまとめ、段数を確定してからセルを列挙する。
+    const mergedBands=[];
+    for(const [a,b] of bands){
+      const prev=mergedBands[mergedBands.length-1];
+      if(prev&&a-prev[0]<44&&a-prev[1]<=16)prev[1]=b;
+      else mergedBands.push([a,b]);
+    }
+    // 旧レイアウトは約57px、新レイアウトは約50px間隔。
+    // 分断帯は上で統合し、短いヘッダ装飾などは25px未満として除外。
+    const rows=mergedBands.filter(([a,b])=>b-a+1>=25);
     if(!rows.length){
       // 取得特殊能力が1つしかない画像では、白い文字とLv表示で青い色帯が分断され、
       // 行の連続長が25px未満になる端末がある。色付きセル内部の面積でも確認する。
       // 帯の短さだけでスキップせず、実際に色付きの矩形がある場合だけ復元する。
-      for(const [a,b] of bands){
+      for(const [a,b] of mergedBands){
         if(b-a+1<12)continue;
         const y=Math.max(274,a-4);
         const isFilled=[713,852,990,1128].some(x=>{
