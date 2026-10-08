@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261008-training-blue-bubble-single-cell-1';
+  const PHOTO_IMPORT_BUILD='20261008-isolated-special-cell-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1613,7 +1613,25 @@
     }
     // 旧レイアウトは約57px、新レイアウトは約50px間隔。固定ピッチではなく
     // 実際の青/黄セル帯を行として使う。ヘッダの細い線は25px未満なので除外。
-    const rows=bands.filter(([a,b])=>b-a+1>=25);if(!rows.length)return [];
+    const rows=bands.filter(([a,b])=>b-a+1>=25);
+    if(!rows.length){
+      // 取得特殊能力が1つしかない画像では、白い文字とLv表示で青い色帯が分断され、
+      // 行の連続長が25px未満になる端末がある。色付きセル内部の面積でも確認する。
+      // 帯の短さだけでスキップせず、実際に色付きの矩形がある場合だけ復元する。
+      for(const [a,b] of bands){
+        if(b-a+1<12)continue;
+        const y=Math.max(274,a-4);
+        const isFilled=[713,852,990,1128].some(x=>{
+          let hits=0;
+          for(let yy=y+2;yy<Math.min(537,y+38);yy+=2)
+            for(let xx=x+3;xx<x+127;xx+=8)
+              if(colored(xx,yy))hits++;
+          return hits>=60;
+        });
+        if(isFilled)rows.push([y,Math.max(b,y+24)]);
+      }
+    }
+    if(!rows.length)return [];
     const cells=[];
     rows.forEach(([y],rowIndex)=>{for(let col=0;col<4;col++){
       const x=[713,852,990,1128][col];let colored=0,yellow=0;
