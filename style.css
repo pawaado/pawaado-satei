@@ -487,6 +487,25 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .remain-name{display:block;padding:5px 2px 3px;color:#69411f;font-size:11px;font-weight:800;white-space:nowrap}
 .remain-value{display:block;padding:2px 2px 7px;color:var(--ink);font-size:21px;font-weight:600;font-variant-numeric:tabular-nums}
 /* 結果に表示された取得候補を除外して再計算する操作 */
+.custom-calc-card{overflow:visible}
+.custom-calc-intro{margin:5px 0 14px;font-size:13px;line-height:1.6;color:#6f4a28}
+.custom-condition-group{padding:12px 0;border-top:1px solid #dcc4a0}
+.custom-condition-group h3{font-size:15px;color:#53391e;margin:0 0 9px}
+.custom-condition-inputs{display:grid;grid-template-columns:minmax(0,1fr) 74px;gap:8px;align-items:stretch}
+.custom-condition-inputs.custom-basic-inputs{grid-template-columns:minmax(0,1fr) 78px 65px}
+.custom-condition-inputs select,.custom-condition-inputs input{width:100%;min-width:0;min-height:45px;border:2px solid #a47b43;border-radius:10px;background:#fffdf5;color:#422610;padding:7px 8px;font-size:14px;font-weight:700}
+.custom-condition-inputs button{min-width:0;min-height:45px;padding:8px 2px;margin:0;font-size:14px}
+.custom-condition-list{display:flex;flex-wrap:wrap;gap:7px;list-style:none;padding:0;margin:10px 0 0}
+.custom-condition-list[hidden]{display:none}
+.custom-condition-list li{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:4px 5px 4px 10px;border:1px solid #b79667;border-radius:9px;background:#f9e8c7;font-size:13px;font-weight:750;color:#51391f}
+.custom-condition-list li span{overflow-wrap:anywhere}
+.custom-condition-list li button{display:grid;place-items:center;width:28px;height:28px;min-height:28px;min-width:28px;padding:0;margin:0;background:#fff8e8;color:#624526;border:1px solid #b79667;border-radius:7px;box-shadow:none;font-size:18px}
+.custom-calc-message{margin:6px 0;color:#a24c20;font-size:13px;line-height:1.5}
+.custom-calc-message:empty{display:none}
+.custom-clear-all{width:100%;margin-top:10px;min-height:44px}
+.custom-clear-all[hidden]{display:none}
+.custom-result-summary{background:#fff7df}
+.custom-result-summary p{font-size:13px;line-height:1.65;overflow-wrap:anywhere}
 .excluded-special-block{margin-top:15px;background:#fff8e8}
 .excluded-special-description{margin:0 0 10px;font-size:13px;line-height:1.6;color:#725033}
 .excluded-special-current{margin:0 0 10px;padding:8px 10px;background:#f9e8c7;border-radius:8px;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
