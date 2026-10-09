@@ -80,6 +80,7 @@ test('basic conditions add when all values are complete and use updated mode',()
  assert(x.node('custom-basic-list').innerHTML.includes('生命力 9以上'));
  assert.equal(x.node('customBasicName').value,'');
  assert.equal(x.node('customBasicMode').value,'');
+ assert.equal(x.node('customBasicModeSelectText').textContent,'条件を選択');
  assert.equal(x.node('customBasicValue').value,'');
  x.click('remove',{kind:'basic',key:'生命力'});
  x.node('customBasicName').value='生命力';x.change('customBasicName');
@@ -104,6 +105,7 @@ test('special conditions add in either order, and reset the selection after each
  assert(x.state.customRequiredSpecials.has(lower));
  assert.equal(x.node('customSpecialName').value,'');
  assert.equal(x.node('customSpecialMode').value,'');
+ assert.equal(x.node('customSpecialModeSelectText').textContent,'取得する／しないを選択');
  x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
  x.node('customSpecialName').value=String(upper);x.change('customSpecialName');
  assert(x.state.customForbiddenSpecials.has(upper));
