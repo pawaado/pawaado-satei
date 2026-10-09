@@ -2294,19 +2294,28 @@
   }
 
   async function looksLikeTrainingScreen(image){
-    // 数字の認識成否を画面の種類の判定に直結させない。
-    // 訓練数字が1～2種類しか読めない端末でも、複数段の経験点吹き出しの色配置から検出する。
-    let hits=0,bubbleRows=0;
+    // 薄い黄色／水色の背景だけでは能力アップ画面を誤認する。
+    // 数字の認識成否と画面判定を分離し、訓練専用の色付き加算数字も根拠にする。
+    let hits=0,gainRows=0,bubbleRows=0;
     for(let i=0;i<5;i++){
       if(trainingCurrentNumberByImage(image,i)!=null)hits++;
       const y=120+59*i;
-      if(trainingBubblePresent(image,y,'yellow')||trainingBubblePresent(image,y,'blue'))bubbleRows++;
+      const kinds=['yellow','blue'];
+      if(kinds.some(kind=>trainingBubblePresent(image,y,kind)))bubbleRows++;
+      if(kinds.some(kind=>trainingBubbleRatio(image,y,kind)>.12
+        &&Number.isInteger(trainingGainColorNumber(image,y,kind))))gainRows++;
     }
     if(hits>=3)return true;
-    if(hits>=1&&bubbleRows>=2)return true;
-    // 経験点が全滅でも5段中4段以上に訓練専用吹き出しが見えれば訓練として扱う。
-    // 読めない経験点自体は後段で null とし、他画面の数字で勝手に補完しない。
-    return bubbleRows>=4;
+    if(hits>=2&&gainRows>=1)return true;
+    if(hits>=1&&gainRows>=2)return true;
+    if(gainRows>=3)return true;
+    // 色付き数字すら不鮮明なときは訓練という見出しを追加確認する。
+    // 背景色だけ（能力アップ画面でもよく出現）で訓練扱いにはしない。
+    if(bubbleRows>=2){
+      const title=normalize((await textAt(image,[90,5,480,70],false,true,true,false,2)).text);
+      if(/訓練|トレーニング/.test(title))return true;
+    }
+    return false;
   }
   function trainingDigitComponents(image,rect,threshold){
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
