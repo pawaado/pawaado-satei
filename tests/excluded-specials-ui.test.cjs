@@ -88,6 +88,22 @@ test('custom basic ability controls stay on one row on desktop and iPhone',()=>{
  assert(html.includes('id="customBasicValue"'));
  assert(html.includes('id="customBasicMode"'));
 });
+test('custom special controls stay on one row without clipping their open menus',()=>{
+  assert(html.includes('class="custom-condition-inputs custom-special-inputs"'));
+  assert(html.includes('class="custom-condition-options custom-special-options"'));
+  const row=css.match(/\.custom-special-inputs\{([^}]*)\}/)?.[1]||'';
+  assert(row.includes('grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)'),row);
+  assert(css.includes('.custom-special-inputs .custom-select-button span{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'));
+  assert(css.includes('.custom-special-inputs>.custom-condition-select .custom-select-menu{'));
+  assert(css.includes('width:min(325px,calc(100vw - 64px))'));
+  assert(css.includes('.custom-special-options .custom-select-menu{'));
+  assert(css.includes('left:auto;right:0;width:max-content;min-width:100%'));
+  assert(css.includes('.custom-condition-select .custom-select-option{white-space:normal;overflow-wrap:anywhere}'));
+  assert(css.includes('.custom-calc-card{overflow:visible}'));
+  assert(css.includes('.custom-calc-card:has(.custom-condition-select.is-open){z-index:500}'));
+  assert(css.includes('.custom-select-control.is-open{z-index:3000}'));
+  assert(css.includes('.custom-special-inputs{gap:4px}'));
+});
 test('custom controls retain standard dropdown options',()=>{
  for(const id of ['customBasicName','customBasicMode','customSpecialName','customSpecialMode']){
    assert(html.includes('id="'+id+'SelectButton"'));
