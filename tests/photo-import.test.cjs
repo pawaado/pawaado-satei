@@ -35,6 +35,7 @@ function setup(){
    stubPairCandidateCell(stem,mark){abilityCells=()=>[{rect:[0,0,136,34],row:2,col:3,superCell:false}];abilityByImage=()=>'';elementalAttackByImage=()=>'';collectSpecialReads=async()=>[{text:stem,label:'test'}];hybridPairStem=()=>({stem,candidate:true});pairStemByImage=()=>stem;markShapeByImage=()=>'';pairMarkByImage=()=>mark;},
    stubGlyph(value='',width=10){glyphComponents=()=>[{w:width,h:15,x:10}];classifyGlyph=()=>value;},
    stubPixels(){canvasCrop=()=>({});vector=()=>new Uint8ClampedArray(4096);},
+   stubAbilityPixels(pixels){canvasCrop=()=>({getContext(){return {}}});},
    prepareUi(read,finishedWorker){files=[{name:'a.png',size:1}];urls=['blob:test'];selectionDirty=true;readImages=read;worker=finishedWorker;},
    busy:()=>busy};
 `;
@@ -870,4 +871,55 @@ test('AI comparison button evaluates the same selected images without modifying 
  assert.equal(get('readPhotos').disabled,false,'regular import remains available');
  assert.equal(get('photoCompare').hidden,false);
  assert(get('photoCompare').innerHTML.includes('従来OCRと端末内AIの比較'));
+});
+
+
+function fakeScreenshotFrame(frame){
+ const pixels=new Uint8ClampedArray(1536*706*4);
+ for(let i=0;i<pixels.length;i+=4){pixels[i]=240;pixels[i+1]=228;pixels[i+2]=208;pixels[i+3]=255;}
+ for(const [first,last] of frame){
+  for(let y=first;y<=last;y++)for(const x of [713,852,990,1128]){
+   for(let xx=x+3;xx<x+127;xx++){
+    const i=(y*1536+xx)*4;pixels[i]=75;pixels[i+1]=190;pixels[i+2]=245;
+   }
+  }
+ }
+ return pixels;
+}
+function detectedSyntheticRows(frame){
+ const {c,h}=setup();
+ const pixels=fakeScreenshotFrame(frame);
+ h.stubAbilityPixels(pixels);
+ c.document.createElement=()=>({width:1536,height:706,getContext(){
+  return {drawImage(){},getImageData(){return {data:pixels};}};
+ }});
+ return Array.from(c.__PAWAADO_PHOTO_TEST__.abilityCells({width:1536,height:706}));
+}
+test('IMG_1097 partial header row no longer displaces the next four ability names',()=>{
+ const cells=detectedSyntheticRows([[274,287],[293,336],[343,386],[392,435],[442,485],[492,535]]);
+ assert.equal(cells.length,20);
+ assert.deepEqual(cells.slice(0,4).map(item=>item.col),[1,2,3,4]);
+ assert.equal(cells[0].rect[1],295,'1行目: 対魔闘士◎、対弓使い○、対魔法使い◎、対ゴブリン○');
+ assert.equal(cells[4].rect[1],345);
+});
+test('IMG_1096 normal top row retains its original vertical position',()=>{
+ const cells=detectedSyntheticRows([[279,322],[328,371],[378,421],[428,471],[478,520],[527,536]]);
+ assert.equal(cells.length,20);
+ assert.equal(cells[0].rect[1],281);
+ assert.equal(cells[4].rect[1],330);
+});
+test('comparison explains 99 percent AI confidence is not the rate of agreement',()=>{
+ const {c}=setup();
+ const html=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
+  [{name:'IMG_1096.png'}],
+  {exp:{},specials:['対ドラゴンタートル◎','回復効果○'],
+   comparisonScreens:[{index:0,type:'能力データ',cells:[
+    {row:4,col:3,name:'対ドラゴンタートル◎',mark:'◎'},
+    {row:4,col:4,name:'回復効果○',mark:'○'}
+   ]}]},
+  [{marks:[{row:4,col:3,value:'◎',confidence:.994},{row:4,col:4,value:'○',confidence:.991}],experience:[]}]
+ );
+ assert(html.includes('AI確信度 99%（参考）'));
+ assert(html.includes('正解率・一致率ではありません'));
+ assert(html.includes('一致 <strong>2</strong>'));
 });
