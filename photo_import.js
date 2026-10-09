@@ -427,6 +427,24 @@
     const old=HYBRID_ABILITY_MASKS[name];
     HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...cleaned])];
   }
+  // 2026-10-10 実画像 IMG_1165：従来未読だった魔法攻撃◎と、
+  // 前文字を記号に巻き込んで誤判定したアクションスキル○の正例。
+  const IMG1165_ABILITY_MASKS={
+    '魔法攻撃◎':[
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf7mPwbwAAAB7n8/7/KYAAH+xB/P8BQAAXx/n8/wAAA=',
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf7mPwbwAAAB7n8/7/KYAAH+xB/P8BQAAXx/n8/wAAAB9l8bx/AAAwH+ez2BwAQDA/7/P8/DAAM=',
+      'AAAAAAAAAAAB/uY/BvAAAAHufz/v8pgAAf7EH8/wFAABfH+fz/AAAAH2XxvH8AADAf57PYHABAMD/v8/z8MAAwHe/4ZDgRABAAAAAAAAAAE='
+    ],
+    'アクションスキル○':[
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEAAAAwIMB8eYAMHjyh4AT4h8wGfKMgHJswwYQQojA=',
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEAAAAwIMB8eYAMHjyh4AT4h8wGfKMgHJswwYQQojAckTPBjByqMzAwY8MOfLsjMGHAzh4Qs2M=',
+      'AAAAAAAAAAAAQQAAADAgwHx5gAwePKHgBPiHzAZ8oyAcmzDBhBCiMByRM8GMHKozMDBjww58uyMwYcDOHhCzYyBhh8wzEaHhAAAAAAAAAAE='
+    ]
+  };
+  for(const [name,variants] of Object.entries(IMG1165_ABILITY_MASKS)){
+    const old=HYBRID_ABILITY_MASKS[name];
+    HYBRID_ABILITY_MASKS[name]=[...new Set([...(Array.isArray(old)?old:(old?[old]:[])),...variants])];
+  }
 
   // 2026-10-03 IMG_1096 / IMG_1097 実画像。
   // 同じ能力データを上下にスクロールした画像で「火回復」が落ちたため、文字そのものを実画像で補強。
@@ -1818,8 +1836,13 @@
       }
     }
     if(!candidates.length)return null;
-    candidates.sort((a,b)=>a[1]-b[1]||(a[1]-a[0])-(b[1]-b[0]));
-    return candidates[candidates.length-1];
+    // 最も右の文字を選ぶ。同じ右端なら「記号1文字」の最小幅を優先。
+    // 旧方式は結合候補の最大幅を選び、アクションスキル○に直前の「ル」を混入させた。
+    // ただし二重丸が分断された場合は幅10px以上の結合候補を残す。
+    const lastEnd=Math.max(...candidates.map(part=>part[1]));
+    const rightmost=candidates.filter(part=>part[1]===lastEnd&&part[1]-part[0]>=10)
+      .sort((a,b)=>(a[1]-a[0])-(b[1]-b[0]));
+    return rightmost[0]||candidates.sort((a,b)=>b[1]-a[1])[0];
   }
   function markShapeByImage(image,cell,stem=''){
     if(!stem||cell.superCell)return '';
@@ -2040,12 +2063,14 @@
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
       // 比較画面用のセル位置と候補名。既存の取得済み判定には一切使用しない。
+      const ignoredSuper=cell.superCell&&IGNORED_SUPER_IMAGE_NAMES.has(normalize(visualName));
       const cellMainName=parsed.specials.find(n=>/◎$/.test(normalize(n)))
         ||parsed.specials.find(n=>/○$/.test(normalize(n)))
-        ||parsed.specials[0]||parsed.supers[0]?.name||'未読';
+        ||parsed.specials[0]||parsed.supers[0]?.name||(ignoredSuper?visualName:'未読');
       const cellName=normalize(cellMainName);
       result.cellReadings.push({row:cell.row,col:cell.col,name:cellMainName,
-        mark:cellMainName==='未読'?'未読':/[○◎]$/.test(cellName)?cellName.slice(-1):'なし'});
+        mark:cellMainName==='未読'?'未読':/[○◎]$/.test(cellName)?cellName.slice(-1):'なし',
+        superCell:cell.superCell,ignored:!!ignoredSuper});
 
       // 通常特殊能力セルに○/◎が直接見えているなら、その形状を記録。
       if(!cell.superCell){
@@ -2269,19 +2294,19 @@
   }
 
   async function looksLikeTrainingScreen(image){
-    // 背景や上部テキストは使わず、左側5段の現在経験点だけで訓練画面を判定する。
-    let hits=0;
-    for(let i=0;i<5;i++)if(trainingCurrentNumberByImage(image,i)!=null)hits++;
-    if(hits>=3)return true;
-    // Two readable training numbers plus two distinct colored training bubbles
-    // are enough to recover a partially unreadable training screenshot.
-    if(hits!==2)return false;
-    let bubbleRows=0;
+    // 数字の認識成否を画面の種類の判定に直結させない。
+    // 訓練数字が1～2種類しか読めない端末でも、複数段の経験点吹き出しの色配置から検出する。
+    let hits=0,bubbleRows=0;
     for(let i=0;i<5;i++){
+      if(trainingCurrentNumberByImage(image,i)!=null)hits++;
       const y=120+59*i;
       if(trainingBubblePresent(image,y,'yellow')||trainingBubblePresent(image,y,'blue'))bubbleRows++;
     }
-    return bubbleRows>=2;
+    if(hits>=3)return true;
+    if(hits>=1&&bubbleRows>=2)return true;
+    // 経験点が全滅でも5段中4段以上に訓練専用吹き出しが見えれば訓練として扱う。
+    // 読めない経験点自体は後段で null とし、他画面の数字で勝手に補完しない。
+    return bubbleRows>=4;
   }
   function trainingDigitComponents(image,rect,threshold){
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
@@ -2529,7 +2554,7 @@
       }else{
         const trainingPattern=await readTrainingPattern(image);
         if(trainingPattern){
-          if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'訓練',cells:[],exp:trainingPattern.current||{}});
+          if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'訓練',cells:[],exp:trainingPattern.exp||{},current:trainingPattern.current||{},gains:trainingPattern.gains||{}});
           const missing=EXPS.filter(name=>trainingPattern.exp?.[name]==null);
           if(missing.length)out.warnings.push(`${i+1}枚目：訓練画像の経験点を一部読み取れませんでした。経験点を確認してください。`);
           out.trainingPatterns.push(trainingPattern);
@@ -2692,6 +2717,8 @@
   }
   function buildAiComparisonHtml(uploads,ocr,aiReports){
     const screenMap=new Map((ocr.comparisonScreens||[]).map(screen=>[screen.index,screen]));
+    const trainingPositions=new Map((ocr.comparisonScreens||[]).filter(screen=>screen.type==='訓練')
+      .map((screen,index)=>[screen.index,String.fromCharCode(65+index)]));
     const totals={match:0,difference:0,unknown:0};
     const displayValue=value=>value==null||value===''?'未読':escape(String(value));
     const detailBlocks=uploads.map((file,index)=>{
@@ -2711,6 +2738,18 @@
         }).join('');
         digitTable='<h4>経験点の比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>種類</th><th>従来</th><th>AI候補</th><th>比較</th></tr></thead><tbody>'+expRows+'</tbody></table></div>';
       }
+      let trainingTable='';
+      if(o.type==='訓練'){
+        const pattern=trainingPositions.get(index)||'?';
+        const rows=EXPS.map(name=>{
+          const current=o.current?.[name],gain=o.gains?.[name],total=o.exp?.[name];
+          if(current==null||gain==null||total==null)totals.unknown++;
+          return '<tr><td>'+escape(name)+'</td><td>'+displayValue(current)+'</td><td>'+displayValue(gain)+'</td><td>'+displayValue(total)+'</td></tr>';
+        }).join('');
+        trainingTable='<h4>訓練パターン'+pattern+' の経験点</h4>'
+          +'<p>訓練画面の数字は従来の画像認識で確認しています。試験AIの訓練数字比較は未対応です。</p>'
+          +'<div class="photo-compare-scroll"><table><thead><tr><th>種類</th><th>現在</th><th>増加分</th><th>訓練後</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      }
       let markTable='';
       if(o.type==='能力データ'){
         const oldMarks=new Map((o.cells||[]).map(item=>[item.row+':'+item.col,item]));
@@ -2721,23 +2760,28 @@
         });
         const markRows=keys.map(key=>{
           const old=oldMarks.get(key),candidate=newMarks.get(key);
+          const goldOrIgnored=old?.superCell===true||old?.ignored===true;
           const known=old?.mark==='○'||old?.mark==='◎';
-          const comparable=known&&candidate;
+          const aiHasMark=candidate&&(candidate.value==='○'||candidate.value==='◎');
+          const comparable=!goldOrIgnored&&known&&aiHasMark;
           const same=comparable&&old.mark===candidate.value;
-          if(comparable)totals[same?'match':'difference']++;else totals.unknown++;
-          const label=comparable?(same?'一致':'相違'):old?.mark==='なし'?'記号なし（比較対象外）':'要確認';
-          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+displayValue(candidate?.value)+(candidate?' <small>AI確信度 '+Math.round(candidate.confidence*100)+'%（参考）</small>':'')+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
+          if(comparable)totals[same?'match':'difference']++;
+          else if(!goldOrIgnored&&old?.mark!=='なし')totals.unknown++;
+          const label=goldOrIgnored?'対象外（超特殊能力）':old?.mark==='なし'?'記号なし':comparable?(same?'一致':'相違'):'要確認';
+          const aiValue=goldOrIgnored?'—':candidate?.value==='なし'?'なし':displayValue(candidate?.value);
+          const conf=comparable&&Number.isFinite(candidate.confidence)?' <small>AI確信度 '+Math.round(candidate.confidence*100)+'%（参考）</small>':'';
+          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+aiValue+conf+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
         }).join('');
         markTable='<h4>特殊能力マスの比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>位置</th><th>従来OCRの能力名</th><th>AIの末尾候補</th><th>比較</th></tr></thead><tbody>'+(markRows||'<tr><td colspan="4">能力のマスを検出できませんでした。</td></tr>')+'</tbody></table></div>';
       }
       const message=a.error?'<p class="photo-compare-diff">AI：'+escape(a.error)+'</p>':'';
-      const none=!digitTable&&!markTable?'<p>この画像は能力アップ／能力データの比較対象として検出できませんでした。</p>':'';
-      return '<details '+(index===0?'open':'')+'><summary>'+escape((file?.name||'画像')+'（'+o.type+'）')+'</summary>'+message+digitTable+markTable+none+'</details>';
+      const none=!digitTable&&!markTable&&!trainingTable?'<p>この画像を能力アップ／能力データ／訓練として判別できませんでした。訓練画面の場合は元画像で経験点の表示を確認してください。</p>':'';
+      return '<details '+(index===0?'open':'')+'><summary>'+escape((file?.name||'画像')+'（'+o.type+'）')+'</summary>'+message+digitTable+trainingTable+markTable+none+'</details>';
     });
     const finalNames=(ocr.specials||[]).map(escape).join('、')||'なし';
     const expSummary=EXPS.map(name=>escape(name)+' '+displayValue(ocr.exp?.[name])).join(' / ');
     return '<h3>従来OCRと端末内AIの比較</h3>'
-      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 今の試験AIは○／◎の二択であり、記号なしを識別できません。「一致」はOCRとAIが同じ候補という意味です。「AI確信度」はAI内部の推定値で、正解率・一致率ではありません。相違があった場合は元画像で確認してください。</p>'
+      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 記号の有無・金色セルを先に判別し、青色セルの○／◎を試験AIで比較します。訓練は従来の画像認識結果をパターン別に表示し、AIとの数字比較は未対応です。「AI確信度」はAI内部の推定値で、正解率ではありません。</p>'
       +'<p>比較できた項目：一致 <strong>'+totals.match+'</strong>、相違 <strong>'+totals.difference+'</strong>、要確認・対象外 <strong>'+totals.unknown+'</strong>。一致はOCRとAIが同じ答えという意味で、正解率ではありません。</p>'
       +'<p><strong>従来OCRの経験点：</strong>'+expSummary+'</p>'
       +'<p><strong>従来OCRの特殊能力（統合結果）：</strong>'+finalNames+'</p>'
@@ -2756,10 +2800,15 @@
       const probe=await ensureCompareAi();
       const images=await Promise.all(urls.map(imageFrom));
       const ocr=await readImages(images,{comparison:true});
+      const screenTypes=new Map((ocr.comparisonScreens||[]).map(screen=>[screen.index,screen.type]));
       const ai=[];
       for(let index=0;index<images.length;index++){
         status('AI比較：'+(index+1)+'/'+images.length+'枚を処理中…');
-        ai.push(await probe.inspectImage(images[index]));
+        if(screenTypes.get(index)==='訓練'){
+          ai.push({marks:[],experience:[],trainingNotSupported:true});
+        }else{
+          ai.push(await probe.inspectImage(images[index]));
+        }
       }
       output.innerHTML=buildAiComparisonHtml(files,ocr,ai);
       status('AI比較が完了しました。従来の自動入力結果は変更していません。');
