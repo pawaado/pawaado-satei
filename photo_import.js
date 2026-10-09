@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-training-and-mark-repair-3';
+  const PHOTO_IMPORT_BUILD='20261010-training-gain-sky-guard-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2172,8 +2172,8 @@
     if(await matchesTemplate(image,'swordsman',[685,22,165,32]))return {job:'剣士',candidate:false,raw:''};
     return {job:'',candidate:false,raw:''};
   }
-  function trainingBubbleRatio(image,rowY,kind){
-    const rect=kind==='blue'?[382,rowY,105,45]:[292,rowY,94,45];
+  function trainingBubbleRatio(image,rowY,kind,onlyLeadingBlue=false){
+    const rect=kind==='blue'?(onlyLeadingBlue?[382,rowY,42,45]:[382,rowY,105,45]):[292,rowY,94,45];
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
     let hit=0,total=0;
     for(let i=0;i<data.length;i+=4){
@@ -2190,7 +2190,12 @@
   }
   function trainingBubblePresent(image,rowY,kind){
     const ratio=trainingBubbleRatio(image,rowY,kind);
-    return kind==='blue'?ratio>.15:ratio>.24;
+    // 空や競技場の青白い背景が、青い吹き出し全域の比率を偶然超える場合がある。
+    // 実際の吹き出しは左側（382〜424px）にも淡青色の背景が広がるため、
+    // 比率だけでなく左半分の局所信号も確認して誤加算・未読を防ぐ。
+    return kind==='blue'
+      ? ratio>.15&&trainingBubbleRatio(image,rowY,'blue',true)>.20
+      : ratio>.24;
   }
   async function trainingNumber(image,rect,maxDigits=4){
     const visual=numericByImageStrict(image,rect,maxDigits);
