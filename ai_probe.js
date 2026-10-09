@@ -70,8 +70,13 @@ function detectRows(data){
    if(!bands.length||y>bands[bands.length-1][1]+3)bands.push([y,y]);
    else bands[bands.length-1][1]=y;
  }
+ // A scroll-hidden fragment sometimes remains above a complete next row.
+ // Never merge that clipped fragment into the next row's text crop (IMG_1097).
+ const clippedTop=bands.length>1&&bands[0][0]<=276&&bands[0][1]-bands[0][0]+1<25
+   &&bands[1][0]-bands[0][1]<=18&&bands[1][1]-bands[1][0]+1>=25;
+ const visibleBands=clippedTop?bands.slice(1):bands;
  const merged=[];
- for(const [a,b] of bands){
+ for(const [a,b] of visibleBands){
    const prev=merged[merged.length-1];
    if(prev&&a-prev[0]<44&&a-prev[1]<=16)prev[1]=b;
    else merged.push([a,b]);
