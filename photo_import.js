@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-training-and-mark-repair-1';
+  const PHOTO_IMPORT_BUILD='20261010-training-and-mark-repair-2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2561,7 +2561,10 @@
         if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
         out.warnings.push(...result.warnings);
       }else{
-        const trainingPattern=await readTrainingPattern(image);
+        // 既知の「能力アップ・基本能力」タブは訓練として判定しない。
+        // 淡い黄色／水色の背景だけで訓練画面を誤検出しないための優先順位。
+        const knownTab=await matchesTemplate(image,'basic',[748,104,141,39]);
+        const trainingPattern=knownTab?null:await readTrainingPattern(image);
         if(trainingPattern){
           if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'訓練',cells:[],exp:trainingPattern.exp||{},current:trainingPattern.current||{},gains:trainingPattern.gains||{}});
           const missing=EXPS.filter(name=>trainingPattern.exp?.[name]==null);
@@ -2573,7 +2576,6 @@
         // Job and EXP live in the common header of every 能力アップ tab.
         const jobResult=await jobOf(image);
         const exp=await numericRow(image,EXPS.map((_,j)=>[981+60*j,228,49,21]));
-        const knownTab=await matchesTemplate(image,'basic',[748,104,141,39]);
         let title='';if(!knownTab)title=normalize((await textAt(image,[40,10,360,60],false,true)).text);
         const enoughExp=exp.filter(v=>v!=null).length>=3;
         if(!knownTab&&!title.includes('能力アップ')&&!jobResult.job&&!enoughExp){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
