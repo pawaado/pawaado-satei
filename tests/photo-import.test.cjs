@@ -820,124 +820,31 @@ test('reset/calculation are locked during reading and detailed warnings survive 
 });
 
 
-test('regular OCR remains independent of experimental AI classification results',async()=>{
-  const {c,h,get}=setup();
-  let aiCalls=0,imported=null,training=null;
-  c.__PAWAADO_AI_PROBE__={inspectImage:async()=>{aiCalls++;return {marks:[
-    {row:1,col:1,top:278,value:'◎',confidence:.9999}
-  ]};}};
-  c.__PAWAADO_IMPORT_PHOTO__=data=>{imported=data;};
-  c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=data=>{training=data;};
-  h.prepareUi(async(images,options)=>{
-    assert.equal(options?.comparison,undefined,'standard import does not require comparison mode');
-    return {abilityUpScreens:1,dataScreens:1,job:'剣士',
-      specials:['対ドラゴンタートル○','アクションスキル○'],
-      explicitPairMarks:{対ドラゴンタートル:'○',アクションスキル:'○'},
-      trainingPatterns:[{exp:{筋力:309}}],warnings:[]};
-  },null);
-  await get('readPhotos').onclick();
-  assert.equal(aiCalls,0,'AI cannot modify regular OCR or cause extra work');
-  assert(imported&&training);
-  assert(imported.specials.includes('対ドラゴンタートル○'));
-  assert(imported.specials.includes('アクションスキル○'));
-  assert(!imported.specials.includes('アクションスキル◎'));
-  assert.equal(get('photoStatus').textContent,'自動入力しました。');
-});
-test('AI comparison shows old OCR and AI candidates by screenshot without treating agreement as accuracy',()=>{
- const {c}=setup();
- const render=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml;
- const html=render(
-  [{name:'A.jpg'}],
-  {exp:{筋力:300},specials:['アクションスキル◎'],comparisonScreens:[{index:0,type:'能力データ',cells:[
-    {row:1,col:1,name:'アクションスキル◎',mark:'◎'},
-    {row:1,col:2,name:'風回復',mark:'なし'},
-    {row:1,col:3,name:'対ドラゴンタートル○',mark:'○'}
-  ]}]},
-  [{experience:[],marks:[{row:1,col:1,value:'◎',confidence:.99},{row:1,col:2,value:'◎',confidence:.95},{row:1,col:3,value:'◎',confidence:.96}]}]
- );
- assert(html.includes('アクションスキル◎'));
- assert(html.includes('対ドラゴンタートル○'));
- assert(html.includes('<th>従来の記号</th>'));
- assert(html.includes('一致 <strong>1</strong>'));
- assert(html.includes('相違 <strong>2</strong>'),'記号なし対◎も比較上の相違');
- assert(html.includes('記号の有無・金色セルを先に判別し'));
- assert(html.includes('査定入力は変更しません'));
-});
-test('AI comparison renders experience readings and never claims a missing AI value is correct',()=>{
- const {c}=setup();
- const output=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
-  [{name:'能力アップ.jpg'}],
-  {exp:{筋力:300},specials:[],comparisonScreens:[{index:0,type:'能力アップ',exp:{筋力:300,敏捷:130,技術:null,知力:105,精神:78}}]},
-  [{experience:[{name:'筋力',value:'300',confidence:.99},{name:'敏捷',value:'131',confidence:.99},{name:'知力',value:'105',confidence:.99},{name:'精神',value:'78',confidence:.99}]}]
- );
- assert(output.includes('経験点の比較'));
- assert(output.includes('一致 <strong>3</strong>'));
- assert(output.includes('相違 <strong>1</strong>'));
- assert(output.includes('要確認 <strong>1</strong>'));
- assert(output.includes('未読'));
-});
-test('one ability-data screen is enough for isolated AI comparison without EXP warnings',async()=>{
- const {c,h}=setup();h.stubReads();
- const report=await h.readImages([{kind:'data',academy:'パワフルアカデミー',dataJob:'剣士'}],{comparison:true});
- assert.equal(report.dataScreens,1);
- assert.equal(report.abilityUpScreens,0);
- assert.equal(report.trainingPatterns.length,0);
- assert.equal(report.comparisonScreens.length,1);
- assert.equal(report.comparisonScreens[0].basic['生命力'],50);
- assert(!report.warnings.some(w=>w.includes('能力アップ')&&w.includes('訓練')));
- const html=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
-  [{name:'能力データ.png'}],report,[{marks:[],experience:[]}]
- );
- assert(html.includes('「能力データ」のみの比較検証'));
- assert(html.includes('基本能力（従来の画像認識・AI未対応）'));
- assert(!html.includes('経験点の比較'));
- // 通常の自動入力では経験点画像が必要なことを引き続き通知する。
- const regular=await h.readImages([{kind:'data',dataJob:'剣士'}]);
- assert(regular.warnings.some(w=>w.includes('「能力アップ」または「訓練」')));
-});
-test('AI comparison escapes file names and unread names in rendered HTML',()=>{
- const {c}=setup();
- const output=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
-  [{name:'<img src=x onerror=alert(1)>.png'}],
-  {exp:{},specials:['<svg/onload=alert(2)>'],comparisonScreens:[]},[{}]
- );
- assert(!output.includes('<img src=x'));
- assert(!output.includes('<svg/onload=alert(2)>'));
- assert(output.includes('&lt;img'));
-});
-test('normal import does not load unavailable experimental AI',async()=>{
-  const {c,h,get}=setup();let imported=null;
-  c.__PAWAADO_AI_PROBE__={inspectImage:async()=>{throw Error('offline')}};
-  c.__PAWAADO_IMPORT_PHOTO__=data=>{imported=data;};
-  h.prepareUi(async()=>({abilityUpScreens:1,dataScreens:1,
-    specials:['アクションスキル○'],explicitPairMarks:{アクションスキル:'○'},
-    trainingPatterns:[],warnings:[]}),null);
-  await get('readPhotos').onclick();
-  assert(imported?.specials.includes('アクションスキル○'));
-  assert(!imported.warnings.some(x=>x.includes('AIによる○／◎')));
-  assert.equal(get('photoStatus').textContent,'自動入力しました。');
-});
-test('AI comparison button evaluates the same selected images without modifying inputs',async()=>{
- const {c,h,get}=setup();
- let imported=0,called=0,terminated=0;
- c.__PAWAADO_IMPORT_PHOTO__=()=>{imported++;};
- c.__PAWAADO_AI_PROBE__={inspectImage:async()=>{called++;return {marks:[],experience:[]}}};
+test('normal image import still preserves skills and training',async()=>{
+ const {c,h,get}=setup();let imported=null,training=null;
+ c.__PAWAADO_IMPORT_PHOTO__=value=>{imported=value;};
+ c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=value=>{training=value;};
  h.prepareUi(async(images,options)=>{
-  assert.equal(options?.comparison,true);
-  assert.equal(images.length,1);
-  return {exp:{},specials:[],comparisonScreens:[{index:0,type:'能力データ',cells:[]}]};
- },{terminate:async()=>{terminated++;}});
- await get('comparePhotos').onclick();
- assert.equal(called,1);
- assert.equal(imported,0);
- assert.equal(terminated,1);
- assert.equal(h.busy(),false);
- assert.equal(get('readPhotos').disabled,false,'regular import remains available');
- assert.equal(get('photoCompare').hidden,false);
- assert(get('photoCompare').innerHTML.includes('従来OCRと端末内AIの比較'));
+  assert.equal(options,undefined);
+  return {abilityUpScreens:1,dataScreens:1,job:'剣士',
+   specials:['対ドラゴンタートル○','アクションスキル○'],
+   explicitPairMarks:{対ドラゴンタートル:'○',アクションスキル:'○'},
+   trainingPatterns:[{exp:{筋力:309}}],warnings:[]};
+ },null);
+ await get('readPhotos').onclick();
+ assert(imported&&training);
+ assert(imported.specials.includes('対ドラゴンタートル○'));
+ assert(imported.specials.includes('アクションスキル○'));
+ assert(!imported.specials.includes('アクションスキル◎'));
+ assert.equal(get('photoStatus').textContent,'自動入力しました。');
 });
-
-
+test('removed comparison files and UI remain absent',()=>{
+ const {c}=setup();
+ assert(!c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml);
+ const source=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+ for(const id of ['comparePhotos','photoCompare','comparisonScreens','aiProbeLoader','ensureCompareAi','ai_models_probe','ai_probe.js'])assert(!source.includes(id),id);
+ for(const file of ['ai-lab.html','ai_models_probe.js','ai_probe.js','AI_BENCHMARK.md','tests/ai-probe.test.cjs'])assert(!fs.existsSync(path.join(root,file)),file);
+});
 function fakeScreenshotFrame(frame){
  const pixels=new Uint8ClampedArray(1536*706*4);
  for(let i=0;i<pixels.length;i+=4){pixels[i]=240;pixels[i+1]=228;pixels[i+2]=208;pixels[i+3]=255;}
@@ -971,19 +878,4 @@ test('IMG_1096 normal top row retains its original vertical position',()=>{
  assert.equal(cells.length,20);
  assert.equal(cells[0].rect[1],281);
  assert.equal(cells[4].rect[1],330);
-});
-test('comparison explains 99 percent AI confidence is not the rate of agreement',()=>{
- const {c}=setup();
- const html=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
-  [{name:'IMG_1096.png'}],
-  {exp:{},specials:['対ドラゴンタートル◎','回復効果○'],
-   comparisonScreens:[{index:0,type:'能力データ',cells:[
-    {row:4,col:3,name:'対ドラゴンタートル◎',mark:'◎'},
-    {row:4,col:4,name:'回復効果○',mark:'○'}
-   ]}]},
-  [{marks:[{row:4,col:3,value:'◎',confidence:.994},{row:4,col:4,value:'○',confidence:.991}],experience:[]}]
- );
- assert(html.includes('AI確信度 99%（参考）'));
- assert(html.includes('正解率・一致率ではありません'));
- assert(html.includes('一致 <strong>2</strong>'));
 });

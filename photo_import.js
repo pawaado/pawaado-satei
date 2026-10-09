@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-ai-shadow-only-1';
+  const PHOTO_IMPORT_BUILD='20261010-remove-experiment-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -676,10 +676,7 @@
     <button id="choosePhotos" class="secondary photo-choose" type="button">画像を選択</button>
     <input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
     <div id="photoPreviews"></div><button id="readPhotos" type="button" disabled>画像を読み取る</button>
-    <button id="comparePhotos" class="secondary photo-compare-button" type="button" disabled>AIと読み取りを比較（実験）</button>
-    <p class="photo-compare-guide">比較検証は「能力データ」の画像1枚だけでもできます。「能力アップ」「訓練」は不要です。査定入力には反映しません。</p>
     <p id="photoStatus" role="status" aria-live="polite"></p>
-    <div id="photoCompare" class="photo-compare-results" hidden></div>
     <div id="photoUncertain" class="photo-uncertain" hidden></div>
     <div id="photoLightbox" class="photo-lightbox" hidden role="dialog" aria-modal="true" aria-label="選択画像の拡大表示">
       <button id="photoLightboxClose" class="photo-lightbox-close" type="button" aria-label="拡大表示を閉じる">×</button>
@@ -690,20 +687,6 @@
     .photo-card p{line-height:1.65}.photo-choose{width:100%;margin:8px 0 12px}
     #photoPreviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}#photoPreviews:empty{display:none}.photo-preview-item{position:relative;min-width:0}#photoPreviews img{width:100%;display:block;border-radius:8px}.photo-preview-image{cursor:zoom-in}
     #photoPreviews p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}.photo-preview-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border-radius:50%;font-size:0;line-height:1;z-index:2}
-    .photo-compare-button{display:block;width:100%;min-height:46px;margin:8px 0 2px;font-size:14px}
-    .photo-compare-guide{font-size:12px;color:#66523e;margin:4px 0 6px}
-    .photo-compare-results{margin:14px 0;padding:12px;border:1px solid rgba(129,78,25,.5);border-radius:12px;background:#fffaf0;color:#49301d;font-size:13px;line-height:1.6}
-    .photo-compare-results[hidden]{display:none}
-    .photo-compare-results h3{margin:0 0 8px;font-size:17px}
-    .photo-compare-results .photo-compare-warning{padding:8px;border:1px solid #b98b42;border-radius:8px;background:#fff2cd}
-    .photo-compare-results details{margin:8px 0;border:1px solid #d9bf94;border-radius:8px;padding:6px 8px;overflow:hidden}
-    .photo-compare-results summary{font-weight:800;cursor:pointer;overflow-wrap:anywhere}
-    .photo-compare-results .photo-compare-scroll{width:100%;overflow-x:auto}
-    .photo-compare-results table{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
-    .photo-compare-results th,.photo-compare-results td{padding:6px 5px;border-bottom:1px solid #e9d6bb;text-align:left;vertical-align:top;overflow-wrap:anywhere}
-    .photo-compare-results th{background:#f5ead2}
-    .photo-compare-results .photo-compare-diff{color:#9a431d;font-weight:800}
-    .photo-compare-results .photo-compare-match{color:#296142;font-weight:800}
     .photo-uncertain{margin:8px 0 0;padding:9px 10px;border:1px solid #c58b42;border-radius:9px;background:#fff4cf;color:#6b3a19;font-size:13px;line-height:1.5}
     .photo-uncertain strong{display:block;margin-bottom:4px}.photo-uncertain ul{margin:0;padding-left:1.35em}.photo-uncertain li+li{margin-top:4px}
     .photo-lightbox{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(20,12,7,.88)}
@@ -1949,7 +1932,7 @@
   }
 
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{},cellReadings:[]};
+    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{}};
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
     const explicitPairMarks=new Map();
@@ -2017,7 +2000,6 @@
         if(level!=null)result.dualAttackLevel=Math.max(result.dualAttackLevel||0,level);
         else result.warnings.push(`${index}枚目：双剣士専用「通常攻撃」のLvを読み取れませんでした。読み取り結果のLvを確認してください。`);
         if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName,level==null?'Lv?':'Lv'+level);
-        result.cellReadings.push({row:cell.row,col:cell.col,top:cell.rect[1]-2,name:DUAL_NORMAL_ATTACK+(level==null?'（Lv不明）':' Lv.'+level),mark:'なし'});
         continue;
       }
 
@@ -2065,16 +2047,6 @@
       }
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
-      // 比較画面用のセル位置と候補名。既存の取得済み判定には一切使用しない。
-      const ignoredSuper=cell.superCell&&IGNORED_SUPER_IMAGE_NAMES.has(normalize(visualName));
-      const cellMainName=parsed.specials.find(n=>/◎$/.test(normalize(n)))
-        ||parsed.specials.find(n=>/○$/.test(normalize(n)))
-        ||parsed.specials[0]||parsed.supers[0]?.name||(ignoredSuper?visualName:'未読');
-      const cellName=normalize(cellMainName);
-      result.cellReadings.push({row:cell.row,col:cell.col,top:cell.rect[1]-2,name:cellMainName,
-        mark:cellMainName==='未読'?'未読':/[○◎]$/.test(cellName)?cellName.slice(-1):'なし',
-        superCell:cell.superCell,ignored:!!ignoredSuper});
-
       // 通常特殊能力セルに○/◎が直接見えているなら、その形状を記録。
       if(!cell.superCell){
         const pairName=parsed.specials.find(name=>/[○◎]$/.test(normalize(name)));
@@ -2145,19 +2117,6 @@
       }
       result.specials=[...owned];
       result.explicitPairMarks=Object.fromEntries(explicitPairMarks);
-      // 比較表も画面内の最終○/◎補正とそろえる。入力だけ○に直っても
-      // 比較画面に補正前の◎が残ると原因調査を誤らせる。
-      for(const reading of result.cellReadings){
-        if(reading.superCell)continue;
-        const matched=normalize(reading.name).match(/^(.+)([○◎])$/);
-        const corrected=matched?explicitPairMarks.get(matched[1]):'';
-        if(!corrected)continue;
-        reading.name=matched[1]+corrected;
-        reading.mark=corrected;
-        // 元画像の形状・同名テンプレート等、独立した従来判定が2系統一致したかを残す。
-        // AIが高確信度で食い違っても、この根拠のある○／◎をむやみに取り消さない。
-        reading.legacyVerified=result.explicitPairConfidence[matched[1]]===true;
-      }
     }
 
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
@@ -2541,9 +2500,8 @@
     };
   }
 
-  async function readImages(images,options={}){
+  async function readImages(images){
     const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
-    if(options.comparison===true)out.comparisonScreens=[];
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     const abilityUpIdentity={job:''};
     const dataIdentity={job:''};
@@ -2571,8 +2529,6 @@
           else out.warnings.push(`${i+1}枚目：${n}を画像比較で読み取れませんでした。基本能力を確認してください。`);
         });
         const result=await readAbilityCells(image,i+1);
-        if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'能力データ',cells:result.cellReadings,
-          basic:Object.fromEntries(BASICS.map((name,j)=>[name,values[j]]))});
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
           if(mark!=='○'&&mark!=='◎')continue;
@@ -2588,7 +2544,6 @@
         const knownTab=await matchesTemplate(image,'basic',[748,104,141,39]);
         const trainingPattern=knownTab?null:await readTrainingPattern(image);
         if(trainingPattern){
-          if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'訓練',cells:[],exp:trainingPattern.exp||{},current:trainingPattern.current||{},gains:trainingPattern.gains||{}});
           const missing=EXPS.filter(name=>trainingPattern.exp?.[name]==null);
           if(missing.length)out.warnings.push(`${i+1}枚目：訓練画像の経験点を一部読み取れませんでした。経験点を確認してください。`);
           out.trainingPatterns.push(trainingPattern);
@@ -2602,8 +2557,6 @@
         const enoughExp=exp.filter(v=>v!=null).length>=3;
         if(!knownTab&&!title.includes('能力アップ')&&!jobResult.job&&!enoughExp){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
         out.abilityUpScreens++;
-        if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'能力アップ',cells:[],
-          exp:Object.fromEntries(EXPS.map((name,j)=>[name,exp[j]]))});
         if(jobResult.candidate)out.warnings.push('ジョブの候補：'+jobResult.job+'（要確認）');
         if(jobResult.job)abilityUpIdentity.job=jobResult.job;
         EXPS.forEach((n,j)=>mergeField(out.exp,n,exp[j],n+'経験点'));
@@ -2683,12 +2636,10 @@
     }
     if(out.abilityUpScreens||out.dataScreens||out.trainingPatterns.length){
       if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・基本能力・取得済み特殊能力を確認してください。');
-      if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length&&!options.comparison)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
+      if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
     }
     return out;
   }
-  // AIの○／◎分類は検証が不十分なため通常入力には使わない。
-  // 従来方式とのA/B比較だけは「AIと読み取りを比較（実験）」から引き続き利用できる。
   const fileKey=file=>[file.name,file.size,file.lastModified,file.type].join('|');
   function renderPreviews(){
     const box=el('photoPreviews');box.replaceChildren();
@@ -2699,10 +2650,9 @@
       wrap.append(img,remove);box.append(wrap);
     });
     el('readPhotos').disabled=busy||!files.length||!selectionDirty;
-    el('comparePhotos').disabled=busy||!files.length;
     el('choosePhotos').textContent=files.length?'画像を追加':'画像を選択';
   }
-  function clear(){closePreview();urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];selectionDirty=false;el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;el('comparePhotos').disabled=true;el('photoCompare').hidden=true;el('photoCompare').replaceChildren();el('choosePhotos').textContent='画像を選択';renderUncertain([]);status('');}
+  function clear(){closePreview();urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];selectionDirty=false;el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;el('choosePhotos').textContent='画像を選択';renderUncertain([]);status('');}
   el('choosePhotos').onclick=()=>{if(!busy)el('photoFiles').click();};
   el('photoFiles').onchange=()=>{
     if(busy)return;
@@ -2714,7 +2664,7 @@
       if(files.length>=12){skipped++;continue;}
       files.push(file);urls.push(URL.createObjectURL(file));seen.add(key);changed=true;
     }
-    if(changed){selectionDirty=true;el('photoCompare').hidden=true;el('photoCompare').replaceChildren();}
+    if(changed)selectionDirty=true;
     renderPreviews();renderUncertain([]);
     if(skipped&&files.length>=12)status('画像は12枚まで選べます。');
     else if(skipped)status(`${files.length}枚選択しました。重複した画像は追加していません。`);
@@ -2725,153 +2675,10 @@
     const remove=e.target.closest('.photo-preview-remove');
     if(remove){
       const index=Number(remove.dataset.index);if(!Number.isInteger(index)||index<0||index>=files.length)return;
-      URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);selectionDirty=true;el('photoCompare').hidden=true;el('photoCompare').replaceChildren();renderPreviews();renderUncertain([]);status(files.length?`${files.length}枚選択しました。`:'');return;
+      URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);selectionDirty=true;renderPreviews();renderUncertain([]);status(files.length?`${files.length}枚選択しました。`:'');return;
     }
     const preview=e.target.closest('.photo-preview-image');
     if(preview)openPreview(Number(preview.dataset.index));
-  };
-  // 端末内AIは通常読み取りと比較実験で共有。画像・判定結果は外部へ送らない。
-  let aiProbeLoader=null;
-  function ensureCompareAi(){
-    if(window.__PAWAADO_AI_PROBE__?.inspectImage)return Promise.resolve(window.__PAWAADO_AI_PROBE__);
-    if(!aiProbeLoader){
-      aiProbeLoader=(async()=>{
-        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-ai-mark-priority-1']){
-          await new Promise((resolve,reject)=>{
-            const script=document.createElement('script');
-            script.src=source;script.onload=resolve;
-            script.onerror=()=>reject(new Error('実験AIを読み込めませんでした。通信状態を確認してください。'));
-            document.head.appendChild(script);
-          });
-        }
-        if(!window.__PAWAADO_AI_PROBE__?.inspectImage)throw new Error('AIの初期化に失敗しました');
-        return window.__PAWAADO_AI_PROBE__;
-      })().catch(error=>{aiProbeLoader=null;throw error;});
-    }
-    return aiProbeLoader;
-  }
-  function buildAiComparisonHtml(uploads,ocr,aiReports){
-    const screenMap=new Map((ocr.comparisonScreens||[]).map(screen=>[screen.index,screen]));
-    const trainingPositions=new Map((ocr.comparisonScreens||[]).filter(screen=>screen.type==='訓練')
-      .map((screen,index)=>[screen.index,String.fromCharCode(65+index)]));
-    const totals={match:0,difference:0,unknown:0};
-    const displayValue=value=>value==null||value===''?'未読':escape(String(value));
-    const detailBlocks=uploads.map((file,index)=>{
-      const o=screenMap.get(index)||{type:'未判別',cells:[],exp:{}};
-      const a=aiReports[index]||{error:'AIが解析できませんでした'};
-      let digitTable='';
-      if(o.type==='能力アップ'){
-        const aiExp=new Map((a.experience||[]).map(item=>[item.name,item]));
-        const expRows=EXPS.map(name=>{
-          const old=o.exp?.[name],record=aiExp.get(name),newValue=record?.value??'未読';
-          const available=old!=null&&record&&/^\d+$/.test(String(newValue));
-          const same=available&&Number(old)===Number(newValue);
-          const result=available?(same?'一致':'相違'):'要確認';
-          if(available){totals[same?'match':'difference']++;}
-          else totals.unknown++;
-          return '<tr><td>'+escape(name)+'</td><td>'+displayValue(old)+'</td><td>'+displayValue(newValue)+'</td><td class="'+(available?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+result+'</td></tr>';
-        }).join('');
-        digitTable='<h4>経験点の比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>種類</th><th>従来</th><th>AI候補</th><th>比較</th></tr></thead><tbody>'+expRows+'</tbody></table></div>';
-      }
-      let trainingTable='';
-      if(o.type==='訓練'){
-        const pattern=trainingPositions.get(index)||'?';
-        const rows=EXPS.map(name=>{
-          const current=o.current?.[name],gain=o.gains?.[name],total=o.exp?.[name];
-          return '<tr><td>'+escape(name)+'</td><td>'+displayValue(current)+'</td><td>'+displayValue(gain)+'</td><td>'+displayValue(total)+'</td></tr>';
-        }).join('');
-        trainingTable='<h4>訓練パターン'+pattern+' の経験点</h4>'
-          +'<p>訓練画面の数字は従来の画像認識で確認しています。試験AIの訓練数字比較は未対応です。</p>'
-          +'<div class="photo-compare-scroll"><table><thead><tr><th>種類</th><th>現在</th><th>増加分</th><th>訓練後</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-      }
-      let markTable='';
-      let basicTable='';
-      if(o.type==='能力データ'){
-        if(o.basic){
-          const basicRows=BASICS.map(name=>'<tr><td>'+escape(name)+'</td><td>'+displayValue(o.basic[name])+'</td></tr>').join('');
-          basicTable='<details><summary>基本能力（従来の画像認識・AI未対応）</summary>'
-            +'<div class="photo-compare-scroll"><table><thead><tr><th>能力</th><th>従来読取</th></tr></thead><tbody>'+basicRows+'</tbody></table></div></details>';
-        }
-        const oldMarks=new Map((o.cells||[]).map(item=>[item.row+':'+item.col,item]));
-        const newMarks=new Map((a.marks||[]).map(item=>[item.row+':'+item.col,item]));
-        const keys=[...new Set([...oldMarks.keys(),...newMarks.keys()])].sort((aa,bb)=>{
-          const [ar,ac]=aa.split(':').map(Number),[br,bc]=bb.split(':').map(Number);
-          return ar-br||ac-bc;
-        });
-        const markRows=keys.map(key=>{
-          const old=oldMarks.get(key),candidate=newMarks.get(key);
-          const goldOrIgnored=old?.superCell===true||old?.ignored===true;
-          const known=['○','◎','なし'].includes(old?.mark);
-          const candidateKnown=candidate&&['○','◎','なし'].includes(candidate.value);
-          const comparable=!goldOrIgnored&&known&&candidateKnown;
-          const same=comparable&&old.mark===candidate.value;
-          if(comparable)totals[same?'match':'difference']++;
-          else if(!goldOrIgnored)totals.unknown++;
-          const label=goldOrIgnored?'対象外（超特殊能力）':comparable?(same?(old.mark==='なし'?'一致（記号なし）':'一致'):'相違'):'要確認';
-          const aiValue=goldOrIgnored?'—':candidate?.value==='なし'?'なし':displayValue(candidate?.value);
-          const oldMark=goldOrIgnored?'—':displayValue(old?.mark);
-          const conf=comparable&&Number.isFinite(candidate.confidence)?' <small>AI確信度 '+Math.round(candidate.confidence*100)+'%（参考）</small>':'';
-          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+oldMark+'</td><td>'+aiValue+conf+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
-        }).join('');
-        markTable='<h4>特殊能力マスの比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>位置</th><th>従来読取の能力名</th><th>従来の記号</th><th>AIの記号候補</th><th>比較</th></tr></thead><tbody>'+(markRows||'<tr><td colspan="5">能力のマスを検出できませんでした。</td></tr>')+'</tbody></table></div>';
-      }
-      const message=a.error?'<p class="photo-compare-diff">AI：'+escape(a.error)+'</p>':'';
-      const none=!digitTable&&!markTable&&!trainingTable?'<p>この画像を能力アップ／能力データ／訓練として判別できませんでした。訓練画面の場合は元画像で経験点の表示を確認してください。</p>':'';
-      return '<details '+(index===0?'open':'')+'><summary>'+escape((file?.name||'画像')+'（'+o.type+'）')+'</summary>'+message+digitTable+trainingTable+markTable+basicTable+none+'</details>';
-    });
-    const finalNames=(ocr.specials||[]).map(escape).join('、')||'なし';
-    const expSummary=EXPS.map(name=>escape(name)+' '+displayValue(ocr.exp?.[name])).join(' / ');
-    const screens=ocr.comparisonScreens||[];
-    const hasAbilityUp=screens.some(screen=>screen.type==='能力アップ');
-    const hasData=screens.some(screen=>screen.type==='能力データ');
-    const trainingCount=screens.filter(screen=>screen.type==='訓練').length;
-    const dataOnly=hasData&&!hasAbilityUp&&!trainingCount;
-    return '<h3>従来OCRと端末内AIの比較</h3>'
-      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 記号の有無・金色セルを先に判別し、青色セルの○／◎を試験AIで比較します。訓練は従来の画像認識結果をパターン別に表示し、AIとの数字比較は未対応です。「AI確信度」はAI内部の推定値で、正解率・一致率ではありません。</p>'
-      +(dataOnly?'<p><strong>「能力データ」のみの比較検証</strong>：経験点画像を使わず、特殊能力マスの記号を比較しています。</p>':'')
-      +(hasAbilityUp||hasData?'<p>AI比較：一致 <strong>'+totals.match+'</strong>、相違 <strong>'+totals.difference+'</strong>、要確認 <strong>'+totals.unknown+'</strong>。一致はOCRとAIが同じ候補という意味で、正解率ではありません。</p>':'')
-      +(trainingCount?'<p><strong>訓練画像：</strong>'+trainingCount+'枚をパターン別に表示しています。</p>':'')
-      +(hasAbilityUp?'<p><strong>従来OCRの経験点：</strong>'+expSummary+'</p>':'')
-      +(hasData?'<p><strong>従来OCRの特殊能力（統合結果）：</strong>'+finalNames+'</p>':'')
-      +detailBlocks.join('');
-  }
-  el('comparePhotos').onclick=async()=>{
-    if(busy||!files.length)return;
-    busy=true;
-    renderPreviews();
-    el('photoFiles').disabled=true;el('choosePhotos').disabled=true;
-    const output=el('photoCompare');output.hidden=false;
-    output.textContent='OCRとAIを比較しています。画像枚数によっては時間がかかります…';
-    const locked=['resetBtn','topResetBtn','calcBtn'].map(el).filter(Boolean).map(button=>({button,disabled:button.disabled}));
-    for(const item of locked)item.button.disabled=true;
-    try{
-      const probe=await ensureCompareAi();
-      const images=await Promise.all(urls.map(imageFrom));
-      const ocr=await readImages(images,{comparison:true});
-      const screenTypes=new Map((ocr.comparisonScreens||[]).map(screen=>[screen.index,screen.type]));
-      const ai=[];
-      for(let index=0;index<images.length;index++){
-        status('AI比較：'+(index+1)+'/'+images.length+'枚を処理中…');
-        if(screenTypes.get(index)==='訓練'){
-          ai.push({marks:[],experience:[],trainingNotSupported:true});
-        }else{
-          ai.push(await probe.inspectImage(images[index]));
-        }
-      }
-      output.innerHTML=buildAiComparisonHtml(files,ocr,ai);
-      const abilityDataOnly=images.length>0&&images.every((_,index)=>screenTypes.get(index)==='能力データ');
-      status(abilityDataOnly?'「能力データ」の画像のみで比較が完了しました。査定入力は変更していません。':'AI比較が完了しました。従来の自動入力結果は変更していません。');
-    }catch(error){
-      output.textContent='比較できませんでした：'+String(error?.message||error||'不明なエラー');
-      status('AI比較に失敗しました。通常の画像読み取りは引き続き利用できます。');
-    }finally{
-      const previous=worker;worker=null;
-      try{if(previous)await previous.terminate();}
-      catch(error){console.warn('比較後のOCR終了処理に失敗しました。',error);}
-      busy=false;el('photoFiles').disabled=false;el('choosePhotos').disabled=false;
-      for(const item of locked)item.button.disabled=item.disabled;
-      renderPreviews();
-    }
   };
   el('readPhotos').onclick=async()=>{
     if(busy||!files.length||!selectionDirty)return;busy=true;renderPreviews();renderUncertain([]);el('photoFiles').disabled=true;el('choosePhotos').disabled=true;
@@ -2879,7 +2686,6 @@
     for(const {button} of lockedButtons)button.disabled=true;
     try{
       const images=await Promise.all(urls.map(imageFrom));
-      // AIは比較専用に戻し、通常入力は検証済みの従来画像認識のみを使用する。
       const data=await readImages(images);
       renderUncertain(data.warnings||[]);
       const hasAbilityUp=data.abilityUpScreens>0;
@@ -2952,5 +2758,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,buildAiComparisonHtml,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();

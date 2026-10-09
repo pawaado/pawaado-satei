@@ -20,6 +20,11 @@ assert(!/basicIconMap|ability-name-svg|magicWandShaft|durability-shield-icon/.te
 assert.equal((mainStyle.match(/{/g)||[]).length,(mainStyle.match(/}/g)||[]).length,'style.css: brace count mismatch');
 for(const dead of ['--paper-deep:','--leather:','--bronze:','--line-soft:','--green:','--green-light:','--blue:','--red:','section-heading-with-action','select-game-arrow','disabled-note','note-title','note-no-break','button.small']) assert(!mainStyle.includes(dead),`style.css: removed/dead style returned: ${dead}`);
 const photo=sources['photo_import.js'];
+// Guard removal of abandoned comparison artifacts.
+for(const obsolete of ['AI_BENCHMARK.md','ai-lab.html','ai_models_probe.js','ai_probe.js','tests/ai-probe.test.cjs'])
+ assert(!fs.existsSync(obsolete),`unused experiment file remains: ${obsolete}`);
+for(const obsolete of ['comparePhotos','photoCompare','comparisonScreens','ensureCompareAi','buildAiComparisonHtml'])
+ assert(!photo.includes(obsolete),`unused comparison reference remains: ${obsolete}`);
 for(const [,name] of photo.matchAll(/matchesTemplate\(image,'([^']+)'/g))assert(fs.existsSync(`assets/${name}.png`),`dynamic template missing: ${name}`);
 const references=photo.match(/const REFERENCES=(\[.*?\]);/)[1];
 for(const [,file] of vm.runInNewContext(references))assert(fs.existsSync(`assets/academies/${file}.png`),`academy template missing: ${file}`);
