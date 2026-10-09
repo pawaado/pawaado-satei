@@ -36,6 +36,8 @@ const specialList=document.getElementById('specialList');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
+// 結果から指定された、今回以降の計算で取得したくない特殊能力。
+const excludedSpecialIndices=new Set();
 const specialNameIndex=new Map();
 const specialReqIndex=new Map();
 D.special.forEach((s,i)=>{
@@ -548,7 +550,8 @@ function calcCacheKey(exp){
   const dualPart=typeof window.__PAWAADO_DUAL_ATTACK_SIGNATURE__==='function'
     ? window.__PAWAADO_DUAL_ATTACK_SIGNATURE__()
     : '';
-  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart].join('||');
+  const excludedPart=[...excludedSpecialIndices].sort((a,b)=>a-b).join(',');
+  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'excludeSpecial:'+excludedPart].join('||');
 }
 function cloneResult(st){
   const items=restoreItems(st);
@@ -672,7 +675,8 @@ function buildWorkerPayload(exp){
     basicOwned:{...basicOwned},
     basicHints:{...basicHints},
     specialState:workerSpecialState(),
-    selectedSupers:selectedSuperState()
+    selectedSupers:selectedSuperState(),
+    excludedSpecialIndices:[...excludedSpecialIndices]
   };
 }
 function cleanupActiveWorker(){
@@ -687,7 +691,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261003-dual-training-ui-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261009-exclude-specials-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -923,6 +927,79 @@ function comparisonHtml(entries){
   return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
+// 結果欄では、取得済みではない新規取得候補だけを除外対象にする。
+function resultSpecialChoices(entries){
+  const result=new Map();
+  for(const entry of entries){
+    const specials=restoreItems(entry.candidate).filter(item=>item?.type==='special'
+      &&Number.isInteger(Number(item.idx))&&Number(item.idx)>=0&&Number(item.idx)<D.special.length);
+    const bits=specialItemsBits(specials);
+    for(const item of specials){
+      const index=Number(item.idx);
+      const upper=upperIndex(index);
+      if(upper>=0&&(bits&specialBit(upper))!==EMPTY_BITS)continue;
+      if(Number(getSpecialState(index).own)===1||excludedSpecialIndices.has(index))continue;
+      result.set(index,String(item.name||D.special[index][1]));
+    }
+  }
+  return [...result.entries()].sort((a,b)=>a[0]-b[0]);
+}
+function escapeResultOption(value){
+  return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function excludeResultHtml(entries){
+  const choices=resultSpecialChoices(entries);
+  const excluded=[...excludedSpecialIndices].sort((a,b)=>a-b)
+    .map(i=>D.special[i]?.[1]).filter(Boolean);
+  if(!choices.length&&!excluded.length)return '';
+  const current=excluded.length
+    ? `<p class="excluded-special-current">取得しない：${excluded.map(escapeResultOption).join('、')}</p>`
+    : '';
+  const select=choices.length
+    ? `<label for="excludeSpecialSelect" class="excluded-special-label">取得したくない特殊能力</label>
+       <select id="excludeSpecialSelect" class="excluded-special-select">
+         <option value="">特殊能力を選択</option>
+         ${choices.map(([i,name])=>`<option value="${i}">${escapeResultOption(name)}</option>`).join('')}
+       </select>
+       <button id="excludeSpecialRecalc" class="secondary excluded-special-recalc" type="button" disabled>選択した特殊能力を取得せずに再計算する</button>`
+    : '';
+  const reset=excluded.length
+    ? '<button id="clearExcludedSpecials" class="secondary excluded-special-clear" type="button">除外をすべて解除して再計算する</button>'
+    : '';
+  return `<div class="result-block excluded-special-block"><h3>特殊能力を除外して再計算</h3>
+    <p class="excluded-special-description">取得したくない能力を選ぶと、それを取得せずに査定が最大となる組合せを計算します。複数の能力も順番に除外できます。</p>
+    ${current}${select}${reset}
+  </div>`;
+}
+const resultForExclusions=document.getElementById('result');
+resultForExclusions.addEventListener('change',event=>{
+  if(event.target?.id!=='excludeSpecialSelect')return;
+  const i=Number(event.target.value);
+  const valid=event.target.value!==''&&Number.isInteger(i)&&i>=0&&i<D.special.length&&!excludedSpecialIndices.has(i);
+  const button=document.getElementById('excludeSpecialRecalc');
+  if(button){
+    button.disabled=!valid;
+    button.textContent=valid
+      ? D.special[i][1]+'を取得せずに再計算する'
+      : '選択した特殊能力を取得せずに再計算する';
+  }
+});
+resultForExclusions.addEventListener('click',event=>{
+  const button=event.target.closest('button');
+  if(!button||isCalculating)return;
+  if(button.id==='excludeSpecialRecalc'){
+    const select=document.getElementById('excludeSpecialSelect');
+    const index=Number(select?.value);
+    if(select?.value===''||!Number.isInteger(index)||index<0||index>=D.special.length
+      ||excludedSpecialIndices.has(index)||Number(getSpecialState(index).own)===1)return;
+    excludedSpecialIndices.add(index);
+    calc();
+  }else if(button.id==='clearExcludedSpecials'){
+    excludedSpecialIndices.clear();
+    calc();
+  }
+});
+
 function plannedExpNeedsConfirmation(){
   return expSamples.length>1 && expNames.some(name=>plannedExp[name]==='' || plannedExp[name]==null);
 }
@@ -1036,7 +1113,7 @@ async function calc(){
     entries.forEach(x=>{x.isBest=x.scoreGain===maxScore;});
     const multiple=entries.length>1;
     const displayEntries=multiple?rankedEntries(entries):entries;
-    result.innerHTML=comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('');
+    result.innerHTML=comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('')+excludeResultHtml(entries);
     animateResultCard();
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
@@ -1110,6 +1187,7 @@ function resetAll(){
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
 
   specialState.clear();
+  excludedSpecialIndices.clear();
   calcResultCache.clear();
 
   renderExp();
