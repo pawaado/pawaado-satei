@@ -116,21 +116,42 @@ function findLastGlyph(data,x,y){
      start=-1;
    }
  }
- return last?Math.round(x+(last[0]+last[1])/2):null;
+ return last?{cx:Math.round(x+(last[0]+last[1])/2),width:last[1]-last[0]}:null;
+}
+// 2択モデルへ入れる前に、「そもそも末尾に丸い記号があるか」を別途検査。
+// 魔力制御／魔法の理解などは最後の漢字を無理に○/◎分類しない。
+function looksLikeMarkGlyph(data,cx,y,width){
+ if(width<10||width>22)return false;
+ let dark=0,count=0;
+ for(let yy=y+18;yy<y+29;yy++)for(let xx=cx-5;xx<cx+5;xx++){
+   const [r,g,b]=rgbAt(data,xx,yy);
+   const lum=luminance(r,g,b);
+   if(lum<172&&Math.max(r,g,b)-Math.min(r,g,b)<80)dark++;
+   count++;
+ }
+ // 丸印は中心が空洞。漢字・文字片は中心が密集する。
+ return count>0&&dark/count<.67;
 }
 function markCells(data){
  const rows=detectRows(data),out=[];
  for(const [ri,y] of rows.entries()){
    for(const [ci,x] of positions.entries()){
-     let color=0;
+     let color=0,yellow=0;
      for(let yy=y+5;yy<Math.min(537,y+35);yy++)
-       for(let xx=x+3;xx<x+127;xx+=8)
+       for(let xx=x+3;xx<x+127;xx+=8){
+         const [r,g,b]=rgbAt(data,xx,yy);
          if(isColored(data,xx,yy))color++;
-     if(color<=30)continue;
-     const cx=findLastGlyph(data,x,y);
-     if(cx===null||cx<13||cx+13>=1536)continue;
-     const p=predict('marks',markFeatures(data,cx,y));
-     out.push({row:ri+1,col:ci+1,value:p.value,confidence:p.confidence});
+         if(r>175&&g>125&&b<120&&r>b+65&&g>b+35)yellow++;
+       }
+     if(color<=30||yellow>=20)continue; // 金色セルは超特殊能力、○／◎対象外。
+     const glyph=findLastGlyph(data,x,y);
+     const label={row:ri+1,col:ci+1};
+     if(!glyph||glyph.cx<13||glyph.cx+13>=1536||!looksLikeMarkGlyph(data,glyph.cx,y,glyph.width)){
+       out.push({...label,value:'なし',confidence:null});
+       continue;
+     }
+     const p=predict('marks',markFeatures(data,glyph.cx,y));
+     out.push({...label,value:p.confidence>=.65?p.value:'未確定',confidence:p.confidence});
    }
  }
  return out;
