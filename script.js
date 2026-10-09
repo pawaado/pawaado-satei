@@ -36,7 +36,7 @@ const specialList=document.getElementById('specialList');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
-// こだわり計算：基本能力「以上／固定／以下」と特殊能力「取得する／取得しない」。
+// こだわり条件：基本能力「以上／固定／以下」と特殊能力「取得する／取得しない」。
 const customBasicRules=new Map();
 const customRequiredSpecials=new Set();
 const customForbiddenSpecials=new Set();
@@ -1073,7 +1073,7 @@ function customConditionsSummaryHtml(){
   for(const [name,rule] of customBasicRules)lines.push(escapeCustomText(name)+' '+rule.value+customBasicModes[rule.mode]);
   for(const index of customRequiredSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得');
   for(const index of customForbiddenSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得しない');
-  return lines.length?'<div class="result-block custom-result-summary"><h3>こだわり計算の条件</h3><p>'+lines.join('／')+'</p></div>':'';
+  return lines.length?'<div class="result-block custom-result-summary"><h3>こだわり条件</h3><p>'+lines.join('／')+'</p></div>':'';
 }
 function plannedExpNeedsConfirmation(){
   return expSamples.length>1 && expNames.some(name=>plannedExp[name]==='' || plannedExp[name]==null);
