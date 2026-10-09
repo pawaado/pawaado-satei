@@ -949,7 +949,7 @@ function clearCustomConditionsState(){
   customBasicRules.clear();
   customRequiredSpecials.clear();
   customForbiddenSpecials.clear();
-  for(const [id,value] of [['customBasicName',''],['customBasicMode','above'],['customSpecialName',''],['customSpecialMode','required'],['customBasicValue','']]){
+  for(const [id,value] of [['customBasicName',''],['customBasicMode',''],['customSpecialName',''],['customSpecialMode',''],['customBasicValue','']]){
     const el=document.getElementById(id); if(el)el.value=value;
   }
   showCustomMessage('');
@@ -992,7 +992,7 @@ function refreshCustomChoices(){
   special.value=specialSelection;
   const card=document.getElementById('customCalcCard');
   card?.classList.toggle('is-locked',!ready);
-  for(const id of ['customBasicName','customBasicMode','customBasicValue','customAddBasic','customSpecialName','customSpecialMode','customAddSpecial']){
+  for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
     const el=document.getElementById(id);
     if(el)el.disabled=!ready||isCalculating;
   }
@@ -1017,6 +1017,39 @@ function initCustomConditions(){
   const value=document.getElementById('customBasicValue');
   const card=document.getElementById('customCalcCard');
   if(!basic||!special||!basicMode||!specialMode||!value||!card)return;
+  // 必要項目がそろったら追加。数値の入力途中に確定しないためinputではなくchangeで登録する。
+  function autoAddBasic(){
+    if(!hasAcademyJob()||isCalculating||!basic.value||!basicMode.value||value.value==='')return;
+    const name=basic.value,target=Number(value.value),mode=basicMode.value;
+    if(!basicNames.includes(name)||!Number.isInteger(target)||target<1||!customBasicModes[mode]){
+      showCustomMessage('基本能力と、1以上の整数を指定してください。');return;
+    }
+    const cap=limits()[name];
+    if(cap!=null&&target>cap){showCustomMessage(name+'の上限は'+cap+'です。');return;}
+    const current=Number(document.getElementById('basic_'+name)?.value||1);
+    if(mode!=='above'&&target<current){
+      showCustomMessage(name+'の現在値'+current+'より小さく指定することはできません。');return;
+    }
+    customBasicRules.set(name,{value:target,mode});
+    basic.value='';basicMode.value='';value.value='';
+    showCustomMessage('');
+    renderCustomConditions();
+  }
+  function autoAddSpecial(){
+    if(!hasAcademyJob()||isCalculating||special.value===''||!specialMode.value)return;
+    const index=Number(special.value),mode=specialMode.value;
+    if(!Number.isInteger(index)||!D.special[index]||(mode!=='required'&&mode!=='forbidden')||
+      specialOwned(index)||(job.value!=='双剣士'&&D.special[index][1]==='通常攻撃(双剣士)')){
+      showCustomMessage('この特殊能力は条件に追加できません。');return;
+    }
+    if(customRequiredSpecials.has(index)||customForbiddenSpecials.has(index)){
+      showCustomMessage('その特殊能力はすでに指定されています。');return;
+    }
+    (mode==='required'?customRequiredSpecials:customForbiddenSpecials).add(index);
+    special.value='';specialMode.value='';
+    showCustomMessage('');
+    renderCustomConditions();
+  }
   card.addEventListener('click',event=>{
     const button=event.target.closest('button');
     if(!button||isCalculating)return;
@@ -1032,39 +1065,17 @@ function initCustomConditions(){
     if(button.id==='customClearAll'){
       clearCustomConditionsState();
       renderCustomConditions();
-      return;
     }
-    if(!hasAcademyJob())return;
-    if(button.id==='customAddBasic'){
-      const name=basic.value,target=Number(value.value),mode=basicMode.value;
-      if(!basicNames.includes(name)||value.value===''||!Number.isInteger(target)||target<1||!customBasicModes[mode]){
-        showCustomMessage('基本能力と、1以上の整数を指定してください。');return;
-      }
-      const cap=limits()[name];
-      if(cap!=null&&target>cap){showCustomMessage(name+'の上限は'+cap+'です。');return;}
-      const current=Number(document.getElementById('basic_'+name)?.value||1);
-      if(mode!=='above'&&target<current){
-        showCustomMessage(name+'の現在値'+current+'より小さく指定することはできません。');return;
-      }
-      customBasicRules.set(name,{value:target,mode});
-      basic.value='';value.value='';
-    }else if(button.id==='customAddSpecial'){
-      const index=Number(special.value),mode=specialMode.value;
-      if(special.value===''||!Number.isInteger(index)||!D.special[index]){
-        showCustomMessage('特殊能力を選択してください。');return;
-      }
-      if((mode!=='required'&&mode!=='forbidden')||specialOwned(index)||
-         (job.value!=='双剣士'&&D.special[index][1]==='通常攻撃(双剣士)')){
-        showCustomMessage('この特殊能力は条件に追加できません。');return;
-      }
-      if(customRequiredSpecials.has(index)||customForbiddenSpecials.has(index)){
-        showCustomMessage('その特殊能力はすでに指定されています。');return;
-      }
-      (mode==='required'?customRequiredSpecials:customForbiddenSpecials).add(index);
-      special.value='';
-    }else return;
-    showCustomMessage('');
-    renderCustomConditions();
+  });
+  card.addEventListener('change',event=>{
+    if(event.target===basic||event.target===basicMode||event.target===value)autoAddBasic();
+    else if(event.target===special||event.target===specialMode)autoAddSpecial();
+  });
+  // Enterでも数値を確定できるが、inputイベントでは登録しない。
+  value.addEventListener('keydown',event=>{
+    if(event.key!=='Enter')return;
+    event.preventDefault();
+    autoAddBasic();
   });
   renderCustomConditions();
 }
