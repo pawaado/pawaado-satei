@@ -85,3 +85,67 @@ test('鉄壁の盾 HP rate applies only to 重戦士',()=>{
   const offJob=lifeGain(c,payloadFor(c,{selectedSupers:[{name:'鉄壁の盾',level:2}]}));
   assert(Math.abs(offJob.gain-offJob.base)<1e-9);
 });
+
+
+function specialActions(c,payload){
+  c.__applyWorkerPayload(payload);
+  return vm.runInContext(`(()=>{
+    const st={cost:[0,0,0,0,0],levels:[90,1,1,1,1,1],bits:EMPTY_BITS,dualLevel:null};
+    return mixedSpecialActionsAtHp(st,[9999,9999,9999,9999,9999],currentHpForLife(90))
+      .map(op=>({names:op.items.map(x=>x.name),indices:op.items.filter(x=>x.type==='special').map(x=>Number(x.idx))}));
+  })()`,c);
+}
+
+test('excluded ○ removes both standalone ○ and prerequisite ○+◎ combinations',()=>{
+  const c=loadWorker();
+  const lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+  const upper=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+  assert(lower>=0&&upper>=0);
+  const normal=specialActions(c,payloadFor(c));
+  assert(normal.some(op=>op.indices.includes(lower)),'baseline should have lower option');
+  const filtered=specialActions(c,{...payloadFor(c),excludedSpecialIndices:[lower]});
+  assert(!filtered.some(op=>op.indices.includes(lower)),'lower cannot be acquired');
+  assert(!filtered.some(op=>op.indices.includes(upper)),'upper cannot bypass excluded prerequisite');
+});
+
+test('excluding ◎ still permits its ○ lower skill',()=>{
+  const c=loadWorker();
+  const lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+  const upper=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+  const filtered=specialActions(c,{...payloadFor(c),excludedSpecialIndices:[upper]});
+  assert(filtered.some(op=>op.indices.includes(lower)),'lower remains available');
+  assert(!filtered.some(op=>op.indices.includes(upper)),'upper is excluded');
+});
+
+test('excluded indices participate in configuration identity and can be reset',()=>{
+  const c=loadWorker();
+  const index=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+  const base=payloadFor(c);
+  const excluded={...base,excludedSpecialIndices:[index]};
+  assert.notEqual(c.__workerPayloadConfigKey(base),c.__workerPayloadConfigKey(excluded));
+  const blocked=specialActions(c,excluded);
+  assert(!blocked.some(op=>op.indices.includes(index)));
+  const restored=specialActions(c,base);
+  assert(restored.some(op=>op.indices.includes(index)),'cleared exclusions must restore candidates');
+});
+
+test('dual swordsman normal attack upgrade can be excluded without changing the owned Lv1',()=>{
+  const c=loadWorker();
+  const row=c.PAWAADO_DATA.academies.find(r=>r[1]==='双剣士');
+  if(!row)return;
+  const specialIdx=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='通常攻撃(双剣士)');
+  assert(specialIdx>=0);
+  const base={...payloadFor(c),academy:row[0],job:row[1],isDualSwordsman:true};
+  c.__applyWorkerPayload(base);
+  const has=vm.runInContext(`(()=>{
+    const st={cost:[0,0,0,0,0],levels:[90,1,1,120,1,1],dualLevel:1,bits:EMPTY_BITS};
+    return !!mixedDualAction(st,[9999,9999,9999,9999,9999]);
+  })()`,c);
+  assert(has,'dual upgrade candidate should exist before exclusion');
+  c.__applyWorkerPayload({...base,excludedSpecialIndices:[specialIdx]});
+  const banned=vm.runInContext(`(()=>{
+    const st={cost:[0,0,0,0,0],levels:[90,1,1,120,1,1],dualLevel:1,bits:EMPTY_BITS};
+    return mixedDualAction(st,[9999,9999,9999,9999,9999]);
+  })()`,c);
+  assert.equal(banned,null);
+});
