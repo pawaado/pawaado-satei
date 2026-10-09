@@ -16,7 +16,7 @@ function setup(){
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
   window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,classifyMarkCrossingScore,nativeMarkRun,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
-   stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
+   stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{},explicitPairConfidence:im.confidence||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubAbilityResults(fn){readAbilityCells=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
@@ -448,6 +448,36 @@ test('cross-image ○/◎ disagreement never exports a null authoritative mark',
  ]);
  assert.equal(Object.prototype.hasOwnProperty.call(r.explicitPairMarks,'列回復'),false);
  assert(r.warnings.some(w=>w.includes('列回復')&&w.includes('画像間で一致しません')));
+});
+test('a verified pair mark outranks an unverified conflicting duplicate screenshot without warning',async()=>{
+  const {h}=setup();h.stubReads();
+  const r=await h.readImages([
+    {kind:'data',dataJob:'魔法使い',marks:{'アクションスキル':'◎','対ドラゴンタートル':'○','列回復':'○'},confidence:{'アクションスキル':true,'対ドラゴンタートル':true,'列回復':true}},
+    {kind:'data',dataJob:'魔法使い',marks:{'アクションスキル':'○','対ドラゴンタートル':'◎','列回復':'◎'}},
+    {kind:'data',dataJob:'魔法使い',marks:{'列回復':'○'}}
+  ]);
+  assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
+  assert.equal(r.explicitPairMarks['対ドラゴンタートル'],'○');
+  assert.equal(r.explicitPairMarks['列回復'],'○');
+  assert(!r.warnings.some(w=>w.includes('画像間で一致しません')));
+});
+test('a verified-vs-verified pair conflict still warns and stays unresolved',async()=>{
+  const {h}=setup();h.stubReads();
+  const r=await h.readImages([
+    {kind:'data',dataJob:'魔法使い',marks:{'列回復':'○'},confidence:{'列回復':true}},
+    {kind:'data',dataJob:'魔法使い',marks:{'列回復':'◎'},confidence:{'列回復':true}}
+  ]);
+  assert.equal(Object.prototype.hasOwnProperty.call(r.explicitPairMarks,'列回復'),false);
+  assert(r.warnings.some(w=>w.includes('列回復')&&w.includes('画像間で一致しません')));
+});
+test('strong evidence arriving after a weak conflicting read still wins',async()=>{
+  const {h}=setup();h.stubReads();
+  const r=await h.readImages([
+    {kind:'data',dataJob:'魔法使い',marks:{'アクションスキル':'○'}},
+    {kind:'data',dataJob:'魔法使い',marks:{'アクションスキル':'◎'},confidence:{'アクションスキル':true}}
+  ]);
+  assert.equal(r.explicitPairMarks['アクションスキル'],'◎');
+  assert(!r.warnings.some(w=>w.includes('画像間で一致しません')));
 });
 test('ability-up job text wins over a conflicting ability-data job icon',async()=>{
  const {h}=setup();h.stubReads();
