@@ -48,7 +48,7 @@ const valueRowCache=new WeakMap();
 const specialItemCache=new Map();
 let workerExcludedSpecialBits=EMPTY_BITS;
 let workerRequiredSpecialIndices=[];
-let workerMinimumBasics={};
+let workerBasicRules={};
 
 const MIXED_BRANCH_NORMAL=7;
 const MIXED_MAX_STEPS=90;
@@ -392,7 +392,15 @@ function clearMixedSearchCaches(){
 }
 
 function mixedLimits(){
-  if(mixedLimitsCache===null) mixedLimitsCache=limits();
+  if(mixedLimitsCache===null){
+    mixedLimitsCache=limits();
+    for(const name of basicNames){
+      const rule=workerBasicRules[name];
+      if(rule&&(rule.mode==='exact'||rule.mode==='below')){
+        mixedLimitsCache[name]=Math.min(Number(mixedLimitsCache[name]),rule.value);
+      }
+    }
+  }
   return mixedLimitsCache;
 }
 
@@ -400,7 +408,9 @@ function mixedInitialLevels(){
   const lim=mixedLimits();
   return basicNames.map(name=>{
     const cur=Number(basicValues[name]||1);
-    return basicOwned[name] && lim[name]!=null ? Number(lim[name]) : cur;
+    // 取得済みの現在値は条件で制限した上限ではなく、ジョブ本来の上限。
+    const actualLimits=limits();
+    return basicOwned[name] && actualLimits[name]!=null ? Number(actualLimits[name]) : cur;
   });
 }
 
@@ -533,6 +543,7 @@ function mixedDualAction(st,exp){
   const items=[];
 
   if(currentDex<reqDex){
+    if(reqDex>Number(mixedLimits()['器用さ']))return null;
     const dexOp=mixedBasicOption('器用さ',currentDex,reqDex);
     if(!dexOp) return null;
     cost=addCost(cost,dexOp.cost);
@@ -835,6 +846,7 @@ function mixedApplyAction(st,op){
   };
 }
 
+function customBasicRuleLabel(mode){return mode==='exact'?'（固定）':'以上';}
 function constrainedInitialState(exp){
   const levels=mixedInitialLevels();
   let state={
@@ -842,24 +854,28 @@ function constrainedInitialState(exp){
     bits:EMPTY_BITS,dualLevel:workerDualEnabled?workerDualLevel:null,
     prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
   };
-  const lim=mixedLimits();
-  // 必要条件は探索後のフィルターではなく、初期状態として必ず取得する。
-  // これならbeam探索が「必須能力なしの高査定」を誤って採用することがない。
+  const lim=mixedLimits(),jobLimits=limits();
+  // 必須の下限・固定は初期状態で取得し、以下・固定は探索の上限も制限する。
   for(const name of basicNames){
-    const target=Number(workerMinimumBasics[name]||0);
-    if(!target||target<=state.levels[basicNames.indexOf(name)])continue;
-    if(!Number.isInteger(target)||target>Number(lim[name])||target<1)
+    const rule=workerBasicRules[name];
+    if(!rule)continue;
+    const target=rule.value,mode=rule.mode;
+    const position=basicNames.indexOf(name);
+    const current=Number(state.levels[position]);
+    if(!Number.isInteger(target)||target<1||target>Number(jobLimits[name]))
       throw new Error('こだわり計算：'+name+'の指定値が上限を超えています。');
-    const from=state.levels[basicNames.indexOf(name)];
-    const basic=mixedBasicOption(name,from,target);
+    if((mode==='exact'||mode==='below')&&current>target)
+      throw new Error('こだわり計算：'+name+'の現在値'+current+'は'+target+'以下にできません。');
+    if(mode==='below'||target<=current)continue;
+    const basic=mixedBasicOption(name,current,target);
     if(!basic)throw new Error('こだわり計算：'+name+'の指定値まで上げられません。');
     let gain=basic.score;
     if(name==='生命力'){
-      const oldHp=currentHpForLife(from),newHp=currentHpForLife(target);
+      const oldHp=currentHpForLife(current),newHp=currentHpForLife(target);
       gain+=mixedHpDeltaForBits(state.bits,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp);
     }
     if(!leq(addCost(state.cost,basic.cost),exp))
-      throw new Error('こだわり計算：'+name+target+'以上にする経験点が不足しています。');
+      throw new Error('こだわり計算：'+name+target+customBasicRuleLabel(mode)+'にする経験点が不足しています。');
     state=mixedApplyAction(state,{...basic,gain});
   }
   const required=workerRequiredSpecialIndices.slice().sort((a,b)=>
@@ -983,7 +999,9 @@ function __workerPayloadConfigKey(payload){
     .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length).sort((a,b)=>a-b);
   const requiredPart=(custom.requiredSpecialIndices||[])
     .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length).sort((a,b)=>a-b);
-  const minimumPart=basicNames.map(name=>[name,Number(custom.minimumBasics?.[name]||0)]);
+  const basicRulesPart=basicNames.map(name=>[name,
+    String(custom.basicRules?.[name]?.mode||''),
+    Number(custom.basicRules?.[name]?.value||0)]);
   return JSON.stringify([
     String(payload.academy||''),
     String(payload.job||''),
@@ -993,7 +1011,7 @@ function __workerPayloadConfigKey(payload){
     selectedSuperPart,
     forbiddenPart,
     requiredPart,
-    minimumPart
+    basicRulesPart
   ]);
 }
 
@@ -1026,10 +1044,14 @@ function __applyWorkerPayload(payload){
     }
     workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[]);
     const custom=payload.customConditions||{};
-    workerMinimumBasics={};
+    workerBasicRules={};
     for(const name of basicNames){
-      const target=Number(custom.minimumBasics?.[name]||0);
-      if(target>0)workerMinimumBasics[name]=target;
+      const raw=custom.basicRules?.[name];
+      if(!raw)continue;
+      const target=Number(raw.value),mode=String(raw.mode||'above');
+      if(!Number.isInteger(target)||target<1||!['above','exact','below'].includes(mode))
+        throw new Error('こだわり計算：'+name+'の指定が正しくありません。');
+      workerBasicRules[name]={value:target,mode};
     }
     workerRequiredSpecialIndices=[...new Set((custom.requiredSpecialIndices||[])
       .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length))];
