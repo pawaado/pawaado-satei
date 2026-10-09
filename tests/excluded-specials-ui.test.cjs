@@ -21,7 +21,7 @@ function mock(){
    if(dom[id])return dom[id];
    const obj={id,value:'',hidden:true,innerHTML:'',textContent:'',handlers:{},
      addEventListener(t,cb){this.handlers[t]=cb;},closest(){return this;},
-     dataset:{},setAttribute(){},getAttribute(){},disabled:false};
+     dataset:{},hasAttribute(name){return name==='data-kind'&&this.dataset.kind!=null||name==='data-key'&&this.dataset.key!=null;},setAttribute(){},getAttribute(){},disabled:false};
    dom[id]=obj;return obj;
  };
  const ids=['customCalcCard','customBasicName','customBasicMin','customRequiredName','customForbiddenName',
