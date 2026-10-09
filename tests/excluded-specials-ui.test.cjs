@@ -48,7 +48,7 @@ test('custom condition section and usage are concise',()=>{
   assert(html.includes('<h2 id="customCalcTitle">こだわり条件</h2>'));
   assert(/id="customBasicValue"[^>]*type="number"[^>]*aria-label="基本能力の指定値"/.test(html));
   assert(!/id="customBasicValue"[^>]*placeholder="数値"/.test(html));
-  const usage=html.match(/<ol class="usage-list">([\\s\\S]*?)<\\/ol>/);
+  const usage=html.match(/<ol class="usage-list">([\s\S]*?)<\/ol>/);
   assert(usage,'usage list exists');
   assert.equal((usage[1].match(/<li>/g)||[]).length,3,'usage has three steps');
   assert(usage[1].includes('「計算する」を押すと、査定が最大となる組合せが表示されます。'));
