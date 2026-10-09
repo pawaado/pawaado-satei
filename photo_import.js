@@ -1619,9 +1619,10 @@
     });
     const bands=[];for(let y=274;y<537;y++){
       if(!rowHasAbilityColor(y))continue;
-      // 青い単独セルは文字の白抜きで色帯が数段に分裂する。7px以内の切れ目を同一行として統合する。
-      // セル間隔（約50px）まで結合せず、通常の複数行は別々に検出する。
-      if(!bands.length||y>bands[bands.length-1][1]+7)bands.push([y,y]);else bands[bands.length-1][1]=y;
+      // 青い単独セルは文字の白抜きで色帯が分裂するが、行間の空白は5〜6pxになる。
+      // 7px連結では隣の行まで結合されるため、3px以内だけを初期統合する。
+      // 同じ行に残った分断帯は下の mergedBands で再結合する。
+      if(!bands.length||y>bands[bands.length-1][1]+3)bands.push([y,y]);else bands[bands.length-1][1]=y;
     }
     // 色付きセルの文字・Lv表示で横方向の色帯が上下に分断される場合がある。
     // 途切れた帯を別々の「段」として扱うと、1個しかない通常攻撃が
