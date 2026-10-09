@@ -46,6 +46,7 @@ const hpByLifeCache=new Map();
 const rangeRowCache=new WeakMap();
 const valueRowCache=new WeakMap();
 const specialItemCache=new Map();
+let workerExcludedSpecialBits=EMPTY_BITS;
 
 const MIXED_BRANCH_NORMAL=7;
 const MIXED_MAX_STEPS=90;
@@ -514,6 +515,7 @@ function mixedBasicActions(st,exp){
 
 function mixedDualAction(st,exp){
   if(!workerDualEnabled||!DUAL_MASTER||DUAL_SKILL_INDEX<0) return null;
+  if((workerExcludedSpecialBits&specialBit(DUAL_SKILL_INDEX))!==EMPTY_BITS) return null;
   const fromLevel=Number(st.dualLevel??workerDualLevel);
   const toLevel=fromLevel+1;
   if(toLevel>Number(DUAL_MASTER.maxLevel||fromLevel)) return null;
@@ -623,6 +625,8 @@ function mixedSpecialActionsAtHp(st,exp,hp){
   const out=[];
   for(const op0 of actions){
     const opBits=op0.bits??specialItemsBits(op0.items);
+    // 候補が◎＋前提○を含む場合も、どちらかが除外対象なら全体を不採用にする。
+    if((opBits&workerExcludedSpecialBits)!==EMPTY_BITS) continue;
     const conflict=op0.conflictBits??conflictBitsFor(opBits);
     if(((st.bits??EMPTY_BITS)&opBits)!==EMPTY_BITS) continue;
     if(((st.bits??EMPTY_BITS)&conflict)!==EMPTY_BITS) continue;
@@ -911,13 +915,18 @@ function __workerPayloadConfigKey(payload){
     .map(row=>[String(row?.name||''),Number(row?.level||0)])
     .filter(row=>row[0]&&(row[1]===1||row[1]===2))
     .sort((a,b)=>a[0].localeCompare(b[0],'ja')||a[1]-b[1]);
+  const excludedPart=(payload.excludedSpecialIndices||[])
+    .map(Number)
+    .filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length)
+    .sort((a,b)=>a-b);
   return JSON.stringify([
     String(payload.academy||''),
     String(payload.job||''),
     dualPart,
     basicPart,
     specialPart,
-    selectedSuperPart
+    selectedSuperPart,
+    excludedPart
   ]);
 }
 
@@ -949,6 +958,13 @@ function __applyWorkerPayload(payload){
       });
     }
     workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[]);
+    workerExcludedSpecialBits=EMPTY_BITS;
+    for(const rawIndex of payload.excludedSpecialIndices||[]){
+      const index=Number(rawIndex);
+      if(Number.isInteger(index)&&index>=0&&index<D.special.length&&!specialOwned(index)){
+        workerExcludedSpecialBits|=specialBit(index);
+      }
+    }
 
     clearCalcCaches();
     hpByLifeCache.clear();
