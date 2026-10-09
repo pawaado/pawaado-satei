@@ -2034,9 +2034,7 @@
               explicitPairMarks.set(stem,shape);
               // 同じ画像内で独立した方式が一致したマークだけ、画像間の不一致解消に使う。
               // 単独の推測は入力に使えても、他画像の確かな判定を覆して警告しない。
-              const verified=!!((sourceMark&&exactPairMark&&sourceMark===exactPairMark)
-                ||(sourceMark&&visualMark&&sourceMark===visualMark)
-                ||(visualMark&&exactPairMark&&visualMark===exactPairMark));
+              const verified=[sourceMark,visualMark,exactPairMark].filter(mark=>mark===shape).length>=2;
               result.explicitPairConfidence[stem]=verified;
             }
           }
