@@ -937,8 +937,6 @@ function comparisonHtml(entries){
   return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-// 結果欄では、取得済みではない新規取得候補だけを除外対象にする。
-
 function customConditionListHtml(kind){
   let entries=[];
   if(kind==='basic')entries=[...customMinimumBasics.entries()].map(([name,value])=>({key:name,label:name+' '+value+'以上'}));
