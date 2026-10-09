@@ -492,7 +492,14 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .excluded-special-current{margin:0 0 10px;padding:8px 10px;background:#f9e8c7;border-radius:8px;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
 .excluded-special-label{display:block;font-size:13px;font-weight:800;color:#5d391a;margin-bottom:5px}
 .excluded-special-select{display:block;width:100%;min-height:45px;padding:8px 12px;border:2px solid #a47b43;border-radius:10px;background:#fffdf5;color:#422610;font-weight:700;font-size:15px}
-.excluded-special-block button{display:block;width:100%;min-height:45px;padding:10px 8px;margin-top:9px;font-size:14px;line-height:1.45;white-space:normal}
+.excluded-special-block #excludeSpecialRecalc,.excluded-special-block #clearExcludedSpecials{display:block;width:100%;min-height:48px;padding:10px 8px;margin-top:10px;font-size:14px;line-height:1.45;white-space:normal}
+.excluded-special-block .excluded-special-select-control{min-width:0;position:relative;z-index:21}
+.excluded-special-block .excluded-special-select-control.is-open{z-index:3000}
+.excluded-special-block #excludeSpecialSelectButton{min-height:48px;height:48px;margin:0;padding:9px 31px 9px 11px;font-size:15px}
+.excluded-special-block #excludeSpecialSelectButton span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.excluded-special-block .custom-select-menu{top:calc(100% + 5px)}
+.excluded-special-block .custom-select-option{min-height:42px;margin:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.excluded-special-description{margin-bottom:13px}
 .excluded-special-clear{background:#f7edda!important;color:#52391f!important;border-color:#8b6b44!important}
 .excluded-special-picker{display:grid;grid-template-columns:minmax(0,1fr) 80px;align-items:stretch;gap:8px}
 .excluded-special-picker .excluded-special-select{min-width:0}
