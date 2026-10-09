@@ -126,7 +126,7 @@ test('already acquired prerequisite is never charged twice',()=>{
 });
 test('basic thresholds are prepaid exactly and do not constrain unrelated abilities',()=>{
  const c=loadWorker(),base=payloadFor(c);
- const st=constrainedStart(c,{...base,customConditions:{minimumBasics:{生命力:93,器用さ:12}}});
+ const st=constrainedStart(c,{...base,customConditions:{basicRules:{生命力:{value:93,mode:"above"},器用さ:{value:12,mode:"above"}}}});
  assert.equal(st.levels[0],93);
  assert.equal(st.levels[3],12);
  assert(st.items.some(i=>i.type==='basic'&&i.name==='生命力'&&i.to===93));
@@ -161,7 +161,7 @@ test('conditions participate in cache identity; clearing restores normal actions
  const variants=[
   {...base,customConditions:{requiredSpecialIndices:[i]}},
   {...base,customConditions:{forbiddenSpecialIndices:[i]}},
-  {...base,customConditions:{minimumBasics:{生命力:94}}}
+  {...base,customConditions:{basicRules:{生命力:{value:94,mode:"above"}}}}
  ];
  assert.equal(new Set([c.__workerPayloadConfigKey(base),...variants.map(v=>c.__workerPayloadConfigKey(v))]).size,4);
  const blocked=specialActions(c,variants[1]);
@@ -173,4 +173,43 @@ test('acquired abilities cannot be forbidden by constraints',()=>{
  const c=loadWorker(),i=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
  const base=payloadFor(c,{specialState:[[String(i),{hint:0,own:1}]]});
  assert.throws(()=>c.__applyWorkerPayload({...base,customConditions:{forbiddenSpecialIndices:[i]}}),/取得済み/);
+});
+
+test('fixed basic level stays exact and below restricts ability exploration',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const fixed={...base,customConditions:{basicRules:{生命力:{value:93,mode:'exact'},器用さ:{value:15,mode:'below'}}}};
+ const state=constrainedStart(c,fixed);
+ assert.equal(state.levels[0],93);
+ assert.equal(state.levels[3],1);
+ assert.equal(vm.runInContext("mixedLimits()['生命力']",c),93);
+ assert.equal(vm.runInContext("mixedLimits()['器用さ']",c),15);
+ const next=vm.runInContext(`mixedBasicActions({levels:[93,1,1,15,1,1],cost:[0,0,0,0,0],bits:EMPTY_BITS},[9999,9999,9999,9999,9999]).map(a=>({name:a.name,to:a.to}))`,c);
+ assert(!next.some(a=>a.name==='生命力'));
+ assert(!next.some(a=>a.name==='器用さ'));
+ assert(next.some(a=>a.name==='耐久力'||a.name==='精神力'));
+});
+test('below never lowers an existing ability and exact cannot be lower than current',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ for(const mode of ['exact','below']){
+   assert.throws(()=>constrainedStart(c,{...base,customConditions:{basicRules:{生命力:{value:89,mode}}}}),/現在値/);
+ }
+});
+test('dual attack cannot silently raise dexterity above a fixed or below rule',()=>{
+ const c=loadWorker();
+ const dual=c.PAWAADO_DATA.academies.find(r=>r[1]==='双剣士');
+ assert(dual);
+ const base=payloadFor(c);
+ const p={...base,academy:dual[0],job:'双剣士',customConditions:{basicRules:{器用さ:{value:1,mode:'exact'}}}};
+ c.__applyWorkerPayload(p);
+ const possible=vm.runInContext(`(()=>{
+   const st={cost:[0,0,0,0,0],levels:[90,1,1,1,1,1],bits:EMPTY_BITS,dualLevel:1};
+   return mixedDualAction(st,[9999,9999,9999,9999,9999]);
+ })()`,c);
+ assert.equal(possible,null);
+});
+test('cache key differs for above exact and below on the same target',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const variants=['above','exact','below'].map(mode=>
+   ({...base,customConditions:{basicRules:{生命力:{value:94,mode}}}}));
+ assert.equal(new Set(variants.map(v=>c.__workerPayloadConfigKey(v))).size,3);
 });
