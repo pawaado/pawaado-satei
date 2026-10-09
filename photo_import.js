@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-ai-compare-readonly-1';
+  const PHOTO_IMPORT_BUILD='20261010-clip-row-comparison-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1644,8 +1644,14 @@
     // 「2段目・左から1番目が未読」と誤警告される。
     // 実ゲームの段間隔は約50〜57px。開始位置が44px未満の近接帯は
     // 同じ段としてまとめ、段数を確定してからセルを列挙する。
+    // 一番上に「スクロールで上半分を隠された前の行」が残ることがある。
+    // 見えている短い断片を次の完全行へ結合すると、その行の名称が4列とも誤認識される。
+    // 例：IMG_1097 の [274,287] は断片、[293,336] が対魔闘士◎の完全行。
+    const clippedTop= bands.length>1&&bands[0][0]<=276&&bands[0][1]-bands[0][0]+1<25
+      &&bands[1][0]-bands[0][1]<=18&&bands[1][1]-bands[1][0]+1>=25;
+    const visibleBands=clippedTop?bands.slice(1):bands;
     const mergedBands=[];
-    for(const [a,b] of bands){
+    for(const [a,b] of visibleBands){
       const prev=mergedBands[mergedBands.length-1];
       if(prev&&a-prev[0]<44&&a-prev[1]<=16)prev[1]=b;
       else mergedBands.push([a,b]);
@@ -2720,7 +2726,7 @@
           const same=comparable&&old.mark===candidate.value;
           if(comparable)totals[same?'match':'difference']++;else totals.unknown++;
           const label=comparable?(same?'一致':'相違'):old?.mark==='なし'?'記号なし（比較対象外）':'要確認';
-          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+displayValue(candidate?.value)+(candidate?' ('+Math.round(candidate.confidence*100)+'%)':'')+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
+          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+displayValue(candidate?.value)+(candidate?' <small>AI確信度 '+Math.round(candidate.confidence*100)+'%（参考）</small>':'')+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
         }).join('');
         markTable='<h4>特殊能力マスの比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>位置</th><th>従来OCRの能力名</th><th>AIの末尾候補</th><th>比較</th></tr></thead><tbody>'+(markRows||'<tr><td colspan="4">能力のマスを検出できませんでした。</td></tr>')+'</tbody></table></div>';
       }
@@ -2731,7 +2737,7 @@
     const finalNames=(ocr.specials||[]).map(escape).join('、')||'なし';
     const expSummary=EXPS.map(name=>escape(name)+' '+displayValue(ocr.exp?.[name])).join(' / ');
     return '<h3>従来OCRと端末内AIの比較</h3>'
-      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 今の試験AIは○／◎の二択であり、記号なしを識別できません。AIの高い確信度も正解の保証ではありません。相違があった場合は元画像で確認してください。</p>'
+      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 今の試験AIは○／◎の二択であり、記号なしを識別できません。「一致」はOCRとAIが同じ候補という意味です。「AI確信度」はAI内部の推定値で、正解率・一致率ではありません。相違があった場合は元画像で確認してください。</p>'
       +'<p>比較できた項目：一致 <strong>'+totals.match+'</strong>、相違 <strong>'+totals.difference+'</strong>、要確認・対象外 <strong>'+totals.unknown+'</strong>。一致はOCRとAIが同じ答えという意味で、正解率ではありません。</p>'
       +'<p><strong>従来OCRの経験点：</strong>'+expSummary+'</p>'
       +'<p><strong>従来OCRの特殊能力（統合結果）：</strong>'+finalNames+'</p>'
