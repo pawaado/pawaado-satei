@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261009-read-recovery-1';
+  const PHOTO_IMPORT_BUILD='20261009-pair-warning-confidence-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1902,7 +1902,7 @@
   }
 
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{}};
+    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{}};
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
     const explicitPairMarks=new Map();
@@ -2025,11 +2025,20 @@
           const stem=normalize(pairName).slice(0,-1);
           if(PAIR_STEMS.includes(stem)){
             const sourceMark=markShapeByImage(image,cell,stem);
-            const visualMark=sourceMark?'':pairMarkByImage(image,cell,stem);
             const exactPairMark=visualExact&&normalize(visualName)===normalize(pairName)?normalize(pairName).slice(-1):'';
+            // セル全体の厳密一致がない場合だけ同名○/◎比較を追加し、処理時間の増加を抑える。
+            const visualMark=(!sourceMark||!exactPairMark)?pairMarkByImage(image,cell,stem):'';
             // 元画像の末尾記号 > 同名○/◎比較 > セル全体テンプレートの順で正本を決める。
             const shape=sourceMark||visualMark||exactPairMark;
-            if(shape)explicitPairMarks.set(stem,shape);
+            if(shape){
+              explicitPairMarks.set(stem,shape);
+              // 同じ画像内で独立した方式が一致したマークだけ、画像間の不一致解消に使う。
+              // 単独の推測は入力に使えても、他画像の確かな判定を覆して警告しない。
+              const verified=!!((sourceMark&&exactPairMark&&sourceMark===exactPairMark)
+                ||(sourceMark&&visualMark&&sourceMark===visualMark)
+                ||(visualMark&&exactPairMark&&visualMark===exactPairMark));
+              result.explicitPairConfidence[stem]=verified;
+            }
           }
         }
       }
@@ -2456,7 +2465,7 @@
     const abilityUpIdentity={job:''};
     const dataIdentity={job:''};
     const conflicts=new WeakMap();
-    const pairMarkConflicts=new Set();
+    const pairMarkObservations=new Map();
     function mergeField(target,key,value,label){
       if(value==null||value===''||conflicts.get(target)?.has(key))return;
       if(target[key]!=null&&target[key]!==''&&target[key]!==value){if(!conflicts.has(target))conflicts.set(target,new Set());conflicts.get(target).add(key);target[key]=null;out.warnings.push(label+'の読み取り値が一致しません。画像の数値を確認して入力してください。');}
@@ -2481,17 +2490,9 @@
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
-          if(pairMarkConflicts.has(stem))continue;
-          const old=out.explicitPairMarks[stem];
-          if(old&&old!==mark){
-            // 不一致は要確認に残すが、nullを「正本」として渡さない。
-            // nullを渡すと入力反映側が○/◎を両方削除してしまうため、キー自体を外す。
-            delete out.explicitPairMarks[stem];
-            pairMarkConflicts.add(stem);
-            out.warnings.push(stem+'の○/◎判定が画像間で一致しません。表示を確認してください。');
-          }else{
-            out.explicitPairMarks[stem]=mark;
-          }
+          if(mark!=='○'&&mark!=='◎')continue;
+          if(!pairMarkObservations.has(stem))pairMarkObservations.set(stem,[]);
+          pairMarkObservations.get(stem).push({mark,verified:result.explicitPairConfidence?.[stem]===true});
         }
         if(result.dualAttackSeen)out.dualAttackSeen=true;
         if(result.dualAttackLevel!=null)out.dualAttackLevel=Math.max(out.dualAttackLevel||0,result.dualAttackLevel);
@@ -2517,6 +2518,20 @@
         if(jobResult.job)abilityUpIdentity.job=jobResult.job;
         EXPS.forEach((n,j)=>mergeField(out.exp,n,exp[j],n+'経験点'));
         // Basic stats are intentionally NOT read here. They come from 能力データ, which is stable across tabs.
+      }
+    }
+    // 重複する「能力データ」画像では、一枚だけ弱いマークが誤読される場合がある。
+    // 同じ画像内で2方式が一致した判定が一意ならそれを優先し、弱い側の誤警告を抑える。
+    // 強い判定同士が矛盾する、または強い根拠のない判定が食い違う時だけ警告する。
+    for(const [stem,observations] of pairMarkObservations){
+      const corroborated=observations.filter(item=>item.verified);
+      const candidates=corroborated.length?corroborated:observations;
+      const marks=[...new Set(candidates.map(item=>item.mark))];
+      if(marks.length===1){
+        out.explicitPairMarks[stem]=marks[0];
+      }else if(marks.length>1){
+        delete out.explicitPairMarks[stem];
+        out.warnings.push(stem+'の○/◎判定が画像間で一致しません。表示を確認してください。');
       }
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
