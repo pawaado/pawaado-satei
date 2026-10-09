@@ -820,6 +820,59 @@ test('reset/calculation are locked during reading and detailed warnings survive 
 });
 
 
+test('AI priority corrects circle/double-circle without changing names, unmarked skills or supers',()=>{
+ const {c}=setup();
+ const data={specials:['アクションスキル◎','アクションスキル○','風回復','対ドラゴンタートル○'],
+   explicitPairMarks:{アクションスキル:'◎',対ドラゴンタートル:'○'},
+   supers:[{name:'平常心',level:2,confirmed:true}],exp:{筋力:55},basic:{生命力:100},warnings:[],
+   comparisonScreens:[{index:0,type:'能力データ',cells:[
+     {row:1,col:1,top:278,name:'アクションスキル◎',mark:'◎'},
+     {row:1,col:2,top:278,name:'対ドラゴンタートル○',mark:'○'},
+     {row:1,col:3,top:278,name:'風回復',mark:'なし'},
+     {row:1,col:4,top:278,name:'平常心',mark:'なし',superCell:true}]}]};
+ const stats=c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority(data,[{marks:[
+   {row:1,col:1,top:278,value:'○',confidence:.995},
+   {row:1,col:2,top:278,value:'○',confidence:.99},
+   {row:1,col:3,top:278,value:'◎',confidence:1},
+   {row:1,col:4,top:278,value:'◎',confidence:1}]}]);
+ assert.equal(stats.switched,1);assert.equal(stats.matches,1);
+ assert.equal(data.explicitPairMarks['アクションスキル'],'○');
+ assert(data.specials.includes('アクションスキル○'));
+ assert(!data.specials.includes('アクションスキル◎'));
+ assert(data.specials.includes('対ドラゴンタートル○'));
+ assert(data.specials.includes('風回復'));
+ assert.equal(data.supers[0].name,'平常心');
+ assert.equal(data.exp.筋力,55);assert.equal(data.basic.生命力,100);
+ assert(data.warnings.some(w=>w.includes('アクションスキル')&&w.includes('確認')));
+});
+test('AI ambiguity never silently owns a skill; missing/unmarked/misaligned AI falls back',()=>{
+ const {c}=setup(),apply=c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority;
+ const make=()=>({specials:['アクションスキル○'],explicitPairMarks:{アクションスキル:'○'},
+   warnings:[],comparisonScreens:[{index:0,type:'能力データ',cells:[
+     {row:1,col:1,top:278,name:'アクションスキル○',mark:'○'}]}]});
+ const uncertain=make();
+ apply(uncertain,[{marks:[{row:1,col:1,top:278,value:'◎',confidence:.84}]}]);
+ assert(!uncertain.specials.some(x=>x.startsWith('アクションスキル')));
+ assert(uncertain.warnings.some(x=>x.includes('確定できません')));
+ const misplaced=make();
+ apply(misplaced,[{marks:[{row:1,col:1,top:300,value:'◎',confidence:.999}]}]);
+ assert(misplaced.specials.includes('アクションスキル○'));
+ const noMark=make();
+ apply(noMark,[{marks:[{row:1,col:1,top:278,value:'なし',confidence:null}]}]);
+ assert(noMark.specials.includes('アクションスキル○'));
+});
+test('two contradictory high-confidence AI screenshots abstain',()=>{
+ const {c}=setup();
+ const data={specials:['アクションスキル◎','アクションスキル○'],
+   explicitPairMarks:{アクションスキル:'◎'},warnings:[],
+   comparisonScreens:[0,1].map(i=>({index:i,type:'能力データ',cells:[
+     {row:1,col:1,top:279,name:'アクションスキル◎',mark:'◎'}]}))};
+ c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority(data,[
+   {marks:[{row:1,col:1,top:279,value:'○',confidence:.999}]},
+   {marks:[{row:1,col:1,top:279,value:'◎',confidence:.999}]}]);
+ assert(!data.specials.some(x=>x.startsWith('アクションスキル')));
+ assert.equal(data.explicitPairMarks['アクションスキル'],undefined);
+});
 test('AI comparison shows old OCR and AI candidates by screenshot without treating agreement as accuracy',()=>{
  const {c}=setup();
  const render=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml;
@@ -881,6 +934,36 @@ test('AI comparison escapes file names and unread names in rendered HTML',()=>{
  assert(!output.includes('<img src=x'));
  assert(!output.includes('<svg/onload=alert(2)>'));
  assert(output.includes('&lt;img'));
+});
+test('normal import uses AI priority and keeps its other import hooks',async()=>{
+ const {c,h,get}=setup();let imported=null,training=null,calls=0;
+ c.__PAWAADO_AI_PROBE__={inspectImage:async()=>{calls++;return {marks:[{row:1,col:1,top:281,value:'◎',confidence:.997}]}}};
+ c.__PAWAADO_IMPORT_PHOTO__=data=>{imported=data;};
+ c.__PAWAADO_IMPORT_TRAINING_PHOTOS__=data=>{training=data;};
+ h.prepareUi(async(images,options)=>{
+   assert.equal(options?.comparison,true);
+   return {academy:'パワフルアカデミー',job:'剣士',abilityUpScreens:1,dataScreens:1,
+     specials:['アクションスキル○'],explicitPairMarks:{アクションスキル:'○'},
+     trainingPatterns:[{exp:{筋力:50}}],warnings:[],comparisonScreens:[
+       {index:0,type:'能力データ',cells:[{row:1,col:1,top:281,name:'アクションスキル○',mark:'○'}]}]};
+ },null);
+ await get('readPhotos').onclick();
+ assert.equal(calls,1);assert(imported);assert(training);
+ assert(imported.specials.includes('アクションスキル◎'));
+ assert.equal(get('photoStatus').textContent,'自動入力しました。');
+});
+test('normal import keeps legacy OCR when AI fails',async()=>{
+ const {c,h,get}=setup();let imported=null;
+ c.__PAWAADO_AI_PROBE__={inspectImage:async()=>{throw Error('offline')}};
+ c.__PAWAADO_IMPORT_PHOTO__=data=>{imported=data;};
+ h.prepareUi(async()=>({abilityUpScreens:1,dataScreens:1,
+    specials:['アクションスキル○'],explicitPairMarks:{アクションスキル:'○'},
+    trainingPatterns:[],warnings:[],comparisonScreens:[
+      {index:0,type:'能力データ',cells:[{row:1,col:1,top:280,name:'アクションスキル○',mark:'○'}]}]}),null);
+ await get('readPhotos').onclick();
+ assert(imported.specials.includes('アクションスキル○'));
+ assert(imported.warnings.some(x=>x.includes('従来の画像認識')));
+ assert.equal(get('photoStatus').textContent,'自動入力しました。');
 });
 test('AI comparison button evaluates the same selected images without modifying inputs',async()=>{
  const {c,h,get}=setup();

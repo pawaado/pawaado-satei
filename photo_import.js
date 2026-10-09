@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-fix-invalid-action-mask-1';
+  const PHOTO_IMPORT_BUILD='20261010-ai-mark-priority-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2017,7 +2017,7 @@
         if(level!=null)result.dualAttackLevel=Math.max(result.dualAttackLevel||0,level);
         else result.warnings.push(`${index}枚目：双剣士専用「通常攻撃」のLvを読み取れませんでした。読み取り結果のLvを確認してください。`);
         if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName,level==null?'Lv?':'Lv'+level);
-        result.cellReadings.push({row:cell.row,col:cell.col,name:DUAL_NORMAL_ATTACK+(level==null?'（Lv不明）':' Lv.'+level),mark:'なし'});
+        result.cellReadings.push({row:cell.row,col:cell.col,top:cell.rect[1]-2,name:DUAL_NORMAL_ATTACK+(level==null?'（Lv不明）':' Lv.'+level),mark:'なし'});
         continue;
       }
 
@@ -2071,7 +2071,7 @@
         ||parsed.specials.find(n=>/○$/.test(normalize(n)))
         ||parsed.specials[0]||parsed.supers[0]?.name||(ignoredSuper?visualName:'未読');
       const cellName=normalize(cellMainName);
-      result.cellReadings.push({row:cell.row,col:cell.col,name:cellMainName,
+      result.cellReadings.push({row:cell.row,col:cell.col,top:cell.rect[1]-2,name:cellMainName,
         mark:cellMainName==='未読'?'未読':/[○◎]$/.test(cellName)?cellName.slice(-1):'なし',
         superCell:cell.superCell,ignored:!!ignoredSuper});
 
@@ -2684,6 +2684,61 @@
     }
     return out;
   }
+  // AIは青い通常特殊能力の末尾○/◎だけを判定。能力名・超特殊能力には使わない。
+  // 独立した行検出がずれて別セルを誤更新しないよう、列・行だけでなく上端座標も照合する。
+  const AI_PRIORITY_CONFIDENCE=.98;
+  function applyAiMarkPriority(data,reports=[]){
+    const observations=new Map();
+    let matches=0,switched=0,withheld=0;
+    for(const screen of data.comparisonScreens||[]){
+      if(screen.type!=='能力データ')continue;
+      const report=reports[screen.index];
+      if(!report||report.error)continue;
+      const aiMarks=new Map((report.marks||[]).map(mark=>[mark.row+':'+mark.col,mark]));
+      for(const cell of screen.cells||[]){
+        if(cell.superCell||cell.ignored)continue;
+        const parsed=normalize(cell.name||'').match(/^(.+)([○◎])$/);
+        if(!parsed||!PAIR_STEMS.includes(parsed[1]))continue;
+        const [stem,oldMark]=[parsed[1],parsed[2]];
+        const ai=aiMarks.get(cell.row+':'+cell.col);
+        if(!ai)continue;
+        if(!Number.isFinite(cell.top)||!Number.isFinite(ai.top)||Math.abs(cell.top-ai.top)>9)continue;
+        if(ai.value!=='○'&&ai.value!=='◎')continue; // 「なし」はAIで確定しない。
+        const confidence=Number(ai.confidence);
+        if(!Number.isFinite(confidence)||confidence<.5||confidence>1)continue;
+        if(!observations.has(stem))observations.set(stem,[]);
+        observations.get(stem).push({oldMark,aiMark:ai.value,
+          accepted:confidence>=AI_PRIORITY_CONFIDENCE});
+      }
+    }
+    const owned=new Set(data.specials||[]);
+    const explicit={...(data.explicitPairMarks||{})};
+    const warnings=Array.isArray(data.warnings)?data.warnings:(data.warnings=[]);
+    for(const [stem,items] of observations){
+      const accepted=items.filter(item=>item.accepted);
+      const marks=[...new Set(accepted.map(item=>item.aiMark))];
+      const ambiguous=items.some(item=>!item.accepted&&item.aiMark!==item.oldMark);
+      if(ambiguous||marks.length>1){
+        owned.delete(stem+'○');owned.delete(stem+'◎');
+        delete explicit[stem];withheld++;
+        warnings.push(stem+'の○／◎をAIと従来方式で確定できませんでした。画像を確認して手動修正してください。');
+        continue;
+      }
+      if(!accepted.length)continue; // 低確信度で一致している場合は従来判定のまま。
+      const selected=marks[0];
+      if(items.some(item=>item.oldMark!==selected)){
+        switched++;
+        warnings.push(stem+'の○／◎はAI判定（'+selected+'）を優先しました。従来方式と相違するため確認してください。');
+      }else matches++;
+      owned.delete(stem+'○');owned.delete(stem+'◎');
+      owned.add(stem+'○');
+      if(selected==='◎')owned.add(stem+'◎');
+      explicit[stem]=selected;
+    }
+    data.specials=[...owned];data.explicitPairMarks=explicit;
+    data.aiMarkStats={matches,switched,withheld};
+    return data.aiMarkStats;
+  }
   const fileKey=file=>[file.name,file.size,file.lastModified,file.type].join('|');
   function renderPreviews(){
     const box=el('photoPreviews');box.replaceChildren();
@@ -2725,13 +2780,13 @@
     const preview=e.target.closest('.photo-preview-image');
     if(preview)openPreview(Number(preview.dataset.index));
   };
-  // 比較専用AIはボタンを押した場合だけ読み込む。画像・判定結果は外部へ送らない。
+  // 端末内AIは通常読み取りと比較実験で共有。画像・判定結果は外部へ送らない。
   let aiProbeLoader=null;
   function ensureCompareAi(){
     if(window.__PAWAADO_AI_PROBE__?.inspectImage)return Promise.resolve(window.__PAWAADO_AI_PROBE__);
     if(!aiProbeLoader){
       aiProbeLoader=(async()=>{
-        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-training-and-mark-repair-1']){
+        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-ai-mark-priority-1']){
           await new Promise((resolve,reject)=>{
             const script=document.createElement('script');
             script.src=source;script.onload=resolve;
@@ -2874,7 +2929,24 @@
     for(const {button} of lockedButtons)button.disabled=true;
     try{
       const images=await Promise.all(urls.map(imageFrom));
-      const data=await readImages(images);
+      const data=await readImages(images,{comparison:true});
+      // ○/◎だけAI優先を試験運用。失敗時は通常OCRを維持し処理を止めない。
+      const dataScreens=(data.comparisonScreens||[]).filter(s=>s.type==='能力データ');
+      if(dataScreens.length){
+        try{
+          const probe=await ensureCompareAi();
+          const reports=[];
+          for(const screen of dataScreens){
+            const candidate=await probe.inspectImage(images[screen.index]);
+            if(candidate?.error)throw new Error(candidate.error);
+            reports[screen.index]=candidate;
+          }
+          applyAiMarkPriority(data,reports);
+        }catch(error){
+          console.warn('AI記号判定を利用できません。従来の画像認識を使用します。',error);
+          data.warnings.push('AIによる○／◎判定を利用できなかったため、従来の画像認識で入力しました。');
+        }
+      }
       renderUncertain(data.warnings||[]);
       const hasAbilityUp=data.abilityUpScreens>0;
       const hasData=data.dataScreens>0;
@@ -2946,5 +3018,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,buildAiComparisonHtml,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={applyAiMarkPriority,academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,buildAiComparisonHtml,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();

@@ -145,7 +145,7 @@ function markCells(data){
        }
      if(color<=30||yellow>=20)continue; // 金色セルは超特殊能力、○／◎対象外。
      const glyph=findLastGlyph(data,x,y);
-     const label={row:ri+1,col:ci+1};
+     const label={row:ri+1,col:ci+1,top:y};
      if(!glyph||glyph.cx<13||glyph.cx+13>=1536||!looksLikeMarkGlyph(data,glyph.cx,y,glyph.width)){
        out.push({...label,value:'なし',confidence:null});
        continue;
@@ -222,7 +222,7 @@ async function inspect(file){
    return inspectImage(img);
  }finally{URL.revokeObjectURL(url);}
 }
-// 読み取り比較用。既存の査定入力とは独立し、返り値を使って自動入力しない。
+// 端末内AI候補。比較画面は非反映、通常入力は信頼条件を満たす○／◎だけを採用。
 window.__PAWAADO_AI_PROBE__=Object.freeze({inspectImage});
 if(document.getElementById('aiPhotos'))document.getElementById('aiPhotos').addEventListener('change',async event=>{
  const files=[...event.target.files].slice(0,12);
