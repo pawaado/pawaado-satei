@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261009-pair-warning-confidence-2';
+  const PHOTO_IMPORT_BUILD='20261010-ai-compare-readonly-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -657,7 +657,9 @@
     <button id="choosePhotos" class="secondary photo-choose" type="button">画像を選択</button>
     <input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
     <div id="photoPreviews"></div><button id="readPhotos" type="button" disabled>画像を読み取る</button>
+    <button id="comparePhotos" class="secondary photo-compare-button" type="button" disabled>AIと読み取りを比較（実験）</button>
     <p id="photoStatus" role="status" aria-live="polite"></p>
+    <div id="photoCompare" class="photo-compare-results" hidden></div>
     <div id="photoUncertain" class="photo-uncertain" hidden></div>
     <div id="photoLightbox" class="photo-lightbox" hidden role="dialog" aria-modal="true" aria-label="選択画像の拡大表示">
       <button id="photoLightboxClose" class="photo-lightbox-close" type="button" aria-label="拡大表示を閉じる">×</button>
@@ -668,6 +670,19 @@
     .photo-card p{line-height:1.65}.photo-choose{width:100%;margin:8px 0 12px}
     #photoPreviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}#photoPreviews:empty{display:none}.photo-preview-item{position:relative;min-width:0}#photoPreviews img{width:100%;display:block;border-radius:8px}.photo-preview-image{cursor:zoom-in}
     #photoPreviews p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}.photo-preview-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border-radius:50%;font-size:0;line-height:1;z-index:2}
+    .photo-compare-button{display:block;width:100%;min-height:46px;margin:8px 0 2px;font-size:14px}
+    .photo-compare-results{margin:14px 0;padding:12px;border:1px solid rgba(129,78,25,.5);border-radius:12px;background:#fffaf0;color:#49301d;font-size:13px;line-height:1.6}
+    .photo-compare-results[hidden]{display:none}
+    .photo-compare-results h3{margin:0 0 8px;font-size:17px}
+    .photo-compare-results .photo-compare-warning{padding:8px;border:1px solid #b98b42;border-radius:8px;background:#fff2cd}
+    .photo-compare-results details{margin:8px 0;border:1px solid #d9bf94;border-radius:8px;padding:6px 8px;overflow:hidden}
+    .photo-compare-results summary{font-weight:800;cursor:pointer;overflow-wrap:anywhere}
+    .photo-compare-results .photo-compare-scroll{width:100%;overflow-x:auto}
+    .photo-compare-results table{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
+    .photo-compare-results th,.photo-compare-results td{padding:6px 5px;border-bottom:1px solid #e9d6bb;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+    .photo-compare-results th{background:#f5ead2}
+    .photo-compare-results .photo-compare-diff{color:#9a431d;font-weight:800}
+    .photo-compare-results .photo-compare-match{color:#296142;font-weight:800}
     .photo-uncertain{margin:8px 0 0;padding:9px 10px;border:1px solid #c58b42;border-radius:9px;background:#fff4cf;color:#6b3a19;font-size:13px;line-height:1.5}
     .photo-uncertain strong{display:block;margin-bottom:4px}.photo-uncertain ul{margin:0;padding-left:1.35em}.photo-uncertain li+li{margin-top:4px}
     .photo-lightbox{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(20,12,7,.88)}
@@ -1902,7 +1917,7 @@
   }
 
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{}};
+    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{},cellReadings:[]};
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
     const explicitPairMarks=new Map();
@@ -1970,6 +1985,7 @@
         if(level!=null)result.dualAttackLevel=Math.max(result.dualAttackLevel||0,level);
         else result.warnings.push(`${index}枚目：双剣士専用「通常攻撃」のLvを読み取れませんでした。読み取り結果のLvを確認してください。`);
         if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName,level==null?'Lv?':'Lv'+level);
+        result.cellReadings.push({row:cell.row,col:cell.col,name:DUAL_NORMAL_ATTACK+(level==null?'（Lv不明）':' Lv.'+level),mark:'なし'});
         continue;
       }
 
@@ -2017,6 +2033,13 @@
       }
 
       if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,raw,markHint,cell.superCell);
+      // 比較画面用のセル位置と候補名。既存の取得済み判定には一切使用しない。
+      const cellMainName=parsed.specials.find(n=>/◎$/.test(normalize(n)))
+        ||parsed.specials.find(n=>/○$/.test(normalize(n)))
+        ||parsed.specials[0]||parsed.supers[0]?.name||'未読';
+      const cellName=normalize(cellMainName);
+      result.cellReadings.push({row:cell.row,col:cell.col,name:cellMainName,
+        mark:cellMainName==='未読'?'未読':/[○◎]$/.test(cellName)?cellName.slice(-1):'なし'});
 
       // 通常特殊能力セルに○/◎が直接見えているなら、その形状を記録。
       if(!cell.superCell){
@@ -2457,8 +2480,9 @@
     };
   }
 
-  async function readImages(images){
+  async function readImages(images,options={}){
     const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
+    if(options.comparison===true)out.comparisonScreens=[];
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     const abilityUpIdentity={job:''};
     const dataIdentity={job:''};
@@ -2486,6 +2510,7 @@
           else out.warnings.push(`${i+1}枚目：${n}を画像比較で読み取れませんでした。基本能力を確認してください。`);
         });
         const result=await readAbilityCells(image,i+1);
+        if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'能力データ',cells:result.cellReadings});
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
           if(mark!=='○'&&mark!=='◎')continue;
@@ -2498,6 +2523,7 @@
       }else{
         const trainingPattern=await readTrainingPattern(image);
         if(trainingPattern){
+          if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'訓練',cells:[],exp:trainingPattern.current||{}});
           const missing=EXPS.filter(name=>trainingPattern.exp?.[name]==null);
           if(missing.length)out.warnings.push(`${i+1}枚目：訓練画像の経験点を一部読み取れませんでした。経験点を確認してください。`);
           out.trainingPatterns.push(trainingPattern);
@@ -2512,6 +2538,8 @@
         const enoughExp=exp.filter(v=>v!=null).length>=3;
         if(!knownTab&&!title.includes('能力アップ')&&!jobResult.job&&!enoughExp){out.warnings.push(`${i+1}枚目は対応画面を判別できませんでした。`);continue;}
         out.abilityUpScreens++;
+        if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'能力アップ',cells:[],
+          exp:Object.fromEntries(EXPS.map((name,j)=>[name,exp[j]]))});
         if(jobResult.candidate)out.warnings.push('ジョブの候補：'+jobResult.job+'（要確認）');
         if(jobResult.job)abilityUpIdentity.job=jobResult.job;
         EXPS.forEach((n,j)=>mergeField(out.exp,n,exp[j],n+'経験点'));
@@ -2605,9 +2633,10 @@
       wrap.append(img,remove);box.append(wrap);
     });
     el('readPhotos').disabled=busy||!files.length||!selectionDirty;
+    el('comparePhotos').disabled=busy||!files.length;
     el('choosePhotos').textContent=files.length?'画像を追加':'画像を選択';
   }
-  function clear(){closePreview();urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];selectionDirty=false;el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;el('choosePhotos').textContent='画像を選択';renderUncertain([]);status('');}
+  function clear(){closePreview();urls.forEach(u=>URL.revokeObjectURL(u));urls=[];files=[];selectionDirty=false;el('photoFiles').value='';el('photoPreviews').replaceChildren();el('readPhotos').disabled=true;el('comparePhotos').disabled=true;el('photoCompare').hidden=true;el('photoCompare').replaceChildren();el('choosePhotos').textContent='画像を選択';renderUncertain([]);status('');}
   el('choosePhotos').onclick=()=>{if(!busy)el('photoFiles').click();};
   el('photoFiles').onchange=()=>{
     if(busy)return;
@@ -2619,7 +2648,7 @@
       if(files.length>=12){skipped++;continue;}
       files.push(file);urls.push(URL.createObjectURL(file));seen.add(key);changed=true;
     }
-    if(changed)selectionDirty=true;
+    if(changed){selectionDirty=true;el('photoCompare').hidden=true;el('photoCompare').replaceChildren();}
     renderPreviews();renderUncertain([]);
     if(skipped&&files.length>=12)status('画像は12枚まで選べます。');
     else if(skipped)status(`${files.length}枚選択しました。重複した画像は追加していません。`);
@@ -2630,7 +2659,7 @@
     const remove=e.target.closest('.photo-preview-remove');
     if(remove){
       const index=Number(remove.dataset.index);if(!Number.isInteger(index)||index<0||index>=files.length)return;
-      URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);selectionDirty=true;renderPreviews();renderUncertain([]);status(files.length?`${files.length}枚選択しました。`:'');return;
+      URL.revokeObjectURL(urls[index]);files.splice(index,1);urls.splice(index,1);selectionDirty=true;el('photoCompare').hidden=true;el('photoCompare').replaceChildren();renderPreviews();renderUncertain([]);status(files.length?`${files.length}枚選択しました。`:'');return;
     }
     const preview=e.target.closest('.photo-preview-image');
     if(preview)openPreview(Number(preview.dataset.index));
