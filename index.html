@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261010-custom-calculation-2">
+  <link rel="stylesheet" href="style.css?v=20261010-custom-calculation-3">
 </head>
 <body>
   <header class="site-header">
@@ -69,33 +69,46 @@
     </section>
 
 
-    <section id="customCalcCard" class="card custom-calc-card" aria-labelledby="customCalcTitle">
+    <section id="customCalcCard" class="card custom-calc-card is-locked" aria-labelledby="customCalcTitle">
       <div class="section-heading no-heading-diamond"><h2 id="customCalcTitle">こだわり計算</h2></div>
-      <p class="custom-calc-intro">条件を指定して、その範囲で査定が最大となる組合せを計算します。指定しなければ通常どおり計算します。</p>
       <div class="custom-condition-group">
-        <h3>基本能力を○以上</h3>
+        <h3>基本能力</h3>
         <div class="custom-condition-inputs custom-basic-inputs">
-          <select id="customBasicName" aria-label="基本能力"></select>
-          <input id="customBasicMin" type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="数値" aria-label="基本能力の最低値">
-          <button id="customAddBasic" class="secondary" type="button">追加</button>
+          <div class="custom-select-control custom-condition-select">
+            <select id="customBasicName" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="基本能力を選択"></select>
+            <button id="customBasicNameSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customBasicNameCustomMenu" disabled><span id="customBasicNameSelectText">基本能力を選択</span></button>
+            <div id="customBasicNameCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
+          </div>
+          <div class="custom-condition-options">
+            <input id="customBasicValue" type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="数値" aria-label="基本能力の指定値" disabled>
+            <div class="custom-select-control custom-condition-select">
+            <select id="customBasicMode" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="条件"><option value="above">以上</option><option value="exact">固定</option><option value="below">以下</option></select>
+            <button id="customBasicModeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customBasicModeCustomMenu" disabled><span id="customBasicModeSelectText">条件</span></button>
+            <div id="customBasicModeCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
+          </div>
+            <button id="customAddBasic" class="secondary" type="button" disabled>追加</button>
+          </div>
         </div>
         <ul id="custom-basic-list" class="custom-condition-list" hidden></ul>
       </div>
       <div class="custom-condition-group">
-        <h3>必ず取得する特殊能力</h3>
-        <div class="custom-condition-inputs">
-          <select id="customRequiredName" aria-label="必ず取得する特殊能力"></select>
-          <button id="customAddRequired" class="secondary" type="button">追加</button>
+        <h3>特殊能力</h3>
+        <div class="custom-condition-inputs custom-special-inputs">
+          <div class="custom-select-control custom-condition-select">
+            <select id="customSpecialName" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="特殊能力を選択"></select>
+            <button id="customSpecialNameSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customSpecialNameCustomMenu" disabled><span id="customSpecialNameSelectText">特殊能力を選択</span></button>
+            <div id="customSpecialNameCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
+          </div>
+          <div class="custom-condition-options custom-special-options">
+            <div class="custom-select-control custom-condition-select">
+            <select id="customSpecialMode" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="取得する／しない"><option value="required">取得する</option><option value="forbidden">取得しない</option></select>
+            <button id="customSpecialModeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customSpecialModeCustomMenu" disabled><span id="customSpecialModeSelectText">取得する／しない</span></button>
+            <div id="customSpecialModeCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
+          </div>
+            <button id="customAddSpecial" class="secondary" type="button" disabled>追加</button>
+          </div>
         </div>
-        <ul id="custom-required-list" class="custom-condition-list" hidden></ul>
-      </div>
-      <div class="custom-condition-group">
-        <h3>取得しない特殊能力</h3>
-        <div class="custom-condition-inputs">
-          <select id="customForbiddenName" aria-label="取得しない特殊能力"></select>
-          <button id="customAddForbidden" class="secondary" type="button">追加</button>
-        </div>
-        <ul id="custom-forbidden-list" class="custom-condition-list" hidden></ul>
+        <ul id="custom-special-list" class="custom-condition-list" hidden></ul>
       </div>
       <p id="customCalcMessage" role="status" aria-live="polite" class="custom-calc-message"></p>
       <button id="customClearAll" type="button" class="secondary custom-clear-all" hidden>こだわり条件をすべて解除</button>
@@ -133,6 +146,7 @@
       <ol class="usage-list">
         <li>「能力アップ」、「能力データ」の画像を選択し、「画像を読み取る」を押すと、自動入力されます。内容を確認し、誤りがあれば修正をお願いします。<br>なお、画像を用いず、手入力でも可能です。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。HP、耐性で査定が変動することがあるため、該当する超特殊能力があれば、選択してください。</li>
         <li>基本能力、特殊能力左の「＋」でコツLv.を設定します。</li>
+        <li>「こだわり計算」では、基本能力の数値を「以上・固定・以下」で、特殊能力を「取得する・取得しない」で指定できます。条件を追加すると、その条件内で査定が最大となる組合せを計算します。条件を指定しなければ通常どおり計算します。</li>
         <li>「計算する」を押すと、査定が最大となる組合せが表示されます。<br>なお、「能力データ」に加えて「訓練」の画像を複数読み取ると、各訓練後の経験点パターンを比較できます。「訓練後の付与予定経験点」を入力すると、各パターンに加算し、査定が最大となるパターンと組合せが表示されます。結果の末尾で、取得したくない特殊能力を複数追加して再計算することもできます。</li>
       </ol>
       <div class="usage-note-block">
@@ -162,7 +176,7 @@
   <script src="data.js?v=20261003-ironwall-hp-1"></script>
   <script src="resistance_patch.js?v=20261010-custom-calculation-1"></script>
   <script src="academy_runtime.js?v=20261003-dual-training-ui-1"></script>
-  <script src="script.js?v=20261010-custom-calculation-2"></script>
+  <script src="script.js?v=20261010-custom-calculation-3"></script>
   <script>
     (()=>{
       const createCustomSelect=(config)=>{
@@ -258,6 +272,34 @@
           textId:'jobSelectText',
           menuId:'jobCustomMenu',
           placeholder:'ジョブを選択'
+        }),
+        createCustomSelect({
+          selectId:'customBasicName',
+          buttonId:'customBasicNameSelectButton',
+          textId:'customBasicNameSelectText',
+          menuId:'customBasicNameCustomMenu',
+          placeholder:'基本能力を選択'
+        }),
+        createCustomSelect({
+          selectId:'customBasicMode',
+          buttonId:'customBasicModeSelectButton',
+          textId:'customBasicModeSelectText',
+          menuId:'customBasicModeCustomMenu',
+          placeholder:'以上'
+        }),
+        createCustomSelect({
+          selectId:'customSpecialName',
+          buttonId:'customSpecialNameSelectButton',
+          textId:'customSpecialNameSelectText',
+          menuId:'customSpecialNameCustomMenu',
+          placeholder:'特殊能力を選択'
+        }),
+        createCustomSelect({
+          selectId:'customSpecialMode',
+          buttonId:'customSpecialModeSelectButton',
+          textId:'customSpecialModeSelectText',
+          menuId:'customSpecialModeCustomMenu',
+          placeholder:'取得する'
         })
       ].filter(Boolean);
 
