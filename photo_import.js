@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-training-and-mark-repair-2';
+  const PHOTO_IMPORT_BUILD='20261010-training-and-mark-repair-3';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2142,6 +2142,16 @@
       }
       result.specials=[...owned];
       result.explicitPairMarks=Object.fromEntries(explicitPairMarks);
+      // 比較表も画面内の最終○/◎補正とそろえる。入力だけ○に直っても
+      // 比較画面に補正前の◎が残ると原因調査を誤らせる。
+      for(const reading of result.cellReadings){
+        if(reading.superCell)continue;
+        const matched=normalize(reading.name).match(/^(.+)([○◎])$/);
+        const corrected=matched?explicitPairMarks.get(matched[1]):'';
+        if(!corrected)continue;
+        reading.name=matched[1]+corrected;
+        reading.mark=corrected;
+      }
     }
 
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
