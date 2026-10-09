@@ -36,10 +36,10 @@ const specialList=document.getElementById('specialList');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
-// 結果から指定された、今回以降の計算で取得したくない特殊能力。
-const excludedSpecialIndices=new Set();
-// 「追加」で候補をためてから、一度の再計算でまとめて除外する。
-const pendingExcludedSpecialIndices=new Set();
+// こだわり計算：基本能力の下限・必ず取る特殊能力・取らない特殊能力。
+const customMinimumBasics=new Map();
+const customRequiredSpecials=new Set();
+const customForbiddenSpecials=new Set();
 const specialNameIndex=new Map();
 const specialReqIndex=new Map();
 D.special.forEach((s,i)=>{
@@ -552,8 +552,12 @@ function calcCacheKey(exp){
   const dualPart=typeof window.__PAWAADO_DUAL_ATTACK_SIGNATURE__==='function'
     ? window.__PAWAADO_DUAL_ATTACK_SIGNATURE__()
     : '';
-  const excludedPart=[...excludedSpecialIndices].sort((a,b)=>a-b).join(',');
-  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'excludeSpecial:'+excludedPart].join('||');
+  const constraintsKey=[
+    [...customMinimumBasics.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ja')),
+    [...customRequiredSpecials].sort((a,b)=>a-b),
+    [...customForbiddenSpecials].sort((a,b)=>a-b)
+  ];
+  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'custom:'+JSON.stringify(constraintsKey)].join('||');
 }
 function cloneResult(st){
   const items=restoreItems(st);
@@ -678,7 +682,11 @@ function buildWorkerPayload(exp){
     basicHints:{...basicHints},
     specialState:workerSpecialState(),
     selectedSupers:selectedSuperState(),
-    excludedSpecialIndices:[...excludedSpecialIndices]
+    customConditions:{
+      minimumBasics:Object.fromEntries(customMinimumBasics),
+      requiredSpecialIndices:[...customRequiredSpecials],
+      forbiddenSpecialIndices:[...customForbiddenSpecials]
+    }
   };
 }
 function cleanupActiveWorker(){
@@ -693,7 +701,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261009-exclude-specials-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261010-custom-calculation-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -930,163 +938,98 @@ function comparisonHtml(entries){
 }
 
 // 結果欄では、取得済みではない新規取得候補だけを除外対象にする。
-function resultSpecialChoices(entries){
-  const choices=new Map();
-  const addCandidate=index=>{
-    if(!Number.isInteger(index)||index<0||index>=D.special.length)return;
-    if(Number(getSpecialState(index).own)===1||excludedSpecialIndices.has(index))return;
-    choices.set(index,String(D.special[index][1]));
-  };
-  for(const entry of entries){
-    for(const item of restoreItems(entry.candidate)){
-      if(item?.type!=='special')continue;
-      const index=Number(item.idx);
-      if(!Number.isInteger(index)||index<0||index>=D.special.length)continue;
-      addCandidate(index);
-      // ◎を含む結果では下位の○も候補に表示する。
-      // 下位○が既に取得済みなら「新たに取得しない」対象ではないため表示しない。
-      const prerequisite=D.special[index]?.[2];
-      if(prerequisite){
-        const lowerIndexValue=specialNameIndex.get(String(prerequisite));
-        if(lowerIndexValue!==undefined)addCandidate(lowerIndexValue);
-      }
-    }
-  }
-  return [...choices.entries()].sort((a,b)=>a[0]-b[0]);
+
+function customConditionListHtml(kind){
+  let entries=[];
+  if(kind==='basic')entries=[...customMinimumBasics.entries()].map(([name,value])=>({key:name,label:name+' '+value+'以上'}));
+  if(kind==='required')entries=[...customRequiredSpecials].map(i=>({key:i,label:D.special[i][1]}));
+  if(kind==='forbidden')entries=[...customForbiddenSpecials].map(i=>({key:i,label:D.special[i][1]}));
+  return entries.map(x=>'<li><span>'+escapeCustomText(x.label)+'</span>'
+    +'<button type="button" class="custom-condition-remove" data-kind="'+kind+'" data-key="'+escapeCustomText(x.key)+'" aria-label="'+escapeCustomText(x.label)+'を削除">×</button></li>').join('');
 }
-function escapeResultOption(value){
+function escapeCustomText(value){
   return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
-function excludeResultHtml(entries){
-  const choices=resultSpecialChoices(entries);
-  const excluded=[...excludedSpecialIndices].sort((a,b)=>a-b)
-    .map(i=>D.special[i]?.[1]).filter(Boolean);
-  if(!choices.length&&!excluded.length)return '';
-  const current=excluded.length
-    ? `<p class="excluded-special-current">除外中：${excluded.map(escapeResultOption).join('、')}</p>`
-    : '';
-  const select=choices.length
-    ? `<div class="excluded-special-picker">
-         <div class="custom-select-control excluded-special-select-control">
-           <select id="excludeSpecialSelect" class="custom-native-select" aria-label="取得したくない特殊能力を選択" tabindex="-1" aria-hidden="true">
-             <option value="">特殊能力を選択</option>
-             ${choices.map(([i,name])=>`<option value="${i}">${escapeResultOption(name)}</option>`).join('')}
-           </select>
-           <button id="excludeSpecialSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="excludeSpecialMenu"><span id="excludeSpecialSelectText">特殊能力を選択</span></button>
-           <div id="excludeSpecialMenu" class="custom-select-menu" role="listbox" hidden></div>
-         </div>
-         <button id="addExcludedSpecial" class="secondary excluded-special-add" type="button" disabled>追加</button>
-       </div>
-       <ul id="pendingExcludedSpecials" class="excluded-special-pending" aria-label="除外する特殊能力" hidden></ul>
-       <button id="excludeSpecialRecalc" class="secondary excluded-special-recalc" type="button" disabled>選択した特殊能力を取得せずに再計算</button>`
-    : '';
-  const reset=excluded.length
-    ? '<button id="clearExcludedSpecials" class="secondary excluded-special-clear" type="button">除外をすべて解除して再計算する</button>'
-    : '';
-  return `<div class="result-block excluded-special-block"><h3>特殊能力を除外して再計算</h3>
-    <p class="excluded-special-description">特定の特殊能力を取得せずに査定が最大となる組合せを計算します。</p>
-    ${current}${select}${reset}
-  </div>`;
+function showCustomMessage(message){
+  const node=document.getElementById('customCalcMessage');
+  if(node)node.textContent=message||'';
 }
-function closeExcludedSpecialMenu(){
-  const menu=document.getElementById('excludeSpecialMenu');
-  const btn=document.getElementById('excludeSpecialSelectButton');
-  const control=document.querySelector('.excluded-special-select-control');
-  if(menu)menu.hidden=true;
-  if(btn)btn.setAttribute('aria-expanded','false');
-  control?.classList.remove('is-open');
-}
-function refreshExcludedSpecialMenu(){
-  const select=document.getElementById('excludeSpecialSelect');
-  const menu=document.getElementById('excludeSpecialMenu');
-  const button=document.getElementById('excludeSpecialSelectButton');
-  const label=document.getElementById('excludeSpecialSelectText');
-  if(!select||!menu||!button||!label)return;
-  label.textContent=select.options[select.selectedIndex]?.textContent||'特殊能力を選択';
-  menu.innerHTML=[...select.options].map(option=>
-    `<button class="custom-select-option${option.value===select.value?' is-selected':''}" type="button" role="option" aria-selected="${option.value===select.value?'true':'false'}" data-exclude-option="${escapeResultOption(option.value)}" ${option.disabled?'disabled':''}>${escapeResultOption(option.textContent)}</button>`
-  ).join('');
-}
-function refreshPendingExclusions(){
-  const select=document.getElementById('excludeSpecialSelect');
-  const add=document.getElementById('addExcludedSpecial');
-  const submit=document.getElementById('excludeSpecialRecalc');
-  const pending=document.getElementById('pendingExcludedSpecials');
-  if(!pending||!select||!add||!submit)return;
-  const index=select.value===''?NaN:Number(select.value);
-  add.disabled=!Number.isInteger(index)||index<0||index>=D.special.length
-    ||pendingExcludedSpecialIndices.has(index)||excludedSpecialIndices.has(index)
-    ||Number(getSpecialState(index).own)===1;
-  for(const option of select.options){
-    if(option.value==='')continue;
-    const value=Number(option.value);
-    option.disabled=pendingExcludedSpecialIndices.has(value)||excludedSpecialIndices.has(value);
+function renderCustomConditions(){
+  for(const kind of ['basic','required','forbidden']){
+    const target=document.getElementById('custom-'+kind+'-list');
+    if(!target)continue;
+    target.innerHTML=customConditionListHtml(kind);
+    target.hidden=!target.innerHTML;
   }
-  pending.innerHTML=[...pendingExcludedSpecialIndices].map(i=>
-    `<li><span>${escapeResultOption(D.special[i]?.[1]||'')}</span><button type="button" data-exclude-remove="${i}" aria-label="${escapeResultOption(D.special[i]?.[1]||'')}を除外候補から削除">×</button></li>`
-  ).join('');
-  pending.hidden=pendingExcludedSpecialIndices.size===0;
-  submit.disabled=pendingExcludedSpecialIndices.size===0;
-  refreshExcludedSpecialMenu();
+  const has=customMinimumBasics.size||customRequiredSpecials.size||customForbiddenSpecials.size;
+  const clear=document.getElementById('customClearAll');
+  if(clear)clear.hidden=!has;
 }
-const resultForExclusions=document.getElementById('result');
-resultForExclusions.addEventListener('change',event=>{
-  if(event.target?.id==='excludeSpecialSelect')refreshPendingExclusions();
-});
-resultForExclusions.addEventListener('click',event=>{
-  const button=event.target.closest('button');
-  if(!button||isCalculating)return;
-  if(button.id==='excludeSpecialSelectButton'){
-    const menu=document.getElementById('excludeSpecialMenu');
-    if(!menu)return;
-    if(menu.hidden){
-      refreshExcludedSpecialMenu();
-      menu.hidden=false;
-      button.setAttribute('aria-expanded','true');
-      button.closest('.custom-select-control')?.classList.add('is-open');
-    }else closeExcludedSpecialMenu();
-    return;
-  }else if(button.hasAttribute('data-exclude-option')){
-    const select=document.getElementById('excludeSpecialSelect');
-    if(!select||button.disabled)return;
-    select.value=button.dataset.excludeOption;
-    select.dispatchEvent(new Event('change',{bubbles:true}));
-    closeExcludedSpecialMenu();
-    document.getElementById('excludeSpecialSelectButton')?.focus();
-    return;
-  }else if(button.id==='addExcludedSpecial'){
-    const select=document.getElementById('excludeSpecialSelect');
-    const index=select?.value===''?NaN:Number(select?.value);
-    if(!Number.isInteger(index)||index<0||index>=D.special.length
-      ||pendingExcludedSpecialIndices.has(index)||excludedSpecialIndices.has(index)
-      ||Number(getSpecialState(index).own)===1)return;
-    pendingExcludedSpecialIndices.add(index);
-    select.value='';
-    closeExcludedSpecialMenu();
-    refreshPendingExclusions();
-  }else if(button.hasAttribute('data-exclude-remove')){
-    pendingExcludedSpecialIndices.delete(Number(button.dataset.excludeRemove));
-    refreshPendingExclusions();
-  }else if(button.id==='excludeSpecialRecalc'){
-    if(!pendingExcludedSpecialIndices.size)return;
-    for(const index of pendingExcludedSpecialIndices)excludedSpecialIndices.add(index);
-    pendingExcludedSpecialIndices.clear();
-    calc();
-  }else if(button.id==='clearExcludedSpecials'){
-    excludedSpecialIndices.clear();
-    pendingExcludedSpecialIndices.clear();
-    calc();
-  }
-});
-
-document.addEventListener('click',event=>{
-  const control=document.querySelector('.excluded-special-select-control');
-  if(control&&!control.contains(event.target))closeExcludedSpecialMenu();
-});
-document.addEventListener('keydown',event=>{
-  if(event.key==='Escape')closeExcludedSpecialMenu();
-});
-
+function initCustomConditions(){
+  const basic=document.getElementById('customBasicName');
+  const required=document.getElementById('customRequiredName');
+  const forbidden=document.getElementById('customForbiddenName');
+  if(!basic||!required||!forbidden)return;
+  basic.innerHTML='<option value="">基本能力を選択</option>'
+    +basicNames.map(name=>'<option value="'+escapeCustomText(name)+'">'+escapeCustomText(name)+'</option>').join('');
+  const specials='<option value="">特殊能力を選択</option>'
+    +D.special.map((row,index)=>'<option value="'+index+'">'+escapeCustomText(row[1])+'</option>').join('');
+  required.innerHTML=specials;forbidden.innerHTML=specials;
+  const card=document.getElementById('customCalcCard');
+  card.addEventListener('click',event=>{
+    const button=event.target.closest('button');
+    if(!button||isCalculating)return;
+    if(button.hasAttribute('data-kind')&&button.hasAttribute('data-key')){
+      const kind=button.dataset.kind,key=button.dataset.key;
+      if(kind==='basic')customMinimumBasics.delete(key);
+      else if(kind==='required')customRequiredSpecials.delete(Number(key));
+      else if(kind==='forbidden')customForbiddenSpecials.delete(Number(key));
+      showCustomMessage('');
+      renderCustomConditions();
+      return;
+    }
+    if(button.id==='customClearAll'){
+      customMinimumBasics.clear();customRequiredSpecials.clear();customForbiddenSpecials.clear();
+      showCustomMessage('すべてのこだわり条件を解除しました。');
+      renderCustomConditions();
+      return;
+    }
+    if(button.id==='customAddBasic'){
+      const name=basic.value,target=Number(document.getElementById('customBasicMin')?.value);
+      if(!basicNames.includes(name)||!Number.isInteger(target)||target<1){
+        showCustomMessage('基本能力と、1以上の整数を指定してください。');return;
+      }
+      const cap=limits()[name];
+      if(cap!=null&&target>cap){showCustomMessage(name+'の上限は'+cap+'です。');return;}
+      customMinimumBasics.set(name,target);
+      basic.value='';document.getElementById('customBasicMin').value='';
+    }else if(button.id==='customAddRequired'||button.id==='customAddForbidden'){
+      const requireSkill=button.id==='customAddRequired';
+      const select=requireSkill?required:forbidden,index=Number(select.value);
+      if(select.value===''||!Number.isInteger(index)||!D.special[index]){
+        showCustomMessage('特殊能力を選択してください。');return;
+      }
+      if(requireSkill&&customForbiddenSpecials.has(index)||!requireSkill&&customRequiredSpecials.has(index)){
+        showCustomMessage('同じ特殊能力を「取得する」「取得しない」の両方には指定できません。');return;
+      }
+      if(!requireSkill&&specialOwned(index)){
+        showCustomMessage('すでに取得済みの特殊能力は除外できません。');return;
+      }
+      (requireSkill?customRequiredSpecials:customForbiddenSpecials).add(index);
+      select.value='';
+    }else return;
+    showCustomMessage('');
+    renderCustomConditions();
+  });
+  renderCustomConditions();
+}
+function customConditionsSummaryHtml(){
+  const lines=[];
+  for(const [name,target] of customMinimumBasics)lines.push(escapeCustomText(name)+' '+target+'以上');
+  for(const index of customRequiredSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得');
+  for(const index of customForbiddenSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得しない');
+  return lines.length?'<div class="result-block custom-result-summary"><h3>こだわり計算の条件</h3><p>'+lines.join('／')+'</p></div>':'';
+}
 function plannedExpNeedsConfirmation(){
   return expSamples.length>1 && expNames.some(name=>plannedExp[name]==='' || plannedExp[name]==null);
 }
@@ -1151,7 +1094,6 @@ async function calc(){
   const controls=[...document.querySelectorAll('button,input,select')];
   const disabledBeforeCalc=new Map(controls.map(el=>[el,!!el.disabled]));
 
-  pendingExcludedSpecialIndices.clear();
   cancelRequested=false;
   isCalculating=true;
   document.body.classList.add('is-calculating');
@@ -1201,8 +1143,7 @@ async function calc(){
     entries.forEach(x=>{x.isBest=x.scoreGain===maxScore;});
     const multiple=entries.length>1;
     const displayEntries=multiple?rankedEntries(entries):entries;
-    result.innerHTML=comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('')+excludeResultHtml(entries);
-    refreshPendingExclusions();
+    result.innerHTML=customConditionsSummaryHtml()+comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('');
     animateResultCard();
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
@@ -1276,8 +1217,11 @@ function resetAll(){
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
 
   specialState.clear();
-  excludedSpecialIndices.clear();
-  pendingExcludedSpecialIndices.clear();
+  customMinimumBasics.clear();
+  customRequiredSpecials.clear();
+  customForbiddenSpecials.clear();
+  renderCustomConditions();
+  showCustomMessage('');
   calcResultCache.clear();
 
   renderExp();
@@ -1450,5 +1394,5 @@ document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 setupUsageModal();
 removeTemporaryVersionDisplay();
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); initCustomConditions(); validateAllInline();
 })();
