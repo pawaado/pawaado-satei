@@ -807,3 +807,67 @@ test('reset/calculation are locked during reading and detailed warnings survive 
  const pending=get('readPhotos').onclick();assert.equal(get('resetBtn').disabled,true);assert.equal(get('calcBtn').disabled,true);release();await pending;
  assert.equal(get('photoUncertain').hidden,false);assert.match(get('photoUncertain').innerHTML,/筋力の不一致/);assert.equal(get('readPhotos').disabled,false);
 });
+
+
+test('AI comparison shows old OCR and AI candidates by screenshot without treating agreement as accuracy',()=>{
+ const {c}=setup();
+ const render=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml;
+ const html=render(
+  [{name:'A.jpg'}],
+  {exp:{筋力:300},specials:['アクションスキル◎'],comparisonScreens:[{index:0,type:'能力データ',cells:[
+    {row:1,col:1,name:'アクションスキル◎',mark:'◎'},
+    {row:1,col:2,name:'風回復',mark:'なし'},
+    {row:1,col:3,name:'対ドラゴンタートル○',mark:'○'}
+  ]}]},
+  [{experience:[],marks:[{row:1,col:1,value:'◎',confidence:.99},{row:1,col:2,value:'◎',confidence:.95},{row:1,col:3,value:'◎',confidence:.96}]}]
+ );
+ assert(html.includes('アクションスキル◎'));
+ assert(html.includes('対ドラゴンタートル○'));
+ assert(html.includes('記号なし（比較対象外）'));
+ assert(html.includes('一致 <strong>1</strong>'));
+ assert(html.includes('相違 <strong>1</strong>'));
+ assert(html.includes('今の試験AIは○／◎の二択'));
+ assert(html.includes('査定入力は変更しません'));
+});
+test('AI comparison renders experience readings and never claims a missing AI value is correct',()=>{
+ const {c}=setup();
+ const output=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
+  [{name:'能力アップ.jpg'}],
+  {exp:{筋力:300},specials:[],comparisonScreens:[{index:0,type:'能力アップ',exp:{筋力:300,敏捷:130,技術:null,知力:105,精神:78}}]},
+  [{experience:[{name:'筋力',value:'300',confidence:.99},{name:'敏捷',value:'131',confidence:.99},{name:'知力',value:'105',confidence:.99},{name:'精神',value:'78',confidence:.99}]}]
+ );
+ assert(output.includes('経験点の比較'));
+ assert(output.includes('一致 <strong>3</strong>'));
+ assert(output.includes('相違 <strong>1</strong>'));
+ assert(output.includes('要確認・対象外 <strong>1</strong>'));
+ assert(output.includes('未読'));
+});
+test('AI comparison escapes file names and unread names in rendered HTML',()=>{
+ const {c}=setup();
+ const output=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
+  [{name:'<img src=x onerror=alert(1)>.png'}],
+  {exp:{},specials:['<svg/onload=alert(2)>'],comparisonScreens:[]},[{}]
+ );
+ assert(!output.includes('<img src=x'));
+ assert(!output.includes('<svg/onload=alert(2)>'));
+ assert(output.includes('&lt;img'));
+});
+test('AI comparison button evaluates the same selected images without modifying inputs',async()=>{
+ const {c,h,get}=setup();
+ let imported=0,called=0,terminated=0;
+ c.__PAWAADO_IMPORT_PHOTO__=()=>{imported++;};
+ c.__PAWAADO_AI_PROBE__={inspectImage:async()=>{called++;return {marks:[],experience:[]}}};
+ h.prepareUi(async(images,options)=>{
+  assert.equal(options?.comparison,true);
+  assert.equal(images.length,1);
+  return {exp:{},specials:[],comparisonScreens:[{index:0,type:'能力データ',cells:[]}]};
+ },{terminate:async()=>{terminated++;}});
+ await get('comparePhotos').onclick();
+ assert.equal(called,1);
+ assert.equal(imported,0);
+ assert.equal(terminated,1);
+ assert.equal(h.busy(),false);
+ assert.equal(get('readPhotos').disabled,false,'regular import remains available');
+ assert.equal(get('photoCompare').hidden,false);
+ assert(get('photoCompare').innerHTML.includes('従来OCRと端末内AIの比較'));
+});
