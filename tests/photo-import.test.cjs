@@ -824,10 +824,10 @@ test('AI comparison shows old OCR and AI candidates by screenshot without treati
  );
  assert(html.includes('アクションスキル◎'));
  assert(html.includes('対ドラゴンタートル○'));
- assert(html.includes('記号なし（比較対象外）'));
+ assert(html.includes('<th>従来の記号</th>'));
  assert(html.includes('一致 <strong>1</strong>'));
- assert(html.includes('相違 <strong>1</strong>'));
- assert(html.includes('今の試験AIは○／◎の二択'));
+ assert(html.includes('相違 <strong>2</strong>'),'記号なし対◎も比較上の相違');
+ assert(html.includes('記号の有無・金色セルを先に判別し'));
  assert(html.includes('査定入力は変更しません'));
 });
 test('AI comparison renders experience readings and never claims a missing AI value is correct',()=>{
@@ -840,8 +840,27 @@ test('AI comparison renders experience readings and never claims a missing AI va
  assert(output.includes('経験点の比較'));
  assert(output.includes('一致 <strong>3</strong>'));
  assert(output.includes('相違 <strong>1</strong>'));
- assert(output.includes('要確認・対象外 <strong>1</strong>'));
+ assert(output.includes('要確認 <strong>1</strong>'));
  assert(output.includes('未読'));
+});
+test('one ability-data screen is enough for isolated AI comparison without EXP warnings',async()=>{
+ const {c,h}=setup();h.stubReads();
+ const report=await h.readImages([{kind:'data',academy:'パワフルアカデミー',dataJob:'剣士'}],{comparison:true});
+ assert.equal(report.dataScreens,1);
+ assert.equal(report.abilityUpScreens,0);
+ assert.equal(report.trainingPatterns.length,0);
+ assert.equal(report.comparisonScreens.length,1);
+ assert.equal(report.comparisonScreens[0].basic['生命力'],50);
+ assert(!report.warnings.some(w=>w.includes('能力アップ')&&w.includes('訓練')));
+ const html=c.__PAWAADO_PHOTO_TEST__.buildAiComparisonHtml(
+  [{name:'能力データ.png'}],report,[{marks:[],experience:[]}]
+ );
+ assert(html.includes('「能力データ」のみの比較検証'));
+ assert(html.includes('基本能力（従来の画像認識・AI未対応）'));
+ assert(!html.includes('経験点の比較'));
+ // 通常の自動入力では経験点画像が必要なことを引き続き通知する。
+ const regular=await h.readImages([{kind:'data',dataJob:'剣士'}]);
+ assert(regular.warnings.some(w=>w.includes('「能力アップ」または「訓練」')));
 });
 test('AI comparison escapes file names and unread names in rendered HTML',()=>{
  const {c}=setup();

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-training-gain-sky-guard-1';
+  const PHOTO_IMPORT_BUILD='20261010-ability-data-only-compare-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -676,6 +676,7 @@
     <input id="photoFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
     <div id="photoPreviews"></div><button id="readPhotos" type="button" disabled>画像を読み取る</button>
     <button id="comparePhotos" class="secondary photo-compare-button" type="button" disabled>AIと読み取りを比較（実験）</button>
+    <p class="photo-compare-guide">比較検証は「能力データ」の画像1枚だけでもできます。「能力アップ」「訓練」は不要です。査定入力には反映しません。</p>
     <p id="photoStatus" role="status" aria-live="polite"></p>
     <div id="photoCompare" class="photo-compare-results" hidden></div>
     <div id="photoUncertain" class="photo-uncertain" hidden></div>
@@ -689,6 +690,7 @@
     #photoPreviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}#photoPreviews:empty{display:none}.photo-preview-item{position:relative;min-width:0}#photoPreviews img{width:100%;display:block;border-radius:8px}.photo-preview-image{cursor:zoom-in}
     #photoPreviews p{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}.photo-preview-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border-radius:50%;font-size:0;line-height:1;z-index:2}
     .photo-compare-button{display:block;width:100%;min-height:46px;margin:8px 0 2px;font-size:14px}
+    .photo-compare-guide{font-size:12px;color:#66523e;margin:4px 0 6px}
     .photo-compare-results{margin:14px 0;padding:12px;border:1px solid rgba(129,78,25,.5);border-radius:12px;background:#fffaf0;color:#49301d;font-size:13px;line-height:1.6}
     .photo-compare-results[hidden]{display:none}
     .photo-compare-results h3{margin:0 0 8px;font-size:17px}
@@ -2565,7 +2567,8 @@
           else out.warnings.push(`${i+1}枚目：${n}を画像比較で読み取れませんでした。基本能力を確認してください。`);
         });
         const result=await readAbilityCells(image,i+1);
-        if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'能力データ',cells:result.cellReadings});
+        if(out.comparisonScreens)out.comparisonScreens.push({index:i,type:'能力データ',cells:result.cellReadings,
+          basic:Object.fromEntries(BASICS.map((name,j)=>[name,values[j]]))});
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
           if(mark!=='○'&&mark!=='◎')continue;
@@ -2676,7 +2679,7 @@
     }
     if(out.abilityUpScreens||out.dataScreens||out.trainingPatterns.length){
       if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・基本能力・取得済み特殊能力を確認してください。');
-      if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
+      if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length&&!options.comparison)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
     }
     return out;
   }
@@ -2776,7 +2779,13 @@
           +'<div class="photo-compare-scroll"><table><thead><tr><th>種類</th><th>現在</th><th>増加分</th><th>訓練後</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
       }
       let markTable='';
+      let basicTable='';
       if(o.type==='能力データ'){
+        if(o.basic){
+          const basicRows=BASICS.map(name=>'<tr><td>'+escape(name)+'</td><td>'+displayValue(o.basic[name])+'</td></tr>').join('');
+          basicTable='<details><summary>基本能力（従来の画像認識・AI未対応）</summary>'
+            +'<div class="photo-compare-scroll"><table><thead><tr><th>能力</th><th>従来読取</th></tr></thead><tbody>'+basicRows+'</tbody></table></div></details>';
+        }
         const oldMarks=new Map((o.cells||[]).map(item=>[item.row+':'+item.col,item]));
         const newMarks=new Map((a.marks||[]).map(item=>[item.row+':'+item.col,item]));
         const keys=[...new Set([...oldMarks.keys(),...newMarks.keys()])].sort((aa,bb)=>{
@@ -2794,14 +2803,15 @@
           else if(!goldOrIgnored)totals.unknown++;
           const label=goldOrIgnored?'対象外（超特殊能力）':comparable?(same?(old.mark==='なし'?'一致（記号なし）':'一致'):'相違'):'要確認';
           const aiValue=goldOrIgnored?'—':candidate?.value==='なし'?'なし':displayValue(candidate?.value);
+          const oldMark=goldOrIgnored?'—':displayValue(old?.mark);
           const conf=comparable&&Number.isFinite(candidate.confidence)?' <small>AI確信度 '+Math.round(candidate.confidence*100)+'%（参考）</small>':'';
-          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+aiValue+conf+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
+          return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+oldMark+'</td><td>'+aiValue+conf+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
         }).join('');
-        markTable='<h4>特殊能力マスの比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>位置</th><th>従来OCRの能力名</th><th>AIの末尾候補</th><th>比較</th></tr></thead><tbody>'+(markRows||'<tr><td colspan="4">能力のマスを検出できませんでした。</td></tr>')+'</tbody></table></div>';
+        markTable='<h4>特殊能力マスの比較</h4><div class="photo-compare-scroll"><table><thead><tr><th>位置</th><th>従来読取の能力名</th><th>従来の記号</th><th>AIの記号候補</th><th>比較</th></tr></thead><tbody>'+(markRows||'<tr><td colspan="5">能力のマスを検出できませんでした。</td></tr>')+'</tbody></table></div>';
       }
       const message=a.error?'<p class="photo-compare-diff">AI：'+escape(a.error)+'</p>':'';
       const none=!digitTable&&!markTable&&!trainingTable?'<p>この画像を能力アップ／能力データ／訓練として判別できませんでした。訓練画面の場合は元画像で経験点の表示を確認してください。</p>':'';
-      return '<details '+(index===0?'open':'')+'><summary>'+escape((file?.name||'画像')+'（'+o.type+'）')+'</summary>'+message+digitTable+trainingTable+markTable+none+'</details>';
+      return '<details '+(index===0?'open':'')+'><summary>'+escape((file?.name||'画像')+'（'+o.type+'）')+'</summary>'+message+digitTable+trainingTable+markTable+basicTable+none+'</details>';
     });
     const finalNames=(ocr.specials||[]).map(escape).join('、')||'なし';
     const expSummary=EXPS.map(name=>escape(name)+' '+displayValue(ocr.exp?.[name])).join(' / ');
@@ -2809,8 +2819,10 @@
     const hasAbilityUp=screens.some(screen=>screen.type==='能力アップ');
     const hasData=screens.some(screen=>screen.type==='能力データ');
     const trainingCount=screens.filter(screen=>screen.type==='訓練').length;
-    return '<h3>画像読み取りの比較</h3>'
-      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 記号の有無・金色セルを先に判別し、青色セルの○／◎を試験AIで比較します。訓練は従来の画像認識結果をパターン別に表示し、AIとの数字比較は未対応です。「AI確信度」はAI内部の推定値で、正解率ではありません。</p>'
+    const dataOnly=hasData&&!hasAbilityUp&&!trainingCount;
+    return '<h3>従来OCRと端末内AIの比較</h3>'
+      +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 記号の有無・金色セルを先に判別し、青色セルの○／◎を試験AIで比較します。訓練は従来の画像認識結果をパターン別に表示し、AIとの数字比較は未対応です。「AI確信度」はAI内部の推定値で、正解率・一致率ではありません。</p>'
+      +(dataOnly?'<p><strong>「能力データ」のみの比較検証</strong>：経験点画像を使わず、特殊能力マスの記号を比較しています。</p>':'')
       +(hasAbilityUp||hasData?'<p>AI比較：一致 <strong>'+totals.match+'</strong>、相違 <strong>'+totals.difference+'</strong>、要確認 <strong>'+totals.unknown+'</strong>。一致はOCRとAIが同じ候補という意味で、正解率ではありません。</p>':'')
       +(trainingCount?'<p><strong>訓練画像：</strong>'+trainingCount+'枚をパターン別に表示しています。</p>':'')
       +(hasAbilityUp?'<p><strong>従来OCRの経験点：</strong>'+expSummary+'</p>':'')
@@ -2841,7 +2853,8 @@
         }
       }
       output.innerHTML=buildAiComparisonHtml(files,ocr,ai);
-      status('AI比較が完了しました。従来の自動入力結果は変更していません。');
+      const abilityDataOnly=images.length>0&&images.every((_,index)=>screenTypes.get(index)==='能力データ');
+      status(abilityDataOnly?'「能力データ」の画像のみで比較が完了しました。査定入力は変更していません。':'AI比較が完了しました。従来の自動入力結果は変更していません。');
     }catch(error){
       output.textContent='比較できませんでした：'+String(error?.message||error||'不明なエラー');
       status('AI比較に失敗しました。通常の画像読み取りは引き続き利用できます。');
