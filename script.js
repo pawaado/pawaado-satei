@@ -966,24 +966,46 @@ function excludeResultHtml(entries){
     ? `<p class="excluded-special-current">除外中：${excluded.map(escapeResultOption).join('、')}</p>`
     : '';
   const select=choices.length
-    ? `<label for="excludeSpecialSelect" class="excluded-special-label">取得したくない特殊能力</label>
-       <div class="excluded-special-picker">
-         <select id="excludeSpecialSelect" class="excluded-special-select">
-           <option value="">特殊能力を選択</option>
-           ${choices.map(([i,name])=>`<option value="${i}">${escapeResultOption(name)}</option>`).join('')}
-         </select>
+    ? `<div class="excluded-special-picker">
+         <div class="custom-select-control excluded-special-select-control">
+           <select id="excludeSpecialSelect" class="custom-native-select" aria-label="取得したくない特殊能力を選択" tabindex="-1" aria-hidden="true">
+             <option value="">特殊能力を選択</option>
+             ${choices.map(([i,name])=>`<option value="${i}">${escapeResultOption(name)}</option>`).join('')}
+           </select>
+           <button id="excludeSpecialSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="excludeSpecialMenu"><span id="excludeSpecialSelectText">特殊能力を選択</span></button>
+           <div id="excludeSpecialMenu" class="custom-select-menu" role="listbox" hidden></div>
+         </div>
          <button id="addExcludedSpecial" class="secondary excluded-special-add" type="button" disabled>追加</button>
        </div>
        <ul id="pendingExcludedSpecials" class="excluded-special-pending" aria-label="除外する特殊能力" hidden></ul>
-       <button id="excludeSpecialRecalc" class="secondary excluded-special-recalc" type="button" disabled>追加した特殊能力を取得せずに再計算する</button>`
+       <button id="excludeSpecialRecalc" class="secondary excluded-special-recalc" type="button" disabled>選択した特殊能力を取得せずに再計算</button>`
     : '';
   const reset=excluded.length
     ? '<button id="clearExcludedSpecials" class="secondary excluded-special-clear" type="button">除外をすべて解除して再計算する</button>'
     : '';
   return `<div class="result-block excluded-special-block"><h3>特殊能力を除外して再計算</h3>
-    <p class="excluded-special-description">取得したくない特殊能力を選び「追加」を押してください。複数選択することも可能です。◎だけを除外すると、下位の○は取得候補に残ります。</p>
+    <p class="excluded-special-description">特定の特殊能力を取得せずに査定が最大となる組合せを計算します。</p>
     ${current}${select}${reset}
   </div>`;
+}
+function closeExcludedSpecialMenu(){
+  const menu=document.getElementById('excludeSpecialMenu');
+  const btn=document.getElementById('excludeSpecialSelectButton');
+  const control=document.querySelector('.excluded-special-select-control');
+  if(menu)menu.hidden=true;
+  if(btn)btn.setAttribute('aria-expanded','false');
+  control?.classList.remove('is-open');
+}
+function refreshExcludedSpecialMenu(){
+  const select=document.getElementById('excludeSpecialSelect');
+  const menu=document.getElementById('excludeSpecialMenu');
+  const button=document.getElementById('excludeSpecialSelectButton');
+  const label=document.getElementById('excludeSpecialSelectText');
+  if(!select||!menu||!button||!label)return;
+  label.textContent=select.options[select.selectedIndex]?.textContent||'特殊能力を選択';
+  menu.innerHTML=[...select.options].map(option=>
+    `<button class="custom-select-option${option.value===select.value?' is-selected':''}" type="button" role="option" aria-selected="${option.value===select.value?'true':'false'}" data-exclude-option="${escapeResultOption(option.value)}" ${option.disabled?'disabled':''}>${escapeResultOption(option.textContent)}</button>`
+  ).join('');
 }
 function refreshPendingExclusions(){
   const select=document.getElementById('excludeSpecialSelect');
@@ -1005,6 +1027,7 @@ function refreshPendingExclusions(){
   ).join('');
   pending.hidden=pendingExcludedSpecialIndices.size===0;
   submit.disabled=pendingExcludedSpecialIndices.size===0;
+  refreshExcludedSpecialMenu();
 }
 const resultForExclusions=document.getElementById('result');
 resultForExclusions.addEventListener('change',event=>{
@@ -1013,7 +1036,25 @@ resultForExclusions.addEventListener('change',event=>{
 resultForExclusions.addEventListener('click',event=>{
   const button=event.target.closest('button');
   if(!button||isCalculating)return;
-  if(button.id==='addExcludedSpecial'){
+  if(button.id==='excludeSpecialSelectButton'){
+    const menu=document.getElementById('excludeSpecialMenu');
+    if(!menu)return;
+    if(menu.hidden){
+      refreshExcludedSpecialMenu();
+      menu.hidden=false;
+      button.setAttribute('aria-expanded','true');
+      button.closest('.custom-select-control')?.classList.add('is-open');
+    }else closeExcludedSpecialMenu();
+    return;
+  }else if(button.hasAttribute('data-exclude-option')){
+    const select=document.getElementById('excludeSpecialSelect');
+    if(!select||button.disabled)return;
+    select.value=button.dataset.excludeOption;
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    closeExcludedSpecialMenu();
+    document.getElementById('excludeSpecialSelectButton')?.focus();
+    return;
+  }else if(button.id==='addExcludedSpecial'){
     const select=document.getElementById('excludeSpecialSelect');
     const index=select?.value===''?NaN:Number(select?.value);
     if(!Number.isInteger(index)||index<0||index>=D.special.length
@@ -1021,6 +1062,7 @@ resultForExclusions.addEventListener('click',event=>{
       ||Number(getSpecialState(index).own)===1)return;
     pendingExcludedSpecialIndices.add(index);
     select.value='';
+    closeExcludedSpecialMenu();
     refreshPendingExclusions();
   }else if(button.hasAttribute('data-exclude-remove')){
     pendingExcludedSpecialIndices.delete(Number(button.dataset.excludeRemove));
@@ -1035,6 +1077,14 @@ resultForExclusions.addEventListener('click',event=>{
     pendingExcludedSpecialIndices.clear();
     calc();
   }
+});
+
+document.addEventListener('click',event=>{
+  const control=document.querySelector('.excluded-special-select-control');
+  if(control&&!control.contains(event.target))closeExcludedSpecialMenu();
+});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape')closeExcludedSpecialMenu();
 });
 
 function plannedExpNeedsConfirmation(){
