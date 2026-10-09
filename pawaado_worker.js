@@ -886,13 +886,19 @@ function constrainedInitialState(exp){
     const op=itemForSpecialIndex(index,hp,includeLower);
     if(!op||!op.items.some(x=>Number(x.idx)===index))
       throw new Error('こだわり計算：'+name+'を取得できません。');
+    const ownedConflict=op.items.some(it=>mutualGroups.some(group=>
+      group.includes(String(it.name))&&group.some(other=>other!==String(it.name)&&
+        specialNameIndex.has(other)&&specialOwned(specialNameIndex.get(other)))));
     if((op.bits&workerExcludedSpecialBits)!==EMPTY_BITS||
        (op.bits&conflictBitsFor(state.bits))!==EMPTY_BITS||
-       (state.bits&op.conflictBits)!==EMPTY_BITS)
+       (state.bits&op.conflictBits)!==EMPTY_BITS||ownedConflict)
       throw new Error('こだわり計算：'+name+'は他の取得条件と両立できません。');
     if(!leq(addCost(state.cost,op.cost),exp))
       throw new Error('こだわり計算：'+name+'の取得に必要な経験点が不足しています。');
-    state=mixedApplyAction(state,{...op,kind:'special',gain:op.score,costSum:costSum(op.cost)});
+    const gain=typeof dynamicSpecialGainForBits==='function'
+      ?dynamicSpecialGainForBits(state.bits??EMPTY_BITS,op.bits,op.items,Number(op.score||0))
+      :Number(op.score||0);
+    state=mixedApplyAction(state,{...op,kind:'special',gain,costSum:costSum(op.cost)});
   }
   return state;
 }
