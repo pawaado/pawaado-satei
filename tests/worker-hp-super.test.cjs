@@ -96,56 +96,81 @@ function specialActions(c,payload){
   })()`,c);
 }
 
-test('excluded ○ removes both standalone ○ and prerequisite ○+◎ combinations',()=>{
-  const c=loadWorker();
-  const lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
-  const upper=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
-  assert(lower>=0&&upper>=0);
-  const normal=specialActions(c,payloadFor(c));
-  assert(normal.some(op=>op.indices.includes(lower)),'baseline should have lower option');
-  const filtered=specialActions(c,{...payloadFor(c),excludedSpecialIndices:[lower]});
-  assert(!filtered.some(op=>op.indices.includes(lower)),'lower cannot be acquired');
-  assert(!filtered.some(op=>op.indices.includes(upper)),'upper cannot bypass excluded prerequisite');
-});
 
-test('excluding ◎ still permits its ○ lower skill',()=>{
-  const c=loadWorker();
-  const lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
-  const upper=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
-  const filtered=specialActions(c,{...payloadFor(c),excludedSpecialIndices:[upper]});
-  assert(filtered.some(op=>op.indices.includes(lower)),'lower remains available');
-  assert(!filtered.some(op=>op.indices.includes(upper)),'upper is excluded');
-});
-
-test('excluded indices participate in configuration identity and can be reset',()=>{
-  const c=loadWorker();
-  const index=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
-  const base=payloadFor(c);
-  const excluded={...base,excludedSpecialIndices:[index]};
-  assert.notEqual(c.__workerPayloadConfigKey(base),c.__workerPayloadConfigKey(excluded));
-  const blocked=specialActions(c,excluded);
-  assert(!blocked.some(op=>op.indices.includes(index)));
-  const restored=specialActions(c,base);
-  assert(restored.some(op=>op.indices.includes(index)),'cleared exclusions must restore candidates');
-});
-
-test('dual swordsman normal attack upgrade can be excluded without changing the owned Lv1',()=>{
-  const c=loadWorker();
-  const row=c.PAWAADO_DATA.academies.find(r=>r[1]==='双剣士');
-  if(!row)return;
-  const specialIdx=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='通常攻撃(双剣士)');
-  assert(specialIdx>=0);
-  const base={...payloadFor(c),academy:row[0],job:row[1],isDualSwordsman:true};
-  c.__applyWorkerPayload(base);
-  const has=vm.runInContext(`(()=>{
-    const st={cost:[0,0,0,0,0],levels:[90,1,1,120,1,1],dualLevel:1,bits:EMPTY_BITS};
-    return !!mixedDualAction(st,[9999,9999,9999,9999,9999]);
+function constrainedStart(c,payload,exp=[9999,9999,9999,9999,9999]){
+  c.__applyWorkerPayload(payload);
+  c.__customTestExp=exp;
+  return vm.runInContext(`(()=>{
+    const state=constrainedInitialState(__customTestExp);
+    return {cost:state.cost,score:state.score,levels:state.levels,items:restoreItems(state),bits:bitsKey(state.bits)};
   })()`,c);
-  assert(has,'dual upgrade candidate should exist before exclusion');
-  c.__applyWorkerPayload({...base,excludedSpecialIndices:[specialIdx]});
-  const banned=vm.runInContext(`(()=>{
-    const st={cost:[0,0,0,0,0],levels:[90,1,1,120,1,1],dualLevel:1,bits:EMPTY_BITS};
-    return mixedDualAction(st,[9999,9999,9999,9999,9999]);
-  })()`,c);
-  assert.equal(banned,null);
+}
+test('requiring ◎ pays for unowned ○ and ◎ and respects separate upper and lower',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+ const upper=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+ assert(lower>=0&&upper>=0);
+ const both=constrainedStart(c,{...base,customConditions:{requiredSpecialIndices:[upper]}});
+ assert(both.items.some(it=>it.idx===lower));
+ assert(both.items.some(it=>it.idx===upper));
+ const onlyLower=constrainedStart(c,{...base,customConditions:{requiredSpecialIndices:[lower],forbiddenSpecialIndices:[upper]}});
+ assert(onlyLower.items.some(it=>it.idx===lower));
+ assert(!onlyLower.items.some(it=>it.idx===upper));
+});
+test('already acquired prerequisite is never charged twice',()=>{
+ const c=loadWorker(),i=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎'),lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+ const p=payloadFor(c,{specialState:[[String(lower),{hint:0,own:1}]]});
+ const st=constrainedStart(c,{...p,customConditions:{requiredSpecialIndices:[i]}});
+ assert(st.items.some(it=>it.idx===i));
+ assert(!st.items.some(it=>it.idx===lower));
+});
+test('basic thresholds are prepaid exactly and do not constrain unrelated abilities',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const st=constrainedStart(c,{...base,customConditions:{minimumBasics:{生命力:93,器用さ:12}}});
+ assert.equal(st.levels[0],93);
+ assert.equal(st.levels[3],12);
+ assert(st.items.some(i=>i.type==='basic'&&i.name==='生命力'&&i.to===93));
+ assert(st.items.some(i=>i.type==='basic'&&i.name==='器用さ'&&i.to===12));
+ assert(st.cost.some(v=>v>0));
+});
+test('insufficient experience fails instead of returning a forbidden alternative',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const i=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+ assert.throws(()=>constrainedStart(c,{...base,customConditions:{requiredSpecialIndices:[i]}},[0,0,0,0,0]),/経験点/);
+});
+test('contradictory required/forbidden selection is rejected',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const i=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+ assert.throws(()=>c.__applyWorkerPayload({...base,customConditions:{requiredSpecialIndices:[i],forbiddenSpecialIndices:[i]}}),/両方/);
+});
+test('requiring upper with forbidden prerequisite is rejected',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const upper=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+ const lower=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+ assert.throws(()=>constrainedStart(c,{...base,customConditions:{requiredSpecialIndices:[upper],forbiddenSpecialIndices:[lower]}}),/前提/);
+});
+test('mutually exclusive required skills are rejected',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const names=['生存本能','闘争本能'].map(n=>c.PAWAADO_DATA.special.findIndex(s=>s[1]===n));
+ assert(names.every(i=>i>=0));
+ assert.throws(()=>constrainedStart(c,{...base,customConditions:{requiredSpecialIndices:names}}),/両立/);
+});
+test('conditions participate in cache identity; clearing restores normal actions',()=>{
+ const c=loadWorker(),base=payloadFor(c);
+ const i=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル◎');
+ const variants=[
+  {...base,customConditions:{requiredSpecialIndices:[i]}},
+  {...base,customConditions:{forbiddenSpecialIndices:[i]}},
+  {...base,customConditions:{minimumBasics:{生命力:94}}}
+ ];
+ assert.equal(new Set([c.__workerPayloadConfigKey(base),...variants.map(v=>c.__workerPayloadConfigKey(v))]).size,4);
+ const blocked=specialActions(c,variants[1]);
+ assert(!blocked.some(op=>op.indices.includes(i)));
+ const restored=specialActions(c,base);
+ assert(restored.some(op=>op.indices.includes(i)));
+});
+test('acquired abilities cannot be forbidden by constraints',()=>{
+ const c=loadWorker(),i=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='アクションスキル○');
+ const base=payloadFor(c,{specialState:[[String(i),{hint:0,own:1}]]});
+ assert.throws(()=>c.__applyWorkerPayload({...base,customConditions:{forbiddenSpecialIndices:[i]}}),/取得済み/);
 });
