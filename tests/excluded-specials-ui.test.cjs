@@ -53,6 +53,7 @@ test('custom condition section and usage are concise',()=>{
   assert.equal((usage[1].match(/<li>/g)||[]).length,3,'usage has three steps');
   assert(usage[1].includes('「計算する」を押すと、査定が最大となる組合せが表示されます。'));
   assert(usage[1].includes('各訓練後の経験点パターンにて比較できます。'));
+  assert(usage[1].includes('「訓練後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せが表示されます。'));
   assert(usage[1].includes('「こだわり条件」で基本能力や特殊能力に条件を設定することもできます。'));
   assert(!usage[1].includes('「こだわり計算」では'));
   assert(ui.includes('<h3>こだわり条件</h3>'));
