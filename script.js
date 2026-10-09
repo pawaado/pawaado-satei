@@ -36,8 +36,8 @@ const specialList=document.getElementById('specialList');
 const basicOwned={}; basicNames.forEach(n=>basicOwned[n]=false);
 const basicHints={}; basicNames.forEach(n=>basicHints[n]=0);
 const specialState=new Map();
-// こだわり計算：基本能力の下限・必ず取る特殊能力・取らない特殊能力。
-const customMinimumBasics=new Map();
+// こだわり計算：基本能力「以上／固定／以下」と特殊能力「取得する／取得しない」。
+const customBasicRules=new Map();
 const customRequiredSpecials=new Set();
 const customForbiddenSpecials=new Set();
 const specialNameIndex=new Map();
@@ -100,17 +100,20 @@ function updateInputAvailabilityUI(){
 
   if(jobField) jobField.classList.toggle('is-locked',academyMissing);
   if(basicCard) basicCard.classList.toggle('is-locked',basicLocked);
+  renderCustomConditions();
 }
 function updateJobs(){
   const jobs=jobsByAcademy[academy.value]||[];
   job.innerHTML=''; job.add(opt('ジョブを選択',''));
   jobs.forEach(j=>job.add(opt(j)));
   job.disabled=!academy.value;
+  clearCustomConditionsState();
   updateInputAvailabilityUI();
   clearBasicState(); renderBasic(); renderSpecials(); applyCurrentJobTheme();
 }
 academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInline();});
 job.addEventListener('change',()=>{
+  clearCustomConditionsState();
   updateInputAvailabilityUI();
   clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
 });
@@ -294,6 +297,7 @@ function renderSpecials(){
   }).join('');
   specialList.innerHTML=html;
   D.special.forEach((_,i)=>applySkillVisual(i));
+  renderCustomConditions();
 }
 function ownedLabel(on){return on ? '<span class="owned-label">✓取得済</span>' : ''}
 function setHintBtn(btn,level){if(!btn)return; btn.textContent=Number(level)>0?`Lv${level}`:'＋'; btn.classList.toggle('has-hint',Number(level)>0);}
@@ -553,7 +557,7 @@ function calcCacheKey(exp){
     ? window.__PAWAADO_DUAL_ATTACK_SIGNATURE__()
     : '';
   const constraintsKey=[
-    [...customMinimumBasics.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ja')),
+    [...customBasicRules.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ja')),
     [...customRequiredSpecials].sort((a,b)=>a-b),
     [...customForbiddenSpecials].sort((a,b)=>a-b)
   ];
@@ -683,7 +687,7 @@ function buildWorkerPayload(exp){
     specialState:workerSpecialState(),
     selectedSupers:selectedSuperState(),
     customConditions:{
-      minimumBasics:Object.fromEntries(customMinimumBasics),
+      basicRules:Object.fromEntries(customBasicRules),
       requiredSpecialIndices:[...customRequiredSpecials],
       forbiddenSpecialIndices:[...customForbiddenSpecials]
     }
@@ -937,49 +941,88 @@ function comparisonHtml(entries){
   return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-function customConditionListHtml(kind){
-  let entries=[];
-  if(kind==='basic')entries=[...customMinimumBasics.entries()].map(([name,value])=>({key:name,label:name+' '+value+'以上'}));
-  if(kind==='required')entries=[...customRequiredSpecials].map(i=>({key:i,label:D.special[i][1]}));
-  if(kind==='forbidden')entries=[...customForbiddenSpecials].map(i=>({key:i,label:D.special[i][1]}));
-  return entries.map(x=>'<li><span>'+escapeCustomText(x.label)+'</span>'
-    +'<button type="button" class="custom-condition-remove" data-kind="'+kind+'" data-key="'+escapeCustomText(x.key)+'" aria-label="'+escapeCustomText(x.label)+'を削除">×</button></li>').join('');
-}
 function escapeCustomText(value){
   return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+const customBasicModes={above:'以上',exact:'固定',below:'以下'};
+function clearCustomConditionsState(){
+  customBasicRules.clear();
+  customRequiredSpecials.clear();
+  customForbiddenSpecials.clear();
+  for(const [id,value] of [['customBasicName',''],['customBasicMode','above'],['customSpecialName',''],['customSpecialMode','required'],['customBasicValue','']]){
+    const el=document.getElementById(id); if(el)el.value=value;
+  }
+  showCustomMessage('');
+}
+function customConditionListHtml(kind){
+  const entries=kind==='basic'
+    ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
+    : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:D.special[i][1]+'（取得する）'}))
+      .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:D.special[i][1]+'（取得しない）'})));
+  return entries.map(x=>'<li><span>'+escapeCustomText(x.label)+'</span>'
+    +'<button type="button" class="custom-condition-remove" data-kind="'+(x.kind||kind)+'" data-key="'+escapeCustomText(x.key)+'" aria-label="'+escapeCustomText(x.label)+'を削除">×</button></li>').join('');
 }
 function showCustomMessage(message){
   const node=document.getElementById('customCalcMessage');
   if(node)node.textContent=message||'';
 }
+function refreshCustomChoices(){
+  const basic=document.getElementById('customBasicName');
+  const special=document.getElementById('customSpecialName');
+  if(!basic||!special)return;
+  const ready=hasAcademyJob();
+  const basicSelection=basic.value;
+  const specialSelection=special.value;
+  basic.innerHTML='<option value="">基本能力を選択</option>'
+    +basicNames.filter(name=>!customBasicRules.has(name))
+      .map(name=>'<option value="'+escapeCustomText(name)+'">'+escapeCustomText(name)+'</option>').join('');
+  basic.value=basicSelection;
+  // 上の特殊能力欄で取得済みのもの・すでに条件指定したものを候補から除外する。
+  for(const index of [...customRequiredSpecials,...customForbiddenSpecials]){
+    if(specialOwned(index)||(job.value!=='双剣士'&&D.special[index]?.[1]==='通常攻撃(双剣士)')){
+      customRequiredSpecials.delete(index);
+      customForbiddenSpecials.delete(index);
+    }
+  }
+  special.innerHTML='<option value="">特殊能力を選択</option>'
+    +(ready?D.special.map((row,index)=>({name:row[1],index})).filter(({name,index})=>
+      !specialOwned(index)&&!customRequiredSpecials.has(index)&&!customForbiddenSpecials.has(index)
+      &&(job.value==='双剣士'||name!=='通常攻撃(双剣士)'))
+      .map(({name,index})=>'<option value="'+index+'">'+escapeCustomText(name)+'</option>').join(''):'');
+  special.value=specialSelection;
+  const card=document.getElementById('customCalcCard');
+  card?.classList.toggle('is-locked',!ready);
+  for(const id of ['customBasicName','customBasicMode','customBasicValue','customAddBasic','customSpecialName','customSpecialMode','customAddSpecial']){
+    const el=document.getElementById(id);
+    if(el)el.disabled=!ready||isCalculating;
+  }
+}
 function renderCustomConditions(){
-  for(const kind of ['basic','required','forbidden']){
+  refreshCustomChoices();
+  for(const kind of ['basic','special']){
     const target=document.getElementById('custom-'+kind+'-list');
     if(!target)continue;
     target.innerHTML=customConditionListHtml(kind);
     target.hidden=!target.innerHTML;
   }
-  const has=customMinimumBasics.size||customRequiredSpecials.size||customForbiddenSpecials.size;
+  const has=customBasicRules.size||customRequiredSpecials.size||customForbiddenSpecials.size;
   const clear=document.getElementById('customClearAll');
-  if(clear)clear.hidden=!has;
+  if(clear){clear.hidden=!has;clear.disabled=!has||!hasAcademyJob()||isCalculating;}
 }
 function initCustomConditions(){
   const basic=document.getElementById('customBasicName');
-  const required=document.getElementById('customRequiredName');
-  const forbidden=document.getElementById('customForbiddenName');
-  if(!basic||!required||!forbidden)return;
-  basic.innerHTML='<option value="">基本能力を選択</option>'
-    +basicNames.map(name=>'<option value="'+escapeCustomText(name)+'">'+escapeCustomText(name)+'</option>').join('');
-  const specials='<option value="">特殊能力を選択</option>'
-    +D.special.map((row,index)=>'<option value="'+index+'">'+escapeCustomText(row[1])+'</option>').join('');
-  required.innerHTML=specials;forbidden.innerHTML=specials;
+  const special=document.getElementById('customSpecialName');
+  const basicMode=document.getElementById('customBasicMode');
+  const specialMode=document.getElementById('customSpecialMode');
+  const value=document.getElementById('customBasicValue');
   const card=document.getElementById('customCalcCard');
+  if(!basic||!special||!basicMode||!specialMode||!value||!card)return;
   card.addEventListener('click',event=>{
     const button=event.target.closest('button');
     if(!button||isCalculating)return;
     if(button.hasAttribute('data-kind')&&button.hasAttribute('data-key')){
       const kind=button.dataset.kind,key=button.dataset.key;
-      if(kind==='basic')customMinimumBasics.delete(key);
+      if(kind==='basic')customBasicRules.delete(key);
       else if(kind==='required')customRequiredSpecials.delete(Number(key));
       else if(kind==='forbidden')customForbiddenSpecials.delete(Number(key));
       showCustomMessage('');
@@ -987,34 +1030,38 @@ function initCustomConditions(){
       return;
     }
     if(button.id==='customClearAll'){
-      customMinimumBasics.clear();customRequiredSpecials.clear();customForbiddenSpecials.clear();
-      showCustomMessage('すべてのこだわり条件を解除しました。');
+      clearCustomConditionsState();
       renderCustomConditions();
       return;
     }
+    if(!hasAcademyJob())return;
     if(button.id==='customAddBasic'){
-      const name=basic.value,target=Number(document.getElementById('customBasicMin')?.value);
-      if(!basicNames.includes(name)||!Number.isInteger(target)||target<1){
+      const name=basic.value,target=Number(value.value),mode=basicMode.value;
+      if(!basicNames.includes(name)||value.value===''||!Number.isInteger(target)||target<1||!customBasicModes[mode]){
         showCustomMessage('基本能力と、1以上の整数を指定してください。');return;
       }
       const cap=limits()[name];
       if(cap!=null&&target>cap){showCustomMessage(name+'の上限は'+cap+'です。');return;}
-      customMinimumBasics.set(name,target);
-      basic.value='';document.getElementById('customBasicMin').value='';
-    }else if(button.id==='customAddRequired'||button.id==='customAddForbidden'){
-      const requireSkill=button.id==='customAddRequired';
-      const select=requireSkill?required:forbidden,index=Number(select.value);
-      if(select.value===''||!Number.isInteger(index)||!D.special[index]){
+      const current=Number(document.getElementById('basic_'+name)?.value||1);
+      if(mode!=='above'&&target<current){
+        showCustomMessage(name+'の現在値'+current+'より小さく指定することはできません。');return;
+      }
+      customBasicRules.set(name,{value:target,mode});
+      basic.value='';value.value='';
+    }else if(button.id==='customAddSpecial'){
+      const index=Number(special.value),mode=specialMode.value;
+      if(special.value===''||!Number.isInteger(index)||!D.special[index]){
         showCustomMessage('特殊能力を選択してください。');return;
       }
-      if(requireSkill&&customForbiddenSpecials.has(index)||!requireSkill&&customRequiredSpecials.has(index)){
-        showCustomMessage('同じ特殊能力を「取得する」「取得しない」の両方には指定できません。');return;
+      if((mode!=='required'&&mode!=='forbidden')||specialOwned(index)||
+         (job.value!=='双剣士'&&D.special[index][1]==='通常攻撃(双剣士)')){
+        showCustomMessage('この特殊能力は条件に追加できません。');return;
       }
-      if(!requireSkill&&specialOwned(index)){
-        showCustomMessage('すでに取得済みの特殊能力は除外できません。');return;
+      if(customRequiredSpecials.has(index)||customForbiddenSpecials.has(index)){
+        showCustomMessage('その特殊能力はすでに指定されています。');return;
       }
-      (requireSkill?customRequiredSpecials:customForbiddenSpecials).add(index);
-      select.value='';
+      (mode==='required'?customRequiredSpecials:customForbiddenSpecials).add(index);
+      special.value='';
     }else return;
     showCustomMessage('');
     renderCustomConditions();
@@ -1023,7 +1070,7 @@ function initCustomConditions(){
 }
 function customConditionsSummaryHtml(){
   const lines=[];
-  for(const [name,target] of customMinimumBasics)lines.push(escapeCustomText(name)+' '+target+'以上');
+  for(const [name,rule] of customBasicRules)lines.push(escapeCustomText(name)+' '+rule.value+customBasicModes[rule.mode]);
   for(const index of customRequiredSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得');
   for(const index of customForbiddenSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得しない');
   return lines.length?'<div class="result-block custom-result-summary"><h3>こだわり計算の条件</h3><p>'+lines.join('／')+'</p></div>':'';
@@ -1165,6 +1212,7 @@ async function calc(){
     renderExp();
     btn.disabled=false;
     btn.textContent='計算する';
+    renderCustomConditions();
     cancelBtn.disabled=false;
     cancelBtn.textContent='キャンセル';
     cancelBtn.style.display='none';
@@ -1215,11 +1263,8 @@ function resetAll(){
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
 
   specialState.clear();
-  customMinimumBasics.clear();
-  customRequiredSpecials.clear();
-  customForbiddenSpecials.clear();
+  clearCustomConditionsState();
   renderCustomConditions();
-  showCustomMessage('');
   calcResultCache.clear();
 
   renderExp();
