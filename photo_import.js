@@ -2676,7 +2676,7 @@
     if(window.__PAWAADO_AI_PROBE__?.inspectImage)return Promise.resolve(window.__PAWAADO_AI_PROBE__);
     if(!aiProbeLoader){
       aiProbeLoader=(async()=>{
-        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-compare-1']){
+        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-clip-row-comparison-1']){
           await new Promise((resolve,reject)=>{
             const script=document.createElement('script');
             script.src=source;script.onload=resolve;
