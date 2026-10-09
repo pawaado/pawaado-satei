@@ -50,7 +50,7 @@ test('◎ result exposes both ◎ and unowned prerequisite ○, even if only ◎
   assert(upper>=0&&lower>=0);
   const entries=[{candidate:{items:[{type:'special',idx:upper,name:'アクションスキル◎'}]}}];
   h.ctx.entries=entries;
-  const found=vm.runInContext('resultSpecialChoices(entries)',h.ctx).map(row=>Number(row[0]));
+  const found=Array.from(vm.runInContext('resultSpecialChoices(entries)',h.ctx),row=>Number(row[0]));
   assert.deepEqual(found,[lower,upper].sort((a,b)=>a-b));
   const html=vm.runInContext('excludeResultHtml(entries)',h.ctx);
   assert(html.includes('アクションスキル○'));
@@ -62,7 +62,7 @@ test('◎ result exposes both ◎ and unowned prerequisite ○, even if only ◎
 test('previously acquired lower ○ is not offered as an exclusion, but ◎ is',()=>{
   const upper=getIndex('アクションスキル◎'),lower=getIndex('アクションスキル○');
   const h=harness([lower]);h.ctx.entries=[{candidate:{items:[{type:'special',idx:upper}]}}];
-  const found=vm.runInContext('resultSpecialChoices(entries)',h.ctx).map(row=>Number(row[0]));
+  const found=Array.from(vm.runInContext('resultSpecialChoices(entries)',h.ctx),row=>Number(row[0]));
   assert.deepEqual(found,[upper]);
 });
 
