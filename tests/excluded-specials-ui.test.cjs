@@ -58,13 +58,12 @@ test('custom condition section and usage are concise',()=>{
   assert(ui.includes('<h3>こだわり条件</h3>'));
 });
 
-test('custom controls share existing dropdown style and intro moves into usage',()=>{
+test('custom controls retain standard dropdown options',()=>{
  for(const id of ['customBasicName','customBasicMode','customSpecialName','customSpecialMode']){
    assert(html.includes('id="'+id+'SelectButton"'));
  }
  assert(!html.includes('custom-calc-intro'));
- assert(html.includes('以上・固定・以下'));
- assert(html.includes('取得する・取得しない'));
+ for(const item of ['<option value="above">以上</option>','<option value="exact">固定</option>','<option value="below">以下</option>','<option value="required">取得する</option>','<option value="forbidden">取得しない</option>'])assert(html.includes(item));
  assert(!html.includes('id="excludeSpecialSelect"'));
 });
 test('basic mode defaults to above, and fixed and below are stored and labeled',()=>{
