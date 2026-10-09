@@ -47,6 +47,8 @@ const rangeRowCache=new WeakMap();
 const valueRowCache=new WeakMap();
 const specialItemCache=new Map();
 let workerExcludedSpecialBits=EMPTY_BITS;
+let workerRequiredSpecialIndices=[];
+let workerMinimumBasics={};
 
 const MIXED_BRANCH_NORMAL=7;
 const MIXED_MAX_STEPS=90;
@@ -833,15 +835,70 @@ function mixedApplyAction(st,op){
   };
 }
 
-function optimizeMixedAsync(exp){
-  clearMixedSearchCaches();
+function constrainedInitialState(exp){
   const levels=mixedInitialLevels();
-  const initialLife=levels[0];
-  const init={
-    cost:[0,0,0,0,0],score:0,life:initialLife,levels,
+  let state={
+    cost:[0,0,0,0,0],score:0,life:levels[0],levels,
     bits:EMPTY_BITS,dualLevel:workerDualEnabled?workerDualLevel:null,
     prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
   };
+  const lim=mixedLimits();
+  // 必要条件は探索後のフィルターではなく、初期状態として必ず取得する。
+  // これならbeam探索が「必須能力なしの高査定」を誤って採用することがない。
+  for(const name of basicNames){
+    const target=Number(workerMinimumBasics[name]||0);
+    if(!target||target<=state.levels[basicNames.indexOf(name)])continue;
+    if(!Number.isInteger(target)||target>Number(lim[name])||target<1)
+      throw new Error('こだわり計算：'+name+'の指定値が上限を超えています。');
+    const from=state.levels[basicNames.indexOf(name)];
+    const basic=mixedBasicOption(name,from,target);
+    if(!basic)throw new Error('こだわり計算：'+name+'の指定値まで上げられません。');
+    let gain=basic.score;
+    if(name==='生命力'){
+      const oldHp=currentHpForLife(from),newHp=currentHpForLife(target);
+      gain+=mixedHpDeltaForBits(state.bits,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp);
+    }
+    if(!leq(addCost(state.cost,basic.cost),exp))
+      throw new Error('こだわり計算：'+name+target+'以上にする経験点が不足しています。');
+    state=mixedApplyAction(state,{...basic,gain});
+  }
+  const required=workerRequiredSpecialIndices.slice().sort((a,b)=>
+    (lowerIndex(a)>=0?1:0)-(lowerIndex(b)>=0?1:0)||a-b
+  );
+  for(const index of required){
+    const name=String(D.special[index]?.[1]||'');
+    if(!name)throw new Error('こだわり計算：指定された特殊能力が見つかりません。');
+    if(specialOwned(index)||mixedIsAcquired(index,state.bits))continue;
+    if((workerExcludedSpecialBits&specialBit(index))!==EMPTY_BITS)
+      throw new Error('こだわり計算：'+name+'は取得すると取得しないの両方に指定されています。');
+    if(index===DUAL_SKILL_INDEX){
+      if(!workerDualEnabled)throw new Error('こだわり計算：'+name+'は双剣士専用です。');
+      const dual=mixedDualAction(state,exp);
+      if(!dual)throw new Error('こだわり計算：'+name+'を取得する経験点または条件が足りません。');
+      state=mixedApplyAction(state,dual);
+      continue;
+    }
+    const lower=lowerIndex(index);
+    const includeLower=lower>=0&&!mixedIsAcquired(lower,state.bits);
+    if(includeLower&&(workerExcludedSpecialBits&specialBit(lower))!==EMPTY_BITS)
+      throw new Error('こだわり計算：'+name+'の前提となる'+D.special[lower][1]+'が除外されています。');
+    const hp=currentHpForLife(state.levels[0]);
+    const op=itemForSpecialIndex(index,hp,includeLower);
+    if(!op||!op.items.some(x=>Number(x.idx)===index))
+      throw new Error('こだわり計算：'+name+'を取得できません。');
+    if((op.bits&workerExcludedSpecialBits)!==EMPTY_BITS||
+       (op.bits&conflictBitsFor(state.bits))!==EMPTY_BITS||
+       (state.bits&op.conflictBits)!==EMPTY_BITS)
+      throw new Error('こだわり計算：'+name+'は他の取得条件と両立できません。');
+    if(!leq(addCost(state.cost,op.cost),exp))
+      throw new Error('こだわり計算：'+name+'の取得に必要な経験点が不足しています。');
+    state=mixedApplyAction(state,{...op,kind:'special',gain:op.score,costSum:costSum(op.cost)});
+  }
+  return state;
+}
+function optimizeMixedAsync(exp){
+  clearMixedSearchCaches();
+  const init=constrainedInitialState(exp);
   let states=new Map([[mixedStateKey(init),init]]);
   let best=init;
 
@@ -915,10 +972,12 @@ function __workerPayloadConfigKey(payload){
     .map(row=>[String(row?.name||''),Number(row?.level||0)])
     .filter(row=>row[0]&&(row[1]===1||row[1]===2))
     .sort((a,b)=>a[0].localeCompare(b[0],'ja')||a[1]-b[1]);
-  const excludedPart=(payload.excludedSpecialIndices||[])
-    .map(Number)
-    .filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length)
-    .sort((a,b)=>a-b);
+  const custom=payload.customConditions||{};
+  const forbiddenPart=(custom.forbiddenSpecialIndices||[])
+    .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length).sort((a,b)=>a-b);
+  const requiredPart=(custom.requiredSpecialIndices||[])
+    .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length).sort((a,b)=>a-b);
+  const minimumPart=basicNames.map(name=>[name,Number(custom.minimumBasics?.[name]||0)]);
   return JSON.stringify([
     String(payload.academy||''),
     String(payload.job||''),
@@ -926,7 +985,9 @@ function __workerPayloadConfigKey(payload){
     basicPart,
     specialPart,
     selectedSuperPart,
-    excludedPart
+    forbiddenPart,
+    requiredPart,
+    minimumPart
   ]);
 }
 
@@ -958,12 +1019,25 @@ function __applyWorkerPayload(payload){
       });
     }
     workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[]);
+    const custom=payload.customConditions||{};
+    workerMinimumBasics={};
+    for(const name of basicNames){
+      const target=Number(custom.minimumBasics?.[name]||0);
+      if(target>0)workerMinimumBasics[name]=target;
+    }
+    workerRequiredSpecialIndices=[...new Set((custom.requiredSpecialIndices||[])
+      .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length))];
     workerExcludedSpecialBits=EMPTY_BITS;
-    for(const rawIndex of payload.excludedSpecialIndices||[]){
+    for(const rawIndex of custom.forbiddenSpecialIndices||[]){
       const index=Number(rawIndex);
-      if(Number.isInteger(index)&&index>=0&&index<D.special.length&&!specialOwned(index)){
+      if(Number.isInteger(index)&&index>=0&&index<D.special.length){
+        if(specialOwned(index))throw new Error('こだわり計算：取得済みの'+D.special[index][1]+'は除外できません。');
         workerExcludedSpecialBits|=specialBit(index);
       }
+    }
+    for(const index of workerRequiredSpecialIndices){
+      if((workerExcludedSpecialBits&specialBit(index))!==EMPTY_BITS)
+        throw new Error('こだわり計算：'+D.special[index][1]+'を取得する／取得しないの両方に指定しています。');
     }
 
     clearCalcCaches();
