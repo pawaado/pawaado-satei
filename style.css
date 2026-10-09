@@ -494,11 +494,19 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .custom-condition-group:first-of-type{border-top:0;padding-top:2px}
 .custom-condition-group h3{font-size:16px;color:#53391e;margin:0 0 10px}
 .custom-condition-inputs{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:stretch}
+/* 「こだわり条件」の基本能力だけ、能力名・数値・条件を横1行に並べる。
+   幅の狭いiPhoneでも各セルが縮み、メニューは従来どおり開けるようにする。 */
+.custom-basic-inputs{grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr);gap:6px}
 .custom-condition-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}
+.custom-basic-inputs .custom-condition-options{grid-template-columns:minmax(0,.65fr) minmax(0,1.05fr);min-width:0;gap:6px}
 .custom-special-options{grid-template-columns:minmax(0,1fr)}
 .custom-condition-select{min-width:0}
 .custom-condition-select .custom-select-button{height:52px;min-height:52px;border-radius:10px;padding:8px 29px 8px 10px;font-size:clamp(13px,3.6vw,16px);letter-spacing:-.025em}
 .custom-condition-select .custom-select-button::after{right:12px}
+.custom-basic-inputs .custom-select-button{padding:8px 21px 8px 7px;font-size:clamp(11px,3.05vw,14px);letter-spacing:-.04em}
+.custom-basic-inputs .custom-select-button::after{right:8px;width:7px;height:7px}
+.custom-basic-inputs .custom-select-button span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.custom-basic-inputs .custom-condition-options input{padding:8px 3px;font-size:clamp(12px,3.4vw,16px)}
 .custom-condition-select .custom-select-menu{min-width:100%;width:max-content;max-width:min(340px,calc(100vw - 38px));left:0;right:auto}
 .custom-condition-select .custom-select-option{white-space:normal}
 .custom-condition-options input{width:100%;min-width:0;height:52px;min-height:52px;border:2px solid #9c7039;border-radius:10px;background:linear-gradient(180deg,#fffdf4,#fff2ce);box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7);color:#422610;padding:8px;font-size:16px;font-weight:700;text-align:center}
@@ -649,6 +657,9 @@ body.is-calculating #calcBtn{box-shadow:inset 0 2px 0 rgba(255,255,255,.55), ins
 }
 
 @media(max-width:370px){
+  .custom-basic-inputs,.custom-basic-inputs .custom-condition-options{gap:4px}
+  .custom-basic-inputs .custom-select-button{padding-left:5px;padding-right:18px;font-size:11px}
+  .custom-basic-inputs .custom-select-button::after{right:6px}
   .wood-sign{padding-right:61px}
   h1{font-size:24px}
   .usage-button{right:17px;min-width:54px;padding:8px;font-size:12px}

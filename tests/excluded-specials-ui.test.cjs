@@ -7,6 +7,7 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const ui=fs.readFileSync(path.join(root,'script.js'),'utf8');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const css=fs.readFileSync(path.join(root,'style.css'),'utf8');
 const begin=ui.indexOf('function escapeCustomText(value){');
 const finish=ui.indexOf('function plannedExpNeedsConfirmation(){',begin);
 assert(begin>=0&&finish>begin,'custom calculation code block not found');
@@ -63,6 +64,19 @@ test('custom condition section and usage are concise',()=>{
   assert(ui.includes('<h3>こだわり条件</h3>'));
 });
 
+test('custom basic ability controls stay on one row on desktop and iPhone',()=>{
+ assert(html.includes('class="custom-condition-inputs custom-basic-inputs"'));
+ assert(html.includes('class="custom-condition-options"'));
+ const outer=css.match(/\.custom-basic-inputs\{([^}]*)\}/)?.[1]||'';
+ const nested=css.match(/\.custom-basic-inputs \.custom-condition-options\{([^}]*)\}/)?.[1]||'';
+ assert(outer.includes('grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr)'),outer);
+ assert(nested.includes('grid-template-columns:minmax(0,.65fr) minmax(0,1.05fr)'),nested);
+ assert(css.includes('.custom-basic-inputs .custom-select-button span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'));
+ assert(css.includes('.custom-basic-inputs .custom-select-button::after{right:8px'));
+ assert(css.includes('@media(max-width:370px){\n  .custom-basic-inputs,.custom-basic-inputs .custom-condition-options{gap:4px}'));
+ assert(html.includes('id="customBasicValue"'));
+ assert(html.includes('id="customBasicMode"'));
+});
 test('custom controls retain standard dropdown options',()=>{
  for(const id of ['customBasicName','customBasicMode','customSpecialName','customSpecialMode']){
    assert(html.includes('id="'+id+'SelectButton"'));
