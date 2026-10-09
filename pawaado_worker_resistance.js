@@ -211,10 +211,14 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
     source=replaceOnce(
       source,
 `    selectedSuperPart,
-    excludedPart
+    forbiddenPart,
+    requiredPart,
+    minimumPart
   ]);`,
 `    selectedSuperPart,
-    excludedPart,
+    forbiddenPart,
+    requiredPart,
+    minimumPart,
     (payload.extraResistances||[]).map(row=>[String(row?.name||''),String(row?.type||''),Number(row?.value||0)])
   ]);`,
       'worker config cache key'
