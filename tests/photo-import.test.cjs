@@ -94,6 +94,16 @@ test('IMG_1009 physical defense circle cell is accepted by image comparison',()=
  h.stubAbilityMask('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeAfewoA4AAD/f9/3/PwAAP833/fdzgAA7z/d9/2GAAB/P9/23YIAgP8337d9hgCA/z/ft/zOAI=');
  assert.equal(h.abilityByImage({}, {rect:[0,0,136,34],superCell:false}),'物理防御○');
 });
+test('IMG_1165 action-skill circle templates are valid and cannot crash name comparison',()=>{
+ const {h}=setup();
+ const variants=h.abilityMasks['アクションスキル○'];
+ assert(Array.isArray(variants)&&variants.length>=2);
+ for(const v of variants){
+   assert.match(v,/^[A-Za-z0-9+/]+={0,2}$/);
+   assert.equal(v.length%4,0,'invalid Base64 length');
+   assert.doesNotThrow(()=>h.decodeMask(v,64*10));
+ }
+});
 test('all ability image masks are valid base64',()=>{
  const {h}=setup();
  for(const [name,raw] of Object.entries(h.abilityMasks)){

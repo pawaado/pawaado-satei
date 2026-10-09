@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-ability-data-only-compare-1';
+  const PHOTO_IMPORT_BUILD='20261010-fix-invalid-action-mask-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -436,7 +436,8 @@
       'AAAAAAAAAAAB/uY/BvAAAAHufz/v8pgAAf7EH8/wFAABfH+fz/AAAAH2XxvH8AADAf57PYHABAMD/v8/z8MAAwHe/4ZDgRABAAAAAAAAAAE='
     ],
     'アクションスキル○':[
-      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEAAAAwIMB8eYAMHjyh4AT4h8wGfKMgHJswwYQQojA=',
+      // 2026-10-10: 先頭候補はBase64が1文字欠落し、atob例外で全能力比較を停止させたため除外。
+      // 正常な実画像候補は維持する。
       'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEAAAAwIMB8eYAMHjyh4AT4h8wGfKMgHJswwYQQojAckTPBjByqMzAwY8MOfLsjMGHAzh4Qs2M=',
       'AAAAAAAAAAAAQQAAADAgwHx5gAwePKHgBPiHzAZ8oyAcmzDBhBCiMByRM8GMHKozMDBjww58uyMwYcDOHhCzYyBhh8wzEaHhAAAAAAAAAAE='
     ]
