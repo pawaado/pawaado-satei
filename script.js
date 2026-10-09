@@ -933,12 +933,26 @@ function sampleResultHtml(entry,index,multiple=false){
   </div>`;
 }
 function rankedEntries(entries){
-  return entries.slice().sort((a,b)=>b.scoreGain-a.scoreGain || a.index-b.index);
+  return entries.slice().sort((a,b)=>
+    Number(!!a.unavailable)-Number(!!b.unavailable) ||
+    (a.unavailable?a.index-b.index:b.scoreGain-a.scoreGain || a.index-b.index));
 }
 function comparisonHtml(entries){
   if(entries.length<2) return '';
   const ranked=rankedEntries(entries);
-  return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map((entry,rank)=>`<tr class="${rank===0?'best-row':''}"><td>${rank+1}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`).join('')}</tbody></table></div>`;
+  let rank=0;
+  return `<div class="comparison-block"><table class="result-table comparison-table"><tbody>${ranked.map(entry=>{
+    if(entry.unavailable)return `<tr class="unavailable-sample-row"><td>—</td><td>${sampleLabelHtml(entry.index)}</td><td>条件達成不可</td></tr>`;
+    rank++;
+    return `<tr class="${rank===1?'best-row':''}"><td>${rank}位</td><td>${sampleLabelHtml(entry.index)}</td><td>+${Math.abs(Number(entry.scoreGain||0))}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function unavailableSampleHtml(entry){
+  return `<div class="result-block unavailable-sample-result"><h3>${sampleLabelHtml(entry.index)}：条件達成不可</h3><p>${escapeCustomText(entry.reason||'指定した条件を満たせませんでした。')}</p></div>`;
+}
+function isCustomConstraintError(error){
+  // 他のプログラム・Workerエラーは条件未達として隠さず、通常のエラー処理へ送る。
+  return typeof error?.message==='string'&&error.message.startsWith('こだわり計算：');
 }
 
 function escapeCustomText(value){
@@ -966,6 +980,24 @@ function showCustomMessage(message){
   const node=document.getElementById('customCalcMessage');
   if(node)node.textContent=message||'';
 }
+function customSpecialAvailable(index){
+  const row=D.special[index];
+  if(!row||specialOwned(index)||customRequiredSpecials.has(index)||customForbiddenSpecials.has(index))return false;
+  if(job.value!=='双剣士'&&row[1]==='通常攻撃(双剣士)')return false;
+  const name=String(row[1]);
+  // 必須にした特殊能力と相互排他のものは、続けて「取得する」に指定できない。
+  for(const group of mutualGroups){
+    if(!group.includes(name))continue;
+    if(group.some(other=>other!==name&&customRequiredSpecials.has(specialNameIndex.get(other))))return false;
+  }
+  // ◎を必須にしたら、すでに内包される下位○は候補から外す。
+  for(const required of customRequiredSpecials){
+    if(String(D.special[required]?.[2]||'')===name)return false;
+  }
+  // ○を禁止にしたら、必須となるその○を前提に持つ上位◎も外す。
+  if(row[2]&&customForbiddenSpecials.has(specialNameIndex.get(String(row[2]))))return false;
+  return true;
+}
 function refreshCustomChoices(){
   const basic=document.getElementById('customBasicName');
   const special=document.getElementById('customSpecialName');
@@ -985,9 +1017,8 @@ function refreshCustomChoices(){
     }
   }
   special.innerHTML='<option value="">特殊能力を選択</option>'
-    +(ready?D.special.map((row,index)=>({name:row[1],index})).filter(({name,index})=>
-      !specialOwned(index)&&!customRequiredSpecials.has(index)&&!customForbiddenSpecials.has(index)
-      &&(job.value==='双剣士'||name!=='通常攻撃(双剣士)'))
+    +(ready?D.special.map((row,index)=>({name:row[1],index}))
+      .filter(({index})=>customSpecialAvailable(index))
       .map(({name,index})=>'<option value="'+index+'">'+escapeCustomText(name)+'</option>').join(''):'');
   special.value=specialSelection;
   const card=document.getElementById('customCalcCard');
@@ -1052,8 +1083,8 @@ function initCustomConditions(){
       specialOwned(index)||(job.value!=='双剣士'&&D.special[index][1]==='通常攻撃(双剣士)')){
       showCustomMessage('この特殊能力は条件に追加できません。');return;
     }
-    if(customRequiredSpecials.has(index)||customForbiddenSpecials.has(index)){
-      showCustomMessage('その特殊能力はすでに指定されています。');return;
+    if(!customSpecialAvailable(index)){
+      showCustomMessage('他のこだわり条件と両立しないか、すでに指定された能力です。');return;
     }
     (mode==='required'?customRequiredSpecials:customForbiddenSpecials).add(index);
     special.value='';specialMode.value='';
@@ -1189,10 +1220,20 @@ async function calc(){
       const exp=sampleExps[index];
       btn.textContent=sampleExps.length===1?'計算中':`${sampleLabel(index)} 計算中`;
       const cacheKey=calcCacheKey(exp);
-      let candidate=getCachedResult(cacheKey);
-      if(!candidate){
-        candidate=await optimizeAsync(exp);
-        setCachedResult(cacheKey,candidate);
+      let candidate;
+      try{
+        candidate=getCachedResult(cacheKey);
+        if(!candidate){
+          candidate=await optimizeAsync(exp);
+          setCachedResult(cacheKey,candidate);
+        }
+      }catch(error){
+        if(sampleExps.length<2||!isCustomConstraintError(error))throw error;
+        // 条件に必要な経験点が足りないパターンだけ記録し、残りのパターンは計算を続ける。
+        entries.push({index,exp,unavailable:true,reason:error.message,isBest:false});
+        btn.textContent=`${index+1}/${sampleExps.length} 完了`;
+        await yieldToBrowser();
+        continue;
       }
       entries.push({
         index,
@@ -1205,11 +1246,13 @@ async function calc(){
       await yieldToBrowser();
     }
 
-    const maxScore=Math.max(...entries.map(x=>x.scoreGain));
-    entries.forEach(x=>{x.isBest=x.scoreGain===maxScore;});
+    const achievable=entries.filter(entry=>!entry.unavailable);
+    const maxScore=achievable.length?Math.max(...achievable.map(x=>x.scoreGain)):null;
+    entries.forEach(x=>{x.isBest=!x.unavailable&&x.scoreGain===maxScore;});
     const multiple=entries.length>1;
     const displayEntries=multiple?rankedEntries(entries):entries;
-    result.innerHTML=customConditionsSummaryHtml()+comparisonHtml(entries)+displayEntries.map((entry)=>sampleResultHtml(entry,entry.index,multiple)).join('');
+    result.innerHTML=customConditionsSummaryHtml()+comparisonHtml(entries)
+      +displayEntries.map(entry=>entry.unavailable?unavailableSampleHtml(entry):sampleResultHtml(entry,entry.index,multiple)).join('');
     animateResultCard();
   }catch(err){
     if(err?.name==='CalculationCancelledError'){
