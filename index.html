@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261009-exclusion-design-1">
+  <link rel="stylesheet" href="style.css?v=20261010-custom-calculation-1">
 </head>
 <body>
   <header class="site-header">
@@ -66,6 +66,39 @@
         <h2 id="specialTitle">特殊能力</h2>
       </div>
       <div class="skill-list" id="specialList"></div>
+    </section>
+
+
+    <section id="customCalcCard" class="card custom-calc-card" aria-labelledby="customCalcTitle">
+      <div class="section-heading no-heading-diamond"><h2 id="customCalcTitle">こだわり計算</h2></div>
+      <p class="custom-calc-intro">条件を指定して、その範囲で査定が最大となる組合せを計算します。指定しなければ通常どおり計算します。</p>
+      <div class="custom-condition-group">
+        <h3>基本能力を○以上</h3>
+        <div class="custom-condition-inputs custom-basic-inputs">
+          <select id="customBasicName" aria-label="基本能力"></select>
+          <input id="customBasicMin" type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="数値" aria-label="基本能力の最低値">
+          <button id="customAddBasic" class="secondary" type="button">追加</button>
+        </div>
+        <ul id="custom-basic-list" class="custom-condition-list" hidden></ul>
+      </div>
+      <div class="custom-condition-group">
+        <h3>必ず取得する特殊能力</h3>
+        <div class="custom-condition-inputs">
+          <select id="customRequiredName" aria-label="必ず取得する特殊能力"></select>
+          <button id="customAddRequired" class="secondary" type="button">追加</button>
+        </div>
+        <ul id="custom-required-list" class="custom-condition-list" hidden></ul>
+      </div>
+      <div class="custom-condition-group">
+        <h3>取得しない特殊能力</h3>
+        <div class="custom-condition-inputs">
+          <select id="customForbiddenName" aria-label="取得しない特殊能力"></select>
+          <button id="customAddForbidden" class="secondary" type="button">追加</button>
+        </div>
+        <ul id="custom-forbidden-list" class="custom-condition-list" hidden></ul>
+      </div>
+      <p id="customCalcMessage" role="status" aria-live="polite" class="custom-calc-message"></p>
+      <button id="customClearAll" type="button" class="secondary custom-clear-all" hidden>こだわり条件をすべて解除</button>
     </section>
 
     <section class="action-card" aria-label="計算操作">
@@ -127,9 +160,9 @@
   </div>
 
   <script src="data.js?v=20261003-ironwall-hp-1"></script>
-  <script src="resistance_patch.js?v=20261009-exclude-specials-1"></script>
+  <script src="resistance_patch.js?v=20261010-custom-calculation-1"></script>
   <script src="academy_runtime.js?v=20261003-dual-training-ui-1"></script>
-  <script src="script.js?v=20261009-exclusion-design-1"></script>
+  <script src="script.js?v=20261010-custom-calculation-1"></script>
   <script>
     (()=>{
       const createCustomSelect=(config)=>{
