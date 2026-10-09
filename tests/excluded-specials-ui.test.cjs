@@ -25,10 +25,8 @@ function mock({ready=true,jobName='剣士'}={}){
    dom[id]=obj;return obj;
  };
  const ids=['customCalcCard','customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode',
-   'customAddBasic','customAddSpecial','customClearAll','customCalcMessage','custom-basic-list','custom-special-list'];
+   'customClearAll','customCalcMessage','custom-basic-list','custom-special-list'];
  ids.forEach(node);
- node('customBasicMode').value='above';
- node('customSpecialMode').value='required';
  node('basic_生命力').value='90';
  const state={D,customBasicRules:new Map(),customRequiredSpecials:new Set(),customForbiddenSpecials:new Set(),
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
@@ -42,7 +40,11 @@ function mock({ready=true,jobName='剣士'}={}){
    const button=node(id);button.dataset=dataset||{};
    node('customCalcCard').handlers.click({target:{closest:()=>button}});
  };
- return {state,dom,node,owned,click};
+ const change=id=>node('customCalcCard').handlers.change({target:node(id)});
+
+ const enter=id=>node(id).handlers.keydown({key:'Enter',preventDefault(){}});
+
+ return {state,dom,node,owned,click,change,enter};
 }
 test('custom condition section and usage are concise',()=>{
   assert(html.includes('<h2 id="customCalcTitle">こだわり条件</h2>'));
@@ -67,72 +69,89 @@ test('custom controls retain standard dropdown options',()=>{
  for(const item of ['<option value="above">以上</option>','<option value="exact">固定</option>','<option value="below">以下</option>','<option value="required">取得する</option>','<option value="forbidden">取得しない</option>'])assert(html.includes(item));
  assert(!html.includes('id="excludeSpecialSelect"'));
 });
-test('basic mode defaults to above, and fixed and below are stored and labeled',()=>{
+test('basic conditions add when all values are complete and use updated mode',()=>{
  const x=mock();
- assert.equal(x.node('customBasicMode').value,'above');
- x.node('customBasicName').value='生命力';x.node('customBasicValue').value='95';
- x.click('customAddBasic');
- assert.equal(x.state.customBasicRules.get('生命力').mode,'above');
- assert(x.node('custom-basic-list').innerHTML.includes('生命力 95以上'));
+ assert.equal(x.node('customBasicMode').value,'');
+ x.node('customBasicName').value='生命力';x.change('customBasicName');
+ x.node('customBasicValue').value='9';
+ assert.equal(x.state.customBasicRules.size,0,'typing 9 has not confirmed a value');
+ x.node('customBasicMode').value='above';x.change('customBasicMode');
+ assert.equal(x.state.customBasicRules.get('生命力').value,9);
+ assert(x.node('custom-basic-list').innerHTML.includes('生命力 9以上'));
+ assert.equal(x.node('customBasicName').value,'');
+ assert.equal(x.node('customBasicMode').value,'');
+ assert.equal(x.node('customBasicValue').value,'');
  x.click('remove',{kind:'basic',key:'生命力'});
- x.node('customBasicName').value='生命力';x.node('customBasicValue').value='96';
- x.node('customBasicMode').value='exact';x.click('customAddBasic');
+ x.node('customBasicName').value='生命力';x.change('customBasicName');
+ x.node('customBasicMode').value='exact';x.change('customBasicMode');
+ x.node('customBasicValue').value='96';x.change('customBasicValue');
  assert.equal(x.state.customBasicRules.get('生命力').value,96);
  assert(x.node('custom-basic-list').innerHTML.includes('生命力 96固定'));
- x.node('customBasicName').value='器用さ';x.node('customBasicValue').value='75';
- x.node('customBasicMode').value='below';x.click('customAddBasic');
+ x.node('customBasicName').value='器用さ';x.change('customBasicName');
+ x.node('customBasicMode').value='below';x.change('customBasicMode');
+ x.node('customBasicValue').value='75';x.enter('customBasicValue');
  assert(x.node('custom-basic-list').innerHTML.includes('器用さ 75以下'));
 });
-test('special mode defaults to acquire, and exclusion uses the same selection field',()=>{
+test('special conditions add in either order, and reset the selection after each addition',()=>{
  const x=mock();
  const lower=D.special.findIndex(s=>s[1]==='アクションスキル○');
  const upper=D.special.findIndex(s=>s[1]==='アクションスキル◎');
  assert(lower>=0&&upper>=0);
- assert.equal(x.node('customSpecialMode').value,'required');
- x.node('customSpecialName').value=String(lower);x.click('customAddSpecial');
+ assert.equal(x.node('customSpecialMode').value,'');
+ x.node('customSpecialName').value=String(lower);x.change('customSpecialName');
+ assert.equal(x.state.customRequiredSpecials.size,0);
+ x.node('customSpecialMode').value='required';x.change('customSpecialMode');
  assert(x.state.customRequiredSpecials.has(lower));
- x.node('customSpecialName').value=String(upper);
- x.node('customSpecialMode').value='forbidden';x.click('customAddSpecial');
+ assert.equal(x.node('customSpecialName').value,'');
+ assert.equal(x.node('customSpecialMode').value,'');
+ x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
+ x.node('customSpecialName').value=String(upper);x.change('customSpecialName');
  assert(x.state.customForbiddenSpecials.has(upper));
  assert(x.node('custom-special-list').innerHTML.includes('取得しない'));
  x.click('remove',{kind:'forbidden',key:String(upper)});
  assert(!x.state.customForbiddenSpecials.has(upper));
 });
-test('owned special choices and dual-exclusive attack are filtered from candidates',()=>{
- const x=mock();
- const own=D.special.findIndex(s=>s[1]==='癒やしの心');
+test('owned abilities and job-exclusive skills remain filtered',()=>{
+ const x=mock(),own=D.special.findIndex(s=>s[1]==='癒やしの心');
  assert(own>=0);
  assert(x.node('customSpecialName').innerHTML.includes('癒やしの心'));
- x.owned.add(own);
- vm.runInContext('renderCustomConditions()',x.state);
+ x.owned.add(own);vm.runInContext('renderCustomConditions()',x.state);
  assert(!x.node('customSpecialName').innerHTML.includes('癒やしの心'));
  assert(!x.node('customSpecialName').innerHTML.includes('通常攻撃(双剣士)'));
- x.state.job.value='双剣士';
- vm.runInContext('renderCustomConditions()',x.state);
+ x.state.job.value='双剣士';vm.runInContext('renderCustomConditions()',x.state);
  assert(x.node('customSpecialName').innerHTML.includes('通常攻撃(双剣士)'));
 });
-test('academy/job required before accepting constraints',()=>{
+test('academy/job required to add a condition',()=>{
  const x=mock({ready:false});
  assert(x.node('customBasicName').disabled);
  assert(x.node('customBasicValue').disabled);
  assert(x.node('customSpecialName').disabled);
- x.node('customBasicName').value='生命力';x.node('customBasicValue').value='95';x.click('customAddBasic');
+ x.node('customBasicName').value='生命力';
+ x.node('customBasicValue').value='95';
+ x.node('customBasicMode').value='above';
+ x.change('customBasicMode');
  assert.equal(x.state.customBasicRules.size,0);
 });
-test('clearing conditions resets defaults, validation respects current value and upper cap',()=>{
+test('invalid condition values do not add and clear-all resets defaults',()=>{
  const x=mock();
- x.node('customBasicName').value='生命力';x.node('customBasicValue').value='80';
- x.node('customBasicMode').value='exact';x.click('customAddBasic');
+ x.node('customBasicName').value='生命力';
+ x.node('customBasicMode').value='exact';
+ x.node('customBasicValue').value='80';x.change('customBasicValue');
  assert.equal(x.state.customBasicRules.size,0);
  assert(x.node('customCalcMessage').textContent.includes('現在値'));
- x.node('customBasicName').value='生命力';x.node('customBasicValue').value='120';x.click('customAddBasic');
+ x.node('customBasicValue').value='120';x.change('customBasicValue');
  assert(x.node('customCalcMessage').textContent.includes('上限'));
- x.node('customBasicName').value='生命力';x.node('customBasicValue').value='100';x.click('customAddBasic');
+ x.node('customBasicValue').value='100';x.change('customBasicValue');
  assert.equal(x.state.customBasicRules.size,1);
  x.click('customClearAll');
  assert.equal(x.state.customBasicRules.size,0);
- assert.equal(x.node('customBasicMode').value,'above');
- assert.equal(x.node('customSpecialMode').value,'required');
+ assert.equal(x.node('customBasicMode').value,'');
+ assert.equal(x.node('customSpecialMode').value,'');
+});
+test('Add buttons are absent, but both mode placeholders exist',()=>{
+ for(const id of ['customAddBasic','customAddSpecial'])assert(!html.includes('id="'+id+'"'));
+ assert(html.includes('<option value="">条件を選択</option>'));
+ assert(html.includes('<option value="">取得する／しないを選択</option>'));
 });
 test('payload and cache include all constraint modes',()=>{
  assert(ui.includes('basicRules:Object.fromEntries(customBasicRules)'));
