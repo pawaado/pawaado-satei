@@ -80,7 +80,7 @@
             <div id="customBasicNameCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
           </div>
           <div class="custom-condition-options">
-            <input id="customBasicValue" type="number" min="1" max="120" step="1" inputmode="numeric" aria-label="基本能力の指定値" disabled>
+            <input id="customBasicValue" type="number" min="1" max="120" step="1" inputmode="numeric" placeholder="数値" aria-label="基本能力の指定値" disabled>
             <div class="custom-select-control custom-condition-select">
             <select id="customBasicMode" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="条件"><option value="">条件を選択</option><option value="above">以上</option><option value="exact">固定</option><option value="below">以下</option></select>
             <button id="customBasicModeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customBasicModeCustomMenu" disabled><span id="customBasicModeSelectText">条件</span></button>
@@ -100,8 +100,8 @@
           </div>
           <div class="custom-condition-options custom-special-options">
             <div class="custom-select-control custom-condition-select">
-            <select id="customSpecialMode" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="取得する／しない"><option value="">取得する／しないを選択</option><option value="required">取得する</option><option value="forbidden">取得しない</option></select>
-            <button id="customSpecialModeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customSpecialModeCustomMenu" disabled><span id="customSpecialModeSelectText">取得する／しない</span></button>
+            <select id="customSpecialMode" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="取得する／しない"><option value="">条件を選択</option><option value="required">取得する</option><option value="forbidden">取得しない</option></select>
+            <button id="customSpecialModeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customSpecialModeCustomMenu" disabled><span id="customSpecialModeSelectText">条件を選択</span></button>
             <div id="customSpecialModeCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
           </div>
           </div>
@@ -173,7 +173,7 @@
   <script src="data.js?v=20261003-ironwall-hp-1"></script>
   <script src="resistance_patch.js?v=20261010-custom-calculation-3"></script>
   <script src="academy_runtime.js?v=20261003-dual-training-ui-1"></script>
-  <script src="script.js?v=20261010-condition-auto-sync-2"></script>
+  <script src="script.js?v=20261010-custom-condition-placeholder-1"></script>
   <script>
     (()=>{
       const createCustomSelect=(config)=>{
@@ -296,7 +296,7 @@
           buttonId:'customSpecialModeSelectButton',
           textId:'customSpecialModeSelectText',
           menuId:'customSpecialModeCustomMenu',
-          placeholder:'取得する／しないを選択'
+          placeholder:'条件を選択'
         })
       ].filter(Boolean);
 

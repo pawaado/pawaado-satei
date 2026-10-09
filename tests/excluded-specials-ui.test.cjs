@@ -49,7 +49,7 @@ function mock({ready=true,jobName='剣士'}={}){
 test('custom condition section and usage are concise',()=>{
   assert(html.includes('<h2 id="customCalcTitle">こだわり条件</h2>'));
   assert(/id="customBasicValue"[^>]*type="number"[^>]*aria-label="基本能力の指定値"/.test(html));
-  assert(!/id="customBasicValue"[^>]*placeholder="数値"/.test(html));
+  assert(/id="customBasicValue"[^>]*placeholder="数値"/.test(html));
   const usage=html.match(/<ol class="usage-list">([\s\S]*?)<\/ol>/);
   assert(usage,'usage list exists');
   assert.equal((usage[1].match(/<li>/g)||[]).length,3,'usage has three steps');
@@ -105,7 +105,7 @@ test('special conditions add in either order, and reset the selection after each
  assert(x.state.customRequiredSpecials.has(lower));
  assert.equal(x.node('customSpecialName').value,'');
  assert.equal(x.node('customSpecialMode').value,'');
- assert.equal(x.node('customSpecialModeSelectText').textContent,'取得する／しないを選択');
+ assert.equal(x.node('customSpecialModeSelectText').textContent,'条件を選択');
  x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
  x.node('customSpecialName').value=String(upper);x.change('customSpecialName');
  assert(x.state.customForbiddenSpecials.has(upper));
@@ -153,7 +153,7 @@ test('invalid condition values do not add and clear-all resets defaults',()=>{
 test('Add buttons are absent, but both mode placeholders exist',()=>{
  for(const id of ['customAddBasic','customAddSpecial'])assert(!html.includes('id="'+id+'"'));
  assert(html.includes('<option value="">条件を選択</option>'));
- assert(html.includes('<option value="">取得する／しないを選択</option>'));
+ assert.equal((html.match(/<option value="">条件を選択<\/option>/g)||[]).length,2,'both basic and special modes show 条件を選択');
 });
 test('payload and cache include all constraint modes',()=>{
  assert(ui.includes('basicRules:Object.fromEntries(customBasicRules)'));

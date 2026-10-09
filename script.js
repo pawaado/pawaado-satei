@@ -1002,7 +1002,7 @@ function renderCustomConditions(){
   // 自動追加・全解除でselect.valueを直接初期化した場合も、カスタム選択ボタンの表示を同期する。
   for(const [id,placeholder] of [
     ['customBasicName','基本能力を選択'],['customBasicMode','条件を選択'],
-    ['customSpecialName','特殊能力を選択'],['customSpecialMode','取得する／しないを選択']
+    ['customSpecialName','特殊能力を選択'],['customSpecialMode','条件を選択']
   ]){
     const select=document.getElementById(id),label=document.getElementById(id+'SelectText');
     if(!select||!label)continue;
