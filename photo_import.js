@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-ai-fallback-verified-1';
+  const PHOTO_IMPORT_BUILD='20261010-ai-shadow-only-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2687,83 +2687,8 @@
     }
     return out;
   }
-  // AIは青い通常特殊能力の末尾○/◎だけを判定。能力名・超特殊能力には使わない。
-  // 独立した行検出がずれて別セルを誤更新しないよう、列・行だけでなく上端座標も照合する。
-  const AI_PRIORITY_CONFIDENCE=.98;
-  function applyAiMarkPriority(data,reports=[]){
-    const observations=new Map();
-    let matches=0,switched=0,withheld=0,fallback=0;
-    for(const screen of data.comparisonScreens||[]){
-      if(screen.type!=='能力データ')continue;
-      const report=reports[screen.index];
-      if(!report||report.error)continue;
-      const aiMarks=new Map((report.marks||[]).map(mark=>[mark.row+':'+mark.col,mark]));
-      for(const cell of screen.cells||[]){
-        if(cell.superCell||cell.ignored)continue;
-        const parsed=normalize(cell.name||'').match(/^(.+)([○◎])$/);
-        if(!parsed||!PAIR_STEMS.includes(parsed[1]))continue;
-        const [stem,oldMark]=[parsed[1],parsed[2]];
-        const ai=aiMarks.get(cell.row+':'+cell.col);
-        if(!ai)continue;
-        if(!Number.isFinite(cell.top)||!Number.isFinite(ai.top)||Math.abs(cell.top-ai.top)>9)continue;
-        if(ai.value!=='○'&&ai.value!=='◎')continue; // 「なし」はAIで確定しない。
-        const confidence=Number(ai.confidence);
-        if(!Number.isFinite(confidence)||confidence<.5||confidence>1)continue;
-        if(!observations.has(stem))observations.set(stem,[]);
-        observations.get(stem).push({oldMark,aiMark:ai.value,
-          legacyVerified:cell.legacyVerified===true,
-          accepted:confidence>=AI_PRIORITY_CONFIDENCE});
-      }
-    }
-    const owned=new Set(data.specials||[]);
-    const explicit={...(data.explicitPairMarks||{})};
-    const warnings=Array.isArray(data.warnings)?data.warnings:(data.warnings=[]);
-    for(const [stem,items] of observations){
-      const accepted=items.filter(item=>item.accepted);
-      const marks=[...new Set(accepted.map(item=>item.aiMark))];
-      const verifiedOld=[...new Set(items.filter(item=>item.legacyVerified).map(item=>item.oldMark))];
-      if(marks.length>1){
-        if(verifiedOld.length===1){
-          // AI同士が矛盾する場合も、独立した従来2方式の一致があれば取得状態を保持。
-          fallback++;
-          continue;
-        }
-        // AIで矛盾し、かつ従来方式の独立した確証もない場合だけ自動取得を保留。
-        owned.delete(stem+'○');owned.delete(stem+'◎');
-        delete explicit[stem];withheld++;
-        warnings.push(stem+'の○／◎は複数画像で判定が一致しません。画像を確認して手動修正してください。');
-        continue;
-      }
-      // 低確信度AIが異なる記号を出しても、従来の○／◎を取り消さない。
-      // AIの確信度は正解率ではなく、二択分類が誤った高得点を出す場合もある。
-      if(!accepted.length){
-        if(items.some(item=>item.aiMark!==item.oldMark))fallback++;
-        continue;
-      }
-      const selected=marks[0];
-      if(verifiedOld.length===1&&verifiedOld[0]!==selected){
-        // 2系統の従来判定が一致している場合はAIの誤った高確信度を盲信しない。
-        fallback++;
-        continue;
-      }
-      if(verifiedOld.length>1){
-        withheld++;
-        warnings.push(stem+'の○／◎は従来方式の画像間判定が一致しません。画像を確認してください。');
-        continue;
-      }
-      if(items.some(item=>item.oldMark!==selected)){
-        switched++;
-        warnings.push(stem+'の○／◎はAI判定（'+selected+'）を優先しました。従来方式と相違するため確認してください。');
-      }else matches++;
-      owned.delete(stem+'○');owned.delete(stem+'◎');
-      owned.add(stem+'○');
-      if(selected==='◎')owned.add(stem+'◎');
-      explicit[stem]=selected;
-    }
-    data.specials=[...owned];data.explicitPairMarks=explicit;
-    data.aiMarkStats={matches,switched,withheld,fallback};
-    return data.aiMarkStats;
-  }
+  // AIの○／◎分類は検証が不十分なため通常入力には使わない。
+  // 従来方式とのA/B比較だけは「AIと読み取りを比較（実験）」から引き続き利用できる。
   const fileKey=file=>[file.name,file.size,file.lastModified,file.type].join('|');
   function renderPreviews(){
     const box=el('photoPreviews');box.replaceChildren();
@@ -2954,24 +2879,8 @@
     for(const {button} of lockedButtons)button.disabled=true;
     try{
       const images=await Promise.all(urls.map(imageFrom));
-      const data=await readImages(images,{comparison:true});
-      // ○/◎だけAI優先を試験運用。失敗時は通常OCRを維持し処理を止めない。
-      const dataScreens=(data.comparisonScreens||[]).filter(s=>s.type==='能力データ');
-      if(dataScreens.length){
-        try{
-          const probe=await ensureCompareAi();
-          const reports=[];
-          for(const screen of dataScreens){
-            const candidate=await probe.inspectImage(images[screen.index]);
-            if(candidate?.error)throw new Error(candidate.error);
-            reports[screen.index]=candidate;
-          }
-          applyAiMarkPriority(data,reports);
-        }catch(error){
-          console.warn('AI記号判定を利用できません。従来の画像認識を使用します。',error);
-          data.warnings.push('AIによる○／◎判定を利用できなかったため、従来の画像認識で入力しました。');
-        }
-      }
+      // AIは比較専用に戻し、通常入力は検証済みの従来画像認識のみを使用する。
+      const data=await readImages(images);
       renderUncertain(data.warnings||[]);
       const hasAbilityUp=data.abilityUpScreens>0;
       const hasData=data.dataScreens>0;
@@ -3043,5 +2952,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={applyAiMarkPriority,academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,buildAiComparisonHtml,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,buildAiComparisonHtml,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
