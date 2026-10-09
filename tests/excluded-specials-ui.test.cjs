@@ -41,7 +41,7 @@ function harness(owned=[]){
   };
   vm.createContext(ctx);
   vm.runInContext(block,ctx);
-  const click=(id,removeIndex=null)=>listeners.click({target:{closest:()=>({
+  const click=(id,removeIndex=null)=>listeners.click({target:{closest:()=>id==='excludeSpecialSelectButton'?toggle:({
     id,
     dataset:{excludeRemove:String(removeIndex),excludeOption:''},
     hasAttribute:name=>name==='data-exclude-remove'&&removeIndex!==null,
