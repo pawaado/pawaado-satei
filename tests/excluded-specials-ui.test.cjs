@@ -84,7 +84,7 @@ test('custom basic ability controls stay on one row on desktop and iPhone',()=>{
  assert(nested.includes('grid-template-columns:minmax(0,.65fr) minmax(0,1.05fr)'),nested);
  assert(css.includes('.custom-basic-inputs .custom-select-button span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'));
  assert(css.includes('.custom-basic-inputs .custom-select-button::after{right:8px'));
- assert(css.includes('@media(max-width:370px){\n  .custom-basic-inputs,.custom-basic-inputs .custom-condition-options{gap:4px}'));
+ assert(css.includes('@media(max-width:370px){\n  .custom-basic-inputs,.custom-basic-inputs .custom-condition-options,.custom-special-inputs{gap:4px}'));
  assert(html.includes('id="customBasicValue"'));
  assert(html.includes('id="customBasicMode"'));
 });
