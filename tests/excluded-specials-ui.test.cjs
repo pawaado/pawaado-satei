@@ -16,12 +16,16 @@ const D=dataScope.window.PAWAADO_DATA;
 const getIndex=name=>D.special.findIndex(row=>row[1]===name);
 function harness(owned=[]){
   const listeners={};
-  const select={id:'excludeSpecialSelect',value:'',options:[]};
+  const select={id:'excludeSpecialSelect',value:'',options:[],selectedIndex:0,dispatchEvent(e){listeners[e.type]?.({target:select});}};
   const add={id:'addExcludedSpecial',disabled:true};
   const submit={id:'excludeSpecialRecalc',disabled:true};
   const pending={id:'pendingExcludedSpecials',innerHTML:'',hidden:true};
+  const menu={id:'excludeSpecialMenu',innerHTML:'',hidden:true};
+  const toggle={id:'excludeSpecialSelectButton',disabled:false,attributes:{},setAttribute(k,v){this.attributes[k]=v;},focus(){},closest(){return control;}};
+  const label={id:'excludeSpecialSelectText',textContent:'特殊能力を選択'};
+  const control={classList:{add(){},remove(){}},contains(){return false;}};
   const result={addEventListener(name,handler){listeners[name]=handler;}};
-  const dom={result,excludeSpecialSelect:select,addExcludedSpecial:add,excludeSpecialRecalc:submit,pendingExcludedSpecials:pending};
+  const dom={result,excludeSpecialSelect:select,addExcludedSpecial:add,excludeSpecialRecalc:submit,pendingExcludedSpecials:pending,excludeSpecialMenu:menu,excludeSpecialSelectButton:toggle,excludeSpecialSelectText:label};
   const ctx={
     D,Map,Set,Number,String,Array,
     specialNameIndex:new Map(D.special.map((row,index)=>[row[1],index])),
@@ -29,7 +33,8 @@ function harness(owned=[]){
     pendingExcludedSpecialIndices:new Set(),
     getSpecialState:index=>({own:owned.includes(index)?1:0}),
     restoreItems:candidate=>candidate.items||[],
-    document:{getElementById:id=>dom[id]||null},
+    document:{getElementById:id=>dom[id]||null,querySelector:()=>control,addEventListener(){}},
+    Event:class{constructor(type){this.type=type;}},
     isCalculating:false,
     calc:()=>{ctx.calcCount++;},
     calcCount:0
@@ -38,10 +43,11 @@ function harness(owned=[]){
   vm.runInContext(block,ctx);
   const click=(id,removeIndex=null)=>listeners.click({target:{closest:()=>({
     id,
-    dataset:{excludeRemove:String(removeIndex)},
-    hasAttribute:name=>name==='data-exclude-remove'&&removeIndex!==null
+    dataset:{excludeRemove:String(removeIndex),excludeOption:''},
+    hasAttribute:name=>name==='data-exclude-remove'&&removeIndex!==null,
+    closest:()=>control
   })}});
-  return {ctx,listeners,select,add,submit,pending,click};
+  return {ctx,listeners,select,add,submit,pending,menu,toggle,label,click};
 }
 
 test('◎ result exposes both ◎ and unowned prerequisite ○, even if only ◎ is in result items',()=>{
@@ -61,6 +67,18 @@ test('◎ result exposes both ◎ and unowned prerequisite ○, even if only ◎
   assert(html.includes('class="custom-select-menu"'));
   assert(html.includes('選択した特殊能力を取得せずに再計算'));
   assert(html.includes('>追加</button>'));
+});
+
+test('new selector uses the same custom menu as academy and job',()=>{
+  const h=harness();
+  const a=getIndex('アクションスキル◎');
+  h.select.options=[{value:'',textContent:'特殊能力を選択'},{value:String(a),textContent:'アクションスキル◎'}];
+  h.click('excludeSpecialSelectButton');
+  assert.equal(h.menu.hidden,false);
+  assert.equal(h.toggle.attributes['aria-expanded'],'true');
+  assert(h.menu.innerHTML.includes('アクションスキル◎'));
+  h.click('excludeSpecialSelectButton');
+  assert.equal(h.menu.hidden,true);
 });
 
 test('previously acquired lower ○ is not offered as an exclusion, but ◎ is',()=>{
