@@ -55,7 +55,11 @@ test('◎ result exposes both ◎ and unowned prerequisite ○, even if only ◎
   const html=vm.runInContext('excludeResultHtml(entries)',h.ctx);
   assert(html.includes('アクションスキル○'));
   assert(html.includes('アクションスキル◎'));
-  assert(html.includes('複数選択することも可能です'));
+  assert(html.includes('特定の特殊能力を取得せずに査定が最大となる組合せを計算します。'));
+  assert(!html.includes('◎だけを除外すると'));
+  assert(html.includes('id="excludeSpecialSelectButton"'));
+  assert(html.includes('class="custom-select-menu"'));
+  assert(html.includes('選択した特殊能力を取得せずに再計算'));
   assert(html.includes('>追加</button>'));
 });
 
