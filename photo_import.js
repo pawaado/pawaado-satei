@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261008-merged-special-bands-3';
+  const PHOTO_IMPORT_BUILD='20261009-read-recovery-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1477,8 +1477,8 @@
     }
     return {text:data.text.trim(),confidence:data.confidence};
   }
-  function numericByImageStrict(image,rect,maxDigits=4){
-    const components=glyphComponents(image,rect,90)
+  function numericByImageStrict(image,rect,maxDigits=4,threshold=90){
+    const components=glyphComponents(image,rect,threshold)
       .filter(c=>c.h>=10&&c.area>=18)
       .sort((a,b)=>a.x-b.x);
     if(components.length<1||components.length>maxDigits)return null;
@@ -1490,7 +1490,19 @@
     for(const rect of rects){
       // 経験点も基本能力と同じく実画像テンプレートを優先し、
       // 誤読しやすいOCRへの数値フォールバックはしない。
-      const visual=numericByImageStrict(image,rect,4);
+      let visual=numericByImageStrict(image,rect,4);
+      if(visual==null){
+        // First-pass failure only: try alternate binarization thresholds.
+        // Require a clear multi-threshold consensus; never guess from a single reading.
+        const votes=new Map();
+        for(const threshold of [75,105,120,135,150]){
+          const candidate=numericByImageStrict(image,rect,4,threshold);
+          if(!Number.isInteger(candidate)||candidate<0||candidate>1400)continue;
+          votes.set(candidate,(votes.get(candidate)||0)+1);
+        }
+        const ranked=[...votes.entries()].sort((a,b)=>b[1]-a[1]);
+        if(ranked[0]?.[1]>=3&&(!ranked[1]||ranked[0][1]>=ranked[1][1]+2))visual=ranked[0][0];
+      }
       result.push(visual);
     }
     return result;
@@ -1625,12 +1637,13 @@
     // 旧レイアウトは約57px、新レイアウトは約50px間隔。
     // 分断帯は上で統合し、短いヘッダ装飾などは25px未満として除外。
     const rows=mergedBands.filter(([a,b])=>b-a+1>=25);
-    if(!rows.length){
+    {
+      // 他の行が正常でも、この行だけ色帯が12〜24pxに途切れることがあるため復元する。
       // 取得特殊能力が1つしかない画像では、白い文字とLv表示で青い色帯が分断され、
       // 行の連続長が25px未満になる端末がある。色付きセル内部の面積でも確認する。
       // 帯の短さだけでスキップせず、実際に色付きの矩形がある場合だけ復元する。
       for(const [a,b] of mergedBands){
-        if(b-a+1<12)continue;
+        if(b-a+1<12||b-a+1>=25)continue;
         const y=Math.max(274,a-4);
         const isFilled=[713,852,990,1128].some(x=>{
           let hits=0;
@@ -1639,9 +1652,10 @@
               if(colored(xx,yy))hits++;
           return hits>=60;
         });
-        if(isFilled)rows.push([y,Math.max(b,y+24)]);
+        if(isFilled&&!rows.some(([existingY])=>Math.abs(existingY-y)<35))rows.push([y,Math.max(b,y+24)]);
       }
     }
+    rows.sort((a,b)=>a[0]-b[0]);
     if(!rows.length)return [];
     const cells=[];
     rows.forEach(([y],rowIndex)=>{for(let col=0;col<4;col++){
@@ -2221,7 +2235,16 @@
     // 背景や上部テキストは使わず、左側5段の現在経験点だけで訓練画面を判定する。
     let hits=0;
     for(let i=0;i<5;i++)if(trainingCurrentNumberByImage(image,i)!=null)hits++;
-    return hits>=3;
+    if(hits>=3)return true;
+    // Two readable training numbers plus two distinct colored training bubbles
+    // are enough to recover a partially unreadable training screenshot.
+    if(hits!==2)return false;
+    let bubbleRows=0;
+    for(let i=0;i<5;i++){
+      const y=120+59*i;
+      if(trainingBubblePresent(image,y,'yellow')||trainingBubblePresent(image,y,'blue'))bubbleRows++;
+    }
+    return bubbleRows>=2;
   }
   function trainingDigitComponents(image,rect,threshold){
     const c=canonicalCrop(image,rect),data=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
@@ -2548,6 +2571,10 @@
     }
     out.supers=[...superMap.values()];
     for(const entry of out.supers)if(entry.level==null)out.warnings.push(entry.name+'のLvを読み取れませんでした。下の「査定が変動する超特殊能力」でLvを確認してください。');
+    if(out.abilityUpScreens&&!out.trainingPatterns.length){
+      const unread=EXPS.filter(name=>out.exp[name]==null);
+      if(unread.length)out.warnings.push('経験点（'+unread.join('・')+'）を読み取れませんでした。入力値を確認してください。');
+    }
     if(out.abilityUpScreens||out.dataScreens||out.trainingPatterns.length){
       if(!out.dataScreens)out.warnings.push('「能力データ」画面がありません。アカデミー・ジョブ・基本能力・取得済み特殊能力を確認してください。');
       if(out.dataScreens&&!out.abilityUpScreens&&!out.trainingPatterns.length)out.warnings.push('「能力アップ」または「訓練」画面がありません。経験点を確認してください。');
