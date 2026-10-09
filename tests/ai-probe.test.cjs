@@ -48,3 +48,31 @@ test('blank game screenshot produces no invented digits or marks',()=>{
 test('photo input handler is wired on experimental page only',()=>{
   const {listener}=setup();assert.equal(typeof listener,'function');
 });
+
+
+test('AI probe skips the hidden first-row fragment from IMG_1097',()=>{
+  const {api}=setup();
+  const pixels=new Uint8ClampedArray(1536*706*4);
+  for(let i=0;i<pixels.length;i+=4){
+    pixels[i]=240;pixels[i+1]=228;pixels[i+2]=208;pixels[i+3]=255;
+  }
+  const bands=[[274,287],[293,336],[343,386],[392,435],[442,485],[492,535]];
+  for(const [first,last] of bands)for(let y=first;y<=last;y++)
+    for(const x of [713,852,990,1128])for(let xx=x+3;xx<x+127;xx++){
+      const i=(y*1536+xx)*4;pixels[i]=75;pixels[i+1]=190;pixels[i+2]=245;
+    }
+  assert.deepEqual(Array.from(api.detectRows(pixels)),[293,343,392,442,492]);
+});
+test('AI probe keeps complete first rows such as IMG_1096',()=>{
+  const {api}=setup();
+  const pixels=new Uint8ClampedArray(1536*706*4);
+  for(let i=0;i<pixels.length;i+=4){
+    pixels[i]=240;pixels[i+1]=228;pixels[i+2]=208;pixels[i+3]=255;
+  }
+  const bands=[[279,322],[328,371],[378,421],[428,471],[478,520],[527,536]];
+  for(const [first,last] of bands)for(let y=first;y<=last;y++)
+    for(const x of [713,852,990,1128])for(let xx=x+3;xx<x+127;xx++){
+      const i=(y*1536+xx)*4;pixels[i]=75;pixels[i+1]=190;pixels[i+2]=245;
+    }
+  assert.deepEqual(Array.from(api.detectRows(pixels)),[279,328,378,428,478]);
+});
