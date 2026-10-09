@@ -490,10 +490,14 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .custom-calc-card{overflow:visible}
 .custom-calc-card:has(.custom-condition-select.is-open){z-index:500}
 .custom-calc-card.is-locked .custom-condition-group{opacity:.62}
-.custom-condition-group{padding:12px 0;border-top:1px solid #dcc4a0}
-.custom-condition-group:first-of-type{border-top:0;padding-top:2px}
-.custom-condition-group h3{font-size:16px;color:#53391e;margin:0 0 10px}
-.custom-condition-inputs{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:stretch}
+/* 超特殊能力欄の密度に合わせ、見出しと項目間の余白を整理。入力欄の高さは維持する。 */
+.custom-calc-card>.section-heading{margin-bottom:8px}
+.custom-condition-group{padding:8px 0 6px;border-top:1px solid #dcc4a0}
+/* section-headingが最初のdivなので :first-of-type では最初の余計な罫線を消せない。 */
+.custom-calc-card>.section-heading+.custom-condition-group{border-top:0;padding-top:0}
+.custom-calc-card>.custom-condition-group:last-of-type{padding-bottom:0}
+.custom-condition-group h3{font-size:16px;color:#53391e;margin:0 0 6px}
+.custom-condition-inputs{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-items:stretch}
 /* 「こだわり条件」の基本能力だけ、能力名・数値・条件を横1行に並べる。
    幅の狭いiPhoneでも各セルが縮み、メニューは従来どおり開けるようにする。 */
 .custom-basic-inputs{grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr);gap:6px}

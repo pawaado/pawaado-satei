@@ -64,6 +64,17 @@ test('custom condition section and usage are concise',()=>{
   assert(ui.includes('<h3>こだわり条件</h3>'));
 });
 
+test('custom conditions share compact vertical spacing with the super-ability card',()=>{
+  // The preceding section heading is also a div, so :first-of-type would leave a duplicate rule.
+  assert(css.includes('.custom-calc-card>.section-heading+.custom-condition-group{border-top:0;padding-top:0}'));
+  assert(!css.includes('.custom-condition-group:first-of-type{'));
+  assert(css.includes('.custom-calc-card>.section-heading{margin-bottom:8px}'));
+  assert(css.includes('.custom-condition-group{padding:8px 0 6px;border-top:1px solid #dcc4a0}'));
+  assert(css.includes('.custom-calc-card>.custom-condition-group:last-of-type{padding-bottom:0}'));
+  assert(css.includes('.custom-condition-group h3{font-size:16px;color:#53391e;margin:0 0 6px}'));
+  assert(css.includes('.custom-condition-select .custom-select-button{height:52px;min-height:52px'));
+  assert(css.includes('.custom-condition-options input{width:100%;min-width:0;height:52px;min-height:52px'));
+});
 test('custom basic ability controls stay on one row on desktop and iPhone',()=>{
  assert(html.includes('class="custom-condition-inputs custom-basic-inputs"'));
  assert(html.includes('class="custom-condition-options"'));
