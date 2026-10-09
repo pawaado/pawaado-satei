@@ -179,21 +179,26 @@ function experience(data){
 const root=document.getElementById('aiResults');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pct=p=>Math.round(100*p)+'%';
+async function inspectImage(img){
+ if(img.width<img.height)return {error:'縦向きの画像は対象外です。ゲーム画面の横向きスクショを選んでください。'};
+ const canvas=document.createElement('canvas');canvas.width=1536;canvas.height=706;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+ ctx.drawImage(img,0,0,1536,706);
+ const pixels=ctx.getImageData(0,0,1536,706).data;
+ return {marks:markCells(pixels),experience:experience(pixels)};
+}
 async function inspect(file){
  const url=URL.createObjectURL(file);
  try{
    const img=new Image();
    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});
-   if(img.width<img.height)return {error:'縦向きの画像は対象外です。ゲーム画面の横向きスクショを選んでください。'};
-   const canvas=document.createElement('canvas');canvas.width=1536;canvas.height=706;
-   const ctx=canvas.getContext('2d',{willReadFrequently:true});
-   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-   ctx.drawImage(img,0,0,1536,706);
-   const pixels=ctx.getImageData(0,0,1536,706).data;
-   return {marks:markCells(pixels),experience:experience(pixels)};
+   return inspectImage(img);
  }finally{URL.revokeObjectURL(url);}
 }
-document.getElementById('aiPhotos').addEventListener('change',async event=>{
+// 読み取り比較用。既存の査定入力とは独立し、返り値を使って自動入力しない。
+window.__PAWAADO_AI_PROBE__=Object.freeze({inspectImage});
+if(document.getElementById('aiPhotos'))document.getElementById('aiPhotos').addEventListener('change',async event=>{
  const files=[...event.target.files].slice(0,12);
  root.textContent='解析中…';document.getElementById('aiPhotos').disabled=true;
  try{
