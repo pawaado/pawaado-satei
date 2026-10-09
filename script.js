@@ -705,7 +705,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261010-custom-calculation-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261010-custom-calculation-3');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
