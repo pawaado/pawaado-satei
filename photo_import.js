@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-ai-mark-priority-1';
+  const PHOTO_IMPORT_BUILD='20261010-ai-fallback-verified-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2154,6 +2154,9 @@
         if(!corrected)continue;
         reading.name=matched[1]+corrected;
         reading.mark=corrected;
+        // 元画像の形状・同名テンプレート等、独立した従来判定が2系統一致したかを残す。
+        // AIが高確信度で食い違っても、この根拠のある○／◎をむやみに取り消さない。
+        reading.legacyVerified=result.explicitPairConfidence[matched[1]]===true;
       }
     }
 
@@ -2689,7 +2692,7 @@
   const AI_PRIORITY_CONFIDENCE=.98;
   function applyAiMarkPriority(data,reports=[]){
     const observations=new Map();
-    let matches=0,switched=0,withheld=0;
+    let matches=0,switched=0,withheld=0,fallback=0;
     for(const screen of data.comparisonScreens||[]){
       if(screen.type!=='能力データ')continue;
       const report=reports[screen.index];
@@ -2708,6 +2711,7 @@
         if(!Number.isFinite(confidence)||confidence<.5||confidence>1)continue;
         if(!observations.has(stem))observations.set(stem,[]);
         observations.get(stem).push({oldMark,aiMark:ai.value,
+          legacyVerified:cell.legacyVerified===true,
           accepted:confidence>=AI_PRIORITY_CONFIDENCE});
       }
     }
@@ -2717,15 +2721,36 @@
     for(const [stem,items] of observations){
       const accepted=items.filter(item=>item.accepted);
       const marks=[...new Set(accepted.map(item=>item.aiMark))];
-      const ambiguous=items.some(item=>!item.accepted&&item.aiMark!==item.oldMark);
-      if(ambiguous||marks.length>1){
+      const verifiedOld=[...new Set(items.filter(item=>item.legacyVerified).map(item=>item.oldMark))];
+      if(marks.length>1){
+        if(verifiedOld.length===1){
+          // AI同士が矛盾する場合も、独立した従来2方式の一致があれば取得状態を保持。
+          fallback++;
+          continue;
+        }
+        // AIで矛盾し、かつ従来方式の独立した確証もない場合だけ自動取得を保留。
         owned.delete(stem+'○');owned.delete(stem+'◎');
         delete explicit[stem];withheld++;
-        warnings.push(stem+'の○／◎をAIと従来方式で確定できませんでした。画像を確認して手動修正してください。');
+        warnings.push(stem+'の○／◎は複数画像で判定が一致しません。画像を確認して手動修正してください。');
         continue;
       }
-      if(!accepted.length)continue; // 低確信度で一致している場合は従来判定のまま。
+      // 低確信度AIが異なる記号を出しても、従来の○／◎を取り消さない。
+      // AIの確信度は正解率ではなく、二択分類が誤った高得点を出す場合もある。
+      if(!accepted.length){
+        if(items.some(item=>item.aiMark!==item.oldMark))fallback++;
+        continue;
+      }
       const selected=marks[0];
+      if(verifiedOld.length===1&&verifiedOld[0]!==selected){
+        // 2系統の従来判定が一致している場合はAIの誤った高確信度を盲信しない。
+        fallback++;
+        continue;
+      }
+      if(verifiedOld.length>1){
+        withheld++;
+        warnings.push(stem+'の○／◎は従来方式の画像間判定が一致しません。画像を確認してください。');
+        continue;
+      }
       if(items.some(item=>item.oldMark!==selected)){
         switched++;
         warnings.push(stem+'の○／◎はAI判定（'+selected+'）を優先しました。従来方式と相違するため確認してください。');
@@ -2736,7 +2761,7 @@
       explicit[stem]=selected;
     }
     data.specials=[...owned];data.explicitPairMarks=explicit;
-    data.aiMarkStats={matches,switched,withheld};
+    data.aiMarkStats={matches,switched,withheld,fallback};
     return data.aiMarkStats;
   }
   const fileKey=file=>[file.name,file.size,file.lastModified,file.type].join('|');

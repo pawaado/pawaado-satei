@@ -845,21 +845,62 @@ test('AI priority corrects circle/double-circle without changing names, unmarked
  assert.equal(data.exp.筋力,55);assert.equal(data.basic.生命力,100);
  assert(data.warnings.some(w=>w.includes('アクションスキル')&&w.includes('確認')));
 });
-test('AI ambiguity never silently owns a skill; missing/unmarked/misaligned AI falls back',()=>{
+test('AI ambiguity falls back to legacy instead of deleting correct ○ (IMG_1175 turtle)',()=>{
  const {c}=setup(),apply=c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority;
  const make=()=>({specials:['アクションスキル○'],explicitPairMarks:{アクションスキル:'○'},
    warnings:[],comparisonScreens:[{index:0,type:'能力データ',cells:[
      {row:1,col:1,top:278,name:'アクションスキル○',mark:'○'}]}]});
  const uncertain=make();
  apply(uncertain,[{marks:[{row:1,col:1,top:278,value:'◎',confidence:.84}]}]);
- assert(!uncertain.specials.some(x=>x.startsWith('アクションスキル')));
- assert(uncertain.warnings.some(x=>x.includes('確定できません')));
+ assert(uncertain.specials.includes('アクションスキル○'),'low confidence cannot erase traditional circle');
+ assert(!uncertain.specials.includes('アクションスキル◎'));
+ assert.equal(uncertain.explicitPairMarks['アクションスキル'],'○');
+ assert(!uncertain.warnings.some(x=>x.includes('AIと従来方式で確定できません')));
+ assert.equal(uncertain.aiMarkStats.fallback,1);
  const misplaced=make();
  apply(misplaced,[{marks:[{row:1,col:1,top:300,value:'◎',confidence:.999}]}]);
  assert(misplaced.specials.includes('アクションスキル○'));
  const noMark=make();
  apply(noMark,[{marks:[{row:1,col:1,top:278,value:'なし',confidence:null}]}]);
  assert(noMark.specials.includes('アクションスキル○'));
+});
+test('dragon-turtle ○ remains acquired when AI uncertain, even with ◎ in original owned set',()=>{
+ const {c}=setup(),data={
+   specials:['対ドラゴンタートル○'],explicitPairMarks:{'対ドラゴンタートル':'○'},warnings:[],
+   comparisonScreens:[{index:0,type:'能力データ',cells:[
+     {row:4,col:3,top:428,name:'対ドラゴンタートル○',mark:'○',legacyVerified:true}]}]
+ };
+ c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority(data,[{marks:[
+   {row:4,col:3,top:428,value:'◎',confidence:.93}]}]);
+ assert.equal(data.explicitPairMarks['対ドラゴンタートル'],'○');
+ assert(data.specials.includes('対ドラゴンタートル○'));
+ assert(!data.specials.includes('対ドラゴンタートル◎'));
+ assert.deepEqual(data.warnings,[]);
+});
+test('even 99% conflicting AI does not override independently verified source ○',()=>{
+ const {c}=setup(),data={
+   specials:['対ドラゴンタートル○'],explicitPairMarks:{対ドラゴンタートル:'○'},warnings:[],
+   comparisonScreens:[{index:0,type:'能力データ',cells:[
+     {row:4,col:3,top:428,name:'対ドラゴンタートル○',mark:'○',legacyVerified:true}]}]
+ };
+ c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority(data,[{marks:[
+   {row:4,col:3,top:428,value:'◎',confidence:.999}]}]);
+ assert.equal(data.explicitPairMarks['対ドラゴンタートル'],'○');
+ assert(data.specials.includes('対ドラゴンタートル○'));
+ assert(!data.specials.includes('対ドラゴンタートル◎'));
+});
+test('action-skill ◎ keeps verified legacy result if AI circles with false high confidence',()=>{
+ const {c}=setup(),data={
+   specials:['アクションスキル○','アクションスキル◎'],
+   explicitPairMarks:{アクションスキル:'◎'},warnings:[],
+   comparisonScreens:[{index:0,type:'能力データ',cells:[
+     {row:2,col:2,top:342,name:'アクションスキル◎',mark:'◎',legacyVerified:true}]}]
+ };
+ c.__PAWAADO_PHOTO_TEST__.applyAiMarkPriority(data,[{marks:[
+   {row:2,col:2,top:342,value:'○',confidence:.99}]}]);
+ assert.equal(data.explicitPairMarks['アクションスキル'],'◎');
+ assert(data.specials.includes('アクションスキル◎'));
+ assert.equal(data.aiMarkStats.switched,0);
 });
 test('two contradictory high-confidence AI screenshots abstain',()=>{
  const {c}=setup();
@@ -872,6 +913,17 @@ test('two contradictory high-confidence AI screenshots abstain',()=>{
    {marks:[{row:1,col:1,top:279,value:'◎',confidence:.999}]}]);
  assert(!data.specials.some(x=>x.startsWith('アクションスキル')));
  assert.equal(data.explicitPairMarks['アクションスキル'],undefined);
+});
+test('AI disagreements in action-skill ○/◎ preserve the legacy result when AI has weak confidence',()=>{
+ const {c}=setup(),api=c.__PAWAADO_PHOTO_TEST__;
+ for(const [oldMark,aiMark] of [['○','◎'],['◎','○']]){
+   const data={specials:['アクションスキル○',...(oldMark==='◎'?['アクションスキル◎']:[])],
+     explicitPairMarks:{アクションスキル:oldMark},warnings:[],comparisonScreens:[
+       {index:0,type:'能力データ',cells:[{row:1,col:1,top:279,name:'アクションスキル'+oldMark,mark:oldMark}]}]};
+   api.applyAiMarkPriority(data,[{marks:[{row:1,col:1,top:279,value:aiMark,confidence:.91}]}]);
+   assert.equal(data.explicitPairMarks['アクションスキル'],oldMark);
+   assert.equal(data.specials.includes('アクションスキル◎'),oldMark==='◎');
+ }
 });
 test('AI comparison shows old OCR and AI candidates by screenshot without treating agreement as accuracy',()=>{
  const {c}=setup();
