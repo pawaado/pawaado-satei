@@ -44,6 +44,20 @@ function mock({ready=true,jobName='剣士'}={}){
  };
  return {state,dom,node,owned,click};
 }
+test('custom condition section and usage are concise',()=>{
+  assert(html.includes('<h2 id="customCalcTitle">こだわり条件</h2>'));
+  assert(/id="customBasicValue"[^>]*type="number"[^>]*aria-label="基本能力の指定値"/.test(html));
+  assert(!/id="customBasicValue"[^>]*placeholder="数値"/.test(html));
+  const usage=html.match(/<ol class="usage-list">([\\s\\S]*?)<\\/ol>/);
+  assert(usage,'usage list exists');
+  assert.equal((usage[1].match(/<li>/g)||[]).length,3,'usage has three steps');
+  assert(usage[1].includes('「計算する」を押すと、査定が最大となる組合せが表示されます。'));
+  assert(usage[1].includes('各訓練後の経験点パターンにて比較できます。'));
+  assert(usage[1].includes('「こだわり条件」で基本能力や特殊能力に条件を設定することもできます。'));
+  assert(!usage[1].includes('「こだわり計算」では'));
+  assert(ui.includes('<h3>こだわり条件</h3>'));
+});
+
 test('custom controls share existing dropdown style and intro moves into usage',()=>{
  for(const id of ['customBasicName','customBasicMode','customSpecialName','customSpecialMode']){
    assert(html.includes('id="'+id+'SelectButton"'));
