@@ -14,6 +14,7 @@ const code=ui.slice(begin,finish);
 const dataContext={window:{}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),dataContext);
 const D=dataContext.window.PAWAADO_DATA;
+const mutualGroups=vm.runInNewContext(ui.match(/const mutualGroups=(\[[\s\S]*?\]);/)[1]);
 function mock({ready=true,jobName='剣士'}={}){
  const dom={},owned=new Set();
  const node=id=>{
@@ -154,6 +155,50 @@ test('Add buttons are absent, but both mode placeholders exist',()=>{
  for(const id of ['customAddBasic','customAddSpecial'])assert(!html.includes('id="'+id+'"'));
  assert(html.includes('<option value="">条件を選択</option>'));
  assert.equal((html.match(/<option value="">条件を選択<\/option>/g)||[]).length,2,'both basic and special modes show 条件を選択');
+});
+test('mutually exclusive special abilities disappear after either one is required and return when removed',()=>{
+ for(const pair of mutualGroups){
+  const a=pair[0],b=pair[1],x=mock();
+  const ai=D.special.findIndex(s=>s[1]===a),bi=D.special.findIndex(s=>s[1]===b);
+  assert(ai>=0&&bi>=0,a+' '+b);
+  assert(x.node('customSpecialName').innerHTML.includes(b));
+  x.node('customSpecialName').value=String(ai);x.change('customSpecialName');
+  x.node('customSpecialMode').value='required';x.change('customSpecialMode');
+  assert(x.state.customRequiredSpecials.has(ai));
+  assert(!x.node('customSpecialName').innerHTML.includes('>'+b+'</option>'),b+' should disappear');
+  assert(!vm.runInContext('customSpecialAvailable('+bi+')',x.state));
+  x.click('remove',{kind:'required',key:String(ai)});
+  assert(x.node('customSpecialName').innerHTML.includes('>'+b+'</option>'),b+' should return');
+ }
+});
+test('requiring ◎ hides its prerequisite ○, while requiring ○ still permits optional ◎',()=>{
+ const x=mock(),lower=D.special.findIndex(s=>s[1]==='アクションスキル○'),
+ upper=D.special.findIndex(s=>s[1]==='アクションスキル◎');
+ assert(lower>=0&&upper>=0);
+ x.node('customSpecialName').value=String(upper);x.change('customSpecialName');
+ x.node('customSpecialMode').value='required';x.change('customSpecialMode');
+ assert(x.state.customRequiredSpecials.has(upper));
+ assert(!x.node('customSpecialName').innerHTML.includes('>アクションスキル○</option>'));
+ x.click('remove',{kind:'required',key:String(upper)});
+ assert(x.node('customSpecialName').innerHTML.includes('>アクションスキル○</option>'));
+ x.node('customSpecialMode').value='required';x.change('customSpecialMode');
+ x.node('customSpecialName').value=String(lower);x.change('customSpecialName');
+ assert(x.state.customRequiredSpecials.has(lower));
+ assert(x.node('customSpecialName').innerHTML.includes('>アクションスキル◎</option>'));
+});
+test('forbidding ○ removes dependent ◎; forbidding ◎ leaves independent ○ available',()=>{
+ const x=mock(),lower=D.special.findIndex(s=>s[1]==='物理攻撃○'),
+ upper=D.special.findIndex(s=>s[1]==='物理攻撃◎');
+ assert(lower>=0&&upper>=0);
+ x.node('customSpecialName').value=String(lower);x.change('customSpecialName');
+ x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
+ assert(x.state.customForbiddenSpecials.has(lower));
+ assert(!x.node('customSpecialName').innerHTML.includes('>物理攻撃◎</option>'));
+ x.click('remove',{kind:'forbidden',key:String(lower)});
+ assert(x.node('customSpecialName').innerHTML.includes('>物理攻撃◎</option>'));
+ x.node('customSpecialName').value=String(upper);x.change('customSpecialName');
+ x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
+ assert(x.node('customSpecialName').innerHTML.includes('>物理攻撃○</option>'));
 });
 test('payload and cache include all constraint modes',()=>{
  assert(ui.includes('basicRules:Object.fromEntries(customBasicRules)'));
