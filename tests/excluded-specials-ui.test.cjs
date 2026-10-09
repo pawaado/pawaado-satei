@@ -81,6 +81,22 @@ test('new selector uses the same custom menu as academy and job',()=>{
   assert.equal(h.menu.hidden,true);
 });
 
+test('tapping a custom-menu option enables Add and queues the selected skill',()=>{
+  const h=harness(),idx=getIndex('アクションスキル◎');
+  h.select.options=[{value:'',textContent:'特殊能力を選択'},{value:String(idx),textContent:'アクションスキル◎'}];
+  h.click('excludeSpecialSelectButton');
+  h.listeners.click({target:{closest:()=>({
+    dataset:{excludeOption:String(idx)},disabled:false,
+    hasAttribute:name=>name==='data-exclude-option'
+  })}});
+  assert.equal(h.select.value,String(idx));
+  assert.equal(h.menu.hidden,true);
+  assert.equal(h.add.disabled,false);
+  h.click('addExcludedSpecial');
+  assert.equal(h.ctx.pendingExcludedSpecialIndices.size,1);
+  assert.equal(h.ctx.calcCount,0);
+});
+
 test('previously acquired lower ○ is not offered as an exclusion, but ◎ is',()=>{
   const upper=getIndex('アクションスキル◎'),lower=getIndex('アクションスキル○');
   const h=harness([lower]);h.ctx.entries=[{candidate:{items:[{type:'special',idx:upper}]}}];
