@@ -25,7 +25,8 @@ function createHarness(scores){
    document:{getElementById:el,querySelectorAll:()=>[calcBtn,cancelBtn],
     body:{classList:{add(){},remove(){}}}},
    isCalculating:false,cancelRequested:false,basicNames:[],D:{special:[]},
-   job:{value:'剣士'},validateAllInline(){},validateInputs:()=>[],
+   job:{value:'剣士'},academy:{value:'カジナイトアカデミー'},
+   validateAllInline(){},validateInputs:()=>[],
    plannedExpNeedsConfirmation:()=>false,ensureCancelButton:()=>cancelBtn,
    calcCacheKey:exp=>String(exp[0]),getCachedResult:()=>null,setCachedResult(){},
    optimizeAsync:async exp=>{calls.push(exp[0]);const score=scores[exp[0]];

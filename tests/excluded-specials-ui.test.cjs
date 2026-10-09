@@ -31,6 +31,7 @@ function mock({ready=true,jobName='剣士'}={}){
  node('basic_生命力').value='90';
  const state={D,customBasicRules:new Map(),customRequiredSpecials:new Set(),customForbiddenSpecials:new Set(),
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
+   mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
    limits:()=>({生命力:110,パワー:115,魔力:110,器用さ:120,耐久力:100,精神力:100}),
    specialOwned:i=>owned.has(i),document:{getElementById:node}};
