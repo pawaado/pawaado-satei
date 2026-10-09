@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-clip-row-comparison-1';
+  const PHOTO_IMPORT_BUILD='20261010-training-and-mark-repair-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2701,7 +2701,7 @@
     if(window.__PAWAADO_AI_PROBE__?.inspectImage)return Promise.resolve(window.__PAWAADO_AI_PROBE__);
     if(!aiProbeLoader){
       aiProbeLoader=(async()=>{
-        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-clip-row-comparison-1']){
+        for(const source of ['./ai_models_probe.js?v=20261010-compare-1','./ai_probe.js?v=20261010-training-and-mark-repair-1']){
           await new Promise((resolve,reject)=>{
             const script=document.createElement('script');
             script.src=source;script.onload=resolve;
@@ -2743,7 +2743,6 @@
         const pattern=trainingPositions.get(index)||'?';
         const rows=EXPS.map(name=>{
           const current=o.current?.[name],gain=o.gains?.[name],total=o.exp?.[name];
-          if(current==null||gain==null||total==null)totals.unknown++;
           return '<tr><td>'+escape(name)+'</td><td>'+displayValue(current)+'</td><td>'+displayValue(gain)+'</td><td>'+displayValue(total)+'</td></tr>';
         }).join('');
         trainingTable='<h4>訓練パターン'+pattern+' の経験点</h4>'
@@ -2761,13 +2760,13 @@
         const markRows=keys.map(key=>{
           const old=oldMarks.get(key),candidate=newMarks.get(key);
           const goldOrIgnored=old?.superCell===true||old?.ignored===true;
-          const known=old?.mark==='○'||old?.mark==='◎';
-          const aiHasMark=candidate&&(candidate.value==='○'||candidate.value==='◎');
-          const comparable=!goldOrIgnored&&known&&aiHasMark;
+          const known=['○','◎','なし'].includes(old?.mark);
+          const candidateKnown=candidate&&['○','◎','なし'].includes(candidate.value);
+          const comparable=!goldOrIgnored&&known&&candidateKnown;
           const same=comparable&&old.mark===candidate.value;
           if(comparable)totals[same?'match':'difference']++;
-          else if(!goldOrIgnored&&old?.mark!=='なし')totals.unknown++;
-          const label=goldOrIgnored?'対象外（超特殊能力）':old?.mark==='なし'?'記号なし':comparable?(same?'一致':'相違'):'要確認';
+          else if(!goldOrIgnored)totals.unknown++;
+          const label=goldOrIgnored?'対象外（超特殊能力）':comparable?(same?(old.mark==='なし'?'一致（記号なし）':'一致'):'相違'):'要確認';
           const aiValue=goldOrIgnored?'—':candidate?.value==='なし'?'なし':displayValue(candidate?.value);
           const conf=comparable&&Number.isFinite(candidate.confidence)?' <small>AI確信度 '+Math.round(candidate.confidence*100)+'%（参考）</small>':'';
           return '<tr><td>'+escape(key.replace(':','行')+'列')+'</td><td>'+displayValue(old?.name)+'</td><td>'+aiValue+conf+'</td><td class="'+(comparable?(same?'photo-compare-match':'photo-compare-diff'):'')+'">'+label+'</td></tr>';
@@ -2780,11 +2779,16 @@
     });
     const finalNames=(ocr.specials||[]).map(escape).join('、')||'なし';
     const expSummary=EXPS.map(name=>escape(name)+' '+displayValue(ocr.exp?.[name])).join(' / ');
-    return '<h3>従来OCRと端末内AIの比較</h3>'
+    const screens=ocr.comparisonScreens||[];
+    const hasAbilityUp=screens.some(screen=>screen.type==='能力アップ');
+    const hasData=screens.some(screen=>screen.type==='能力データ');
+    const trainingCount=screens.filter(screen=>screen.type==='訓練').length;
+    return '<h3>画像読み取りの比較</h3>'
       +'<p class="photo-compare-warning">これは読み取り比較の実験です。<strong>査定入力は変更しません。</strong> 記号の有無・金色セルを先に判別し、青色セルの○／◎を試験AIで比較します。訓練は従来の画像認識結果をパターン別に表示し、AIとの数字比較は未対応です。「AI確信度」はAI内部の推定値で、正解率ではありません。</p>'
-      +'<p>比較できた項目：一致 <strong>'+totals.match+'</strong>、相違 <strong>'+totals.difference+'</strong>、要確認・対象外 <strong>'+totals.unknown+'</strong>。一致はOCRとAIが同じ答えという意味で、正解率ではありません。</p>'
-      +'<p><strong>従来OCRの経験点：</strong>'+expSummary+'</p>'
-      +'<p><strong>従来OCRの特殊能力（統合結果）：</strong>'+finalNames+'</p>'
+      +(hasAbilityUp||hasData?'<p>AI比較：一致 <strong>'+totals.match+'</strong>、相違 <strong>'+totals.difference+'</strong>、要確認 <strong>'+totals.unknown+'</strong>。一致はOCRとAIが同じ候補という意味で、正解率ではありません。</p>':'')
+      +(trainingCount?'<p><strong>訓練画像：</strong>'+trainingCount+'枚をパターン別に表示しています。</p>':'')
+      +(hasAbilityUp?'<p><strong>従来OCRの経験点：</strong>'+expSummary+'</p>':'')
+      +(hasData?'<p><strong>従来OCRの特殊能力（統合結果）：</strong>'+finalNames+'</p>':'')
       +detailBlocks.join('');
   }
   el('comparePhotos').onclick=async()=>{
