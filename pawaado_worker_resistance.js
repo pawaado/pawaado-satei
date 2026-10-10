@@ -208,29 +208,14 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
       'dynamic special gain v2'
     );
 
-    source=replaceOnce(
-      source,
-`    selectedSuperPart,
-    forbiddenPart,
-    requiredPart,
-    basicRulesPart
-  ]);`,
-`    selectedSuperPart,
-    forbiddenPart,
-    requiredPart,
-    basicRulesPart,
-    (payload.extraResistances||[]).map(row=>[String(row?.name||''),String(row?.type||''),Number(row?.value||0)])
-  ]);`,
-      'worker config cache key'
-    );
 
     source=replaceOnce(
       source,
-`  const nextConfigKey=__workerPayloadConfigKey(payload);
+`  if(configChanged){
 `,
-`  workerExtraResistances=normalizeExtraResistances(payload.extraResistances||[]);
-  resistanceScoreCache.clear();
-  const nextConfigKey=__workerPayloadConfigKey(payload);
+`  if(configChanged){
+    workerExtraResistances=normalizeExtraResistances(payload.extraResistances||[]);
+    resistanceScoreCache.clear();
 `,
       'worker payload resistance input'
     );
