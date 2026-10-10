@@ -40,6 +40,21 @@ const specialState=new Map();
 const customBasicRules=new Map();
 const customRequiredSpecials=new Set();
 const customForbiddenSpecials=new Set();
+// 双剣士専用の通常攻撃はLv.ごとに指定し、通常特殊能力のダミー行とは分離する。
+const dualAttackMaster=D.academyMaster?.academies?.find(a=>a.dualAttack?.internalJob==='双剣士')?.dualAttack;
+const dualSpecialIndex=D.special.findIndex(s=>String(s[1])===String(dualAttackMaster?.skillName));
+let customDualRequiredLevel=0;
+let customDualForbiddenLevel=0;
+function currentDualAttackLevel(){
+  const current=Number(window.__PAWAADO_GET_DUAL_ATTACK_LEVEL__?.()??dualAttackMaster?.initialLevel??1);
+  return Number.isInteger(current)?current:Number(dualAttackMaster?.initialLevel||1);
+}
+function dualCustomLevelAvailable(level){
+  return job.value==='双剣士' && !!dualAttackMaster &&
+    level>currentDualAttackLevel() && level<=Number(dualAttackMaster.maxLevel) &&
+    (!customDualRequiredLevel||level>customDualRequiredLevel) &&
+    (!customDualForbiddenLevel||level<customDualForbiddenLevel);
+}
 const specialNameIndex=new Map();
 const specialReqIndex=new Map();
 D.special.forEach((s,i)=>{
@@ -559,7 +574,9 @@ function calcCacheKey(exp){
   const constraintsKey=[
     [...customBasicRules.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ja')),
     [...customRequiredSpecials].sort((a,b)=>a-b),
-    [...customForbiddenSpecials].sort((a,b)=>a-b)
+    [...customForbiddenSpecials].sort((a,b)=>a-b),
+    ['dual-required',customDualRequiredLevel],
+    ['dual-forbidden',customDualForbiddenLevel]
   ];
   return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'custom:'+JSON.stringify(constraintsKey)].join('||');
 }
@@ -689,7 +706,9 @@ function buildWorkerPayload(exp){
     customConditions:{
       basicRules:Object.fromEntries(customBasicRules),
       requiredSpecialIndices:[...customRequiredSpecials],
-      forbiddenSpecialIndices:[...customForbiddenSpecials]
+      forbiddenSpecialIndices:[...customForbiddenSpecials],
+      dualRequiredLevel:customDualRequiredLevel,
+      dualForbiddenLevel:customDualForbiddenLevel
     }
   };
 }
@@ -963,6 +982,8 @@ function clearCustomConditionsState(){
   customBasicRules.clear();
   customRequiredSpecials.clear();
   customForbiddenSpecials.clear();
+  customDualRequiredLevel=0;
+  customDualForbiddenLevel=0;
   for(const [id,value] of [['customBasicName',''],['customBasicMode',''],['customSpecialName',''],['customSpecialMode',''],['customBasicValue','']]){
     const el=document.getElementById(id); if(el)el.value=value;
   }
@@ -973,6 +994,11 @@ function customConditionListHtml(kind){
     ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
     : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:D.special[i][1]+'（取得する）'}))
       .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:D.special[i][1]+'（取得しない）'})));
+  if(kind==='special'){
+    const name=String(dualAttackMaster?.skillName||'通常攻撃(双剣士)');
+    if(customDualRequiredLevel)entries.push({kind:'dual-required',key:customDualRequiredLevel,label:name+' Lv.'+customDualRequiredLevel+'（取得する）'});
+    if(customDualForbiddenLevel)entries.push({kind:'dual-forbidden',key:customDualForbiddenLevel,label:name+' Lv.'+customDualForbiddenLevel+'（取得しない）'});
+  }
   return entries.map(x=>'<li><span>'+escapeCustomText(x.label)+'</span>'
     +'<button type="button" class="custom-condition-remove" data-kind="'+(x.kind||kind)+'" data-key="'+escapeCustomText(x.key)+'" aria-label="'+escapeCustomText(x.label)+'を削除">×</button></li>').join('');
 }
@@ -983,7 +1009,7 @@ function showCustomMessage(message){
 function customSpecialAvailable(index){
   const row=D.special[index];
   if(!row||specialOwned(index)||customRequiredSpecials.has(index)||customForbiddenSpecials.has(index))return false;
-  if(job.value!=='双剣士'&&row[1]==='通常攻撃(双剣士)')return false;
+  if(index===dualSpecialIndex)return false; // Lv.のないダミー行を選択させない
   const name=String(row[1]);
   // 必須にした特殊能力と相互排他のものは、続けて「取得する」に指定できない。
   for(const group of mutualGroups){
@@ -1005,21 +1031,35 @@ function refreshCustomChoices(){
   const ready=hasAcademyJob();
   const basicSelection=basic.value;
   const specialSelection=special.value;
+  if(job.value!=='双剣士'){
+    customDualRequiredLevel=0;customDualForbiddenLevel=0;
+  }else{
+    const ownedLevel=currentDualAttackLevel();
+    if(customDualRequiredLevel&&customDualRequiredLevel<=ownedLevel)customDualRequiredLevel=0;
+    if(customDualForbiddenLevel&&customDualForbiddenLevel<=ownedLevel)customDualForbiddenLevel=0;
+  }
   basic.innerHTML='<option value="">基本能力を選択</option>'
     +basicNames.filter(name=>!customBasicRules.has(name))
       .map(name=>'<option value="'+escapeCustomText(name)+'">'+escapeCustomText(name)+'</option>').join('');
   basic.value=basicSelection;
   // 上の特殊能力欄で取得済みのもの・すでに条件指定したものを候補から除外する。
   for(const index of [...customRequiredSpecials,...customForbiddenSpecials]){
-    if(specialOwned(index)||(job.value!=='双剣士'&&D.special[index]?.[1]==='通常攻撃(双剣士)')){
+    if(specialOwned(index)||index===dualSpecialIndex){
       customRequiredSpecials.delete(index);
       customForbiddenSpecials.delete(index);
     }
   }
+  const dualOptions=ready&&job.value==='双剣士'&&dualAttackMaster
+    ? Array.from({length:Number(dualAttackMaster.maxLevel)-Number(dualAttackMaster.initialLevel)},
+        (_,i)=>Number(dualAttackMaster.initialLevel)+i+1)
+      .filter(level=>dualCustomLevelAvailable(level))
+      .map(level=>'<option value="dual:'+level+'">'+escapeCustomText(dualAttackMaster.skillName+' Lv.'+level)+'</option>').join('')
+    : '';
   special.innerHTML='<option value="">特殊能力を選択</option>'
     +(ready?D.special.map((row,index)=>({name:row[1],index}))
       .filter(({index})=>customSpecialAvailable(index))
-      .map(({name,index})=>'<option value="'+index+'">'+escapeCustomText(name)+'</option>').join(''):'');
+      .map(({name,index})=>'<option value="'+index+'">'+escapeCustomText(name)+'</option>').join(''):'')
+    +dualOptions;
   special.value=specialSelection;
   const card=document.getElementById('customCalcCard');
   card?.classList.toggle('is-locked',!ready);
@@ -1046,7 +1086,7 @@ function renderCustomConditions(){
     target.innerHTML=customConditionListHtml(kind);
     target.hidden=!target.innerHTML;
   }
-  const has=customBasicRules.size||customRequiredSpecials.size||customForbiddenSpecials.size;
+  const has=customBasicRules.size||customRequiredSpecials.size||customForbiddenSpecials.size||customDualRequiredLevel||customDualForbiddenLevel;
   const clear=document.getElementById('customClearAll');
   if(clear){clear.hidden=!has;clear.disabled=!has||!hasAcademyJob()||isCalculating;}
 }
@@ -1078,9 +1118,23 @@ function initCustomConditions(){
   }
   function autoAddSpecial(){
     if(!hasAcademyJob()||isCalculating||special.value===''||!specialMode.value)return;
-    const index=Number(special.value),mode=specialMode.value;
+    const mode=specialMode.value;
+    const dualMatch=/^dual:(\d+)$/.exec(special.value);
+    if(dualMatch){
+      const level=Number(dualMatch[1]);
+      if((mode!=='required'&&mode!=='forbidden')||!dualCustomLevelAvailable(level)){
+        showCustomMessage('この通常攻撃Lv.は条件に追加できません。');return;
+      }
+      if(mode==='required')customDualRequiredLevel=level;
+      else customDualForbiddenLevel=level;
+      special.value='';specialMode.value='';
+      showCustomMessage('');
+      renderCustomConditions();
+      return;
+    }
+    const index=Number(special.value);
     if(!Number.isInteger(index)||!D.special[index]||(mode!=='required'&&mode!=='forbidden')||
-      specialOwned(index)||(job.value!=='双剣士'&&D.special[index][1]==='通常攻撃(双剣士)')){
+      specialOwned(index)||index===dualSpecialIndex){
       showCustomMessage('この特殊能力は条件に追加できません。');return;
     }
     if(!customSpecialAvailable(index)){
@@ -1099,6 +1153,8 @@ function initCustomConditions(){
       if(kind==='basic')customBasicRules.delete(key);
       else if(kind==='required')customRequiredSpecials.delete(Number(key));
       else if(kind==='forbidden')customForbiddenSpecials.delete(Number(key));
+      else if(kind==='dual-required')customDualRequiredLevel=0;
+      else if(kind==='dual-forbidden')customDualForbiddenLevel=0;
       showCustomMessage('');
       renderCustomConditions();
       return;
@@ -1118,6 +1174,7 @@ function initCustomConditions(){
     event.preventDefault();
     autoAddBasic();
   });
+  document.addEventListener('pawaado:dual-attack-change',renderCustomConditions);
   renderCustomConditions();
 }
 function customConditionsSummaryHtml(){
@@ -1125,6 +1182,8 @@ function customConditionsSummaryHtml(){
   for(const [name,rule] of customBasicRules)lines.push(escapeCustomText(name)+' '+rule.value+customBasicModes[rule.mode]);
   for(const index of customRequiredSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得');
   for(const index of customForbiddenSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得しない');
+  if(customDualRequiredLevel)lines.push(escapeCustomText(dualAttackMaster.skillName)+' Lv.'+customDualRequiredLevel+' を取得');
+  if(customDualForbiddenLevel)lines.push(escapeCustomText(dualAttackMaster.skillName)+' Lv.'+customDualForbiddenLevel+' を取得しない');
   return lines.length?'<div class="result-block custom-result-summary"><h3>こだわり条件</h3><p>'+lines.join('／')+'</p></div>':'';
 }
 function plannedExpNeedsConfirmation(){
