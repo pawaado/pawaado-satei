@@ -738,11 +738,10 @@
       // 入力不正のテンプレート1件で画像全体の読み取りを止めない。
       // 値255は通常の照合画素(0/1)と必ず不一致になり、誤認識も防ぐ。
       const valid=typeof encoded==='string'&&
-        /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)&&
+        /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=?)?$/.test(encoded)&&
         encoded.length>0;
       if(!valid)throw new Error('invalid template encoding');
       raw=atob(encoded);
-      if(raw.length*8<size)throw new Error('short template encoding');
     }catch(error){
       console.warn('画像照合テンプレートを読み飛ばしました。',error);
       const invalid=new Uint8Array(size).fill(255);
