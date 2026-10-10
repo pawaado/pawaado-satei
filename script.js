@@ -1439,9 +1439,10 @@ function applyRecognizedPhotoAbilities(data,{replace=false}={}){
     else if(mark==='○')owned.add(stem+'○');
   }
 
-  // 超特殊能力は名前とLvの両方を確定できたものだけ反映する。
+  // 確定した名前に加え、一意に絞った推定名もLv.が読めていれば入力する。
+  // 推定入力の項目は画像読み取り側で警告を表示する。
   const confirmedSupers=(data.supers||[]).filter(entry=>
-    entry.confirmed===true&&(entry.level===1||entry.level===2)
+    (entry.confirmed===true||entry.inferred===true)&&(entry.level===1||entry.level===2)
   );
 
   // 確定した上位能力だけ、対応する下位能力を取得済みに補完する。
