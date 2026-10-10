@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-invalid-mask-guard-1';
+  const PHOTO_IMPORT_BUILD='20261010-mental-60-fallback-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1285,6 +1285,32 @@
     return ranked[0].value;
   }
 
+  // 濃淡差や文字領域の分割に失敗した場合でも、実画像由来の数字全体の形で再確認する。
+  // 配列の順番や精神力というラベルだけでは60と決めない。
+  // 元画像の「60」全体を32x22の濃淡別テンプレートとして登録し、画像自身の形と比較。
+  const BASIC_FULL_NUMBER_MASKS={
+    60:["AAAAAAAAAAAAAAAAAAAAAAHADAAH8D8ADhBzgAwAYYAMAOGADMDBgA/wwYAMOMGADBjBgAwYwYAMGGGADjBzgAfwPwAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","AAAAAAAAAAAAAAAAAAAAAAHAHAAH8D8ADjBzgAwAYYAMAOGAHcDBgB/wwcAeOMHAHBjBgAwY4YAMGOGADjhzgAfwPwABwAwAAAAAAAAAAAAAAAAAAAAAAA==","AAAAAAAAAAAAAAAAAAAAAAPgHgAH8D8ADjBzgAwA4YAMAOGAHeDBwB/wwcAeOMHAHBjBwBwY4YAMOOGADjhzgAfwfwABwB4AAAAAAAAAAAAAAAAAAAAAAA==","AAAAAAAAAAAAAAAAAAAAAAPgHgAH8H8ADjh3gAwA44AcAOHAHeDhwB/wwcAeOMHAHDjhwBwY4cAMOOOADjhzgAfwfwAD4B4AAAAAAAAAAAAAAAAAAAAAAA=="]
+  };
+  function basicNumberByWholeImage(image,index){
+    const x=[270,342,415,488,560,632][index];
+    const samples=[75,90,105,120].map(t=>inkMask(image,[x+1,509,32,22],1,1,t).mask);
+    const scores=[];
+    for(const [number,templates] of Object.entries(BASIC_FULL_NUMBER_MASKS)){
+      const refs=templates.map(mask=>decodeMask(mask,32*22));
+      const perThreshold=samples.map(sig=>
+        Math.min(...refs.map(ref=>shiftedMaskDistance(sig,ref,32,22,3,2)))
+      );
+      const best=Math.min(...perThreshold);
+      // 一つの濃淡だけで近いと判定しても即採用せず、2条件以上で一致した場合に限定。
+      if(best<=.065&&perThreshold.filter(score=>score<=.075).length>=2){
+        scores.push({number:Number(number),best});
+      }
+    }
+    scores.sort((a,b)=>a.best-b.best);
+    if(scores.length!==1)return null;
+    return scores[0].number;
+  }
+
   function basicByImageStrict(image,index){
     const x=[270,342,415,488,560,632][index];
     const readAtThreshold=threshold=>{
@@ -1304,7 +1330,8 @@
     const counts=new Map();
     votes.forEach(v=>counts.set(v,(counts.get(v)||0)+1));
     const best=[...counts].sort((a,b)=>b[1]-a[1])[0];
-    return best&&best[1]>=2?best[0]:null;
+    if(best&&best[1]>=2)return best[0];
+    return basicNumberByWholeImage(image,index);
   }
   function levelByImage(image,cell,maxLevel=2){
     const [x,y]=cell.rect;
