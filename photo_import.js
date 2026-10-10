@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-ocr-mental-super-1';
+  const PHOTO_IMPORT_BUILD='20261010-super-candidate-import-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -1735,8 +1735,18 @@
         d:distance(normalize(name),withoutLevel)
       })).sort((a,b)=>a.d-b.d);
       const best=ranked[0],second=ranked[1];
-      if(best&&best.d<=1&&(!second||best.d<second.d)){
-        return {specials:[],supers:[],unknown:[],candidate:true,suggestedSuper:best.name};
+      // 対象外の金色能力と似ている文字は、入力対象へ置き換えない。
+      const ignoredNear=[...IGNORED_SUPER_IMAGE_NAMES].some(name=>
+        distance(normalize(name),withoutLevel)<=1
+      );
+      // 名前が一意に絞れた場合は「推定」として入力候補へ渡す。
+      // Lvが未読なら後続の入力判定で保留し、Lv.2などを憶測で埋めない。
+      if(!ignoredNear&&best&&best.d<=1&&(!second||best.d<second.d)){
+        return {
+          specials:[],
+          supers:[{name:best.name,level:null,confirmed:false,inferred:true}],
+          unknown:[],candidate:true,suggestedSuper:best.name
+        };
       }
       return {specials:[],supers:[],unknown:[],candidate:false};
     }
@@ -2091,7 +2101,7 @@
 
       result.specials.push(...parsed.specials);
       for(const entry of parsed.supers){
-        if(entry.confirmed!==true)continue;
+        if(entry.confirmed!==true&&entry.inferred!==true)continue;
         const visualLevel=levelByImage(image,cell);
         if(visualLevel!=null)entry.level=visualLevel;
         else{
@@ -2110,6 +2120,15 @@
       if(parsed.unknown.length)missed.push(where);
       if(parsed.candidate){
         const candidateName=parsed.suggestedSuper||parsed.specials[0]||'';
+        const inferredSuper=parsed.supers.find(entry=>entry.inferred===true&&entry.name===candidateName);
+        if(inferredSuper){
+          const levelKnown=inferredSuper.level===1||inferredSuper.level===2;
+          const displayName=candidateName+(levelKnown?' Lv.'+inferredSuper.level:'');
+          candidates.push(levelKnown
+            ? `${where}「${displayName}」（近い文字から推定して自動入力。取得状態とLv.を確認）`
+            : `${where}「${candidateName}」（近い文字から推定したがLv.不明のため自動入力なし）`);
+          continue;
+        }
         // ○/◎付き能力は、この同じセルから末尾記号を画像で直接確定できているなら
         // OCR側が candidate 扱いでも要確認にはしない。最終入力と警告が矛盾するのを防ぐ。
         const normalizedCandidate=normalize(candidateName);
@@ -2140,7 +2159,7 @@
 
     // 取得能力は並び順・隣接能力から推測しない。未確定なら取得済みにせず警告する。
     if(missed.length)result.warnings.push(`${index}枚目：${missed.join('、')}を読み取れませんでした。必要に応じて修正してください。`);
-    if(candidates.length)result.warnings.push(`${index}枚目：${candidates.join('、')}について、取得状態が合っているか確認してください。`);
+    if(candidates.length)result.warnings.push(`${index}枚目：推定判定を含む項目があります。${candidates.join('、')}。内容を確認してください。`);
     return result;
   }
   async function jobOf(image){
@@ -2644,6 +2663,10 @@
         s.level=null;
         s.confirmed=false;
         out.warnings.push(s.name+'のLv候補が画像間で一致しません。自動入力せず、表示Lvを確認してください。');
+      }
+      // 同名の別画像で確定できた名前を、弱い推定で上書きしない。
+      if(old?.confirmed===true&&s.inferred===true&&s.level!=null){
+        s.confirmed=true;
       }
       superMap.set(s.name,s);
     }
