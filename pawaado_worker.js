@@ -1024,7 +1024,8 @@ function __workerPayloadConfigKey(payload){
     requiredPart,
     Number(custom.dualRequiredLevel||0),
     Number(custom.dualForbiddenLevel||0),
-    basicRulesPart
+    basicRulesPart,
+    (payload.extraResistances||[]).map(row=>[String(row?.name||''),String(row?.type||''),Number(row?.value||0)])
   ]);
 }
 
