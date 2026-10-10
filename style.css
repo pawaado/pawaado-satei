@@ -337,8 +337,8 @@ input.input-error{border-color:#b12f28;background:#fff1ea}
   background:linear-gradient(180deg,#fff4d6,#ecd398);
   font-size:18px;
 }
-.skill-row .name-btn{min-height:52px;border-right:0;justify-content:flex-start;padding:6px 10px 6px 12px;font-size:16px}
-.skill-row .hint-btn{min-height:52px;font-size:15px}
+.skill-row .name-btn{min-height:48px;border-right:0;justify-content:flex-start;padding:6px 10px 6px 12px;font-size:16px}
+.skill-row .hint-btn{min-height:48px;font-size:15px}
 .ability-row .name-btn{padding-left:14px}
 .ability-name-text{display:inline-flex;align-items:center;gap:7px;min-width:0}
 .ability-name-label{white-space:nowrap}
@@ -724,12 +724,12 @@ body>*{max-width:100%}
 select,input,button{max-width:100%}
 .sample-input-summary,.error-box-list li,.usage-list li,.usage-note-list li{overflow-wrap:anywhere}
 
-/* 基本能力も特殊能力と同じ高さにして、縦スクロール量を減らす。 */
+/* 基本能力・特殊能力の各ボタン本体を少し低くし、行間は維持してスクロール量を減らす。 */
 .ability-row .hint-btn,
 .ability-row .name-btn,
 .ability-row .ability-value{
-  min-height:52px;
-  height:52px;
+  min-height:48px;
+  height:48px;
 }
 
 
