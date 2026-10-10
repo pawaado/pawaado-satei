@@ -99,6 +99,7 @@
     function currentLevelIsValid(){return dualLevel<=maxValidDualLevel(dexValue());}
     function cycleDualHint(){dualHint=dualHint>=5?0:dualHint+1;}
     global.__PAWAADO_DUAL_ATTACK_SIGNATURE__=()=>isDual()?dualLevel+':'+dualHint:'';
+    global.__PAWAADO_GET_DUAL_ATTACK_LEVEL__=()=>isDual()?dualLevel:null;
     function syncJobLabel(){
       const a=academyEl(),j=jobEl();
       if(!a||!j) return;
@@ -145,6 +146,7 @@
       dualLevel=Math.max(DUAL.initialLevel,Math.min(DUAL.maxLevel,Number(next)||DUAL.initialLevel));
       dualError='';
       renderDualRows();
+      document.dispatchEvent(new Event('pawaado:dual-attack-change'));
     }
     global.__PAWAADO_SET_DUAL_ATTACK__=(level,hint=0)=>{
       dualHint=Math.max(0,Math.min(5,Number(hint)||0));
