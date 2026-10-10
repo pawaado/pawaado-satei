@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-super-candidate-import-1';
+  const PHOTO_IMPORT_BUILD='20261010-invalid-mask-guard-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -665,8 +665,7 @@
   (HYBRID_DIGIT_MASKS['0']??=[]).push('DwDwH8OOMG8G4G4H4H4H4G8G8GOOH8Bw');
   (HYBRID_LEVEL_MASKS['2']??=[]).push('AjAjBBAAAMBcA4AxBiBiBEZOWBmA2Ad/','AdAdAzBBAAAMB8A4AxBiBGdP2B2A2Ad/');
   (HYBRID_ABILITY_MASKS['そよかぜの加護']??=[]).push(
-    'AAAAAAAAAAQAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgQICYAMD+A2BwmJj47v4DwHPr/fzu/gfwQenZtO7+A=',
-    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgQICYAMD+A2BwmJj47v4DwHPr/fzu/gfwQenZtO7+B/PBrZmk7t4Bg/EhgezuAAGGe2HB3K7+A='
+    'AAAAAAAAAAQAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgQICYAMD+A2BwmJj47v4DwHPr/fzu/gfwQenZtO7+A='
   );
   const HYBRID_JOB_MASKS={
     '剣士':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHnh4AAAAAAAAAAAAP/h4AAAAAAAAAAAAcehYAAAAAAAAAAAAbO/fgAAAAAAAAAAAYe4BgAAAAA8AAAAAe+wBgAAAAA4AAAAAau/fgAAAAAAAAAAAauhYAAAAAAAAAAAAc+/fgAAAAAAAAAAAZc/PgAAAAAAAAAAAf94BgAAAAAAAAAAAf///gAAAAAAAAAAAAAAAAAAAAA',
@@ -734,7 +733,23 @@
   const decodedMasks=new Map();
   function decodeMask(encoded,size){
     const key=encoded+'|'+size;if(decodedMasks.has(key))return decodedMasks.get(key);
-    const raw=atob(encoded),out=new Uint8Array(size);
+    let raw;
+    try{
+      // 入力不正のテンプレート1件で画像全体の読み取りを止めない。
+      // 値255は通常の照合画素(0/1)と必ず不一致になり、誤認識も防ぐ。
+      const valid=typeof encoded==='string'&&
+        /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)&&
+        encoded.length>0;
+      if(!valid)throw new Error('invalid template encoding');
+      raw=atob(encoded);
+      if(raw.length*8<size)throw new Error('short template encoding');
+    }catch(error){
+      console.warn('画像照合テンプレートを読み飛ばしました。',error);
+      const invalid=new Uint8Array(size).fill(255);
+      decodedMasks.set(key,invalid);
+      return invalid;
+    }
+    const out=new Uint8Array(size);
     let p=0;
     for(let i=0;i<raw.length&&p<size;i++){
       const byte=raw.charCodeAt(i);
