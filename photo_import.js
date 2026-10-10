@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-remove-experiment-1';
+  const PHOTO_IMPORT_BUILD='20261010-ocr-mental-super-1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -659,6 +659,15 @@
     '2':['A/A/BjBBAIgMh4ARBzBCBMcPmAmA3/J+','A/A/BjABAJAcB5AxBzBGIM8PmBmAmBZ/'],
     '6':'AYAcA/BBCZCdCfCCGBGYec+YnBlBli4+'
   };
+  // 2026-10-10 重戦士の能力データ実画像から追加した照合サンプル。
+  // 精神力60、そよかぜの加護Lv.2を、周辺能力の並びから推測せず文字の形で確定する。
+  (HYBRID_DIGIT_MASKS['6']??=[]).push('B4B4H+OGMAMA94/++H+H8DMDMDOHH+B4');
+  (HYBRID_DIGIT_MASKS['0']??=[]).push('DwDwH8OOMG8G4G4H4H4H4G8G8GOOH8Bw');
+  (HYBRID_LEVEL_MASKS['2']??=[]).push('AjAjBBAAAMBcA4AxBiBiBEZOWBmA2Ad/','AdAdAzBBAAAMB8A4AxBiBGdP2B2A2Ad/');
+  (HYBRID_ABILITY_MASKS['そよかぜの加護']??=[]).push(
+    'AAAAAAAAAAQAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgQICYAMD+A2BwmJj47v4DwHPr/fzu/gfwQenZtO7+A=',
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgQICYAMD+A2BwmJj47v4DwHPr/fzu/gfwQenZtO7+B/PBrZmk7t4Bg/EhgezuAAGGe2HB3K7+A='
+  );
   const HYBRID_JOB_MASKS={
     '剣士':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHnh4AAAAAAAAAAAAP/h4AAAAAAAAAAAAcehYAAAAAAAAAAAAbO/fgAAAAAAAAAAAYe4BgAAAAA8AAAAAe+wBgAAAAA4AAAAAau/fgAAAAAAAAAAAauhYAAAAAAAAAAAAc+/fgAAAAAAAAAAAZc/PgAAAAAAAAAAAf94BgAAAAAAAAAAAf///gAAAAAAAAAAAAAAAAAAAAA',
     '弓使い':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/v/AAAAAAAAAAAAMBv3vMAAAAAAAAAAP96A/eAAAAAAAAAAP9737bAAAAAAAAAAMByB7bAAAAA8AAAAJ/y17JAAAAA4AAAAYA6B79gAAAAAAAAAb+7379gAAAAAAAAAf+7P7dgAAAAAAAAAH97H4fgAAAAAAAAABj79t3AAAAAAAAAAB/P/vgAAAAAAAAAAAAAAAAAAAAA',
@@ -1264,14 +1273,24 @@
 
   function basicByImageStrict(image,index){
     const x=[270,342,415,488,560,632][index];
-    const components=glyphComponents(image,[x,505,45,30],90)
-      .filter(c=>c.y>=5&&c.h>=10&&c.area>=18)
-      .sort((a,b)=>a.x-b.x);
-
-    // 基本能力は1桁（例: 魔力5）から上限拡張後の3桁まであり得る。
-    if(components.length<1||components.length>3)return null;
-    const digits=components.map(classifyBasicDigit);
-    return digits.every(Boolean)?Number(digits.join('')):null;
+    const readAtThreshold=threshold=>{
+      const components=glyphComponents(image,[x,505,45,30],threshold)
+        .filter(c=>c.y>=5&&c.h>=10&&c.area>=18)
+        .sort((a,b)=>a.x-b.x);
+      // 基本能力は1桁（例: 魔力5）から上限拡張後の3桁まであり得る。
+      if(components.length<1||components.length>3)return null;
+      const digits=components.map(classifyBasicDigit);
+      return digits.every(Boolean)?Number(digits.join('')):null;
+    };
+    const first=readAtThreshold(90);
+    if(first!=null)return first;
+    // JPEG/端末の濃淡差だけで未読になった数字は追加閾値で照合。
+    // 別々の閾値で同じ数字と判定された場合だけ採用し、単発の推測入力を防ぐ。
+    const votes=[75,105,120].map(readAtThreshold).filter(v=>v!=null);
+    const counts=new Map();
+    votes.forEach(v=>counts.set(v,(counts.get(v)||0)+1));
+    const best=[...counts].sort((a,b)=>b[1]-a[1])[0];
+    return best&&best[1]>=2?best[0]:null;
   }
   function levelByImage(image,cell,maxLevel=2){
     const [x,y]=cell.rect;
