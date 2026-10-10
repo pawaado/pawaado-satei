@@ -48,6 +48,8 @@ const valueRowCache=new WeakMap();
 const specialItemCache=new Map();
 let workerExcludedSpecialBits=EMPTY_BITS;
 let workerRequiredSpecialIndices=[];
+let workerDualRequiredLevel=0;
+let workerDualForbiddenLevel=0;
 let workerBasicRules={};
 
 const MIXED_BRANCH_NORMAL=7;
@@ -531,6 +533,7 @@ function mixedDualAction(st,exp){
   const fromLevel=Number(st.dualLevel??workerDualLevel);
   const toLevel=fromLevel+1;
   if(toLevel>Number(DUAL_MASTER.maxLevel||fromLevel)) return null;
+  if(workerDualForbiddenLevel&&toLevel>=workerDualForbiddenLevel)return null;
   const def=DUAL_MASTER.levels?.[toLevel];
   if(!def) return null;
 
@@ -916,6 +919,14 @@ function constrainedInitialState(exp){
       :Number(op.score||0);
     state=mixedApplyAction(state,{...op,kind:'special',gain,costSum:costSum(op.cost)});
   }
+  // 取得するLv.5なら、未取得のLv.を順に獲得（費用・器用さ条件も各段階で計算）。
+  if(workerDualRequiredLevel){
+    while(Number(state.dualLevel||0)<workerDualRequiredLevel){
+      const dual=mixedDualAction(state,exp);
+      if(!dual)throw new Error('こだわり計算：'+DUAL_MASTER.skillName+' Lv.'+workerDualRequiredLevel+'を取得する経験点または条件が足りません。');
+      state=mixedApplyAction(state,dual);
+    }
+  }
   return state;
 }
 function optimizeMixedAsync(exp){
@@ -1011,6 +1022,8 @@ function __workerPayloadConfigKey(payload){
     selectedSuperPart,
     forbiddenPart,
     requiredPart,
+    Number(custom.dualRequiredLevel||0),
+    Number(custom.dualForbiddenLevel||0),
     basicRulesPart
   ]);
 }
@@ -1055,6 +1068,18 @@ function __applyWorkerPayload(payload){
     }
     workerRequiredSpecialIndices=[...new Set((custom.requiredSpecialIndices||[])
       .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length))];
+    workerDualRequiredLevel=Number(custom.dualRequiredLevel||0);
+    workerDualForbiddenLevel=Number(custom.dualForbiddenLevel||0);
+    const validDualConstraint=level=>level===0||
+      (!!DUAL_MASTER&&Number.isInteger(level)&&level>Number(DUAL_MASTER.initialLevel)&&level<=Number(DUAL_MASTER.maxLevel));
+    if(!validDualConstraint(workerDualRequiredLevel)||!validDualConstraint(workerDualForbiddenLevel))
+      throw new Error('こだわり計算：通常攻撃(双剣士)の指定Lv.が正しくありません。');
+    if((workerDualRequiredLevel||workerDualForbiddenLevel)&&!workerDualEnabled)
+      throw new Error('こだわり計算：通常攻撃(双剣士)は双剣士専用です。');
+    if(workerDualForbiddenLevel&&workerDualLevel>=workerDualForbiddenLevel)
+      throw new Error('こだわり計算：取得済みの通常攻撃 Lv.'+workerDualForbiddenLevel+'は取得しないに指定できません。');
+    if(workerDualRequiredLevel&&workerDualForbiddenLevel&&workerDualRequiredLevel>=workerDualForbiddenLevel)
+      throw new Error('こだわり計算：通常攻撃の取得するLv.と取得しないLv.が矛盾しています。');
     workerExcludedSpecialBits=EMPTY_BITS;
     for(const rawIndex of custom.forbiddenSpecialIndices||[]){
       const index=Number(rawIndex);
