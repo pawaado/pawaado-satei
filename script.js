@@ -724,7 +724,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261010-custom-dual-level-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261010-worker-cache-fix-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1540,7 +1540,12 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     applyBasicVisual(n);
   });
   if(validBasicCount<basicNames.length){
-    addWarning('基本能力を一部読み取れませんでした。基本能力を確認してください。');
+    // 項目名まで示した警告と、抽象的な「基本能力を一部...」を重複表示しない。
+    const alreadyDetailed=warnings.some(message=>basicNames.some(name=>
+      message.includes(name+'を画像比較で読み取れませんでした') ||
+      message.includes(name+'の読み取り値が画像間で一致しません')
+    ));
+    if(!alreadyDetailed)addWarning('基本能力を一部読み取れませんでした。基本能力を確認してください。');
   }
 
   if(data.job==='双剣士'){
