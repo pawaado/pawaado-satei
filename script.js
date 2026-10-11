@@ -1177,15 +1177,6 @@ function initCustomConditions(){
   document.addEventListener('pawaado:dual-attack-change',renderCustomConditions);
   renderCustomConditions();
 }
-function customConditionsSummaryHtml(){
-  const lines=[];
-  for(const [name,rule] of customBasicRules)lines.push(escapeCustomText(name)+' '+rule.value+customBasicModes[rule.mode]);
-  for(const index of customRequiredSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得');
-  for(const index of customForbiddenSpecials)lines.push(escapeCustomText(D.special[index]?.[1])+' を取得しない');
-  if(customDualRequiredLevel)lines.push(escapeCustomText(dualAttackMaster.skillName)+' Lv.'+customDualRequiredLevel+' を取得');
-  if(customDualForbiddenLevel)lines.push(escapeCustomText(dualAttackMaster.skillName)+' Lv.'+customDualForbiddenLevel+' を取得しない');
-  return lines.length?'<div class="result-block custom-result-summary"><h3>こだわり条件</h3><p>'+lines.join('／')+'</p></div>':'';
-}
 function plannedExpNeedsConfirmation(){
   return expSamples.length>1 && expNames.some(name=>plannedExp[name]==='' || plannedExp[name]==null);
 }
@@ -1310,7 +1301,7 @@ async function calc(){
     entries.forEach(x=>{x.isBest=!x.unavailable&&x.scoreGain===maxScore;});
     const multiple=entries.length>1;
     const displayEntries=multiple?rankedEntries(entries):entries;
-    result.innerHTML=customConditionsSummaryHtml()+comparisonHtml(entries)
+    result.innerHTML=comparisonHtml(entries)
       +displayEntries.map(entry=>entry.unavailable?unavailableSampleHtml(entry):sampleResultHtml(entry,entry.index,multiple)).join('');
     animateResultCard();
   }catch(err){
