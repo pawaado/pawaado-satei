@@ -4549,6 +4549,18 @@ window.PAWAADO_DATA.superResistances={
       18
     ]
   },
+  "超気合": {
+    "types": [
+      "弱体化状態異常耐性"
+    ],
+    "levels": [
+      28,
+      50
+    ],
+    "includes": [
+      "意志"
+    ]
+  },
   "超免疫": {
     "types": [
       "ダメージ状態異常耐性"

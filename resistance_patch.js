@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261010-worker-cache-fix-1';
+  const PATCH_VERSION='20261017-choukiai-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -245,6 +245,7 @@
     '対魔の盾',
     '戦い抜く覚悟',
     'タフネス',
+    '超気合',
     '超免疫',
     '鉄人',
     '鉄壁の盾',
