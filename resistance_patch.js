@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261017-choukiai-1';
+  const PATCH_VERSION='20261017-remove-super-note-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -118,12 +118,10 @@
       const def=superDefinition(name);
       const level=group.querySelector('.super-level')?.value;
       if(!def){
-        group.querySelector('.super-note').textContent='';
         showResistanceCalcError('超特殊能力を確認してください。');
         return false;
       }
       if(!level || names.has(name) || (def.job&&def.job!==document.getElementById('job').value)){
-        group.querySelector('.super-note').textContent='';
         showResistanceCalcError(!level?'査定が変動する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
         return false;
       }
@@ -346,7 +344,6 @@
           <button type="button" class="secondary extra-resistance-group-remove" aria-label="この超特殊能力を削除">×</button>
         </div>
       </div>
-      <p class="super-note"></p>
       <div class="extra-resistance-group-rows"></div>
     </div>`;
   }
@@ -510,8 +507,6 @@
       row.querySelector('.extra-resistance-value').value=lv?def.levels[lv-1]:'';
     });
     if(def&&lv) window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__?.(name);
-    group.querySelector('.super-note').textContent=
-      !def?.job&&def?.includes&&lv?'下位能力込みの合計値です。':'';
   }
 
   function removeSupersRequiringSpecial(specialName){

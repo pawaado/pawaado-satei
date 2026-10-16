@@ -724,7 +724,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261017-choukiai-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261017-remove-super-note-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){

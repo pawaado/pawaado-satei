@@ -99,6 +99,7 @@ assert((sources['photo_import.js'].match(/"生存本能":\[(.*?)\],"護身の構
 assert(!/IGNORED_SUPER_IMAGE_NAMES[^\n]*(?:タフネス|そよかぜの加護|鉄壁の盾)/.test(sources['photo_import.js']),'photo_import.js: variable-score supers must not remain ignored');
 assert(sources['pawaado_worker.js'].includes("if(def.job&&def.job!==job.value)continue;"),'worker must reject job-specific supers for the wrong job');
 assert(sources['resistance_patch.js'].includes('査定が変動する超特殊能力'),'variable-score super UI title missing');
+assert(!sources['resistance_patch.js'].includes('super-note')&&!sources['resistance_patch.js'].includes('下位能力込みの合計値です。'),'super-included-lower note must not appear in UI');
 assert(sources['script.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'script must expose super-to-lower ownership sync');
 assert(sources['script.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'script must remove an upper super when an included lower ability is manually removed');
 assert(sources['resistance_patch.js'].includes('__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__'),'resistance UI must expose lower-to-super removal sync');
