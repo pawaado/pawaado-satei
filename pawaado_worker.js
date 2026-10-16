@@ -339,6 +339,8 @@ function basicMilestoneTargets(current,max){
 
 function clearCalcCaches(){
   specialItemCache.clear();
+  // HP依存の下位能力の取得状態は設定ごとに変わるため、経験点計算のキャッシュも破棄する。
+  mixedHpDeltaCache.clear();
 }
 
 function itemForSpecialIndex(i,hp,includeLower=false){
