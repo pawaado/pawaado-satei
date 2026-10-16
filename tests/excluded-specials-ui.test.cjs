@@ -166,7 +166,8 @@ test('owned abilities and job-exclusive skills remain filtered',()=>{
  assert(!x.node('customSpecialName').innerHTML.includes('癒やしの心'));
  assert(!x.node('customSpecialName').innerHTML.includes('通常攻撃(双剣士)'));
  x.state.job.value='双剣士';vm.runInContext('renderCustomConditions()',x.state);
- assert(x.node('customSpecialName').innerHTML.includes('通常攻撃(双剣士)'));
+ // 双剣士の通常攻撃はLv別条件で扱うため、通常の特殊能力候補には表示しない。
+ assert(!x.node('customSpecialName').innerHTML.includes('通常攻撃(双剣士)'));
 });
 test('academy/job required to add a condition',()=>{
  const x=mock({ready:false});
