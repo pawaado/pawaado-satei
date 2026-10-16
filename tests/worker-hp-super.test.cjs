@@ -68,6 +68,38 @@ test('HP-dependent super Lv1/Lv2 rates match master data',()=>{
   }
 });
 
+test('タフネス automatically includes 忍耐 and applies 3%+7%+10% without double counting',()=>{
+  const c=loadWorker();
+  const enduranceIndex=c.PAWAADO_DATA.special.findIndex(s=>s[1]==='忍耐');
+  assert(enduranceIndex>=0);
+  assert.equal(Number(c.PAWAADO_DATA.special[enduranceIndex][11]),0.03);
+  assert.deepEqual(Array.from(c.PAWAADO_DATA.superPrerequisites['タフネス']),['忍耐']);
+  assert.deepEqual(Array.from(c.PAWAADO_DATA.superScoreRules['タフネス'].hpRates),[0.07,0.17]);
+  for(const [level,expected,upperDelta] of [[1,6.8,4.76],[2,13.6,11.56]]){
+    const result=lifeGain(c,payloadFor(c,{selectedSupers:[{name:'タフネス',level}]}));
+    assert.equal(vm.runInContext('specialOwned('+enduranceIndex+')',c),true,'下位の忍耐が取得済み');
+    assert(Math.abs((result.gain-result.base)-expected)<1e-9,'Lv.'+level+' aggregate');
+    const breakdown=vm.runInContext('ownedHpDependentBreakdown(91)',c);
+    const end=Array.from(breakdown.rows).find(x=>x.name==='忍耐');
+    const upper=Array.from(breakdown.rows).find(x=>x.name==='タフネス Lv.'+level);
+    assert(end&&upper);
+    assert(Math.abs(end.delta-2.04)<1e-9,'3% lower only');
+    assert(Math.abs(upper.delta-upperDelta)<1e-9,'upper excludes lower');
+    assert(Math.abs(breakdown.total-expected)<1e-9,'no HP double counting');
+  }
+});
+
+test('タフネス prerequisite links are reflected in manual selection and photo-import handling',()=>{
+  const source=fs.readFileSync(path.join(root,'script.js'),'utf8');
+  const ui=fs.readFileSync(path.join(root,'resistance_patch.js'),'utf8');
+  const photo=fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
+  assert(source.includes('D.superPrerequisites?.[superName]||D.superResistances?.[superName]?.includes'));
+  assert(source.includes("D.superPrerequisites?.[String(superName||'')]||D.superResistances?.[String(superName||'')]?.includes"));
+  assert(ui.includes('if(superDefinition(name)&&lv) window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__?.(name);'));
+  assert(ui.includes('const includes=D.superPrerequisites?.[superName]||D.superResistances?.[superName]?.includes||[];'));
+  assert(photo.includes('D.superPrerequisites[entry.name]||[]'));
+});
+
 test('鉄壁の盾 HP rate applies only to 重戦士',()=>{
   const c=loadWorker();
   const names=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
