@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261017-remove-super-note-1';
+  const PATCH_VERSION='20261017-toughness-endurance-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -506,7 +506,7 @@
       row.querySelector('.extra-resistance-type-label').textContent=def.types[i];
       row.querySelector('.extra-resistance-value').value=lv?def.levels[lv-1]:'';
     });
-    if(def&&lv) window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__?.(name);
+    if(superDefinition(name)&&lv) window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__?.(name);
   }
 
   function removeSupersRequiringSpecial(specialName){
@@ -518,7 +518,7 @@
     [...list.querySelectorAll('.extra-resistance-group')].forEach(group=>{
       const superName=group.querySelector('.super-name')?.value||'';
       if(!superName) return;
-      const includes=D.superResistances?.[superName]?.includes||[];
+      const includes=D.superPrerequisites?.[superName]||D.superResistances?.[superName]?.includes||[];
       if(!includes.includes(target)) return;
       group.remove();
       changed=true;
