@@ -38,13 +38,16 @@ test('超気合 is between タフネス and 超免疫 in the fixed kana-sorted s
   assert(!/["']超気合["']\s*:\s*\{[^}]*?job\s*:/.test(read('data.js')),'should not be job limited');
 });
 
-test('all worker and UI asset URLs reference the updated data',()=>{
-  const v='20261017-choukiai-1';
-  assert(read('index.html').includes('data.js?v='+v));
+test('all worker and UI asset URLs use the current cache version',()=>{
+  const patch=read('resistance_patch.js');
+  const v=patch.match(/const PATCH_VERSION='([^']+)'/)?.[1];
+  assert(v,'resistance patch version missing');
+  const dataVersion=read('pawaado_worker.js').match(/importScripts\('\.\/data\.js\?v=([^']+)'\)/)?.[1];
+  assert(dataVersion,'worker data version missing');
+  assert(read('index.html').includes('data.js?v='+dataVersion));
   assert(read('index.html').includes('resistance_patch.js?v='+v));
-  assert(read('pawaado_worker.js').includes('data.js?v='+v));
   assert(read('pawaado_worker_resistance.js').includes('pawaado_worker.js?v='+v));
-  assert(read('resistance_patch.js').includes("const PATCH_VERSION='"+v+"'"));
+  assert(read('script.js').includes('pawaado_worker.js?v='+v));
   assert(read('script.js').includes('D.superResistances?.[superName]?.includes'));
   assert(read('pawaado_worker_resistance.js').includes('if(included.has(name)) continue;'));
 });
