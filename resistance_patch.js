@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261017-toughness-endurance-1';
+  const PATCH_VERSION='20261017-toughness-cache-fix-2';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
