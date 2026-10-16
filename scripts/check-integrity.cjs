@@ -72,7 +72,8 @@ assert.equal(Number(healingHeart[13]||0),0,'data.js: 癒やしの心 magic fixed
 assert.equal(Number(healingHeart[14]||0),90,'data.js: 癒やしの心 priest fixed score must be 90');
 assert(resistanceRules&&resistanceRules.scorePerPercent&&resistanceRules.directEffects&&Array.isArray(resistanceRules.pairSources),'data.js: resistanceRules missing');
 const specialNames=new Set((data.special||[]).map(row=>String(row[1]||'')));
-assert.equal(JSON.stringify(data.superScoreRules?.['タフネス']?.hpRates),JSON.stringify([0.10,0.20]),'data.js: タフネス HP rates');
+assert.equal(JSON.stringify(data.superScoreRules?.['タフネス']?.hpRates),JSON.stringify([0.07,0.17]),'data.js: タフネス upper-only HP rates');
+assert.equal(JSON.stringify(data.superPrerequisites?.['タフネス']),JSON.stringify(['忍耐']),'data.js: タフネス lower 忍耐');
 assert.equal(JSON.stringify(data.superScoreRules?.['そよかぜの加護']?.hpRates),JSON.stringify([0.11,0.22]),'data.js: そよかぜの加護 HP rates');
 assert.equal(JSON.stringify(data.superScoreRules?.['大真面目']?.hpRates),JSON.stringify([0.06,0.10]),'data.js: 大真面目 HP rates');
 assert.equal(JSON.stringify(data.superScoreRules?.['鉄壁の盾']?.hpRates),JSON.stringify([0.10,0.20]),'data.js: 鉄壁の盾 HP rates');
@@ -88,7 +89,7 @@ assert(!sources['resistance_patch.js'].includes('window.Map=TrackedMap'),'resist
 assert(!sources['resistance_patch.js'].includes('PAWAADO_EFFECT_RULES'),'resistance_patch.js contains duplicated/dead effect rules');
 assert(!sources['resistance_patch.js'].includes('syncUsageNoteOnly'),'resistance_patch.js must not overwrite usage notes');
 assert(sources['resistance_patch.js'].includes("value=event.target.value?'2':''"),'manual super selection must default to Lv2');
-assert(sources['script.js'].includes('D.superResistances?.[superName]?.includes'),'script worker payload must include lower abilities implied by selected supers');
+assert(sources['script.js'].includes('D.superPrerequisites?.[superName]||D.superResistances?.[superName]?.includes'),'script worker payload must include lower abilities implied by selected supers');
 assert(sources['script.js'].includes('selectedSupers:selectedSuperState()'),'script worker payload must include selected variable-score supers');
 assert(sources['pawaado_worker.js'].includes('gain+=selectedSuperHpDelta(oldHp,newHp)'),'worker life gain must include selected super HP delta');
 assert(sources['pawaado_worker.js'].includes('workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[])'),'worker must apply selected super state');
