@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261017-choukiai-1');
+importScripts('./data.js?v=20261017-toughness-endurance-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -1057,6 +1057,16 @@ function __applyWorkerPayload(payload){
       });
     }
     workerSelectedSupers=normalizeSelectedSupers(payload.selectedSupers||[]);
+    // 上位超特殊能力に含まれる下位能力は取得済みとして扱う。
+    // タフネスのHP査定は上位分7%/17%と忍耐3%を別々に数える。
+    for(const entry of workerSelectedSupers){
+      for(const name of D.superPrerequisites?.[entry.name]||D.superResistances?.[entry.name]?.includes||[]){
+        const index=specialNameIndex.get(String(name));
+        if(index===undefined)continue;
+        const key=String(index),previous=getSpecialState(index);
+        specialState.set(key,{...previous,own:1});
+      }
+    }
     const custom=payload.customConditions||{};
     workerBasicRules={};
     for(const name of basicNames){
