@@ -34,7 +34,7 @@ function mock({ready=true,jobName='剣士'}={}){
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
-    dualSpecialIndex:-1,dualAttackMaster:null,customDualRequiredLevel:0,customDualForbiddenLevel:0,
+    dualSpecialIndex:D.special.findIndex(row=>row[1]==='通常攻撃(双剣士)'),dualAttackMaster:null,customDualRequiredLevel:0,customDualForbiddenLevel:0,
     currentDualAttackLevel:()=>1,dualCustomLevelAvailable:()=>false,
    limits:()=>({生命力:110,パワー:115,魔力:110,器用さ:120,耐久力:100,精神力:100}),
    specialOwned:i=>owned.has(i),document:{getElementById:node,addEventListener(){}}};
