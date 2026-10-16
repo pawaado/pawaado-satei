@@ -708,14 +708,18 @@ test('super Lv warning is emitted only when all screenshots fail to resolve it',
  assert.equal(r.supers.find(x=>x.name==='加護')?.level,null);
  assert(r.warnings.some(w=>w.includes('加護のLvを読み取れませんでした')));
 });
-test('super abilities are exact-only and never guessed from near text',()=>{
+test('super abilities preserve exact matches and flag one-character inferred names',()=>{
  const {h}=setup();
  const exact=h.cellAbility('対魔の盾','',true);
  assert.equal(exact.supers.length,1);
  assert.equal(exact.supers[0].name,'対魔の盾');
  assert.equal(exact.supers[0].confirmed,true);
  const near=h.cellAbility('対魔の楯','',true);
- assert.equal(near.supers.length,0);
+ assert.equal(near.supers.length,1);
+ assert.equal(near.supers[0].name,'対魔の盾');
+ assert.equal(near.supers[0].inferred,true);
+ assert.equal(near.supers[0].confirmed,false);
+ assert.equal(near.supers[0].level,null,'inference must not invent a level');
  assert.equal(near.candidate,true);
  assert.equal(near.suggestedSuper,'対魔の盾');
  const fakeRetsu=h.cellAbility('珠','',true);

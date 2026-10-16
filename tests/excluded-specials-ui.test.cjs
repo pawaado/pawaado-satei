@@ -35,7 +35,7 @@ function mock({ready=true,jobName='剣士'}={}){
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
    limits:()=>({生命力:110,パワー:115,魔力:110,器用さ:120,耐久力:100,精神力:100}),
-   specialOwned:i=>owned.has(i),document:{getElementById:node}};
+   specialOwned:i=>owned.has(i),document:{getElementById:node,addEventListener(){}}};
  vm.createContext(state);
  vm.runInContext(code,state);
  vm.runInContext('initCustomConditions()',state);
@@ -61,7 +61,7 @@ test('custom condition section and usage are concise',()=>{
   assert(usage[1].includes('「訓練後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せが表示されます。'));
   assert(usage[1].includes('「こだわり条件」で基本能力や特殊能力に条件を設定することもできます。'));
   assert(!usage[1].includes('「こだわり計算」では'));
-  assert(ui.includes('<h3>こだわり条件</h3>'));
+  assert(!ui.includes('<h3>こだわり条件</h3>'),'result view must not repeat the already-visible heading');
 });
 
 test('custom conditions share compact vertical spacing with the super-ability card',()=>{
@@ -245,6 +245,7 @@ test('forbidding ○ removes dependent ◎; forbidding ◎ leaves independent �
 test('payload and cache include all constraint modes',()=>{
  assert(ui.includes('basicRules:Object.fromEntries(customBasicRules)'));
  assert(ui.includes('JSON.stringify(constraintsKey)'));
- assert(ui.includes('customConditionsSummaryHtml()+comparisonHtml(entries)'));
+ assert(ui.includes('comparisonHtml(entries)'));
+  assert(!ui.includes('customConditionsSummaryHtml()+comparisonHtml(entries)'),'result should not repeat custom conditions');
  assert(!ui.includes('minimumBasics:Object.fromEntries(customMinimumBasics)'));
 });
