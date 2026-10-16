@@ -679,7 +679,7 @@ function workerSpecialState(){
   );
   const selectedSupers=new Set(selectedSuperState().map(row=>String(row.name||'')).filter(Boolean));
   for(const superName of selectedSupers){
-    for(const name of D.superResistances?.[superName]?.includes||[]){
+    for(const name of D.superPrerequisites?.[superName]||D.superResistances?.[superName]?.includes||[]){
       const index=specialNameIndex.get(String(name));
       if(index===undefined) continue;
       const key=String(index);
@@ -724,7 +724,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261017-remove-super-note-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261017-toughness-endurance-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1392,7 +1392,7 @@ function resetAll(){
 
 
 window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__=superName=>{
-  for(const name of D.superResistances?.[String(superName||'')]?.includes||[]){
+  for(const name of D.superPrerequisites?.[String(superName||'')]||D.superResistances?.[String(superName||'')]?.includes||[]){
     const index=specialNameIndex.get(String(name));
     if(index!==undefined) setSpecialOwned(index,true);
   }
@@ -1438,7 +1438,7 @@ function applyRecognizedPhotoAbilities(data,{replace=false}={}){
 
   // 確定した上位能力だけ、対応する下位能力を取得済みに補完する。
   for(const entry of confirmedSupers){
-    for(const name of D.superPrerequisites[entry.name]||D.superResistances[entry.name]?.includes||[]){
+    for(const name of D.superPrerequisites?.[entry.name]||D.superResistances?.[entry.name]?.includes||[]){
       owned.add(name);
     }
   }
