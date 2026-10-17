@@ -46,3 +46,20 @@ test('all numbers and ordering are unchanged by the display consolidation',{skip
  const before=load(fs.readFileSync(process.env.RANKINGS_BEFORE,'utf8')).c.audit,after=load().c.audit;
  for(const group of Object.keys(after.groupDefs))assert.equal(JSON.stringify(after.allItems(group)),JSON.stringify(before.allItems(group)));
 });
+
+test('target-specific fractional scores are preserved in rankings',()=>{
+ const {c}=load();
+ for(const [name,group,index] of [
+  ['対ヌメリン◎','物理職',8],
+  ['対ウンディーネ◎','魔法職',9],
+  ['対ウンディーネ◎','僧侶',10]
+ ]){
+  const ability=c.PAWAADO_DATA.special.find(row=>row[1]===name);
+  assert(ability,`missing skill: ${name}`);
+  assert.equal(ability[index],4.5,`${name}: ${group} source score`);
+  const ranked=c.audit.allItems(group).find(row=>row.ability===name);
+  assert(ranked,`missing ranking: ${name} / ${group}`);
+  assert.equal(ranked.score,4.5,`${name}: ${group} ranking score`);
+  assert.equal(ranked.eff,4.5/ranked.exp);
+ }
+});
