@@ -203,6 +203,11 @@
       {name:'精神力',academyIndex:7,cost:'mentalCost',score:'mentalScore'}
     ];
     const baseCuts=[1,10,20,30,40,50,60,70,80,90,95,100,110,120];
+    // ランキング専用の比較上限。アカデミーの育成上限や本体の計算には影響させない。
+    const rankingMaxOverrides={
+      '魔法職':{'魔力':116},
+      '僧侶':{'生命力':105,'魔力':116,'精神力':91}
+    };
 
     function rangeOf(label){
       const m=String(label||'').match(/(\d+)→(\d+)/);
@@ -257,6 +262,17 @@
       return total/width;
     }
     function basicItem(def,from,to,group){
+      // 魔力110→116は100→109と同じ1ポイントあたりの査定・必要経験点。
+      // 正本データの末尾が115までなので、ランキング表示のこの区間だけ延長する。
+      if(def.name==='魔力'&&from===110&&to===116&&(group==='魔法職'||group==='僧侶')){
+        const stepCost=costStep(def.name,D.magicCost,100);
+        const stepScore=scoreStep(D.magicMagicScore,100);
+        if(!stepCost||stepScore==null) return null;
+        const width=to-from;
+        const exp=stepCost.reduce((a,b)=>a+b,0)*width;
+        const score=stepScore*width;
+        return {ability:`${def.name} ${from}→${to}`,eff:score/exp,exp,score,type:'basic'};
+      }
       const costTable=D[def.cost];
       const scoreKey=def.scoreByGroup?def.scoreByGroup(group):def.score;
       const scoreTable=D[scoreKey];
@@ -276,7 +292,7 @@
       const maxes=maximaFor(group);
       const items=[];
       for(const def of abilityDefs){
-        const max=Number(maxes[def.name]||0);
+        const max=Math.max(Number(maxes[def.name]||0),Number(rankingMaxOverrides[group]?.[def.name]||0));
         if(max<=1) continue;
         const cuts=baseCuts.filter(v=>v<=max);
         if(cuts[0]!==1) cuts.unshift(1);
