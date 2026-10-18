@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261018-physical-magic-60-66-1');
+importScripts('./data.js?v=20261018-taterescure-caps-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -329,7 +329,7 @@ function basicMilestoneTargets(current,max){
   if(max===95 && current<95) targets.push(95);
 
   // 最大100以上の能力は100までを節目として扱う。
-  // 110→115は査定が一定のため、115は節目に含めない。
+  // 魔力110→116など100超の区間は査定が一定のため、途中の値を節目に含めない。
   if(max>=100 && current<100) targets.push(100);
 
   return [...new Set(targets)]
