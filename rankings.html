@@ -141,7 +141,7 @@
       .tab{font-size:17px;padding:11px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028b">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028c">
 </head>
 <body>
   <header class="site-header">
@@ -185,33 +185,6 @@
         <button type="button" class="skill-job-tab" data-skill-job="僧侶系統" aria-pressed="false">僧侶系統</button>
         <button type="button" class="skill-job-tab" data-skill-job="魔闘士系統" aria-pressed="false">魔闘士系統</button>
       </nav>
-      <div class="skill-rank-controls">
-        <label>スキルの種類
-          <select id="skillCategory">
-            <option value="all">すべて</option>
-            <option value="必殺技">必殺技</option>
-            <option value="アクションスキル">アクションスキル</option>
-            <option value="超特殊能力">超特殊能力</option>
-          </select>
-        </label>
-        <label>取得段階
-          <select id="skillPhase">
-            <option value="all">すべて</option>
-            <option value="single1">Lv1単体</option>
-            <option value="single2">Lv2単体（強化分）</option>
-            <option value="single3">Lv3単体（強化分）</option>
-            <option value="sum2">Lv1＋2累計</option>
-            <option value="sum3">Lv1＋2＋3累計</option>
-          </select>
-        </label>
-        <label>経験点のコツ設定
-          <select id="skillTipMode">
-            <option value="default">登録済みの表示値</option>
-            <option value="tip2">一点集中のみコツLv2</option>
-          </select>
-        </label>
-      </div>
-      <p id="skillRankingSummary" class="skill-rank-count" aria-live="polite"></p>
       <section class="ranking-card" aria-label="スキルの査定効率ランキング">
         <div id="skillRankingRoot"></div>
       </section>
@@ -405,10 +378,10 @@
     }
     function render(group){
       const items=cache[group]||(cache[group]=allItems(group));
-      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要経験点</th><th>査定</th></tr></thead><tbody>';
+      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="score"><col class="exp"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>査定</th><th>必要経験点</th></tr></thead><tbody>';
       for(const item of items){
         const neg=item.score<0?' negative':'';
-        html+=`<tr class="${item.type}${neg}"><td>${item.rank}</td><td class="name-cell">${abilityLabel(item)}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.exp,2)}</td><td>${fmt(item.score,2)}</td></tr>`;
+        html+=`<tr class="${item.type}${neg}"><td>${item.rank}</td><td class="name-cell">${abilityLabel(item)}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.score,2)}</td><td>${fmt(item.exp,2)}</td></tr>`;
       }
       html+='</tbody></table>';
       root.innerHTML=html;
@@ -420,6 +393,6 @@
   })();
   </script>
   <script src="skill_rankings_data.js?v=20261028a"></script>
-  <script src="skill_rankings.js?v=20261028b"></script>
+  <script src="skill_rankings.js?v=20261028c"></script>
 </body>
 </html>
