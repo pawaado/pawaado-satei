@@ -1038,8 +1038,8 @@ function clearCustomConditionsState(){
 function customConditionListHtml(kind){
   const entries=kind==='basic'
     ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
-    : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:D.special[i][1]+'（取得する）'}))
-      .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:D.special[i][1]+'（取得しない）'})));
+    : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:skillDisplayName(D.special[i][1])+'（取得する）'}))
+      .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:skillDisplayName(D.special[i][1])+'（取得しない）'})));
   if(kind==='special'){
     const name=String(dualAttackMaster?.skillName||'通常攻撃(双剣士)');
     if(customDualRequiredLevel)entries.push({kind:'dual-required',key:customDualRequiredLevel,label:name+' Lv.'+customDualRequiredLevel+'（取得する）'});
@@ -1075,6 +1075,7 @@ function refreshCustomChoices(){
   const special=document.getElementById('customSpecialName');
   if(!basic||!special)return;
   const ready=hasAcademyJob();
+  const specialReady=hasSpecialAccess();
   const basicSelection=basic.value;
   const specialSelection=special.value;
   if(job.value!=='双剣士'){
@@ -1095,14 +1096,14 @@ function refreshCustomChoices(){
       customForbiddenSpecials.delete(index);
     }
   }
-  const dualOptions=ready&&job.value==='双剣士'&&dualAttackMaster
+  const dualOptions=specialReady&&job.value==='双剣士'&&dualAttackMaster
     ? Array.from({length:Number(dualAttackMaster.maxLevel)-Number(dualAttackMaster.initialLevel)},
         (_,i)=>Number(dualAttackMaster.initialLevel)+i+1)
       .filter(level=>dualCustomLevelAvailable(level))
       .map(level=>'<option value="dual:'+level+'">'+escapeCustomText(dualAttackMaster.skillName+' Lv.'+level)+'</option>').join('')
     : '';
   special.innerHTML='<option value="">特殊能力を選択</option>'
-    +(ready?D.special.map((row,index)=>({name:row[1],index}))
+    +(specialReady?D.special.map((row,index)=>({name:skillDisplayName(row[1]),index}))
       .filter(({index})=>customSpecialAvailable(index))
       .map(({name,index})=>'<option value="'+index+'">'+escapeCustomText(name)+'</option>').join(''):'')
     +dualOptions;
@@ -1111,7 +1112,7 @@ function refreshCustomChoices(){
   card?.classList.toggle('is-locked',!ready);
   for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
     const el=document.getElementById(id);
-    if(el)el.disabled=!ready||isCalculating;
+    if(el)el.disabled=!(id.startsWith('customSpecial')?specialReady:ready)||isCalculating;
   }
 }
 function renderCustomConditions(){
@@ -1163,7 +1164,7 @@ function initCustomConditions(){
     renderCustomConditions();
   }
   function autoAddSpecial(){
-    if(!hasAcademyJob()||isCalculating||special.value===''||!specialMode.value)return;
+    if(!hasSpecialAccess()||isCalculating||special.value===''||!specialMode.value)return;
     const mode=specialMode.value;
     const dualMatch=/^dual:(\d+)$/.exec(special.value);
     if(dualMatch){
@@ -1367,6 +1368,7 @@ async function calc(){
       if(el.isConnected) el.disabled=wasDisabled;
     }
     job.disabled=!academy.value;
+    updateInputAvailabilityUI();
     basicNames.forEach(n=>applyBasicVisual(n));
     D.special.forEach((_,i)=>applySkillVisual(i));
     renderExp();
@@ -1437,11 +1439,15 @@ function resetAll(){
 }
 
 
-window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__=superName=>{
+function applySuperIncludedSpecials(superName){
   for(const name of D.superPrerequisites?.[String(superName||'')]||D.superResistances?.[String(superName||'')]?.includes||[]){
     const index=specialNameIndex.get(String(name));
-    if(index!==undefined) setSpecialOwned(index,true);
+    if(index!==undefined)setSpecialOwned(index,true);
   }
+}
+window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__=superName=>{
+  if(!hasSpecialAccess()){pendingSuperPrerequisites.add(String(superName||''));return;}
+  applySuperIncludedSpecials(superName);
 };
 
 window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
@@ -1460,6 +1466,11 @@ window.__PAWAADO_IMPORT_TRAINING_PHOTOS__=patterns=>{
 };
 
 function applyRecognizedPhotoAbilities(data,{replace=false}={}){
+  if(!hasSpecialAccess()){
+    pendingPhotoAbilities={data,options:{replace}};
+    return {owned:[],confirmedSupers:[],resistanceSupers:[],variableScoreSupers:[],deferred:true};
+  }
+  pendingPhotoAbilities=null;
   const owned=new Set(data.specials||[]);
   const explicitPairMarks=data.explicitPairMarks||{};
 
@@ -1516,6 +1527,10 @@ window.__PAWAADO_IMPORT_IDENTITY_ONLY__=data=>{
     if(jobsByAcademy[academyName].includes(jobName)){
       job.value=jobName;
       job.dispatchEvent(new Event('change',{bubbles:true}));
+      if(VALID_ATTRIBUTES.has(data?.attribute)){
+        attribute.value=data.attribute;
+        attribute.dispatchEvent(new Event('change',{bubbles:true}));
+      }
     }
   }
   calcResultCache.clear();
@@ -1546,6 +1561,10 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
   academy.dispatchEvent(new Event('change',{bubbles:true}));
   job.value=data.job;
   job.dispatchEvent(new Event('change',{bubbles:true}));
+  if(VALID_ATTRIBUTES.has(data.attribute)){
+    attribute.value=data.attribute;
+    attribute.dispatchEvent(new Event('change',{bubbles:true}));
+  }
 
   const hasTrainingPatterns=Array.isArray(data.trainingPatterns)&&data.trainingPatterns.length>0;
   const expRow={};
