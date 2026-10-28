@@ -201,7 +201,7 @@ test('invalid condition values do not add and clear-all resets defaults',()=>{
 test('Add buttons are absent, but both mode placeholders exist',()=>{
  for(const id of ['customAddBasic','customAddSpecial'])assert(!html.includes('id="'+id+'"'));
  assert(html.includes('<option value="">条件を選択</option>'));
- assert.equal((html.match(/<option value="">条件を選択<\/option>/g)||[]).length,2,'both basic and special modes show 条件を選択');
+ assert.equal((html.match(/<option value="">条件を選択<\/option>/g)||[]).length,3,'basic, special and candidate skill modes show 条件を選択');
 });
 test('mutually exclusive special abilities disappear after either one is required and return when removed',()=>{
  for(const pair of mutualGroups){
