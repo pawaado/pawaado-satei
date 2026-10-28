@@ -110,5 +110,6 @@ test('life-dependent candidate score responds to life level changes',()=>{
  })()`,c);
  assert(result,'Toughness must be a calculable candidate');
  assert(result.delta>0);
- assert(Math.abs(result.delta/result.rate-(c.currentHpForLife?1:1))>=0);
+ assert(Math.abs(result.rate-0.07)<1e-9);
+ assert(Math.abs(result.delta-4.76)<1e-9,'HP 68 increase should add 7% to Toughness owned appraisal');
 });
