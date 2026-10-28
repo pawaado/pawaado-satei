@@ -84,7 +84,7 @@ function addResistanceSource(byType,type,sourceName,value){
   const key=String(sourceName);
   sources.set(key,Number(sources.get(key)||0)+Number(value));
 }
-function resistanceSourcesForBits(bits){
+function resistanceSourcesForBits(bits,candidateBits=0n){
   const byType=new Map();
   const activeBits=bits??EMPTY_BITS;
 
@@ -99,6 +99,19 @@ function resistanceSourcesForBits(bits){
   });
 
   const included=new Set(workerExtraResistances.flatMap(row=>D.superResistances?.[row.name]?.includes||[]));
+  for(const entry of workerSkillCandidates){
+    if(!entry.def.resistance||((candidateBits||0n)&(1n<<BigInt(entry.id)))===0n)continue;
+    const def=D.superResistances?.[entry.name];
+    const values=def?.levels||[];
+    for(const type of def?.types||[]){
+      addResistanceSource(byType,type,'candidate:'+entry.name,values[entry.level-1]||0);
+    }
+    for(const [type,value] of Object.entries(entry.def.levels[entry.level-1].effect||{})){
+      if(!(def?.types||[]).includes(type))
+        addResistanceSource(byType,type,'candidate:'+entry.name,value);
+    }
+    for(const name of def?.includes||[])included.add(name);
+  }
   for(const pair of RESISTANCE_PAIR_SOURCES){
     if(included.has(pair.upper)) continue;
     const lowerIndex=specialNameIndex.get(pair.lower)??-1;
@@ -119,12 +132,13 @@ function resistanceSourcesForBits(bits){
   }
   return byType;
 }
-function resistanceScoreForBits(bits){
-  // 耐性に無関係な特殊能力ビットは捨ててキャッシュを共有する。
-  const cacheKey=(bits??EMPTY_BITS)&resistanceRelevantMask();
+function resistanceScoreForBits(bits,candidateBits=0n){
+  // 耐性効果がある特殊能力と、未取得候補の取得状態を合わせてキャッシュする。
+  const relevant=(bits??EMPTY_BITS)&resistanceRelevantMask();
+  const cacheKey=relevant.toString(36)+':'+(candidateBits||0n).toString(36);
   if(resistanceScoreCache.has(cacheKey)) return resistanceScoreCache.get(cacheKey);
   let total=0;
-  const byType=resistanceSourcesForBits(cacheKey);
+  const byType=resistanceSourcesForBits(relevant,candidateBits);
   for(const [type,sources] of byType){
     let remaining=1;
     for(const value of sources.values()) remaining*=1-Number(value)/100;
@@ -152,15 +166,25 @@ function staticResistanceScoreForItems(items,relevantBits=null){
   staticResistanceScoreCache.set(cacheKey,total);
   return total;
 }
-function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
+function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore,candidateBits=0n){
   const relevantMask=resistanceRelevantMask();
   const opRelevant=(opBits??EMPTY_BITS)&relevantMask;
   // 耐性影響能力を含まない候補は従来査定をそのまま返す。
   if(opRelevant===EMPTY_BITS) return Number(staticScore||0);
   const nonResistance=Number(staticScore||0)-staticResistanceScoreForItems(items,opRelevant);
-  const before=resistanceScoreForBits(beforeBits??EMPTY_BITS);
-  const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|opRelevant);
+  const before=resistanceScoreForBits(beforeBits??EMPTY_BITS,candidateBits);
+  const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|opRelevant,candidateBits);
   return nonResistance+(after-before);
+}
+function dynamicCandidateSkillGain(beforeBits,candidateBits,requiredBits,entry,items){
+  const nextBit=1n<<BigInt(entry.id);
+  const before=resistanceScoreForBits(beforeBits||0n,candidateBits||0n);
+  const after=resistanceScoreForBits((beforeBits||0n)|(requiredBits||0n),(candidateBits||0n)|nextBit);
+  let nominal=0;
+  for(const [type,value] of Object.entries(entry.def.levels[entry.level-1].effect||{})){
+    nominal+=Number(value||0)*Number(RESISTANCE_SCORE_RATES[type]||0);
+  }
+  return (after-before)-nominal-staticResistanceScoreForItems(items);
 }
 // --- end resistance-aware scoring patch ---`;
 
@@ -192,7 +216,7 @@ function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore){
       isHpDependent:specialOptionIsHpDependent(op0)
     });`,
 `    const cs=op0.costSum??costSum(op0.cost);
-    const gain=dynamicSpecialGainForBits(st.bits??EMPTY_BITS,opBits,op0.items,Number(op0.score||0));
+    const gain=dynamicSpecialGainForBits(st.bits??EMPTY_BITS,opBits,op0.items,Number(op0.score||0),st.candidateBits||0n);
     if(gain<=0) continue;
     const eff=gain/Math.max(1,cs);
     out.push({
