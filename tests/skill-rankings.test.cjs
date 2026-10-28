@@ -102,3 +102,70 @@ test('skill names remain on one line while efficiency and score remain visible t
  const widthBudget=[...('ウォータープロテクション')].length*13 + 30 + 2 + 4;
  assert(widthBudget<=calc.name,'12-character name plus right-side Lv fits the 196px column at 13px');
 });
+
+function rowForSkill(html,name,level){
+ const escaped=String(name).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ const rows=html.match(/<tr class="[^"]*">[\s\S]*?<\/tr>/g)||[];
+ return rows.find(row=>row.includes('title="'+name+'"') && row.includes('<span class="skill-level">Lv'+level+'<span'))||'';
+}
+test('normalizes every skill cost to super tip1 and finisher/action tip0 without mutating source data',()=>{
+ const {context,elements,jobButtons}=load();
+ const master=context.PAWAADO_DATA.skillRankings;
+ const byCategory={};
+ for(const skill of master.skills){
+  const tip=skill.category==='超特殊能力'?1:0;
+  for(const level of skill.levels){
+   byCategory[skill.category]??={same:0,converted:0};
+   byCategory[skill.category][level.tip===tip?'same':'converted']++;
+  }
+ }
+ assert(byCategory['超特殊能力'].converted>0);
+ assert(byCategory['アクションスキル'].converted>0);
+ assert(byCategory['必殺技'].converted>0);
+ const original=JSON.stringify(master.skills);
+ for(const button of jobButtons){
+  button.click();
+  const html=elements.skillRankingRoot.innerHTML;
+  for(const skill of master.skills){
+   if(!skill.jobs.some(job=>({剣士系統:['剣士','双剣士'],重戦士系統:['重戦士'],弓使い系統:['弓使い'],魔法使い系統:['魔法使い'],僧侶系統:['僧侶'],魔闘士系統:['魔闘士']}[button.dataset.skillJob]||[]).includes(job)))continue;
+   for(const lv of skill.levels){
+    const row=rowForSkill(html,skill.name,lv.lv);
+    if(!row)continue; // unranked or duplicate class rows can still be checked independently
+    const target=skill.category==='超特殊能力'?1:0;
+    const ratio={0:1,1:.5,2:.4};
+    const normalized=lv.cost.map(x=>Math.round(x*ratio[target]/ratio[lv.tip]));
+    const cost=normalized.reduce((sum,n)=>sum+n,0);
+    assert(row.includes('<td class="skill-rank-exp">'+cost+'</td>'),skill.name+' Lv'+lv.lv+' / '+button.dataset.skillJob);
+    assert(row.includes('コツLv：'+target+'（ランキング比較条件'),'tip '+skill.name);
+    if(lv.tip!==target)assert(row.includes('（換算値・参考）'),skill.name+' must mark estimated cost');
+    else assert(!row.includes('（換算値・参考）'),skill.name+' has directly observed cost');
+   }
+  }
+ }
+ assert.equal(JSON.stringify(master.skills),original,'rendering must not rewrite the canonical observed costs/tips');
+});
+test('fixed finishers use un-discounted cost in efficiency, super Lv2 tips normalize to Lv1',()=>{
+ const {context,elements,jobButtons}=load();
+ const dataset=context.PAWAADO_DATA.skillRankings.skills;
+ const gale=dataset.find(s=>s.name==='ゲイルシュート');
+ assert(gale&&gale.category==='必殺技'&&gale.levels[0].tip===1);
+ jobButtons[0].click();
+ const rendered=rowForSkill(elements.skillRankingRoot.innerHTML,'ゲイルシュート',1);
+ const undiscounted=gale.levels[0].cost.reduce((sum,n)=>sum+n*2,0);
+ const assessment=gale.levels[0].scores['剣士'][0];
+ assert(rendered.includes('<td class="skill-rank-exp">'+undiscounted+'</td>'));
+ assert(rendered.includes('<td class="skill-rank-eff">'+(assessment/undiscounted).toFixed(3)+'</td>'));
+ const rescuer=dataset.find(s=>s.name==='救援者');
+ assert(rescuer&&rescuer.levels[0].tip===2);
+ const targetCost=rescuer.levels[0].cost.reduce((sum,n)=>sum+Math.round(n*1.25),0);
+ let found='';
+ for(const b of jobButtons){
+  b.click();const row=rowForSkill(elements.skillRankingRoot.innerHTML,'救援者',1);
+  if(row){found=row;break;}
+ }
+ assert(found.includes('<td class="skill-rank-exp">'+targetCost+'</td>'));
+ assert(found.includes('コツLv：1（ランキング比較条件／元データはコツLv2）'));
+ const notes=file('rankings.html');
+ assert(notes.includes('超特殊能力はコツLv1、必殺技・アクションスキルはコツLv0'));
+ assert(notes.includes('端数のため実際の表示値とは異なる可能性があります。'));
+});
