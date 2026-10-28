@@ -180,7 +180,7 @@ test('life-dependent candidate score responds to life level changes',()=>{
  if(!op)return null;
  const after=mixedApplyAction(st,op);
  const before=after.levels[0],next=before+1;
- return {op,delta:workerCandidateHpDelta(after.candidateBits,currentHpForLife(before),currentHpForLife(next)),
+ return {op,delta:workerCandidateHpDelta(after.candidateBits,currentHpForLife(before),currentHpForLife(next),after.candidateLevels),
  rate:selectedSuperHpRate({name:'タフネス',level:1})};
  })()`,c);
  assert(result,'Toughness must be a calculable candidate');
