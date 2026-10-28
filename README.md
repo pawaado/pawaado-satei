@@ -26,6 +26,7 @@ GitHub Pages で公開している査定ツールの保守メモです。
 - **`data.js` の `window.PAWAADO_DATA.skillRankings.skills` が正本**。スキルを追加・訂正するときはこの配列だけを編集する。ランキングの行・査定効率・順位は `skill_rankings.js` がページ表示時に計算する。`rankings.html` へ数値を直書きしない。
 - `skills[]` の各要素は `name`（スキル名）、`category`（必殺技／アクションスキル／超特殊能力）、`kind`、`jobs`（取得ジョブ）、`attribute`（属性）、`levels` などを持つ。
 - `levels[].cost` はそのLvに**追加で必要な**経験点 `[筋力,敏捷,技術,知力,精神]`、`levels[].scores[ジョブ]` は `[そのLvの追加査定, そのLvまでの累計査定]`。ランキングは追加経験点と追加査定から計算する。取得条件 `condition`、コツLv `tip` も同じ場所で更新する。
+- スキルランキングの比較基準は**超特殊能力：コツLv1、必殺技・アクションスキル：コツLv0**。画像から確定した `levels[].cost` / `tip` は原データとして変えず、`skill_rankings.js` の `rankingCost` で必要経験点だけ換算して査定効率・並び順を算出。現在のコツLv1（50%OFF）→Lv0は2倍、コツLv2（60%OFF）→Lv1は1.25倍を端数四捨五入して概算。換算値の確定が必要なら実機の目的コツLv画像を取得して正本に補完すること。
 - HP依存の超特殊能力だけは `data.js` の `superScoreRules` と生命力90時点の `hp` を計算に使用する。耐性等の既存ルールを不用意に別ファイルへ複製しない。
 - 旧 `skill_rankings_data.js` は古い公開画面向けの**未使用スナップショット**。今後の更新対象にしない。変更後は `index.html` と `rankings.html` の `data.js?v=` のキャッシュ版を揃えて更新する。
 
