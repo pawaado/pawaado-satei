@@ -19,20 +19,21 @@
 #skillRankingRoot .eff-col{width:82px}
 #skillRankingRoot .exp-col{width:102px}
 #skillRankingRoot .score-col{width:74px}
-#skillRankingRoot th{font-size:12px;padding:9px 3px;white-space:normal;line-height:1.3}
+#skillRankingRoot th{font-size:13px;padding:9px 3px;white-space:normal;line-height:1.3}
 #skillRankingRoot td{font-size:12px;padding:9px 5px;line-height:1.4;vertical-align:middle}
 #skillRankingRoot td.skill-rank-num{text-align:center;font-weight:900}
 #skillRankingRoot td.skill-rank-eff,#skillRankingRoot td.skill-rank-exp,#skillRankingRoot td.skill-rank-score{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
 #skillRankingRoot td.skill-rank-eff{font-size:14px}
+#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px}
 /* iPhoneの横スクロール中も順位と名称を見失わないよう左2列を固定 */
 #skillRankingRoot th:first-child,#skillRankingRoot td.skill-rank-num{position:sticky;left:0;z-index:2}
 #skillRankingRoot th:nth-child(2),#skillRankingRoot td.skill-name-cell{position:sticky;left:45px;z-index:2}
 #skillRankingRoot th:first-child,#skillRankingRoot th:nth-child(2){z-index:3;background:#a84834}
 
 /* 3色は名称欄のみ。数値のセルは共通の白背景。 */
-#skillRankingRoot tr.skill-category-finisher td.skill-name-cell{background:#f8c9da;border-left:4px solid #ca6291}
-#skillRankingRoot tr.skill-category-action td.skill-name-cell{background:#c8e8f8;border-left:4px solid #3985ab}
-#skillRankingRoot tr.skill-category-super td.skill-name-cell{background:#ffe39b;border-left:4px solid #d4a12a}
+#skillRankingRoot tr.skill-category-finisher td.skill-name-cell{background:#f8c9da}
+#skillRankingRoot tr.skill-category-action td.skill-name-cell{background:#c8e8f8}
+#skillRankingRoot tr.skill-category-super td.skill-name-cell{background:#ffe39b}
 #skillRankingRoot .skill-name-cell{padding:7px 5px}
 .skill-name-cell summary{list-style:none;cursor:pointer;display:block;min-width:0}
 .skill-name-cell summary::-webkit-details-marker{display:none}
