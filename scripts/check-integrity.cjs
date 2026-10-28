@@ -63,7 +63,8 @@ assert(sources['photo_import.js'].includes('s.level=null;'),'photo_import.js: co
 assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
 assert(!sources['rankings.html'].includes("['火攻撃','風攻撃','水攻撃']"),'rankings.html: abandoned elemental expansion returned');
 assert(!sources['rankings.html'].includes('コツLv0で比較しています'),'rankings.html: removed hint-level note returned');
-assert(sources['rankings.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'rankings.html: generic elemental attack note missing');
+assert(!sources['rankings.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'rankings.html: generic elemental attack note must be removed');
+assert(sources['rankings.html'].includes("const names=name==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[name];"),'rankings.html: elemental attacks must be expanded in 火→風→水 order');
 const healingHeart=(data.special||[]).find(row=>String(row[1])==='癒やしの心');
 assert(healingHeart,'data.js: 癒やしの心 missing');
 assert.equal(Number(healingHeart[11]),0.01,'data.js: 癒やしの心 HP rate must be 1%');
