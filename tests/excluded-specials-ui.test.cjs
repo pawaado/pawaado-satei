@@ -17,7 +17,7 @@ vm.runInNewContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),dataContext
 const D=dataContext.window.PAWAADO_DATA;
 const mutualGroups=vm.runInNewContext(ui.match(/const mutualGroups=(\[[\s\S]*?\]);/)[1]);
 function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
- const dom={},owned=new Set();
+ const dom={},owned=new Set(),candidates=new Map();
  const node=id=>{
    if(dom[id])return dom[id];
    const obj={id,value:'',hidden:true,innerHTML:'',textContent:'',handlers:{},disabled:false,
@@ -31,7 +31,9 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
  ids.forEach(node);
  node('basic_生命力').value='90';
  const state={D,customBasicRules:new Map(),customRequiredSpecials:new Set(),customForbiddenSpecials:new Set(),
-   candidateSkills:new Map(),candidateSkillConditions:new Map(),candidateChoiceList:()=>[],
+   candidateSkills:candidates,candidateSkillConditions:new Map(),candidateChoiceList:()=>[...candidates.values()],
+    skillByName:new Map(D.skillRankings.skills.map(x=>[x.name,x])),
+    candidateOptionLabel:(skill,level)=>skill.name+' Lv.'+level,
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
@@ -53,6 +55,39 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
 
  return {state,dom,node,owned,click,change,enter};
 }
+test('custom conditions show required-only candidate skill selector after basic and special groups',()=>{
+ const begin=html.indexOf('id="customCalcCard"'),end=html.indexOf('</section>',begin);
+ const section=html.slice(begin,end);
+ const basic=section.indexOf('<h3>基本能力</h3>');
+ const special=section.indexOf('<h3>特殊能力</h3>');
+ const skill=section.indexOf('<h3>必殺技等</h3>');
+ assert(basic>=0&&special>basic&&skill>special);
+ assert(section.includes('id="customSkillName"'));
+ assert(section.includes('id="customSkillNameSelectButton"'));
+ assert(section.includes('id="customSkillNameCustomMenu"'));
+ assert(section.includes('>必殺技等を選択</span>'));
+ assert(section.includes('class="custom-skill-required"'));
+ assert(section.includes('>取得する</span>'));
+ assert(!section.includes('id="customSkillMode"'));
+ const x=mock();
+ assert.equal(x.node('customSkillName').disabled,true,'no selected candidate means unavailable');
+ assert(!x.node('customSkillName').innerHTML.includes('ウィンドプロテクション'));
+ const chosen={name:'ウィンドプロテクション',level:1,minLevel:1,hint:1};
+ x.state.candidateSkills.set(chosen.name,chosen);
+ vm.runInContext('renderCustomConditions()',x.state);
+ assert.equal(x.node('customSkillName').disabled,false);
+ assert(x.node('customSkillName').innerHTML.includes('ウィンドプロテクション'));
+ x.node('customSkillName').value=chosen.name;x.change('customSkillName');
+ assert.equal(x.state.candidateSkillConditions.get(chosen.name),'required');
+ assert(x.node('custom-skill-list').innerHTML.includes('取得する'));
+ assert(x.node('customSkillName').disabled,true,'already constrained candidate is not listed again');
+ x.click('remove',{kind:'skill',key:chosen.name});
+ assert.equal(x.node('customSkillName').disabled,false);
+ assert.equal(x.state.candidateSkillConditions.size,0);
+ const cssText=css;
+ assert(cssText.includes('.custom-skill-inputs .custom-select-button{'));
+ assert(cssText.includes('.custom-skill-required{'));
+});
 test('custom condition section and usage are concise',()=>{
   assert(html.includes('<h2 id="customCalcTitle">こだわり条件</h2>'));
   assert(/id="customBasicValue"[^>]*type="number"[^>]*aria-label="基本能力の指定値"/.test(html));
