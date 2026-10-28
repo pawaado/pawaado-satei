@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 function load(html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8'),data=true){
- const elements={rankingRoot:{innerHTML:''},referenceHpNote:{textContent:''},skillReferenceHpNote:{textContent:''}};
+ const elements={rankingRoot:{innerHTML:''}};
  const tabs=['物理職','魔法職','僧侶'].map(group=>({dataset:{group},attrs:{},setAttribute(k,v){this.attrs[k]=v},addEventListener(t,fn){this.click=fn}}));
  const c={document:{getElementById:id=>elements[id],querySelectorAll:()=>tabs},scrollTo(){}};c.window=c;vm.createContext(c);
  if(data)vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
@@ -34,8 +34,11 @@ test('resistance-impact markers are derived from canonical data rules',()=>{
  const expected=new Set([...(rules.pairSources||[]).flatMap(x=>[x.lower,x.upper]),...Object.keys(rules.directEffects||{})]);
  assert.deepEqual([...c.audit.resistanceImpactSkills].sort(),[...expected].sort());
 });
-test('HP note is derived from master data and missing data reports an error',()=>{
- const {c,elements}=load();assert.equal(c.audit.referenceHp,1925);assert(elements.referenceHpNote.textContent.includes('HP1925'));assert(elements.skillReferenceHpNote.textContent.includes('HP1925'));assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
+test('HP-based rankings still use the canonical HP 1925 without displaying an HP reference note',()=>{
+ const {c}=load();assert.equal(c.audit.referenceHp,1925);
+ const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ assert(!html.includes('referenceHpNote'));assert(!html.includes('skillReferenceHpNote'));
+ assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
 });
 test('ranking notes use the generic elemental attack explanation and omit the hint-level note',()=>{
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
@@ -62,4 +65,19 @@ test('target-specific fractional scores are preserved in rankings',()=>{
   assert.equal(ranked.score,4.5,`${name}: ${group} ranking score`);
   assert.equal(ranked.eff,4.5/ranked.exp);
  }
+});
+
+test('both ranking note blocks use the requested resistance wording',()=>{
+ const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ assert(html.includes('耐性に影響する特殊能力は、他の耐性に影響するものを除いた状態で計算しています。'));
+ assert(html.includes('耐性に影響する超特殊能力は、他の耐性に影響するものを除いた状態で計算しています。'));
+ assert(!html.includes('重戦士のジョブ固有耐性を含めず'));
+ assert(!html.includes('重戦士の固有耐性や他の耐性系能力'));
+});
+test('skill ranking table font sizes match the basic ranking table',()=>{
+ const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
+ assert(html.includes('td{font-size:13px;background:#fff}'));
+ assert(html.includes('font-size:13px;') && css.includes('#skillRankingRoot th{font-size:13px;'));
+ for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{font-weight:600;font-size:13px;', '.skill-level{font-weight:600;white-space:nowrap;font-size:13px;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
 });
