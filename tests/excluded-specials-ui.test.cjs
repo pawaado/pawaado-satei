@@ -27,10 +27,11 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
    dom[id]=obj;return obj;
  };
  const ids=['customCalcCard','customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode',
-   'customClearAll','customCalcMessage','custom-basic-list','custom-special-list'];
+   'customClearAll','customCalcMessage','custom-basic-list','custom-special-list','custom-skill-list','customSkillName','customSkillMode'];
  ids.forEach(node);
  node('basic_生命力').value='90';
  const state={D,customBasicRules:new Map(),customRequiredSpecials:new Set(),customForbiddenSpecials:new Set(),
+   candidateSkills:new Map(),candidateSkillConditions:new Map(),candidateChoiceList:()=>[],
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
@@ -58,7 +59,7 @@ test('custom condition section and usage are concise',()=>{
   assert(/id="customBasicValue"[^>]*placeholder="数値"/.test(html));
   const usage=html.match(/<ol class="usage-list">([\s\S]*?)<\/ol>/);
   assert(usage,'usage list exists');
-  assert.equal((usage[1].match(/<li>/g)||[]).length,3,'usage has three steps');
+  assert.equal((usage[1].match(/<li>/g)||[]).length,4,'usage adds skill candidates as one additional step');
   assert(usage[1].includes('「計算する」を押すと、査定が最大となる組合せが表示されます。'));
   assert(usage[1].includes('各訓練後の経験点パターンにて比較できます。'));
   assert(usage[1].includes('「訓練後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せが表示されます。'));
