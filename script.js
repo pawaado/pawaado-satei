@@ -1250,7 +1250,7 @@ function sampleResultHtml(entry,index,multiple=false){
     ${headerHtml}
     <div class="result-block"><h3>基本能力</h3>${resultTable(finalItems,'basic')}</div>
     <div class="result-block"><h3>${job.value==='双剣士'?'特殊能力等':'特殊能力'}</h3>${resultTable(finalItems,'special')}</div>
-    <div class="result-block"><h3>必殺技・アクションスキル・超特殊能力</h3>${resultTable(finalItems,'candidate')}</div>
+    ${candidateChoiceList().length||candidateSkillConditions.size?`<div class="result-block"><h3>必殺技・アクションスキル・超特殊能力</h3>${resultTable(finalItems,'candidate')}</div>`:''}
     <div class="result-block score-result-block"><h3>査定上昇量</h3><span class="score-gain">${scoreText}</span></div>
     <div class="result-block"><h3>残経験点</h3><div class="remain-grid">${remainHtml}</div></div>
   </div>`;
