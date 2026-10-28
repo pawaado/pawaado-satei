@@ -1062,12 +1062,19 @@ function resultTable(items,kind){
     filtered=filtered.filter(x=>{const ui=upperIndex(x.idx); return !(ui>=0 && (chosenBits & specialBit(ui))!==EMPTY_BITS);});
   }else if(kind==='basic'){
     filtered=mergeBasicResultItems(filtered);
+  }else if(kind==='candidate'){
+    const last=new Map();
+    for(const entry of filtered){
+      if(!last.has(entry.name)||Number(entry.level)>Number(last.get(entry.name).level))
+        last.set(entry.name,entry);
+    }
+    filtered=[...last.values()];
   }
 
   if(!filtered.length) return '<p class="result-empty"><strong>追加なし</strong></p>';
 
   const sorted=filtered.sort((a,b)=>(a.idx??0)-(b.idx??0));
-  const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from} → ${c.to}`:kind==='candidate'?escapeCustomText(c.name+' Lv'+c.level):renderSkillName(c.name)}</td></tr>`).join('');
+  const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from} → ${c.to}`:kind==='candidate'?escapeCustomText(candidateHasLevels(skillByName.get(c.name))?c.name+' Lv.'+c.level:c.name):renderSkillName(c.name)}</td></tr>`).join('');
   const tableClass=kind==='basic'?'basic-result-table':'special-result-table';
   return `<table class="result-table ${tableClass}"><tbody>${rows}</tbody></table>`;
 }
@@ -1247,7 +1254,7 @@ function customConditionListHtml(kind){
     ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
     : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:skillDisplayName(D.special[i][1])+'（取得する）'}))
       .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:skillDisplayName(D.special[i][1])+'（取得しない）'})));
-  if(kind==='skill')return [...candidateSkillConditions.entries()].map(([name,mode])=>({key:name,label:name+' Lv'+candidateSkills.get(name)?.level+'（'+(mode==='required'?'取得する':'取得しない')+'）'}))
+  if(kind==='skill')return [...candidateSkillConditions.entries()].map(([name,mode])=>({key:name,label:candidateOptionLabel(skillByName.get(name),candidateSkills.get(name)?.level)+'（'+(mode==='required'?'取得する':'取得しない')+'）'}))
     .map(x=>'<li><span>'+escapeCustomText(x.label)+'</span><button type="button" class="custom-condition-remove" data-kind="skill" data-key="'+escapeCustomText(x.key)+'">×</button></li>').join('');
   if(kind==='special'){
     const name=String(dualAttackMaster?.skillName||'通常攻撃(双剣士)');
@@ -1324,7 +1331,7 @@ function refreshCustomChoices(){
     const selected=skillSelect.value;
     skillSelect.innerHTML='<option value="">取得候補を選択</option>'+candidateChoiceList()
       .filter(x=>!candidateSkillConditions.has(x.name))
-      .map(x=>'<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(x.name)+' Lv'+x.level+'</option>').join('');
+      .map(x=>'<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(candidateOptionLabel(skillByName.get(x.name),x.level))+'</option>').join('');
     skillSelect.value=selected;
     skillSelect.disabled=!ready||isCalculating;
     skillMode.disabled=!ready||isCalculating;
