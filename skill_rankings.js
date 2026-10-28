@@ -1,7 +1,7 @@
-/* 査定効率ランキング：スキル系6系統／Lv別。2026-10-28の統合マスターを使用。 */
+/* 査定効率ランキング：スキル系6系統／Lv別。ゲームデータ正本 data.js を直接参照。 */
 (()=>{
   'use strict';
-  const dataset=window.PAWAADO_SKILL_RANKING_DATA;
+  const dataset=window.PAWAADO_DATA?.skillRankings;
   const baseView=document.getElementById('basicRankingView');
   const skillView=document.getElementById('skillRankingView');
   const modeButtons=[...document.querySelectorAll('[data-ranking-mode]')];
