@@ -104,7 +104,7 @@
     const {ranked,unranked}=getRows();
     let html='<table class="skill-rank-table"><colgroup><col class="rank-col"><col class="name-col"><col class="eff-col"><col class="score-col"><col class="exp-col"><col class="notes-col"></colgroup><thead><tr><th>順位</th><th>名称</th><th>査定効率</th><th>査定</th><th>必要経験点</th><th>備考</th></tr></thead><tbody>';
     ranked.forEach((row,i)=>html+=tr(row,i+1));
-    if(unranked.length){html+=`<tr class="skill-separator"><td colspan="6">条件依存・査定未確定（順位対象外） ${unranked.length}件</td></tr>`;unranked.forEach(row=>html+=tr(row,null));}
+    if(unranked.length){html+=`<tr class="skill-separator"><td colspan="5">条件依存・査定未確定（順位対象外） ${unranked.length}件</td></tr>`;unranked.forEach(row=>html+=tr(row,null));}
     html+='</tbody></table>';
     root.innerHTML=ranked.length||unranked.length?html:'<div class="skill-empty">この条件に該当するスキルはありません。</div>';
     jobButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.skillJob===currentGroup)));
