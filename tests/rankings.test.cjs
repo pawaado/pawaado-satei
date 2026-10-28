@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 function load(html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8'),data=true){
- const elements={rankingRoot:{innerHTML:''},referenceHpNote:{textContent:''}};
+ const elements={rankingRoot:{innerHTML:''},referenceHpNote:{textContent:''},skillReferenceHpNote:{textContent:''}};
  const tabs=['物理職','魔法職','僧侶'].map(group=>({dataset:{group},attrs:{},setAttribute(k,v){this.attrs[k]=v},addEventListener(t,fn){this.click=fn}}));
  const c={document:{getElementById:id=>elements[id],querySelectorAll:()=>tabs},scrollTo(){}};c.window=c;vm.createContext(c);
  if(data)vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c);
@@ -35,7 +35,7 @@ test('resistance-impact markers are derived from canonical data rules',()=>{
  assert.deepEqual([...c.audit.resistanceImpactSkills].sort(),[...expected].sort());
 });
 test('HP note is derived from master data and missing data reports an error',()=>{
- const {c,elements}=load();assert.equal(c.audit.referenceHp,1925);assert(elements.referenceHpNote.textContent.includes('HP1925'));assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
+ const {c,elements}=load();assert.equal(c.audit.referenceHp,1925);assert(elements.referenceHpNote.textContent.includes('HP1925'));assert(elements.skillReferenceHpNote.textContent.includes('HP1925'));assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
 });
 test('ranking notes use the generic elemental attack explanation and omit the hint-level note',()=>{
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
