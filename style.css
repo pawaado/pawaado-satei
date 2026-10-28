@@ -942,14 +942,22 @@ img,svg,canvas{max-width:100%}
   .extra-resistance-value{font-size:14px}
 }
 
-/* 未取得の必殺技・アクション・超特殊能力を計算候補にする。 */
-.skill-candidate-note{margin:0 0 13px;font-size:13px;line-height:1.6;color:var(--ink)}
+/* 未取得候補：査定変動超特殊能力と同じカスタムセレクトを共用する。 */
+.skill-candidates-card{overflow:visible}
+.skill-candidates-card:has(.custom-select-control.is-open){z-index:500}
 .skill-candidate-controls{display:grid;gap:10px}
-.skill-candidate-controls label{display:grid;gap:5px;font-weight:700;font-size:14px;color:var(--theme-accent-dark)}
-.skill-candidate-controls label select,.custom-skill-inputs select{width:100%;min-width:0}
-.skill-candidate-controls-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.skill-candidate-name-control .custom-select-button{min-height:52px;height:52px;font-size:clamp(13px,3.6vw,15px)}
+.skill-candidate-name-control .custom-select-menu{width:min(360px,calc(100vw - 28px));min-width:100%;max-width:calc(100vw - 28px);left:0;right:auto;max-height:min(430px,65vh)}
+.skill-candidate-name-control .custom-select-option{font-size:14px;white-space:normal;overflow-wrap:anywhere;min-height:38px;padding:8px 6px;line-height:1.35}
+.skill-candidate-name-control .custom-select-option::before{width:1.2em;margin-right:0}
+.custom-select-group-heading{position:sticky;top:-6px;z-index:1;margin:6px -1px 4px;padding:8px 12px;color:#ffeba9;font-size:14px;font-weight:800;letter-spacing:.04em;background:#4b3b2b;border-bottom:1px solid #b58a52;pointer-events:none}
+.skill-candidate-hint-row{display:grid;grid-template-columns:65px minmax(0,1fr);gap:8px;align-items:center}
+.skill-candidate-hint-row label{font-size:14px;font-weight:800;color:var(--theme-accent-dark)}
+.skill-candidate-hint-control .custom-select-button{min-height:52px;height:52px;font-size:15px}
+.skill-candidate-hint-control .custom-select-menu{width:100%;min-width:100%;left:0;right:auto}
 .skill-candidate-controls #skillCandidateAdd{width:100%;min-height:45px}
 .skill-candidate-message{margin:7px 0;color:#a53b25;font-size:13px;line-height:1.5}
+.skill-candidate-message:empty{display:none}
 #skillCandidateList{margin-top:10px}
 .custom-skill-inputs{display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:8px}
 #customSkillName,#customSkillMode{min-width:0;max-width:100%;font-size:13px}
