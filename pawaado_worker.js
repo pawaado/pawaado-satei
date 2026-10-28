@@ -1138,6 +1138,7 @@ function __workerPayloadConfigKey(payload){
   return JSON.stringify([
     String(payload.academy||''),
     String(payload.job||''),
+    String(payload.attribute||''),
     dualPart,
     basicPart,
     specialPart,
