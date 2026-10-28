@@ -44,12 +44,25 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  const idx=html.indexOf('id="skillCandidatesCard"');
  const custom=html.indexOf('id="customCalcCard"');
  assert(idx>0&&custom>idx);
- for(const id of ['skillCandidateName','skillCandidateLevel','skillCandidateHint','skillCandidateAdd',
+ for(const id of ['skillCandidateName','skillCandidateNameSelectButton','skillCandidateNameCustomMenu',
+  'skillCandidateHint','skillCandidateHintSelectButton','skillCandidateHintCustomMenu','skillCandidateAdd',
   'skillCandidateList','customSkillName','customSkillMode','custom-skill-list'])
   assert(html.includes('id="'+id+'"'),id);
+ assert(!html.includes('class="skill-candidate-note"'),'no explanation paragraph under heading');
+ assert(!html.includes('id="skillCandidateLevel"'),'ability level is part of the name selection');
+ assert(html.includes('必殺技等を選択'));
+ assert(html.includes('const addOption=option=>'));
+ assert(html.includes("child.tagName==='OPTGROUP'"));
+ const css=read('style.css');
+ assert(css.includes('.skill-candidate-name-control .custom-select-button'));
+ assert(css.includes('.custom-select-group-heading'));
  const script=read('script.js');
  assert(script.includes('initSkillCandidates(); initCustomConditions()'));
  assert(script.includes('candidateSkills:candidateChoiceList()'));
+ assert(script.includes("const candidateCategoryOrder=['必殺技','アクションスキル','超特殊能力']"));
+ assert(script.includes("candidateKanaCollator.compare(ka,kb)"));
+ assert(script.includes("new Option(skill.name+' Lv.'+lv.lv,index+':'+lv.lv)"));
+ assert(script.includes("const defaultHint=skill?.kind==='汎用'?'0':'1'"));
  assert(script.includes('requiredSkillNames:'));
  assert(script.includes('forbiddenSkillNames:'));
  assert(script.includes("kind==='candidate'?escapeCustomText"));
@@ -68,6 +81,21 @@ test('verified hint costs distinguish ability Lv from hint Lv and do not reverse
  const gale=master.find(x=>x.name==='ゲイルシュート');
  assert.equal(cost(gale,1,0),null,'unverified generic no-hint cost for unique skill');
  assert(Array.isArray(cost(gale,1,1)));
+});
+test('generic skills offer verified raw cost and tip levels 1–5 with per-stat floor',()=>{
+ const c=worker(),master=c.PAWAADO_DATA.skillRankings.skills;
+ const generic=master.find(x=>x.name==='水斬撃');
+ assert(generic&&generic.kind==='汎用');
+ const cost=c.workerCandidateCost;
+ assert.deepEqual(Array.from(cost(generic,1,0)),[221,79,125,0,0]);
+ assert.deepEqual(Array.from(cost(generic,1,1)),[110,39,62,0,0]);
+ assert.deepEqual(Array.from(cost(generic,1,2)),[88,31,50,0,0]);
+ assert.deepEqual(Array.from(cost(generic,1,3)),[66,23,37,0,0]);
+ assert.deepEqual(Array.from(cost(generic,1,4)),[44,15,25,0,0]);
+ assert.deepEqual(Array.from(cost(generic,1,5)),[22,7,12,0,0]);
+ // 同一の正本をUIとWorker双方で参照する。
+ assert.equal(read('script.js').includes('D.skillCandidateLevelCost?.(skill,lv.lv,hint)'),true);
+ assert.equal(read('pawaado_worker.js').includes('D.skillCandidateLevelCost?.(def,row.lv,hint)'),true);
 });
 test('Toughness and Protection use only recovered per-hint point vectors',()=>{
  const c=worker();
