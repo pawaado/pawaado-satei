@@ -81,7 +81,9 @@ test('skill names remain on one line while efficiency and score remain visible t
  const style=file('skill_rankings.css');
  const calc=Object.fromEntries([...style.matchAll(/#skillRankingRoot \.(rank|name|eff|score)-col\{width:(\d+)px\}/g)].map(m=>[m[1],Number(m[2])]));
  assert.equal(calc.rank+calc.name+calc.eff+calc.score,337,'the first four columns must fit a compact iPhone viewport');
- assert(calc.name>135,'name column should be wider than the former layout');
+ assert.equal(calc.name,191,'name column adds approximately two Japanese characters to the former 165px layout');
+ assert(calc.eff>=58&&calc.score>=55,'efficiency and assessment values must remain visible');
+ assert(style.includes('left:33px;z-index:2'),'sticky name offset follows rank width');
  assert(style.includes('white-space:nowrap;overflow:hidden;text-overflow:ellipsis'));
  assert(style.includes('.skill-row-title.skill-long-name{font-size:11px}'));
  const {elements,jobButtons}=load();
