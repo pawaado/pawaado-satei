@@ -125,3 +125,16 @@ test('basic ability column matches skill name width while keeping efficiency and
  assert(html.includes('min-width:517px'));
  assert(html.includes('th,td{border:1px solid #4d9ec0;padding:9px 3px;vertical-align:middle}'));
 });
+
+test('efficiency column headers stay on one line in both ranking views without changing body font or widths',()=>{
+ const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
+ for(const spec of [
+  {text:html,selector:'#rankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px;}'},
+  {text:css,selector:'#skillRankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px}'}
+ ])assert(spec.text.includes(spec.selector));
+ assert(html.includes('col.rank{width:31px} col.name{width:199px} col.eff{width:55px} col.score{width:52px}'));
+ assert(css.includes('#skillRankingRoot .name-col{width:199px}'));
+ assert(css.includes('#skillRankingRoot .eff-col{width:55px}'));
+ assert(css.includes('#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}'));
+});
