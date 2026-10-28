@@ -20,11 +20,11 @@
 #skillRankingRoot .exp-col{width:102px}
 #skillRankingRoot .score-col{width:74px}
 #skillRankingRoot th{font-size:13px;padding:9px 3px;white-space:normal;line-height:1.3}
-#skillRankingRoot td{font-size:12px;padding:9px 5px;line-height:1.4;vertical-align:middle}
-#skillRankingRoot td.skill-rank-num{text-align:center;font-weight:900}
-#skillRankingRoot td.skill-rank-eff,#skillRankingRoot td.skill-rank-exp,#skillRankingRoot td.skill-rank-score{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
-#skillRankingRoot td.skill-rank-eff{font-size:14px}
-#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px}
+#skillRankingRoot td{font-size:13px;padding:9px 5px;line-height:1.4;vertical-align:middle}
+#skillRankingRoot td.skill-rank-num{text-align:center;font-weight:700}
+#skillRankingRoot td.skill-rank-eff,#skillRankingRoot td.skill-rank-exp,#skillRankingRoot td.skill-rank-score{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}
+#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}
 /* iPhoneの横スクロール中も順位と名称を見失わないよう左2列を固定 */
 #skillRankingRoot th:first-child,#skillRankingRoot td.skill-rank-num{position:sticky;left:0;z-index:2}
 #skillRankingRoot th:nth-child(2),#skillRankingRoot td.skill-name-cell{position:sticky;left:45px;z-index:2}
@@ -38,7 +38,7 @@
 .skill-name-cell summary{list-style:none;cursor:pointer;display:block;min-width:0}
 .skill-name-cell summary::-webkit-details-marker{display:none}
 .skill-name-line{display:flex;align-items:center;justify-content:space-between;gap:3px;width:100%;min-width:0}
-.skill-row-title{font-weight:900;font-size:12px;line-height:1.4;flex:1;min-width:0;overflow-wrap:anywhere}
+.skill-row-title{font-weight:600;font-size:13px;line-height:1.4;flex:1;min-width:0;overflow-wrap:anywhere}
 #skillRankingRoot .skill-hp-marker .skill-row-title::after,
 #skillRankingRoot .skill-resistance-marker .skill-row-title::after{
   display:inline-block;margin-left:.4em;color:#98651d;font-size:10px;
@@ -48,13 +48,13 @@
 #skillRankingRoot .skill-resistance-marker .skill-row-title::after{content:"※耐性影響"}
 .skill-ranking-note{margin-top:13px}
 
-.skill-level{font-weight:900;white-space:nowrap;font-size:11px;color:#52361f;flex-shrink:0}
+.skill-level{font-weight:600;white-space:nowrap;font-size:13px;color:#52361f;flex-shrink:0}
 .skill-caret{font-size:10px;color:#715c40;flex-shrink:0;transition:transform .15s}
 .skill-name-cell details[open] .skill-caret{transform:rotate(180deg)}
-.skill-row-detail{font-size:11px;line-height:1.7;background:rgba(255,255,255,.9);border-top:1px dashed #c5ad84;margin:8px 0 0;padding:8px 3px;color:#604b35;overflow-wrap:anywhere}
+.skill-row-detail{font-size:13px;line-height:1.7;background:rgba(255,255,255,.9);border-top:1px dashed #c5ad84;margin:8px 0 0;padding:8px 3px;color:#604b35;overflow-wrap:anywhere}
 .skill-row-detail div+div{margin-top:5px}
 #skillRankingRoot .skill-rank-unranked td{opacity:.85}
-#skillRankingRoot .skill-separator td{background:#ead6a9;text-align:left;font-weight:900;color:#6a482b;font-size:12px}
+#skillRankingRoot .skill-separator td{background:#ead6a9;text-align:left;font-weight:700;color:#6a482b;font-size:13px}
 .skill-empty{padding:32px;text-align:center}
 @media(max-width:420px){
   .skill-job-tab{font-size:12px}
