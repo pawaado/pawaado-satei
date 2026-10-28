@@ -72,8 +72,8 @@ test('target-specific fractional scores are preserved in rankings',()=>{
 
 test('both ranking note blocks use the requested resistance wording',()=>{
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
- assert(html.includes('耐性に影響する特殊能力は、他の耐性に影響するものを除いた状態で計算しています。'));
- assert(html.includes('耐性に影響する超特殊能力は、他の耐性に影響するものを除いた状態で計算しています。'));
+ assert(html.includes('耐性に影響する特殊能力は他の耐性に影響するものを除いた状態で計算しています。'));
+ assert(html.includes('耐性に影響する超特殊能力は他の耐性に影響するものを除いた状態で計算しています。'));
  assert(!html.includes('重戦士のジョブ固有耐性を含めず'));
  assert(!html.includes('重戦士の固有耐性や他の耐性系能力'));
 });
