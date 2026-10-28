@@ -1028,7 +1028,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-lv-choice-2');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-stamina5to6-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
