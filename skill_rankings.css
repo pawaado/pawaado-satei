@@ -14,9 +14,9 @@
 .skill-job-tab[aria-pressed="true"]{background:linear-gradient(#b65d3f,#8b392a);border-color:#793323;color:#fff}
 #skillRankingRoot{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;max-width:100%}
 #skillRankingRoot table{width:100%;min-width:510px;table-layout:fixed;border-collapse:collapse}
-#skillRankingRoot .rank-col{width:39px}
-#skillRankingRoot .name-col{width:166px}
-#skillRankingRoot .eff-col{width:72px}
+#skillRankingRoot .rank-col{width:38px}
+#skillRankingRoot .name-col{width:165px}
+#skillRankingRoot .eff-col{width:70px}
 #skillRankingRoot .exp-col{width:99px}
 #skillRankingRoot .score-col{width:64px}
 #skillRankingRoot .note-col{width:81px}
@@ -28,7 +28,7 @@
 #skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}
 /* iPhoneの横スクロール中も順位と名称を見失わないよう左2列を固定 */
 #skillRankingRoot th:first-child,#skillRankingRoot td.skill-rank-num{position:sticky;left:0;z-index:2}
-#skillRankingRoot th:nth-child(2),#skillRankingRoot td.skill-name-cell{position:sticky;left:39px;z-index:2}
+#skillRankingRoot th:nth-child(2),#skillRankingRoot td.skill-name-cell{position:sticky;left:38px;z-index:2}
 #skillRankingRoot th:first-child,#skillRankingRoot th:nth-child(2){z-index:3;background:#a84834}
 
 /* 3色は名称欄のみ。数値のセルは共通の白背景。 */
