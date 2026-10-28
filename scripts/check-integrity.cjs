@@ -39,7 +39,10 @@ assert(sources['index.html'].includes('attributeSelectButton'),'index.html: attr
 assert(sources['script.js'].includes("getElementById('attribute')"),'script.js: attribute controller missing');
 assert(sources['script.js'].includes('function hasSpecialAccess()'),'script.js: special ability attribute guard missing');
 assert(sources['script.js'].includes('skillDisplayName(D.special[i][1])'),'script.js: attribute-dependent attack label missing');
-assert(!sources['photo_import.js'].includes('attributeByIcon'),'photo_import.js: abandoned attribute recognition returned');
+assert(sources['photo_import.js'].includes('function dataAttributeByIcon('),'photo_import.js: attribute icon recognition missing');
+assert(sources['script.js'].includes('function hasSpecialAccess(){return hasAttribute();}'),'script.js: attribute alone must unlock special abilities');
+assert(sources['rankings.html'].includes('<th>備考</th>'),'rankings.html: note column missing');
+assert(sources['skill_rankings.js'].includes('<th>備考</th>'),'skill_rankings.js: skill note column missing');
 assert(!sources['resistance_patch.js'].includes("createElement('style')"),'resistance_patch.js must contain behavior only; resistance appearance belongs in style.css');
 for(const selector of ['.extra-resistance-list{','.super-controls{','.extra-resistance-group-remove{'])assert(mainStyle.includes(selector),`style.css: resistance UI style missing: ${selector}`);
 assert(sources['photo_import.js'].includes('DATA_JOB_GRAY_TEMPLATES'),'photo_import.js: ability-data job icon templates missing');
