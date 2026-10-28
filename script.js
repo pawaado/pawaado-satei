@@ -132,88 +132,122 @@ function candidateChoiceFromValue(value){
   const skill=skillCandidateMaster[index];
   return skill&&skill.levels.some(l=>Number(l.lv)===level)?{skill,level}:null;
 }
+// 汎用技は基本的に能力Lvを持たない。双剣士専用の汎用技だけ例外。
+function candidateHasLevels(skill){
+  return skill.kind!=='汎用'||skill.jobs.includes('双剣士')&&skill.levels.length>1;
+}
+function candidateOptionLabel(skill,level){
+  if(!candidateHasLevels(skill))return skill.name;
+  const max=skill.levels[skill.levels.length-1].lv;
+  return skill.name+' Lv.'+level+(level<max?'以降':'');
+}
+function candidateControlHtml(base,index,options,placeholder,disabled){
+  const id=base+'-'+index;
+  const name=base==='skillCandidateName',kind=name?'name':'hint';
+  return '<div class="custom-select-control super-custom-select skill-candidate-'+kind+'-control">'+
+    '<select id="'+id+'" data-skill-candidate-'+kind+' class="custom-native-select" tabindex="-1" aria-hidden="true"'+(disabled?' disabled':'')+'>'+options+'</select>'+
+    '<button id="'+id+'SelectButton" type="button" class="custom-select-button" aria-haspopup="listbox" aria-expanded="false" aria-controls="'+id+'CustomMenu"'+(disabled?' disabled':'')+'>'+
+    '<span id="'+id+'SelectText" class="super-name-text">'+escapeCustomText(placeholder)+'</span></button>'+
+    '<div id="'+id+'CustomMenu" class="custom-select-menu" role="listbox" hidden></div></div>';
+}
 function refreshCandidateUI(){
-  const name=document.getElementById('skillCandidateName');
-  const hint=document.getElementById('skillCandidateHint'),add=document.getElementById('skillCandidateAdd');
-  const list=document.getElementById('skillCandidateList');
-  if(!name||!hint||!add||!list)return;
+  const root=document.getElementById('skillCandidateRows');
+  if(!root)return;
   for(const [key] of candidateSkills){
     if(!skillCandidateEligible(skillByName.get(key))){
       candidateSkills.delete(key);candidateSkillConditions.delete(key);
     }
   }
-  const current=name.value,curHint=hint.value;
-  const groupOptions=[];
-  const placeholder=new Option('必殺技等を選択','');
-  for(const category of candidateCategoryOrder){
-    const available=skillCandidateMaster.map((skill,index)=>({skill,index}))
-      .filter(x=>x.skill.category===category&&skillCandidateEligible(x.skill)&&!candidateSkills.has(x.skill.name))
-      .sort((a,b)=>{
-        const ka=candidateSkillKana[a.skill.name]||a.skill.name;
-        const kb=candidateSkillKana[b.skill.name]||b.skill.name;
-        return candidateKanaCollator.compare(ka,kb)||candidateKanaCollator.compare(a.skill.name,b.skill.name);
-      });
-    if(!available.length)continue;
-    const group=document.createElement('optgroup');
-    group.label=category;
-    for(const {skill,index} of available){
-      const preferred=skill.kind==='汎用'?0:1;
-      for(const lv of skill.levels){
-        if(!candidateLevelCosts(skill,Number(lv.lv),preferred))continue;
-        group.appendChild(new Option(skill.name+' Lv.'+lv.lv,index+':'+lv.lv));
+  const entries=[...candidateSkills.values(),null]; // 最後は常に次の入力用空欄
+  const ready=hasAcademyJob()&&hasAttribute()&&!isCalculating;
+  root.innerHTML=entries.map((row,index)=>{
+    const previous=row?.name||'',skill=row?skillByName.get(row.name):null;
+    const choices=[];
+    for(const category of candidateCategoryOrder){
+      const available=skillCandidateMaster.map((skill,index)=>({skill,index}))
+        .filter(x=>x.skill.category===category&&skillCandidateEligible(x.skill)&&
+          (!candidateSkills.has(x.skill.name)||x.skill.name===previous))
+        .sort((a,b)=>{
+          const ka=candidateSkillKana[a.skill.name]||a.skill.name;
+          const kb=candidateSkillKana[b.skill.name]||b.skill.name;
+          return candidateKanaCollator.compare(ka,kb)||candidateKanaCollator.compare(a.skill.name,b.skill.name);
+        });
+      const options=[];
+      for(const item of available){
+        const preferred=item.skill.kind==='汎用'?0:1;
+        const levels=candidateHasLevels(item.skill)?item.skill.levels.slice():item.skill.levels.slice(0,1);
+        for(const lv of levels){
+          if(!candidateLevelCosts(item.skill,lv.lv,preferred))continue;
+          const value=item.index+':'+lv.lv;
+          const selected=item.skill.name===previous&&Number(row.level)===Number(lv.lv);
+          options.push('<option value="'+value+'"'+(selected?' selected':'')+'>'+
+            escapeCustomText(candidateOptionLabel(item.skill,lv.lv))+'</option>');
+        }
+      }
+      if(options.length)choices.push('<optgroup label="'+escapeCustomText(category)+'">'+options.join('')+'</optgroup>');
+    }
+    const nameOptions='<option value="">必殺技等を選択</option>'+choices.join('');
+    const hintOptions=['<option value="">コツLv.を選択</option>'];
+    if(skill){
+      for(let tip=0;tip<=5;tip++){
+        if(candidateLevelCosts(skill,row.level,tip)){
+          const label=tip===0?'コツなし':'コツLv.'+tip;
+          hintOptions.push('<option value="'+tip+'"'+(tip===row.hint?' selected':'')+'>'+label+'</option>');
+        }
       }
     }
-    if(group.children.length)groupOptions.push(group);
-  }
-  name.replaceChildren(placeholder,...groupOptions);
-  name.value=[...name.options].some(opt=>opt.value===current)?current:'';
-  const selection=candidateChoiceFromValue(name.value);
-  const skill=selection?.skill,level=selection?.level;
-  const currentHint=Number(curHint);
-  hint.innerHTML='<option value="">コツLv.を選択</option>';
-  if(skill&&level){
-    for(let h=0;h<=5;h++){
-      if(candidateLevelCosts(skill,level,h)){
-        hint.add(new Option(h===0?'コツなし':'コツLv.'+h,String(h)));
-      }
-    }
-  }
-  const defaultHint=skill?.kind==='汎用'?'0':'1';
-  hint.value=[...hint.options].some(o=>o.value===curHint)&&curHint!==''?curHint:
-    ([...hint.options].some(o=>o.value===defaultHint)?defaultHint:hint.options[1]?.value||'');
-  for(const el of [name,hint])el.disabled=!hasAcademyJob()||!hasAttribute()||isCalculating;
-  add.disabled=!skill||!level||hint.value===''||isCalculating;
-  list.innerHTML=candidateChoiceList().map(x=>
-    '<li><span>'+escapeCustomText(x.name)+' Lv.'+x.level+'／'+(x.hint===0?'コツなし':'コツLv.'+x.hint)+'</span>'+
-    '<button class="custom-condition-remove" type="button" data-candidate-remove="'+escapeCustomText(x.name)+'" aria-label="'+escapeCustomText(x.name)+'を削除">×</button></li>').join('');
-  list.hidden=!list.innerHTML;
-  const message=document.getElementById('skillCandidateMessage');
-  if(message)message.textContent=(skill&&level&&hint.options.length===1)
-    ?'この能力Lvの必要経験点または査定値は未確認です。':'';
+    const name=candidateControlHtml('skillCandidateName',index,nameOptions,'必殺技等を選択',!ready);
+    const hint=candidateControlHtml('skillCandidateHint',index,hintOptions,
+      row?(row.hint===0?'コツなし':'コツLv.'+row.hint):'コツLv.を選択',!ready||!row);
+    const del=row?'<button type="button" class="extra-resistance-group-remove skill-candidate-remove" data-candidate-remove="'+escapeCustomText(row.name)+'" aria-label="'+escapeCustomText(row.name)+'を削除">×</button>':
+      '<span class="skill-candidate-remove-placeholder" aria-hidden="true"></span>';
+    return '<div class="skill-candidate-row'+(row?' has-skill':'')+'" data-skill-candidate-row data-candidate-name="'+escapeCustomText(previous)+'">'+
+      name+hint+del+'</div>';
+  }).join('');
+  const msg=document.getElementById('skillCandidateMessage');
+  if(msg)msg.textContent='';
+  document.dispatchEvent(new Event('pawaado:skill-candidates-changed'));
 }
 function initSkillCandidates(){
-  const name=document.getElementById('skillCandidateName');
-  const hint=document.getElementById('skillCandidateHint'),add=document.getElementById('skillCandidateAdd');
-  const card=document.getElementById('skillCandidatesCard');
-  if(!name||!hint||!add||!card)return;
-  name.addEventListener('change',()=>{hint.value='';refreshCandidateUI();});
-  hint.addEventListener('change',refreshCandidateUI);
-  add.addEventListener('click',()=>{
-    const selected=candidateChoiceFromValue(name.value);
-    if(!selected)return;
-    const {skill,level}=selected,tip=Number(hint.value);
-    if(!skillCandidateEligible(skill)||!candidateLevelCosts(skill,level,tip)||candidateSkills.has(skill.name))return;
-    candidateSkills.set(skill.name,{name:skill.name,level,hint:tip});
-    name.value='';hint.value='';
+  const root=document.getElementById('skillCandidateRows');
+  if(!root)return;
+  root.addEventListener('change',event=>{
+    if(isCalculating)return;
+    const target=event.target,row=target.closest('[data-skill-candidate-row]');
+    if(!row)return;
+    const previous=row.dataset.candidateName||'';
+    if(target.matches('[data-skill-candidate-name]')){
+      const choice=candidateChoiceFromValue(target.value);
+      if(!choice)return;
+      const {skill,level}=choice;
+      if(!skillCandidateEligible(skill)||candidateSkills.has(skill.name)&&skill.name!==previous)return;
+      if(previous&&previous!==skill.name){
+        candidateSkills.delete(previous);candidateSkillConditions.delete(previous);
+      }
+      const old=previous===skill.name?candidateSkills.get(previous):null;
+      const hints=Array.from({length:6},(_,i)=>i).filter(h=>candidateLevelCosts(skill,level,h));
+      const preferred=skill.kind==='汎用'?0:1;
+      const hint=old&&hints.includes(old.hint)?old.hint:
+        (hints.includes(preferred)?preferred:hints[0]);
+      if(hint===undefined)return;
+      candidateSkills.set(skill.name,{name:skill.name,level,minLevel:level,hint});
+    }else if(target.matches('[data-skill-candidate-hint]')){
+      if(!previous||!candidateSkills.has(previous))return;
+      const value=Number(target.value),current=candidateSkills.get(previous);
+      if(!candidateLevelCosts(skillByName.get(previous),current.level,value))return;
+      candidateSkills.set(previous,{...current,hint:value});
+    }else return;
     refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
-    document.getElementById('result').textContent='';
+    const result=document.getElementById('result');
+    if(result)result.textContent='';
   });
-  card.addEventListener('click',e=>{
+  root.addEventListener('click',e=>{
     const key=e.target.closest('[data-candidate-remove]')?.dataset.candidateRemove;
-    if(!key)return;
+    if(!key||isCalculating)return;
     candidateSkills.delete(key);candidateSkillConditions.delete(key);
     refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
-    document.getElementById('result').textContent='';
+    const result=document.getElementById('result');
+    if(result)result.textContent='';
   });
   refreshCandidateUI();
 }
