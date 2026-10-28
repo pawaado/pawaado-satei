@@ -63,6 +63,8 @@ function skillCandidateEligible(skill){
 }
 function candidateLevelCosts(skill,level,hint){
   if(!skill||!Number.isInteger(level)||level<1||level>skill.levels.length)return null;
+  const score=skill.levels[level-1].scores?.[job.value]?.[1];
+  if((score===null||!Number.isFinite(Number(score)))&&!skill.hp)return null;
   const costs=[];
   for(const lv of skill.levels.slice(0,level)){
     const vec=Number(lv.tip)===hint?lv.cost:D.skillHintCosts?.[skill.name]?.[hint]?.[lv.lv];
@@ -107,7 +109,7 @@ function refreshCandidateUI(){
   list.hidden=!list.innerHTML;
   const message=document.getElementById('skillCandidateMessage');
   if(message)message.textContent=(skill&&level.value&&hint.options.length===1)
-    ?'この能力Lvのコツ別必要経験点は未確認です。確認できた値だけ選択できます。':'';
+    ?'この能力Lvの必要経験点または査定値は未確認です。確認できた値だけ選択できます。':'';
 }
 function initSkillCandidates(){
   const name=document.getElementById('skillCandidateName');
