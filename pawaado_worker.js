@@ -83,6 +83,8 @@ function workerCandidateAction(st,entry,exp){
   }
   if((requiredBits&workerExcludedSpecialBits)!==0n||(requiredBits&conflictBitsFor(st.bits??0n))!==0n)return null;
   gain+=extraScore;
+  if(typeof dynamicCandidateSkillGain==='function')
+    gain+=dynamicCandidateSkillGain(st.bits||0n,st.candidateBits||0n,requiredBits,entry,items);
   const lifeAfter=requiredLevels['生命力']||st.levels[0];
   if(entry.def.hp){
     const rate=selectedSuperHpRate({name:entry.name,level:entry.level});
@@ -1027,7 +1029,7 @@ function constrainedInitialState(exp){
     if(!leq(addCost(state.cost,op.cost),exp))
       throw new Error('こだわり計算：'+name+'の取得に必要な経験点が不足しています。');
     const gain=typeof dynamicSpecialGainForBits==='function'
-      ?dynamicSpecialGainForBits(state.bits??EMPTY_BITS,op.bits,op.items,Number(op.score||0))
+      ?dynamicSpecialGainForBits(state.bits??EMPTY_BITS,op.bits,op.items,Number(op.score||0),state.candidateBits||0n)
       :Number(op.score||0);
     state=mixedApplyAction(state,{...op,kind:'special',gain,costSum:costSum(op.cost)});
   }
