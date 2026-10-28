@@ -112,3 +112,16 @@ test('basic ranking selected class uses the same red family-tab style as skills'
  assert(css.includes('.skill-job-tab[aria-pressed="true"]{background:linear-gradient(#b65d3f,#8b392a);border-color:#793323;color:#fff}'));
  assert(html.includes('.tab{font-size:12px;padding:12px 2px}'));
 });
+
+test('basic ability column matches skill name width while keeping efficiency and score in the same viewport',()=>{
+ const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
+ const base=html.match(/col\\.rank\\{width:(\\d+)px\\} col\\.name\\{width:(\\d+)px\\} col\\.eff\\{width:(\\d+)px\\} col\\.score\\{width:(\\d+)px\\}/);
+ assert(base,'basic ranking columns must be specified');
+ const skill=Object.fromEntries([...css.matchAll(/#skillRankingRoot \\.(rank|name|eff|score)-col\\{width:(\\d+)px\\}/g)].map(m=>[m[1],Number(m[2])]));
+ assert.equal(Number(base[2]),199);
+ assert.deepEqual(base.slice(1).map(Number),[skill.rank,skill.name,skill.eff,skill.score]);
+ assert.equal(base.slice(1).reduce((sum,v)=>sum+Number(v),0),337);
+ assert(html.includes('min-width:517px'));
+ assert(html.includes('th,td{border:1px solid #4d9ec0;padding:9px 3px;vertical-align:middle}'));
+});
