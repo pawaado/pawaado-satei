@@ -141,7 +141,7 @@
       .tab{font-size:17px;padding:11px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028e">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028g">
 </head>
 <body>
   <header class="site-header">
@@ -169,8 +169,7 @@
       <ul>
         <li>物理職は剣士・重戦士・弓使い・双剣士を、魔法職は魔法使い・魔闘士を指します。</li>
         <li>基本能力の小数点以下の査定が不明であることなどから、実際の査定効率と異なる可能性があります。</li>
-        <li id="referenceHpNote">HP依存特殊能力は生命力90で計算しています。</li>
-        <li>耐性に影響する特殊能力は、重戦士のジョブ固有耐性を含めず、他の耐性に影響する特殊能力を持たない状態で計算しています。</li>
+        <li>耐性に影響する特殊能力は、他の耐性に影響するものを除いた状態で計算しています。</li>
         <li>～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
         <li>査定が0の特殊能力は掲載していません。</li>
       </ul>
@@ -191,8 +190,7 @@
       <section class="notes skill-ranking-note">
         <h2>注記</h2>
         <ul>
-          <li id="skillReferenceHpNote">HP依存の超特殊能力は生命力90で計算しています。</li>
-          <li>耐性に影響する超特殊能力は、重戦士の固有耐性や他の耐性系能力を持たない状態の基準査定です。</li>
+          <li>耐性に影響する超特殊能力は、他の耐性に影響するものを除いた状態で計算しています。</li>
         </ul>
       </section>
     </div>
@@ -251,8 +249,6 @@
       return hp;
     }
     const referenceHp=hpAtLife(90);
-    document.getElementById('referenceHpNote').textContent=`HP依存特殊能力は生命力90（HP${referenceHp}）で計算しています。`;
-    document.getElementById('skillReferenceHpNote').textContent=`HP依存の超特殊能力は生命力90（HP${referenceHp}）で計算しています。`;
 
     function maximaFor(group){
       const jobs=groupDefs[group].jobs;
