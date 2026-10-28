@@ -10,7 +10,7 @@ function loadWorker(){
   const c={console,BigInt,Map,Set,WeakMap,Uint8Array,Number,String,Math,JSON,Array,Object,Promise,setTimeout,clearTimeout};
   c.self=c;c.window=c;
   vm.createContext(c);
-  c.importScripts=()=>vm.runInContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),c,{filename:'data.js'});
+  c.importScripts=(...urls)=>urls.forEach(url=>{const file=url.replace(/^\.\//,'').split('?')[0];vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),c,{filename:file});});
   c.postMessage=()=>{};
   vm.runInContext(fs.readFileSync(path.join(root,'pawaado_worker.js'),'utf8'),c,{filename:'pawaado_worker.js'});
   return c;
