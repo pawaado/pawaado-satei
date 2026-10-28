@@ -141,6 +141,7 @@
       .tab{font-size:17px;padding:11px 2px}
     }
   </style>
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028a">
 </head>
 <body>
   <header class="site-header">
@@ -148,6 +149,11 @@
     <a class="back-link" href="./">戻る</a>
   </header>
   <main>
+    <nav class="ranking-mode-tabs" role="tablist" aria-label="ランキング種類">
+      <button class="ranking-mode-tab" type="button" data-ranking-mode="basic" role="tab" aria-selected="true" aria-pressed="true" aria-controls="basicRankingView">基本能力・特殊能力</button>
+      <button class="ranking-mode-tab" type="button" data-ranking-mode="skills" role="tab" aria-selected="false" aria-pressed="false" aria-controls="skillRankingView">必殺技・アクションスキル・超特殊能力</button>
+    </nav>
+    <div id="basicRankingView">
     <nav class="tabs" aria-label="職種分類">
       <button class="tab" type="button" data-group="物理職" aria-pressed="true">物理職</button>
       <button class="tab" type="button" data-group="魔法職" aria-pressed="false">魔法職</button>
@@ -169,6 +175,61 @@
         <li>査定が0の特殊能力は掲載していません。</li>
       </ul>
     </section>
+    </div>
+    <div id="skillRankingView" hidden>
+      <nav class="skill-job-tabs" aria-label="ジョブ系統の選択">
+        <button type="button" class="skill-job-tab" data-skill-job="剣士系統" aria-pressed="true">剣士系統</button>
+        <button type="button" class="skill-job-tab" data-skill-job="重戦士系統" aria-pressed="false">重戦士系統</button>
+        <button type="button" class="skill-job-tab" data-skill-job="弓使い系統" aria-pressed="false">弓使い系統</button>
+        <button type="button" class="skill-job-tab" data-skill-job="魔法使い系統" aria-pressed="false">魔法使い系統</button>
+        <button type="button" class="skill-job-tab" data-skill-job="僧侶系統" aria-pressed="false">僧侶系統</button>
+        <button type="button" class="skill-job-tab" data-skill-job="魔闘士系統" aria-pressed="false">魔闘士系統</button>
+      </nav>
+      <div class="skill-rank-controls">
+        <label>スキルの種類
+          <select id="skillCategory">
+            <option value="all">すべて</option>
+            <option value="必殺技">必殺技</option>
+            <option value="アクションスキル">アクションスキル</option>
+            <option value="超特殊能力">超特殊能力</option>
+          </select>
+        </label>
+        <label>取得段階
+          <select id="skillPhase">
+            <option value="all">すべて</option>
+            <option value="single1">Lv1単体</option>
+            <option value="single2">Lv2単体（強化分）</option>
+            <option value="single3">Lv3単体（強化分）</option>
+            <option value="sum2">Lv1＋2累計</option>
+            <option value="sum3">Lv1＋2＋3累計</option>
+          </select>
+        </label>
+        <label>技名で検索
+          <input id="skillSearch" type="search" placeholder="スキル名を入力" autocomplete="off">
+        </label>
+        <label>経験点のコツ設定
+          <select id="skillTipMode">
+            <option value="default">登録済みの表示値</option>
+            <option value="tip2">一点集中のみコツLv2</option>
+          </select>
+        </label>
+      </div>
+      <p class="skill-rank-help">査定効率＝査定上昇量 ÷ 必要経験点の合計。単体はそのLvの追加分、累計はLv1からの合計です。剣士系統には双剣士も含みます。各技をタップすると取得条件・経験点の内訳・超特殊能力の効果を確認できます。</p>
+      <p id="skillRankingSummary" class="skill-rank-count" aria-live="polite"></p>
+      <section class="ranking-card" aria-label="スキルの査定効率ランキング">
+        <div id="skillRankingRoot"></div>
+      </section>
+      <section class="skill-notes">
+        <h2>スキルランキングの注意点</h2>
+        <ul>
+          <li>経験点は統合マスターで確認済みのコツLv・表示費用を使用しています。スキルによってコツLvは異なります。</li>
+          <li>HP依存の超特殊能力は、生命力・HPや他の能力の影響を受けるため、固定値ランキングとは分けて掲載します。</li>
+          <li>耐性系は下位能力との置換や耐性圧縮前の基準査定です。実際の増分は取得済み能力によって異なる場合があります。</li>
+          <li>僧侶の小数査定は最終合算後に切り捨てるため、各スキル単体での切り捨ては行いません。</li>
+          <li>Lv2・Lv3単体は前Lvをすでに取得した状態からの強化分です。累計はLv1から必要な費用・査定を合算します。</li>
+        </ul>
+      </section>
+    </div>
   </main>
 
   <script src="data.js?v=20261018-taterescure-caps-1"></script>
@@ -369,5 +430,7 @@
     render('物理職');
   })();
   </script>
+  <script src="skill_rankings_data.js?v=20261028a"></script>
+  <script src="skill_rankings.js?v=20261028a"></script>
 </body>
 </html>
