@@ -37,7 +37,7 @@ function load(){
   return {context,elements,jobButtons,modeButtons};
 }
 function leader(html){
-  return html.match(/<td class="skill-rank-num">1<\/td>[\s\S]*?<span class="skill-row-title[^"]*"[^>]*>([^<]+)/)?.[1];
+  return html.match(/<span class="skill-rank-index">1<\/span>[\s\S]*?<span class="skill-row-title"[^>]*>([^<]+)/)?.[1];
 }
 
 test('skill rankings use only canonical data.js, not the old ranking snapshot',()=>{
@@ -85,11 +85,17 @@ test('skill names remain on one line while efficiency and score remain visible t
  assert(calc.eff>=58&&calc.score>=55,'efficiency and assessment values must remain visible');
  assert(style.includes('left:33px;z-index:2'),'sticky name offset follows rank width');
  assert(style.includes('white-space:nowrap;overflow:hidden;text-overflow:ellipsis'));
- assert(style.includes('.skill-row-title.skill-long-name{font-size:11px}'));
+ assert(!style.includes('.skill-row-title.skill-long-name{font-size:11px}'));
+ assert(!style.includes('.skill-row-title.skill-extra-long-name{font-size:10px}'));
+ assert(style.includes('.skill-row-title{display:block;font-weight:600;font-size:13px;'));
+ assert(style.includes('.skill-rank-level{display:block;'));
+ assert(style.includes('.skill-name-line{display:block;'));
  const {elements,jobButtons}=load();
  jobButtons[2].click();
  const h=elements.skillRankingRoot.innerHTML;
- assert(h.includes('class="skill-row-title skill-long-name"') || h.includes('class="skill-row-title skill-extra-long-name"'));
+ assert(!h.includes('class="skill-row-title skill-long-name"'));
+ assert(h.includes('class="skill-row-title" title="ライジングストライク">ライジングストライク</span>') || h.includes('class="skill-row-title" title="ゲイルシュート">ゲイルシュート</span>'));
+ assert(h.includes('class="skill-rank-level">Lv1'));
  assert(h.includes('class="skill-full-name"'),'tapping a name must display the full original name');
  assert(h.includes('<th>査定効率</th><th>査定</th>'));
 });
