@@ -141,7 +141,7 @@
       .tab{font-size:17px;padding:11px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028a">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028b">
 </head>
 <body>
   <header class="site-header">
@@ -151,7 +151,7 @@
   <main>
     <nav class="ranking-mode-tabs" role="tablist" aria-label="ランキング種類">
       <button class="ranking-mode-tab" type="button" data-ranking-mode="basic" role="tab" aria-selected="true" aria-pressed="true" aria-controls="basicRankingView">基本能力・特殊能力</button>
-      <button class="ranking-mode-tab" type="button" data-ranking-mode="skills" role="tab" aria-selected="false" aria-pressed="false" aria-controls="skillRankingView">必殺技・アクションスキル・超特殊能力</button>
+      <button class="ranking-mode-tab" type="button" data-ranking-mode="skills" role="tab" aria-selected="false" aria-pressed="false" aria-controls="skillRankingView"><span class="mode-title-first">必殺技・アクションスキル</span><span class="mode-title-second">・超特殊能力</span></button>
     </nav>
     <div id="basicRankingView">
     <nav class="tabs" aria-label="職種分類">
@@ -204,9 +204,6 @@
             <option value="sum3">Lv1＋2＋3累計</option>
           </select>
         </label>
-        <label>技名で検索
-          <input id="skillSearch" type="search" placeholder="スキル名を入力" autocomplete="off">
-        </label>
         <label>経験点のコツ設定
           <select id="skillTipMode">
             <option value="default">登録済みの表示値</option>
@@ -214,20 +211,9 @@
           </select>
         </label>
       </div>
-      <p class="skill-rank-help">査定効率＝査定上昇量 ÷ 必要経験点の合計。単体はそのLvの追加分、累計はLv1からの合計です。剣士系統には双剣士も含みます。各技をタップすると取得条件・経験点の内訳・超特殊能力の効果を確認できます。</p>
       <p id="skillRankingSummary" class="skill-rank-count" aria-live="polite"></p>
       <section class="ranking-card" aria-label="スキルの査定効率ランキング">
         <div id="skillRankingRoot"></div>
-      </section>
-      <section class="skill-notes">
-        <h2>スキルランキングの注意点</h2>
-        <ul>
-          <li>経験点は統合マスターで確認済みのコツLv・表示費用を使用しています。スキルによってコツLvは異なります。</li>
-          <li>HP依存の超特殊能力は、生命力・HPや他の能力の影響を受けるため、固定値ランキングとは分けて掲載します。</li>
-          <li>耐性系は下位能力との置換や耐性圧縮前の基準査定です。実際の増分は取得済み能力によって異なる場合があります。</li>
-          <li>僧侶の小数査定は最終合算後に切り捨てるため、各スキル単体での切り捨ては行いません。</li>
-          <li>Lv2・Lv3単体は前Lvをすでに取得した状態からの強化分です。累計はLv1から必要な費用・査定を合算します。</li>
-        </ul>
       </section>
     </div>
   </main>
@@ -394,8 +380,11 @@
       items.sort((a,b)=>{
         const ae=Number.isFinite(a.eff)?a.eff:-Infinity;
         const be=Number.isFinite(b.eff)?b.eff:-Infinity;
-        if(Math.abs(be-ae)>1e-12) return be-ae;
+        // 査定効率が同じ表示値（小数第3位まで）なら査定→経験点で並べる。
+        const aDisplay=Math.round(ae*1000),bDisplay=Math.round(be*1000);
+        if(aDisplay!==bDisplay) return bDisplay-aDisplay;
         if(Math.abs(b.score-a.score)>1e-9) return b.score-a.score;
+        if(Math.abs(a.exp-b.exp)>1e-9) return a.exp-b.exp;
         return a.gameOrder-b.gameOrder;
       });
       return items.map((x,i)=>({...x,rank:i+1}));
@@ -416,7 +405,7 @@
     }
     function render(group){
       const items=cache[group]||(cache[group]=allItems(group));
-      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要総経験点</th><th>査定</th></tr></thead><tbody>';
+      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="exp"><col class="score"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>必要経験点</th><th>査定</th></tr></thead><tbody>';
       for(const item of items){
         const neg=item.score<0?' negative':'';
         html+=`<tr class="${item.type}${neg}"><td>${item.rank}</td><td class="name-cell">${abilityLabel(item)}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.exp,2)}</td><td>${fmt(item.score,2)}</td></tr>`;
@@ -431,6 +420,6 @@
   })();
   </script>
   <script src="skill_rankings_data.js?v=20261028a"></script>
-  <script src="skill_rankings.js?v=20261028a"></script>
+  <script src="skill_rankings.js?v=20261028b"></script>
 </body>
 </html>
