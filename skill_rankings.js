@@ -25,6 +25,21 @@
   const expKeys=['筋力','敏捷','技術','知力','精神'];
   const typeClasses={'必殺技':'skill-category-finisher','アクションスキル':'skill-category-action','超特殊能力':'skill-category-super'};
   const levelLabels={single1:'Lv1',single2:'Lv2',single3:'Lv3'};
+  // 比較条件：超特殊能力はコツLv1、必殺技・アクションスキルはコツLv0。
+  // 元画像で確認した cost / tip は data.js に保存したまま、ランキング表示時のみ換算。
+  // コツLv1=50%OFF、Lv2=60%OFF。割引の端数が元データから復元できない箇所は概算扱い。
+  const targetTip=category=>category==='超特殊能力'?1:0;
+  const costRatioByTip={0:1,1:.5,2:.4};
+  function rankingCost(skill,level){
+    const tip=targetTip(skill.category),sourceTip=Number(level.tip);
+    const original=level.cost.map(v=>Number(v||0));
+    if(sourceTip===tip)return {cost:original,tip,estimated:false};
+    const sourceRatio=costRatioByTip[sourceTip],targetRatio=costRatioByTip[tip];
+    if(!sourceRatio||!targetRatio)return {cost:[0,0,0,0,0],tip,estimated:true};
+    const factor=targetRatio/sourceRatio;
+    // 入力された各経験点の独立した切り捨ては逆算不可。四捨五入で参考値を算出する。
+    return {cost:original.map(v=>Math.round(v*factor)),tip,estimated:true};
+  }
   // 画面に表示する査定効率（小数第3位）が同じ場合は、査定→必要経験点の順で比較。
   const visibleEfficiency=n=>Math.round(n*1000);
 
@@ -42,7 +57,7 @@
     return score;
   }
   function asRow(skill,job,index){
-    const l=skill.levels[index],cost=l.cost.map(x=>Number(x||0));
+    const l=skill.levels[index],normalized=rankingCost(skill,l),cost=normalized.cost;
     const exp=totalCost(cost),hp=Boolean(skill.hp);
     const score=hp?hpScore(skill,job,index):l.scores[job]?.[0];
     const canRank=exp>0&&typeof score==='number'&&Number.isFinite(score);
@@ -50,7 +65,8 @@
     const detail=skill.category==='超特殊能力'?Object.entries(l.effect||{}).map(([name,value])=>name+' '+(typeof value==='number'&&value>0?'+':'')+value+(typeof value==='number'?'%':'')).join('、'):'';
     return {name:skill.name,kind:skill.kind,category:skill.category,job,attribute:skill.attribute,
       phase,label:levelLabels[phase]||'Lv'+l.lv,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
-      conditions:'Lv'+l.lv+': '+l.condition,detail,hp,resistance:Boolean(skill.resistance),tip:l.tip,
+      conditions:'Lv'+l.lv+': '+l.condition,detail,hp,resistance:Boolean(skill.resistance),
+      tip:normalized.tip,sourceTip:l.tip,estimatedCost:normalized.estimated,
       unrankedReason:exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
   }
   function getRows(){
@@ -89,9 +105,10 @@
         <span class="skill-name-line"><span class="skill-row-title" title="${escapeHTML(row.name)}">${escapeHTML(row.name)}</span><span class="skill-level">${escapeHTML(levelText)}<span class="skill-caret" aria-hidden="true">▾</span></span></span>
         </summary><div class="skill-row-detail">
         <div class="skill-full-name">${escapeHTML(row.name)} ${escapeHTML(levelText)}</div>
-        <div>${escapeHTML(explain)}</div><div>経験点：${escapeHTML(vec)}</div>
+        <div>${escapeHTML(explain)}</div>
+        <div>経験点：${escapeHTML(vec)}${row.estimatedCost?'（換算値・参考）':''}</div>
         ${row.unrankedReason&&rank===null?`<div>${escapeHTML(row.unrankedReason)}</div>`:''}
-        ${row.tip?`<div>コツLv：${escapeHTML(row.tip)}（表示費用）</div>`:''}
+        <div>コツLv：${escapeHTML(row.tip)}（ランキング比較条件${row.estimatedCost?'／元データはコツLv'+escapeHTML(row.sourceTip):''}）</div>
         </div></details></td>
       <td class="skill-rank-eff">${row.eff===null?'—':fmt(row.eff,3)}</td>
       <td class="skill-rank-score">${row.rawScore==null?'—':fmt(row.rawScore,2)}</td>
