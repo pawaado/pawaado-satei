@@ -150,7 +150,7 @@ assert(!sources['script.js'].includes('MIXED_BRANCH_NORMAL'),'script.js must not
 for(const deadName of ['TARGET_DEBUG','function optimizeMixedAsync','function optimizeSpecialsForLife','function buildBasicStates']){
  assert(!sources['script.js'].includes(deadName),`script.js: obsolete local calculation/debug code remained: ${deadName}`);
 }
-const skillWorkerVersion=sources['pawaado_worker.js'].match(/importScripts\('\\.\\/data\\.js\\?v=([^']+)'/)?.[1];
+const skillWorkerVersion=sources['pawaado_worker.js'].split('data.js?v=')[1]?.split("'")[0];
 assert(skillWorkerVersion,'pawaado_worker.js: skill data asset version missing');
 for(const r of refs.filter(r=>['pawaado_worker.js','resistance_patch.js'].includes(r.file))){
  const expected=r.file==='pawaado_worker.js'&&r.from==='script.js'?skillWorkerVersion:workerVersion;
