@@ -52,6 +52,88 @@ const specialState=new Map();
 const customBasicRules=new Map();
 const customRequiredSpecials=new Set();
 const customForbiddenSpecials=new Set();
+const candidateSkills=new Map();
+const candidateSkillConditions=new Map();
+const skillCandidateMaster=D.skillRankings?.skills||[];
+const skillByName=new Map(skillCandidateMaster.map(skill=>[skill.name,skill]));
+function skillCandidateEligible(skill){
+  return skill?.jobs?.includes(job.value) &&
+    (!skill.attribute||String(skill.attribute)+'属性'===attribute.value) &&
+    !(skill.category==='超特殊能力'&&selectedSuperState().some(x=>x.name===skill.name));
+}
+function candidateLevelCosts(skill,level,hint){
+  if(!skill||!Number.isInteger(level)||level<1||level>skill.levels.length)return null;
+  const costs=[];
+  for(const lv of skill.levels.slice(0,level)){
+    const vec=Number(lv.tip)===hint?lv.cost:D.skillHintCosts?.[skill.name]?.[hint]?.[lv.lv];
+    if(!Array.isArray(vec)||vec.length!==5||vec.some(v=>!Number.isInteger(Number(v))||Number(v)<0))return null;
+    costs.push(vec.map(Number));
+  }
+  return costs;
+}
+function candidateChoiceList(){
+  return [...candidateSkills.values()].filter(x=>skillCandidateEligible(skillByName.get(x.name)));
+}
+function refreshCandidateUI(){
+  const name=document.getElementById('skillCandidateName'),level=document.getElementById('skillCandidateLevel');
+  const hint=document.getElementById('skillCandidateHint'),add=document.getElementById('skillCandidateAdd');
+  const list=document.getElementById('skillCandidateList');
+  if(!name||!level||!hint||!add||!list)return;
+  for(const [key] of candidateSkills){
+    if(!skillCandidateEligible(skillByName.get(key))){candidateSkills.delete(key);candidateSkillConditions.delete(key);}
+  }
+  const current=name.value,curLevel=level.value,curHint=hint.value;
+  const available=skillCandidateMaster.filter(x=>skillCandidateEligible(x)&&!candidateSkills.has(x.name));
+  name.innerHTML='<option value="">名称を選択</option>'+available.map(x=>
+    '<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(x.name)+'（'+escapeCustomText(x.category)+'）</option>').join('');
+  name.value=available.some(x=>x.name===current)?current:'';
+  const skill=skillByName.get(name.value);
+  level.innerHTML='<option value="">能力Lvを選択</option>'+(skill?.levels||[]).map(l=>
+    '<option value="'+l.lv+'">Lv'+l.lv+'</option>').join('');
+  level.value=skill?.levels.some(l=>String(l.lv)===curLevel)?curLevel:'';
+  hint.innerHTML='<option value="">コツLvを選択</option>';
+  if(skill&&level.value){
+    for(let h=0;h<=5;h++){
+      if(candidateLevelCosts(skill,Number(level.value),h))
+        hint.innerHTML+='<option value="'+h+'">'+(h===0?'コツなし':'コツLv'+h)+'</option>';
+    }
+  }
+  hint.value=[...hint.options].some(o=>o.value===curHint)?curHint:'';
+  for(const el of [name,level,hint])el.disabled=!hasAcademyJob()||!hasAttribute()||isCalculating;
+  add.disabled=!skill||!level.value||hint.value===''||isCalculating;
+  list.innerHTML=candidateChoiceList().map(x=>
+    '<li><span>'+escapeCustomText(x.name)+' Lv'+x.level+'／'+(x.hint===0?'コツなし':'コツLv'+x.hint)+'</span>'+
+    '<button class="custom-condition-remove" type="button" data-candidate-remove="'+escapeCustomText(x.name)+'" aria-label="'+escapeCustomText(x.name)+'を削除">×</button></li>').join('');
+  list.hidden=!list.innerHTML;
+  const message=document.getElementById('skillCandidateMessage');
+  if(message)message.textContent=(skill&&level.value&&hint.options.length===1)
+    ?'この能力Lvのコツ別必要経験点は未確認です。確認できた値だけ選択できます。':'';
+}
+function initSkillCandidates(){
+  const name=document.getElementById('skillCandidateName');
+  const level=document.getElementById('skillCandidateLevel'),hint=document.getElementById('skillCandidateHint');
+  const add=document.getElementById('skillCandidateAdd'),card=document.getElementById('skillCandidatesCard');
+  if(!name||!level||!hint||!add||!card)return;
+  name.addEventListener('change',()=>{level.value='';hint.value='';refreshCandidateUI();});
+  level.addEventListener('change',()=>{hint.value='';refreshCandidateUI();});
+  hint.addEventListener('change',refreshCandidateUI);
+  add.addEventListener('click',()=>{
+    const def=skillByName.get(name.value),lv=Number(level.value),tip=Number(hint.value);
+    if(!skillCandidateEligible(def)||!candidateLevelCosts(def,lv,tip)||candidateSkills.has(def.name))return;
+    candidateSkills.set(def.name,{name:def.name,level:lv,hint:tip});
+    name.value='';level.value='';hint.value='';
+    refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
+    document.getElementById('result').textContent='';
+  });
+  card.addEventListener('click',e=>{
+    const key=e.target.closest('[data-candidate-remove]')?.dataset.candidateRemove;
+    if(!key)return;
+    candidateSkills.delete(key);candidateSkillConditions.delete(key);
+    refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
+    document.getElementById('result').textContent='';
+  });
+  refreshCandidateUI();
+}
 // 双剣士専用の通常攻撃はLv.ごとに指定し、通常特殊能力のダミー行とは分離する。
 const dualAttackMaster=D.academyMaster?.academies?.find(a=>a.dualAttack?.internalJob==='双剣士')?.dualAttack;
 const dualSpecialIndex=D.special.findIndex(s=>String(s[1])===String(dualAttackMaster?.skillName));
@@ -135,6 +217,7 @@ function updateInputAvailabilityUI(){
   if(basicCard)basicCard.classList.toggle('is-locked',basicLocked);
   specialCard?.classList.toggle('is-locked',specialLocked);
   renderCustomConditions();
+  refreshCandidateUI();
 }
 function updateJobs(){
   const jobs=jobsByAcademy[academy.value]||[];
@@ -143,6 +226,7 @@ function updateJobs(){
   job.disabled=!academy.value;
   pendingPhotoAbilities=null;pendingSuperPrerequisites.clear();
   clearCustomConditionsState();
+  candidateSkills.clear();candidateSkillConditions.clear();
   updateInputAvailabilityUI();
   clearBasicState(); renderBasic(); renderSpecials(); applyCurrentJobTheme();
 }
@@ -150,11 +234,13 @@ academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInlin
 job.addEventListener('change',()=>{
   pendingPhotoAbilities=null;pendingSuperPrerequisites.clear();
   clearCustomConditionsState();
+  candidateSkills.clear();candidateSkillConditions.clear();
   updateInputAvailabilityUI();
   clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
 });
 attribute?.addEventListener('change',()=>{
   if(!VALID_ATTRIBUTES.has(attribute.value))attribute.value='';
+  refreshCandidateUI();
   updateInputAvailabilityUI();
   renderSpecials();
   if(hasSpecialAccess()&&pendingPhotoAbilities){
