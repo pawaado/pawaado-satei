@@ -108,6 +108,8 @@
       text-align:center;
       white-space:normal;
     }
+    /* 「査定効率」は4文字を13pxで1行に収め、数値列の位置を変えない */
+    #rankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px;}
     td{font-size:13px;background:#fff}
     td:nth-child(1){text-align:center;font-weight:700}
     td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -144,7 +146,7 @@
       .tab{font-size:12px;padding:12px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028m">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028n">
 </head>
 <body>
   <header class="site-header">
