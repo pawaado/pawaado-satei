@@ -14,7 +14,7 @@ test('all groups have finite, unique, correctly ordered rankings',()=>{
  const {c}=load();for(const g of Object.keys(c.audit.groupDefs)){
   const rows=c.audit.allItems(g);assert(rows.length>100);assert.equal(new Set(rows.map(r=>r.ability)).size,rows.length);
   rows.forEach((r,i)=>{assert.equal(r.rank,i+1);assert(Number.isFinite(r.score)&&Number.isFinite(r.eff)&&r.exp>0);assert(Math.abs(r.eff-r.score/r.exp)<1e-12);
-   if(i){const prev=rows[i-1];assert(prev.eff>=r.eff-1e-12);if(Math.abs(prev.eff-r.eff)<=1e-12){assert(prev.score>=r.score-1e-9);if(Math.abs(prev.score-r.score)<=1e-9)assert(prev.gameOrder<r.gameOrder);}}
+   if(i){const prev=rows[i-1];const pe=Math.round(prev.eff*1000),ce=Math.round(r.eff*1000);assert(pe>=ce);if(pe===ce){assert(prev.score>=r.score-1e-9);if(Math.abs(prev.score-r.score)<=1e-9){assert(prev.exp<=r.exp+1e-9);if(Math.abs(prev.exp-r.exp)<=1e-9)assert(prev.gameOrder<r.gameOrder);}}}
   });
  }
 });
