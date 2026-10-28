@@ -16,7 +16,7 @@ function worker(){
  return c;
 }
 function payload(c,job,attribute,candidateSkills=[],customConditions={}){
- const academyRow=c.PAWAADO_DATA.academies.find(r=>r[1]===job&&Number(r[2])>=90);
+ const academyRow=c.PAWAADO_DATA.academies.find(r=>r[1]===job&&Number(r[3])>=50&&Number(r[5])>=50)||c.PAWAADO_DATA.academies.find(r=>r[1]===job);
  assert(academyRow,'academy for '+job);
  const names=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
  return {
