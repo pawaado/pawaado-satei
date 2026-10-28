@@ -53,7 +53,37 @@ const customBasicRules=new Map();
 const customRequiredSpecials=new Set();
 const customForbiddenSpecials=new Set();
 const candidateSkills=new Map();
-const candidateSkillConditions=new Map();
+const candidateSkillConditions=new Map(); // 「スキル名::Lv」 => required / forbidden
+function candidateRuleKey(name,level){return String(name)+'::'+Number(level);}
+function candidateRuleParts(key){
+  const at=String(key).lastIndexOf('::');
+  return at<0?{name:String(key),level:1}:{name:String(key).slice(0,at),level:Number(String(key).slice(at+2))};
+}
+function clearCandidateSkillRules(name){
+  for(const key of candidateSkillConditions.keys()){
+    if(candidateRuleParts(key).name===name)candidateSkillConditions.delete(key);
+  }
+}
+function candidateRuleOptions(){
+  return candidateChoiceList().flatMap(row=>{
+    const skill=skillByName.get(row.name);
+    if(!skill)return [];
+    const max=Number(skill.levels[skill.levels.length-1]?.lv||1);
+    const range=candidateHasLevels(skill)&&Number(row.level)<max;
+    const levels=range?skill.levels.filter(l=>Number(l.lv)>=Number(row.level)):[{lv:row.level}];
+    return levels.filter(l=>candidateLevelCosts(skill,Number(l.lv),row.hint))
+      .map(l=>({key:candidateRuleKey(row.name,l.lv),name:row.name,level:Number(l.lv),
+        range,label:range?row.name+' Lv.'+l.lv:candidateOptionLabel(skill,row.level)}));
+  });
+}
+function candidateRuleCompatible(name,level,mode){
+  const rules=[...candidateSkillConditions].map(([key,ruleMode])=>({...candidateRuleParts(key),mode:ruleMode}))
+    .filter(rule=>rule.name===name);
+  rules.push({name,level,mode});
+  const minimumForbidden=Math.min(Infinity,...rules.filter(rule=>rule.mode==='forbidden').map(rule=>rule.level));
+  const maximumRequired=Math.max(0,...rules.filter(rule=>rule.mode==='required').map(rule=>rule.level));
+  return maximumRequired<minimumForbidden;
+}
 const skillCandidateMaster=D.skillRankings?.skills||[];
 const skillByName=new Map(skillCandidateMaster.map(skill=>[skill.name,skill]));
 function skillCandidateEligible(skill){
@@ -155,7 +185,7 @@ function refreshCandidateUI(){
   if(!root)return;
   for(const [key] of candidateSkills){
     if(!skillCandidateEligible(skillByName.get(key))){
-      candidateSkills.delete(key);candidateSkillConditions.delete(key);
+      candidateSkills.delete(key);clearCandidateSkillRules(key);
     }
   }
   const entries=[...candidateSkills.values(),null]; // 最後は常に次の入力用空欄
@@ -231,9 +261,10 @@ function initSkillCandidates(){
       const {skill,level}=choice;
       if(!skillCandidateEligible(skill)||candidateSkills.has(skill.name)&&skill.name!==previous)return;
       if(previous&&previous!==skill.name){
-        candidateSkills.delete(previous);candidateSkillConditions.delete(previous);
+        candidateSkills.delete(previous);clearCandidateSkillRules(previous);
       }
       const old=previous===skill.name?candidateSkills.get(previous):null;
+      if(old&&Number(old.level)!==Number(level))clearCandidateSkillRules(skill.name);
       const hints=Array.from({length:6},(_,i)=>i).filter(h=>candidateLevelCosts(skill,level,h));
       const preferred=skill.kind==='汎用'?0:1;
       const hint=old&&hints.includes(old.hint)?old.hint:
@@ -253,7 +284,7 @@ function initSkillCandidates(){
   root.addEventListener('click',e=>{
     const key=e.target.closest('[data-candidate-remove]')?.dataset.candidateRemove;
     if(!key||isCalculating)return;
-    candidateSkills.delete(key);candidateSkillConditions.delete(key);
+    candidateSkills.delete(key);clearCandidateSkillRules(key);
     refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
     const result=document.getElementById('result');
     if(result)result.textContent='';
@@ -966,8 +997,7 @@ function buildWorkerPayload(exp){
       forbiddenSpecialIndices:[...customForbiddenSpecials],
       dualRequiredLevel:customDualRequiredLevel,
       dualForbiddenLevel:customDualForbiddenLevel,
-      requiredSkillNames:[...candidateSkillConditions].filter(([,v])=>v==='required').map(([k])=>k),
-      forbiddenSkillNames:[...candidateSkillConditions].filter(([,v])=>v==='forbidden').map(([k])=>k)
+      skillLevelRules:[...candidateSkillConditions].map(([key,mode])=>({...candidateRuleParts(key),mode}))
     }
   };
 }
@@ -983,7 +1013,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-readable-skills-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-candidate-level-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1253,7 +1283,7 @@ function clearCustomConditionsState(){
   candidateSkillConditions.clear();
   customDualRequiredLevel=0;
   customDualForbiddenLevel=0;
-  for(const [id,value] of [['customBasicName',''],['customBasicMode',''],['customSpecialName',''],['customSpecialMode',''],['customBasicValue','']]){
+  for(const [id,value] of [['customBasicName',''],['customBasicMode',''],['customSpecialName',''],['customSpecialMode',''],['customBasicValue',''],['customSkillName',''],['customSkillMode','']]){
     const el=document.getElementById(id); if(el)el.value=value;
   }
   showCustomMessage('');
@@ -1263,7 +1293,11 @@ function customConditionListHtml(kind){
     ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
     : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:skillDisplayName(D.special[i][1])+'（取得する）'}))
       .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:skillDisplayName(D.special[i][1])+'（取得しない）'})));
-  if(kind==='skill')return [...candidateSkillConditions.entries()].map(([name,mode])=>({key:name,label:candidateOptionLabel(skillByName.get(name),candidateSkills.get(name)?.level)+'（'+(mode==='required'?'取得する':'取得しない')+'）'}))
+  if(kind==='skill')return [...candidateSkillConditions.entries()].map(([key,mode])=>{
+    const rule=candidateRuleOptions().find(option=>option.key===key);
+    const parts=candidateRuleParts(key);
+    return {key,label:(rule?.label||parts.name+' Lv.'+parts.level)+'（'+(mode==='required'?'取得する':'取得しない')+'）'};
+  })
     .map(x=>'<li><span>'+escapeCustomText(x.label)+'</span><button type="button" class="custom-condition-remove" data-kind="skill" data-key="'+escapeCustomText(x.key)+'">×</button></li>').join('');
   if(kind==='special'){
     const name=String(dualAttackMaster?.skillName||'通常攻撃(双剣士)');
@@ -1336,13 +1370,24 @@ function refreshCustomChoices(){
   const card=document.getElementById('customCalcCard');
   card?.classList.toggle('is-locked',!ready);
   const skillSelect=document.getElementById('customSkillName');
+  const skillMode=document.getElementById('customSkillMode');
   if(skillSelect){
     const selected=skillSelect.value;
-    const options=candidateChoiceList().filter(x=>!candidateSkillConditions.has(x.name));
+    const options=candidateRuleOptions().filter(x=>!candidateSkillConditions.has(x.key));
     skillSelect.innerHTML='<option value="">必殺技等を選択</option>'+options
-      .map(x=>'<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(candidateOptionLabel(skillByName.get(x.name),x.level))+'</option>').join('');
-    skillSelect.value=options.some(x=>x.name===selected)?selected:'';
+      .map(x=>'<option value="'+escapeCustomText(x.key)+'">'+escapeCustomText(x.label)+'</option>').join('');
+    skillSelect.value=options.some(x=>x.key===selected)?selected:'';
     skillSelect.disabled=!ready||isCalculating||options.length===0;
+    const current=options.find(x=>x.key===skillSelect.value);
+    const showMode=!!current?.range;
+    const fixed=document.getElementById('customSkillFixedMode');
+    const modeControl=document.getElementById('customSkillModeControl');
+    if(fixed)fixed.hidden=showMode;
+    if(modeControl)modeControl.hidden=!showMode;
+    if(skillMode){
+      if(!showMode)skillMode.value='';
+      skillMode.disabled=!showMode||!ready||isCalculating;
+    }
   }
   for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
     const el=document.getElementById(id);
@@ -1355,7 +1400,7 @@ function renderCustomConditions(){
   for(const [id,placeholder] of [
     ['customBasicName','基本能力を選択'],['customBasicMode','条件を選択'],
     ['customSpecialName','特殊能力を選択'],['customSpecialMode','条件を選択'],
-    ['customSkillName','必殺技等を選択']
+    ['customSkillName','必殺技等を選択'],['customSkillMode','条件を選択']
   ]){
     const select=document.getElementById(id),label=document.getElementById(id+'SelectText');
     if(!select||!label)continue;
@@ -1381,6 +1426,7 @@ function initCustomConditions(){
   const card=document.getElementById('customCalcCard');
   if(!basic||!special||!basicMode||!specialMode||!value||!card)return;
   const skill=document.getElementById('customSkillName');
+  const skillMode=document.getElementById('customSkillMode');
   // 必要項目がそろったら追加。数値の入力途中に確定しないためinputではなくchangeで登録する。
   function autoAddBasic(){
     if(!hasAcademyJob()||isCalculating||!basic.value||!basicMode.value||value.value==='')return;
@@ -1450,11 +1496,32 @@ function initCustomConditions(){
   });
   card.addEventListener('change',event=>{
     if(event.target===skill){
-      if(skill?.value&&candidateSkills.has(skill.value)&&hasAcademyJob()&&!isCalculating){
-        candidateSkillConditions.set(skill.value,'required');
-        skill.value='';
-        showCustomMessage('');renderCustomConditions();
+      if(!skill?.value||!hasAcademyJob()||isCalculating)return;
+      const option=candidateRuleOptions().find(row=>row.key===skill.value);
+      if(!option||candidateSkillConditions.has(option.key))return;
+      if(option.range){
+        if(skillMode)skillMode.value='';
+        renderCustomConditions(); // 「以降」の選択だけ取得する／しないの切替を開く
+        return;
       }
+      candidateSkillConditions.set(option.key,'required'); // 単独Lvは従来どおり取得する固定
+      skill.value='';
+      showCustomMessage('');renderCustomConditions();
+      return;
+    }
+    if(event.target===skillMode){
+      const option=candidateRuleOptions().find(row=>row.key===skill?.value);
+      const mode=skillMode?.value;
+      if(!option?.range||!['required','forbidden'].includes(mode)||isCalculating)return;
+      if(!candidateRuleCompatible(option.name,option.level,mode)){
+        showCustomMessage(option.name+'の取得するLv.と取得しないLv.が矛盾しています。');
+        skillMode.value='';
+        renderCustomConditions();
+        return;
+      }
+      candidateSkillConditions.set(option.key,mode);
+      skill.value='';skillMode.value='';
+      showCustomMessage('');renderCustomConditions();
       return;
     }
     if(event.target===basic||event.target===basicMode||event.target===value)autoAddBasic();
