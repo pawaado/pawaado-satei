@@ -69,9 +69,11 @@ assert(sources['photo_import.js'].includes('s.level=null;'),'photo_import.js: co
 assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
 const basicRankingNote=sources['rankings.html'].split('<section class="notes">')[1]?.split('</section>')[0]||'';
 assert(!basicRankingNote.includes('コツLv0で比較しています'),'rankings.html: removed generic hint note must not return to basic ranking');
-assert(sources['rankings.html'].includes('超特殊能力と固有の必殺技・アクションスキルはコツLv1、汎用の必殺技・アクションスキルはコツなし'),'rankings.html: skill ranking tip bases must be explained');
+assert(sources['rankings.html'].includes('コツLvは超特殊能力・固有の必殺技・アクションスキルをLv1、汎用の必殺技・アクションスキルをコツなし（Lv0）'),'rankings.html: skill ranking hint bases must appear in the notes');
+assert(!sources['rankings.html'].includes('換算した参考値です'),'rankings.html: obsolete estimated skill experience note must be removed');
 assert(sources['skill_rankings.js'].includes("skill.category==='超特殊能力'||skill.kind==='固有'?1:0"),'skill_rankings.js: unique finishers/actions must use observed tip Lv1 cost');
-assert(sources['skill_rankings.js'].includes('function rankingCost('),'skill_rankings.js: normalized cost conversion missing');
+assert(sources['skill_rankings.js'].includes('function rankingCost('),'skill_rankings.js: source costs must be used directly');
+assert(!sources['skill_rankings.js'].includes('costRatioByTip'),'skill_rankings.js: reverse cost estimation must not return');
 assert(!sources['rankings.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'rankings.html: generic elemental attack note must be removed');
 assert(sources['rankings.html'].includes("const names=name==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[name];"),'rankings.html: elemental attacks must be expanded in 火→風→水 order');
 const healingHeart=(data.special||[]).find(row=>String(row[1])==='癒やしの心');
