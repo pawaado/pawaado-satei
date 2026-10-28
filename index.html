@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261028-attribute1">
+  <link rel="stylesheet" href="style.css?v=20261028-attribute2">
 </head>
 <body>
   <header class="site-header">
@@ -45,16 +45,16 @@
           <div id="jobCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
         </div>
       </div>
-      <div id="attributeFieldLabel" class="field-label select-field-label is-locked">
+      <div id="attributeFieldLabel" class="field-label select-field-label">
         <span class="select-label-text">属性</span>
         <div class="select-control custom-select-control">
-          <select id="attribute" class="custom-native-select" tabindex="-1" aria-hidden="true" disabled>
+          <select id="attribute" class="custom-native-select" tabindex="-1" aria-hidden="true">
             <option value="">属性を選択</option>
             <option value="火属性">火属性</option>
             <option value="風属性">風属性</option>
             <option value="水属性">水属性</option>
           </select>
-          <button id="attributeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="attributeCustomMenu" disabled>
+          <button id="attributeSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="attributeCustomMenu">
             <span id="attributeSelectText">属性を選択</span>
           </button>
           <div id="attributeCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
@@ -188,7 +188,7 @@
   <script src="data.js?v=20261028-skill-master-1"></script>
   <script src="resistance_patch.js?v=20261028-skill-master-1"></script>
   <script src="academy_runtime.js?v=20261010-custom-dual-level-1"></script>
-  <script src="script.js?v=20261028-attribute1"></script>
+  <script src="script.js?v=20261028-attribute2"></script>
   <script>
     (()=>{
       const createCustomSelect=(config)=>{
