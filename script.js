@@ -703,7 +703,9 @@ function calcCacheKey(exp){
     [...customRequiredSpecials].sort((a,b)=>a-b),
     [...customForbiddenSpecials].sort((a,b)=>a-b),
     ['dual-required',customDualRequiredLevel],
-    ['dual-forbidden',customDualForbiddenLevel]
+    ['dual-forbidden',customDualForbiddenLevel],
+    [...candidateSkillConditions.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ja')),
+    candidateChoiceList().map(x=>[x.name,x.level,x.hint]).sort((a,b)=>a[0].localeCompare(b[0],'ja'))
   ];
   return [academy.value,job.value,attribute.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'custom:'+JSON.stringify(constraintsKey)].join('||');
 }
@@ -831,12 +833,15 @@ function buildWorkerPayload(exp){
     basicHints:{...basicHints},
     specialState:workerSpecialState(),
     selectedSupers:selectedSuperState(),
+    candidateSkills:candidateChoiceList(),
     customConditions:{
       basicRules:Object.fromEntries(customBasicRules),
       requiredSpecialIndices:[...customRequiredSpecials],
       forbiddenSpecialIndices:[...customForbiddenSpecials],
       dualRequiredLevel:customDualRequiredLevel,
-      dualForbiddenLevel:customDualForbiddenLevel
+      dualForbiddenLevel:customDualForbiddenLevel,
+      requiredSkillNames:[...candidateSkillConditions].filter(([,v])=>v==='required').map(([k])=>k),
+      forbiddenSkillNames:[...candidateSkillConditions].filter(([,v])=>v==='forbidden').map(([k])=>k)
     }
   };
 }
@@ -945,7 +950,7 @@ function resultTable(items,kind){
   if(!filtered.length) return '<p class="result-empty"><strong>追加なし</strong></p>';
 
   const sorted=filtered.sort((a,b)=>(a.idx??0)-(b.idx??0));
-  const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from} → ${c.to}`:renderSkillName(c.name)}</td></tr>`).join('');
+  const rows=sorted.map(c=>`<tr><td>${kind==='basic'?`${c.name} ${c.from} → ${c.to}`:kind==='candidate'?escapeCustomText(c.name+' Lv'+c.level):renderSkillName(c.name)}</td></tr>`).join('');
   const tableClass=kind==='basic'?'basic-result-table':'special-result-table';
   return `<table class="result-table ${tableClass}"><tbody>${rows}</tbody></table>`;
 }
@@ -1076,6 +1081,7 @@ function sampleResultHtml(entry,index,multiple=false){
     ${headerHtml}
     <div class="result-block"><h3>基本能力</h3>${resultTable(finalItems,'basic')}</div>
     <div class="result-block"><h3>${job.value==='双剣士'?'特殊能力等':'特殊能力'}</h3>${resultTable(finalItems,'special')}</div>
+    <div class="result-block"><h3>必殺技・アクションスキル・超特殊能力</h3>${resultTable(finalItems,'candidate')}</div>
     <div class="result-block score-result-block"><h3>査定上昇量</h3><span class="score-gain">${scoreText}</span></div>
     <div class="result-block"><h3>残経験点</h3><div class="remain-grid">${remainHtml}</div></div>
   </div>`;
@@ -1111,6 +1117,7 @@ function clearCustomConditionsState(){
   customBasicRules.clear();
   customRequiredSpecials.clear();
   customForbiddenSpecials.clear();
+  candidateSkillConditions.clear();
   customDualRequiredLevel=0;
   customDualForbiddenLevel=0;
   for(const [id,value] of [['customBasicName',''],['customBasicMode',''],['customSpecialName',''],['customSpecialMode',''],['customBasicValue','']]){
@@ -1123,6 +1130,8 @@ function customConditionListHtml(kind){
     ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
     : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:skillDisplayName(D.special[i][1])+'（取得する）'}))
       .concat([...customForbiddenSpecials].map(i=>({kind:'forbidden',key:i,label:skillDisplayName(D.special[i][1])+'（取得しない）'})));
+  if(kind==='skill')return [...candidateSkillConditions.entries()].map(([name,mode])=>({key:name,label:name+' Lv'+candidateSkills.get(name)?.level+'（'+(mode==='required'?'取得する':'取得しない')+'）'}))
+    .map(x=>'<li><span>'+escapeCustomText(x.label)+'</span><button type="button" class="custom-condition-remove" data-kind="skill" data-key="'+escapeCustomText(x.key)+'">×</button></li>').join('');
   if(kind==='special'){
     const name=String(dualAttackMaster?.skillName||'通常攻撃(双剣士)');
     if(customDualRequiredLevel)entries.push({kind:'dual-required',key:customDualRequiredLevel,label:name+' Lv.'+customDualRequiredLevel+'（取得する）'});
@@ -1193,6 +1202,16 @@ function refreshCustomChoices(){
   special.value=specialSelection;
   const card=document.getElementById('customCalcCard');
   card?.classList.toggle('is-locked',!ready);
+  const skillSelect=document.getElementById('customSkillName'),skillMode=document.getElementById('customSkillMode');
+  if(skillSelect&&skillMode){
+    const selected=skillSelect.value;
+    skillSelect.innerHTML='<option value="">取得候補を選択</option>'+candidateChoiceList()
+      .filter(x=>!candidateSkillConditions.has(x.name))
+      .map(x=>'<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(x.name)+' Lv'+x.level+'</option>').join('');
+    skillSelect.value=selected;
+    skillSelect.disabled=!ready||isCalculating;
+    skillMode.disabled=!ready||isCalculating;
+  }
   for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
     const el=document.getElementById(id);
     if(el)el.disabled=!(id.startsWith('customSpecial')?specialReady:ready)||isCalculating;
@@ -1210,13 +1229,13 @@ function renderCustomConditions(){
     const selected=select.options?.[select.selectedIndex];
     label.textContent=selected?.textContent||(select.value||placeholder);
   }
-  for(const kind of ['basic','special']){
+  for(const kind of ['basic','special','skill']){
     const target=document.getElementById('custom-'+kind+'-list');
     if(!target)continue;
     target.innerHTML=customConditionListHtml(kind);
     target.hidden=!target.innerHTML;
   }
-  const has=customBasicRules.size||customRequiredSpecials.size||customForbiddenSpecials.size||customDualRequiredLevel||customDualForbiddenLevel;
+  const has=customBasicRules.size||customRequiredSpecials.size||customForbiddenSpecials.size||customDualRequiredLevel||customDualForbiddenLevel||candidateSkillConditions.size;
   const clear=document.getElementById('customClearAll');
   if(clear){clear.hidden=!has;clear.disabled=!has||!hasAcademyJob()||isCalculating;}
 }
@@ -1228,6 +1247,7 @@ function initCustomConditions(){
   const value=document.getElementById('customBasicValue');
   const card=document.getElementById('customCalcCard');
   if(!basic||!special||!basicMode||!specialMode||!value||!card)return;
+  const skill=document.getElementById('customSkillName'),skillMode=document.getElementById('customSkillMode');
   // 必要項目がそろったら追加。数値の入力途中に確定しないためinputではなくchangeで登録する。
   function autoAddBasic(){
     if(!hasAcademyJob()||isCalculating||!basic.value||!basicMode.value||value.value==='')return;
@@ -1285,6 +1305,7 @@ function initCustomConditions(){
       else if(kind==='forbidden')customForbiddenSpecials.delete(Number(key));
       else if(kind==='dual-required')customDualRequiredLevel=0;
       else if(kind==='dual-forbidden')customDualForbiddenLevel=0;
+      else if(kind==='skill')candidateSkillConditions.delete(key);
       showCustomMessage('');
       renderCustomConditions();
       return;
@@ -1295,6 +1316,14 @@ function initCustomConditions(){
     }
   });
   card.addEventListener('change',event=>{
+    if((event.target===skill||event.target===skillMode)&&skill?.value&&skillMode?.value){
+      if(candidateSkills.has(skill.value)&&['required','forbidden'].includes(skillMode.value)){
+        candidateSkillConditions.set(skill.value,skillMode.value);
+        skill.value='';skillMode.value='';
+        showCustomMessage('');renderCustomConditions();
+      }
+      return;
+    }
     if(event.target===basic||event.target===basicMode||event.target===value)autoAddBasic();
     else if(event.target===special||event.target===specialMode)autoAddSpecial();
   });
@@ -1508,6 +1537,7 @@ function resetAll(){
   Object.keys(basicHints).forEach(k=>basicHints[k]=0);
 
   specialState.clear();
+  candidateSkills.clear();candidateSkillConditions.clear();
   clearCustomConditionsState();
   renderCustomConditions();
   calcResultCache.clear();
@@ -1517,6 +1547,7 @@ function resetAll(){
   renderBasic();
   renderSpecials();
   applyCurrentJobTheme();
+  refreshCandidateUI();
 
   document.getElementById('result').textContent='';
 }
@@ -1705,5 +1736,5 @@ document.getElementById('topResetBtn').addEventListener('click',resetAll);
 ensureCancelButton();
 setupUsageModal();
 removeTemporaryVersionDisplay();
-initAcademies(); renderExp(); renderBasic(); renderSpecials(); initCustomConditions(); validateAllInline();
+initAcademies(); renderExp(); renderBasic(); renderSpecials(); initSkillCandidates(); initCustomConditions(); validateAllInline();
 })();
