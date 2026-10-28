@@ -33,6 +33,7 @@ function load(){
   context.window=context;
   vm.createContext(context);
   vm.runInContext(file('data.js'),context,{filename:'data.js'});
+  vm.runInContext(file('skill_master.js'),context,{filename:'skill_master.js'});
   vm.runInContext(file('skill_rankings.js'),context,{filename:'skill_rankings.js'});
   return {context,elements,jobButtons,modeButtons};
 }
@@ -40,12 +41,15 @@ function leader(html){
   return html.match(/<span class="skill-rank-index">1<\/span>[\s\S]*?<span class="skill-row-title"[^>]*>([^<]+)/)?.[1];
 }
 
-test('skill rankings use only canonical data.js, not the old ranking snapshot',()=>{
+test('skill rankings load canonical skill_master.js and do not use the removed snapshot',()=>{
   const html=file('rankings.html');
   const app=file('index.html');
   assert(!html.includes('<script src="skill_rankings_data.js'));
   assert(html.includes('<script src="data.js?v='));
-  assert(html.indexOf('<script src="data.js?')<html.indexOf('<script src="skill_rankings.js?'));
+  assert(html.includes('<script src="skill_master.js?v='));
+  assert(!fs.existsSync(path.join(root,'skill_rankings_data.js')));
+  assert(html.indexOf('<script src="data.js?')<html.indexOf('<script src="skill_master.js?'));
+  assert(html.indexOf('<script src="skill_master.js?')<html.indexOf('<script src="skill_rankings.js?'));
   assert.equal(html.match(/data\.js\?v=([^"]+)/)?.[1],app.match(/data\.js\?v=([^"]+)/)?.[1]);
   assert(file('skill_rankings.js').includes('window.PAWAADO_DATA?.skillRankings'));
   assert(!file('skill_rankings.js').includes('window.PAWAADO_SKILL_RANKING_DATA'));
