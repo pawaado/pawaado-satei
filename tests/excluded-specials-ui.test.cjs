@@ -16,7 +16,7 @@ const dataContext={window:{}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),dataContext);
 const D=dataContext.window.PAWAADO_DATA;
 const mutualGroups=vm.runInNewContext(ui.match(/const mutualGroups=(\[[\s\S]*?\]);/)[1]);
-function mock({ready=true,jobName='剣士'}={}){
+function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
  const dom={},owned=new Set();
  const node=id=>{
    if(dom[id])return dom[id];
@@ -34,6 +34,7 @@ function mock({ready=true,jobName='剣士'}={}){
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
+   hasSpecialAccess:()=>ready&&attributeSelected,skillDisplayName:name=>name==='〜攻撃'?'火攻撃':name,
     dualSpecialIndex:D.special.findIndex(row=>row[1]==='通常攻撃(双剣士)'),dualAttackMaster:null,customDualRequiredLevel:0,customDualForbiddenLevel:0,
     currentDualAttackLevel:()=>1,dualCustomLevelAvailable:()=>false,
    limits:()=>({生命力:110,パワー:115,魔力:110,器用さ:120,耐久力:100,精神力:100}),
@@ -251,4 +252,17 @@ test('payload and cache include all constraint modes',()=>{
  assert(ui.includes('comparisonHtml(entries)'));
   assert(!ui.includes('customConditionsSummaryHtml()+comparisonHtml(entries)'),'result should not repeat custom conditions');
  assert(!ui.includes('minimumBasics:Object.fromEntries(customMinimumBasics)'));
+});
+
+test('special custom conditions wait for attribute selection, but basic conditions stay usable',()=>{
+ const x=mock({ready:true,attributeSelected:false});
+ assert.equal(x.node('customBasicName').disabled,false);
+ assert.equal(x.node('customSpecialName').disabled,true);
+ assert.equal(x.node('customSpecialMode').disabled,true);
+ assert(!x.node('customSpecialName').innerHTML.includes('火攻撃'));
+ const before=x.state.customRequiredSpecials.size;
+ x.node('customSpecialName').value=String(D.special.findIndex(row=>row[1]==='〜攻撃'));
+ x.node('customSpecialMode').value='required';
+ x.change('customSpecialMode');
+ assert.equal(x.state.customRequiredSpecials.size,before);
 });
