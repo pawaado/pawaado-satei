@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@500;700&family=Noto+Sans+JP:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261028-attribute2">
+  <link rel="stylesheet" href="style.css?v=20261028-skill-candidates-1">
 </head>
 <body>
   <header class="site-header">
@@ -84,6 +84,27 @@
     </section>
 
 
+    <section id="skillCandidatesCard" class="card skill-candidates-card" aria-labelledby="skillCandidatesTitle">
+      <div class="section-heading no-heading-diamond"><h2 id="skillCandidatesTitle">未取得（取得候補）の必殺技等</h2></div>
+      <p class="skill-candidate-note">ジョブ・属性を選ぶと、そのキャラクターが取得できる必殺技・アクションスキル・超特殊能力を選べます。追加した候補も査定計算で比較します。</p>
+      <div class="skill-candidate-controls">
+        <label for="skillCandidateName">名称
+          <select id="skillCandidateName" aria-label="取得候補の名称"><option value="">名称を選択</option></select>
+        </label>
+        <div class="skill-candidate-controls-row">
+          <label for="skillCandidateLevel">能力Lv
+            <select id="skillCandidateLevel" aria-label="取得候補の能力Lv"><option value="">Lvを選択</option></select>
+          </label>
+          <label for="skillCandidateHint">コツLv
+            <select id="skillCandidateHint" aria-label="取得候補のコツLv"><option value="">コツを選択</option></select>
+          </label>
+        </div>
+        <button id="skillCandidateAdd" type="button" class="secondary" disabled>取得候補に追加</button>
+      </div>
+      <p id="skillCandidateMessage" role="status" aria-live="polite" class="skill-candidate-message"></p>
+      <ul id="skillCandidateList" class="custom-condition-list" hidden></ul>
+    </section>
+
     <section id="customCalcCard" class="card custom-calc-card is-locked" aria-labelledby="customCalcTitle">
       <div class="section-heading no-heading-diamond"><h2 id="customCalcTitle">こだわり条件</h2></div>
       <div class="custom-condition-group">
@@ -104,6 +125,14 @@
           </div>
         </div>
         <ul id="custom-basic-list" class="custom-condition-list" hidden></ul>
+      </div>
+      <div class="custom-condition-group">
+        <h3>必殺技・アクションスキル・超特殊能力</h3>
+        <div class="custom-condition-inputs custom-skill-inputs">
+          <select id="customSkillName" aria-label="必殺技等を選択"><option value="">取得候補を選択</option></select>
+          <select id="customSkillMode" aria-label="取得する・取得しない"><option value="">条件を選択</option><option value="required">取得する</option><option value="forbidden">取得しない</option></select>
+        </div>
+        <ul id="custom-skill-list" class="custom-condition-list" hidden></ul>
       </div>
       <div class="custom-condition-group">
         <h3>特殊能力</h3>
@@ -159,6 +188,7 @@
       <ol class="usage-list">
         <li>「能力アップ」、「能力データ」の画像を選択し、「画像を読み取る」を押すと、自動入力されます。内容を確認し、誤りがあれば修正をお願いします。画像で属性を確定できなかった場合は、火・風・水から手動で選択してください。属性を選ぶと特殊能力を操作できます。<br>なお、画像を用いず、手入力でも可能です。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。HP、耐性で査定が変動することがあるため、該当する超特殊能力があれば、選択してください。</li>
         <li>基本能力、特殊能力左の「＋」でコツLv.を設定します。</li>
+        <li>未取得（取得候補）の必殺技等は、ジョブ・属性を決めて名称・能力Lv・コツLvを選ぶと査定計算の候補になります。実測したコツ別経験点がある場合のみ計算します。「こだわり条件」では追加した候補を取得する／取得しないに指定できます。</li>
         <li>「計算する」を押すと、査定が最大となる組合せが表示されます。<br>なお、「能力データ」に加えて、「訓練」の画像を複数読み取ると、各訓練後の経験点パターンにて比較できます。「訓練後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せが表示されます。<br>また、「こだわり条件」で基本能力や特殊能力に条件を設定することもできます。</li>
       </ol>
       <div class="usage-note-block">
