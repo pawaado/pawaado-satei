@@ -188,17 +188,26 @@ function refreshCandidateUI(){
     }
     const nameOptions='<option value="">必殺技等を選択</option>'+choices.join('');
     const hintOptions=['<option value="">コツLv.を選択</option>'];
+    const validHints=[];
     if(skill){
       for(let tip=0;tip<=5;tip++){
         if(candidateLevelCosts(skill,row.level,tip)){
+          validHints.push(tip);
           const label=tip===0?'コツなし':'コツLv.'+tip;
           hintOptions.push('<option value="'+tip+'"'+(tip===row.hint?' selected':'')+'>'+label+'</option>');
         }
       }
     }
     const name=candidateControlHtml('skillCandidateName',index,nameOptions,'必殺技等を選択',!ready);
-    const hint=candidateControlHtml('skillCandidateHint',index,hintOptions,
-      row?(row.hint===0?'コツなし':'コツLv.'+row.hint):'コツLv.を選択',!ready||!row);
+    // コツLvが1種類しか分からない技は、選択窓にせず固定表示する。
+    const onlyHint=validHints.length===1;
+    const hint=onlyHint
+      ?'<div class="custom-select-control super-custom-select skill-candidate-hint-control is-single-tip">'+
+        '<span class="custom-select-button skill-candidate-fixed-hint" aria-label="'+
+        (validHints[0]===0?'コツなし':'コツLv.'+validHints[0])+'">'+
+        (validHints[0]===0?'コツなし':'コツLv.'+validHints[0])+'</span></div>'
+      :candidateControlHtml('skillCandidateHint',index,hintOptions,
+        row?(row.hint===0?'コツなし':'コツLv.'+row.hint):'コツLv.を選択',!ready||!row);
     const del=row?'<button type="button" class="extra-resistance-group-remove skill-candidate-remove" data-candidate-remove="'+escapeCustomText(row.name)+'" aria-label="'+escapeCustomText(row.name)+'を削除">×</button>':
       '<span class="skill-candidate-remove-placeholder" aria-hidden="true"></span>';
     return '<div class="skill-candidate-row'+(row?' has-skill':'')+'" data-skill-candidate-row data-candidate-name="'+escapeCustomText(previous)+'">'+
