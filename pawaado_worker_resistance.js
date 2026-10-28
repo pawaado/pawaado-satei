@@ -84,7 +84,7 @@ function addResistanceSource(byType,type,sourceName,value){
   const key=String(sourceName);
   sources.set(key,Number(sources.get(key)||0)+Number(value));
 }
-function resistanceSourcesForBits(bits,candidateBits=0n){
+function resistanceSourcesForBits(bits,candidateBits=0n,candidateLevels={}){
   const byType=new Map();
   const activeBits=bits??EMPTY_BITS;
 
@@ -100,7 +100,8 @@ function resistanceSourcesForBits(bits,candidateBits=0n){
 
   const included=new Set(workerExtraResistances.flatMap(row=>D.superResistances?.[row.name]?.includes||[]));
   for(const entry of workerSkillCandidates){
-    if(!entry.def.resistance||((candidateBits||0n)&(1n<<BigInt(entry.id)))===0n)continue;
+    if(!entry.def.resistance||Number(candidateLevels?.[entry.id]||0)!==entry.level||
+      ((candidateBits||0n)&(1n<<BigInt(entry.id)))===0n)continue;
     const def=D.superResistances?.[entry.name];
     const values=def?.levels||[];
     for(const type of def?.types||[]){
@@ -132,13 +133,14 @@ function resistanceSourcesForBits(bits,candidateBits=0n){
   }
   return byType;
 }
-function resistanceScoreForBits(bits,candidateBits=0n){
-  // 耐性効果がある特殊能力と、未取得候補の取得状態を合わせてキャッシュする。
+function resistanceScoreForBits(bits,candidateBits=0n,candidateLevels={}){
+  // 候補技の取得Lvが変化したときも耐性圧縮を再計算する。
   const relevant=(bits??EMPTY_BITS)&resistanceRelevantMask();
-  const cacheKey=relevant.toString(36)+':'+(candidateBits||0n).toString(36);
+  const cacheKey=relevant.toString(36)+':'+(candidateBits||0n).toString(36)+':'+
+    Object.entries(candidateLevels).map(([k,v])=>k+'-'+v).join('.');
   if(resistanceScoreCache.has(cacheKey)) return resistanceScoreCache.get(cacheKey);
   let total=0;
-  const byType=resistanceSourcesForBits(relevant,candidateBits);
+  const byType=resistanceSourcesForBits(relevant,candidateBits,candidateLevels);
   for(const [type,sources] of byType){
     let remaining=1;
     for(const value of sources.values()) remaining*=1-Number(value)/100;
@@ -166,23 +168,27 @@ function staticResistanceScoreForItems(items,relevantBits=null){
   staticResistanceScoreCache.set(cacheKey,total);
   return total;
 }
-function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore,candidateBits=0n){
+function dynamicSpecialGainForBits(beforeBits,opBits,items,staticScore,candidateBits=0n,candidateLevels={}){
   const relevantMask=resistanceRelevantMask();
   const opRelevant=(opBits??EMPTY_BITS)&relevantMask;
   // 耐性影響能力を含まない候補は従来査定をそのまま返す。
   if(opRelevant===EMPTY_BITS) return Number(staticScore||0);
   const nonResistance=Number(staticScore||0)-staticResistanceScoreForItems(items,opRelevant);
-  const before=resistanceScoreForBits(beforeBits??EMPTY_BITS,candidateBits);
-  const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|opRelevant,candidateBits);
+  const before=resistanceScoreForBits(beforeBits??EMPTY_BITS,candidateBits,candidateLevels);
+  const after=resistanceScoreForBits((beforeBits??EMPTY_BITS)|opRelevant,candidateBits,candidateLevels);
   return nonResistance+(after-before);
 }
-function dynamicCandidateSkillGain(beforeBits,candidateBits,requiredBits,entry,items){
+function dynamicCandidateSkillGain(beforeBits,candidateBits,requiredBits,entry,items,candidateLevels={}){
   const nextBit=1n<<BigInt(entry.id);
-  const before=resistanceScoreForBits(beforeBits||0n,candidateBits||0n);
-  const after=resistanceScoreForBits((beforeBits||0n)|(requiredBits||0n),(candidateBits||0n)|nextBit);
+  const before=resistanceScoreForBits(beforeBits||0n,candidateBits||0n,candidateLevels);
+  const previousLevel=Number(candidateLevels[entry.id]||0);
+  const afterLevels={...candidateLevels,[entry.id]:entry.level};
+  const after=resistanceScoreForBits((beforeBits||0n)|(requiredBits||0n),(candidateBits||0n)|nextBit,afterLevels);
   let nominal=0;
-  for(const [type,value] of Object.entries(entry.def.levels[entry.level-1].effect||{})){
-    nominal+=Number(value||0)*Number(RESISTANCE_SCORE_RATES[type]||0);
+  const oldEffect=entry.def.levels[previousLevel-1]?.effect||{};
+  const newEffect=entry.def.levels[entry.level-1]?.effect||{};
+  for(const type of new Set([...Object.keys(newEffect),...Object.keys(oldEffect)])){
+    nominal+=(Number(newEffect[type]||0)-Number(oldEffect[type]||0))*Number(RESISTANCE_SCORE_RATES[type]||0);
   }
   return (after-before)-nominal-staticResistanceScoreForItems(items);
 }
@@ -216,7 +222,7 @@ function dynamicCandidateSkillGain(beforeBits,candidateBits,requiredBits,entry,i
       isHpDependent:specialOptionIsHpDependent(op0)
     });`,
 `    const cs=op0.costSum??costSum(op0.cost);
-    const gain=dynamicSpecialGainForBits(st.bits??EMPTY_BITS,opBits,op0.items,Number(op0.score||0),st.candidateBits||0n);
+    const gain=dynamicSpecialGainForBits(st.bits??EMPTY_BITS,opBits,op0.items,Number(op0.score||0),st.candidateBits||0n,st.candidateLevels||{});
     if(gain<=0) continue;
     const eff=gain/Math.max(1,cs);
     out.push({
