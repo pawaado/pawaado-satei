@@ -31,6 +31,11 @@
 #skillRankingRoot td.skill-rank-eff,#skillRankingRoot td.skill-rank-exp,#skillRankingRoot td.skill-rank-score{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
 #skillRankingRoot td.skill-rank-eff{font-size:14px}
 #skillRankingRoot td.skill-rank-notes{text-align:left;font-size:11px;overflow-wrap:anywhere}
+/* iPhoneの横スクロール中も順位と名称を見失わないよう左2列を固定 */
+#skillRankingRoot th:first-child,#skillRankingRoot td.skill-rank-num{position:sticky;left:0;z-index:2}
+#skillRankingRoot th:nth-child(2),#skillRankingRoot td.skill-name-cell{position:sticky;left:45px;z-index:2}
+#skillRankingRoot th:first-child,#skillRankingRoot th:nth-child(2){z-index:3;background:#a84834}
+
 #skillRankingRoot tr.skill-category-finisher td{background:#fff4d9}
 #skillRankingRoot tr.skill-category-action td{background:#e6f4fb}
 #skillRankingRoot tr.skill-category-super td{background:#f6e8f4}
