@@ -97,8 +97,8 @@
     }
     .tab[aria-pressed="true"]{color:#fff;border-color:#233f50;background:linear-gradient(180deg,#2f708b,#174b63);box-shadow:0 2px 0 rgba(31,57,72,.18)}
     .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-    table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;min-width:590px}
-    col.rank{width:58px} col.name{width:auto} col.eff{width:102px} col.exp{width:120px} col.score{width:86px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;min-width:510px}
+    col.rank{width:43px} col.name{width:135px} col.eff{width:81px} col.score{width:71px} col.exp{width:99px} col.note{width:81px}
     th,td{border:1px solid #4d9ec0;padding:9px 8px;vertical-align:middle}
     th{
       background:#a84834;
@@ -109,10 +109,13 @@
     }
     td{font-size:13px;background:#fff}
     td:nth-child(1){text-align:center;font-weight:700}
-    td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums}
+    td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
     td:nth-child(3){font-weight:800}
     td:nth-child(4),td:nth-child(5){font-weight:600}
-    td.name-cell{font-weight:600}
+    td.name-cell{font-weight:600;overflow-wrap:anywhere}
+    td.ranking-note-cell{font-size:11px;text-align:center;padding:5px 2px;line-height:1.4;color:#74501e}
+    .ranking-note-tag{display:block;white-space:nowrap;font-weight:700}
+    .ranking-note-tag+.ranking-note-tag{margin-top:2px}
     tr.basic td.name-cell{background:#fff1c7;color:#5a3c10}
     tr.special td.name-cell{background:#dff1f6;color:#3d2818}
     tr.negative td{color:#a52f2f}
@@ -128,7 +131,6 @@
     }
     .notes ul{margin:0;padding-left:1.25em}
     .notes li+li{margin-top:3px}
-    .ranking-note-marker{display:inline-block;margin-left:.4em;color:#98651d;font-size:10px;font-weight:800;white-space:nowrap;vertical-align:middle}
     .notes h2{margin:0 0 7px;color:#4b2b17;font-size:14px}
     .error{padding:30px 18px;text-align:center;color:#9b2d2d;font-weight:700}
     @media(max-width:560px){
@@ -141,7 +143,7 @@
       .tab{font-size:17px;padding:11px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028g">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028h">
 </head>
 <body>
   <header class="site-header">
@@ -381,17 +383,21 @@
     }
     const escapeHtml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     function abilityLabel(item){
+      return escapeHtml(item.ability.replace(/\s*※HP依存/g,''));
+    }
+    function abilityNotes(item){
       const name=item.ability.replace(/\s*※HP依存/g,'');
-      const hp=item.ability.includes('※HP依存');
-      return escapeHtml(name)+(hp?'<span class="ranking-note-marker ranking-hp-marker">※HP依存</span>':'')+
-        (item.type==='special'&&resistanceImpactSkills.has(name)?'<span class="ranking-note-marker ranking-resistance-marker">※耐性影響</span>':'');
+      const parts=[];
+      if(item.ability.includes('※HP依存'))parts.push('<span class="ranking-note-tag ranking-hp-marker">HP依存</span>');
+      if(item.type==='special'&&resistanceImpactSkills.has(name))parts.push('<span class="ranking-note-tag ranking-resistance-marker">耐性影響</span>');
+      return parts.join('');
     }
     function render(group){
       const items=cache[group]||(cache[group]=allItems(group));
-      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="score"><col class="exp"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>査定</th><th>必要経験点</th></tr></thead><tbody>';
+      let html='<table><colgroup><col class="rank"><col class="name"><col class="eff"><col class="score"><col class="exp"><col class="note"></colgroup><thead><tr><th>順位</th><th>能力</th><th>査定効率</th><th>査定</th><th>必要経験点</th><th>備考</th></tr></thead><tbody>';
       for(const item of items){
         const neg=item.score<0?' negative':'';
-        html+=`<tr class="${item.type}${neg}"><td>${item.rank}</td><td class="name-cell">${abilityLabel(item)}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.score,2)}</td><td>${fmt(item.exp,2)}</td></tr>`;
+        html+=`<tr class="${item.type}${neg}"><td>${item.rank}</td><td class="name-cell">${abilityLabel(item)}</td><td>${fmt(item.eff,3)}</td><td>${fmt(item.score,2)}</td><td>${fmt(item.exp,2)}</td><td class="ranking-note-cell">${abilityNotes(item)}</td></tr>`;
       }
       html+='</tbody></table>';
       root.innerHTML=html;
@@ -402,6 +408,6 @@
     render('物理職');
   })();
   </script>
-  <script src="skill_rankings.js?v=20261028f"></script>
+  <script src="skill_rankings.js?v=20261028g"></script>
 </body>
 </html>
