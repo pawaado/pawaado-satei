@@ -1,41 +1,59 @@
-/* 既存の基本能力・特殊能力ランキングには影響しない専用スタイル */
+/* スキル査定ランキング専用：既存の基本能力・特殊能力の数値や行色は変更しない */
 [hidden]{display:none!important}
 .ranking-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 16px}
-.ranking-mode-tab{font:800 15px/1.45 "Noto Sans JP",sans-serif;border:3px solid #80552f;border-radius:15px;padding:12px 9px;background:linear-gradient(#fff8e7,#eedbb4);color:#51361f;cursor:pointer;min-height:64px}
+.ranking-mode-tab{
+  font:800 14px/1.4 "Noto Sans JP",sans-serif;
+  border:3px solid #80552f;border-radius:15px;padding:10px 6px;
+  background:linear-gradient(#fff8e7,#eedbb4);color:#51361f;cursor:pointer;min-height:70px;
+}
 .ranking-mode-tab[aria-selected="true"]{background:linear-gradient(#39748d,#1b4b63);border-color:#183f52;color:white;box-shadow:0 3px 0 #173b48}
+.mode-title-first{display:block;white-space:nowrap}
+.mode-title-second{display:block;white-space:nowrap}
 .skill-job-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 12px}
 .skill-job-tab{font:800 13px/1.3 "Noto Sans JP",sans-serif;border:2px solid #795028;border-radius:12px;padding:12px 3px;background:linear-gradient(#fffbef,#eeddbb);color:#624222;min-height:45px;cursor:pointer;white-space:nowrap}
 .skill-job-tab[aria-pressed="true"]{background:linear-gradient(#b65d3f,#8b392a);border-color:#793323;color:#fff}
 .skill-rank-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
-.skill-rank-controls label{font-size:12px;font-weight:800;color:#5b3b22;display:block}
-.skill-rank-controls select,.skill-rank-controls input{width:100%;font:600 14px "Noto Sans JP",sans-serif;padding:10px 9px;border:2px solid #a47b49;background:#fffaf0;border-radius:10px;color:#3d2818;min-height:45px;margin-top:4px}
-.skill-rank-help{padding:10px 12px;margin:0 0 10px;border:1px solid #c9a675;border-radius:12px;background:#fff5d9;font-size:12px;line-height:1.7;color:#5f4634}
+.skill-rank-controls label{font-size:12px;font-weight:800;color:#5b3b22;display:block;min-width:0}
+.skill-rank-controls label:last-child{grid-column:1/-1}
+.skill-rank-controls select{width:100%;font:600 14px "Noto Sans JP",sans-serif;padding:10px 9px;border:2px solid #a47b49;background:#fffaf0;border-radius:10px;color:#3d2818;min-height:45px;margin-top:4px}
 .skill-rank-count{margin:10px 2px;font-size:13px;font-weight:800;color:#654428}
-#skillRankingRoot{overflow:visible}
-#skillRankingRoot table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse}
-#skillRankingRoot .rank-col{width:52px}
-#skillRankingRoot .eff-col{width:95px}
-#skillRankingRoot th{font-size:13px;padding:10px 4px}
-#skillRankingRoot td{font-size:14px;padding:8px 5px;line-height:1.45}
+#skillRankingRoot{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;max-width:100%}
+#skillRankingRoot table{width:100%;min-width:618px;table-layout:fixed;border-collapse:collapse}
+#skillRankingRoot .rank-col{width:45px}
+#skillRankingRoot .name-col{width:172px}
+#skillRankingRoot .eff-col{width:82px}
+#skillRankingRoot .exp-col{width:89px}
+#skillRankingRoot .score-col{width:74px}
+#skillRankingRoot .notes-col{width:156px}
+#skillRankingRoot th{font-size:12px;padding:9px 3px;white-space:normal;line-height:1.3}
+#skillRankingRoot td{font-size:12px;padding:9px 5px;line-height:1.4;vertical-align:middle}
 #skillRankingRoot td.skill-rank-num{text-align:center;font-weight:900}
-#skillRankingRoot td.skill-rank-eff{text-align:right;padding-right:12px;font-weight:900;font-size:16px;font-variant-numeric:tabular-nums}
-#skillRankingRoot .skill-name-cell{padding:5px 8px;background:#fff3cb}
-#skillRankingRoot tbody tr:nth-child(even) .skill-name-cell{background:#e5f1f5}
-.skill-name-cell summary{list-style:none;cursor:pointer;display:block;padding:3px 0}
+#skillRankingRoot td.skill-rank-eff,#skillRankingRoot td.skill-rank-exp,#skillRankingRoot td.skill-rank-score{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+#skillRankingRoot td.skill-rank-eff{font-size:14px}
+#skillRankingRoot td.skill-rank-notes{text-align:left;font-size:11px;overflow-wrap:anywhere}
+#skillRankingRoot tr.skill-category-finisher td{background:#fff4d9}
+#skillRankingRoot tr.skill-category-action td{background:#e6f4fb}
+#skillRankingRoot tr.skill-category-super td{background:#f6e8f4}
+#skillRankingRoot tr.skill-category-finisher td.skill-name-cell{background:#ffe4a1;border-left:4px solid #ce8923}
+#skillRankingRoot tr.skill-category-action td.skill-name-cell{background:#cdeaf7;border-left:4px solid #3985ab}
+#skillRankingRoot tr.skill-category-super td.skill-name-cell{background:#edd0e9;border-left:4px solid #a75b99}
+#skillRankingRoot .skill-name-cell{padding:7px 5px}
+.skill-name-cell summary{list-style:none;cursor:pointer;display:block;min-width:0}
 .skill-name-cell summary::-webkit-details-marker{display:none}
-.skill-name-cell summary::after{content:'詳細 ▾';display:inline-block;font-size:10px;color:#715c40;margin-top:1px}
-.skill-name-cell details[open] summary::after{content:'閉じる ▴'}
-.skill-row-title{font-weight:900;font-size:14px;display:block;overflow-wrap:anywhere}
-.skill-tagline{display:flex;gap:3px;flex-wrap:wrap;margin:4px 0 1px}
-.skill-tag{display:inline-block;font-size:10px;color:#5b4127;background:#f6e4b8;border:1px solid #c7a67c;border-radius:5px;padding:0 4px;white-space:nowrap}
-.skill-metrics{font-size:11px;font-weight:700;color:#66523b;display:block;margin-top:3px;font-variant-numeric:tabular-nums}
-.skill-hint{font-size:10px;color:#9b6a13;font-weight:800;white-space:nowrap}
-.skill-row-detail{font-size:12px;line-height:1.7;background:#fffdfa;border-top:1px dashed #c5ad84;margin:7px 0 1px;padding:9px 5px;color:#604b35;overflow-wrap:anywhere}
+.skill-name-line{display:flex;align-items:center;justify-content:space-between;gap:3px;width:100%;min-width:0}
+.skill-row-title{font-weight:900;font-size:12px;line-height:1.4;flex:1;min-width:0;overflow-wrap:anywhere}
+.skill-level{font-weight:900;white-space:nowrap;font-size:11px;color:#52361f;flex-shrink:0}
+.skill-caret{font-size:10px;color:#715c40;flex-shrink:0;transition:transform .15s}
+.skill-name-cell details[open] .skill-caret{transform:rotate(180deg)}
+.skill-row-detail{font-size:11px;line-height:1.7;background:rgba(255,255,255,.9);border-top:1px dashed #c5ad84;margin:8px 0 0;padding:8px 3px;color:#604b35;overflow-wrap:anywhere}
 .skill-row-detail div+div{margin-top:5px}
 #skillRankingRoot .skill-rank-unranked td{opacity:.85}
 #skillRankingRoot .skill-separator td{background:#ead6a9;text-align:left;font-weight:900;color:#6a482b;font-size:12px}
 .skill-empty{padding:32px;text-align:center}
-.skill-notes{margin-top:14px;font-size:12px;line-height:1.7;padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.7)}
-.skill-notes h2{font-size:15px;margin:0 0 8px}
-.skill-notes ul{margin:0;padding-left:20px}
-@media(max-width:410px){.skill-job-tab{font-size:12px}.ranking-mode-tab{font-size:13px}.skill-rank-controls select,.skill-rank-controls input{font-size:13px}#skillRankingRoot .rank-col{width:41px}#skillRankingRoot .eff-col{width:76px}#skillRankingRoot td.skill-rank-eff{font-size:14px;padding-right:6px}.skill-row-title{font-size:13px}}
+@media(max-width:420px){
+  .skill-job-tab{font-size:12px}
+  .ranking-mode-tab{font-size:12px;padding:9px 3px}
+  .ranking-mode-tab .mode-title-first{font-size:11.5px;letter-spacing:-.25px}
+  .ranking-mode-tab .mode-title-second{font-size:12px}
+  .skill-rank-controls select{font-size:13px}
+}
