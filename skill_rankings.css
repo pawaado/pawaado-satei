@@ -1,4 +1,4 @@
-/* スキル査定ランキング専用：既存の基本能力・特殊能力の数値や行色は変更しない */
+/* スキル査定効率ランキング専用：既存の基本能力・特殊能力の数値や行色は変更しない */
 [hidden]{display:none!important}
 .ranking-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 16px}
 .ranking-mode-tab{
