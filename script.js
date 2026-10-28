@@ -276,6 +276,12 @@ function initSkillCandidates(){
       const value=Number(target.value),current=candidateSkills.get(previous);
       if(!candidateLevelCosts(skillByName.get(previous),current.level,value))return;
       candidateSkills.set(previous,{...current,hint:value});
+      // コツ変更で計算できなくなったLvのこだわり条件は残さない。
+      for(const key of candidateSkillConditions.keys()){
+        const rule=candidateRuleParts(key);
+        if(rule.name===previous&&!candidateLevelCosts(skillByName.get(previous),rule.level,value))
+          candidateSkillConditions.delete(key);
+      }
     }else return;
     refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
     const result=document.getElementById('result');
