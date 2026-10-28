@@ -102,7 +102,7 @@ test('skill ranking table font sizes match the basic ranking table',()=>{
  const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
  assert(html.includes('td{font-size:13px;background:#fff}'));
  assert(html.includes('font-size:13px;') && css.includes('#skillRankingRoot th{font-size:13px;'));
- for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{display:block;flex:0 0 auto;font-weight:600;font-size:13px;', '.skill-level{display:inline-flex;align-items:center;flex:0 0 auto;font-size:10px;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
+ for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{display:block;flex:0 0 auto;font-weight:600;font-size:13px;', '.skill-level{display:block;flex:0 0 auto;font-size:10px;line-height:1.4;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
 });
 
 test('basic ranking selected class uses the same red family-tab style as skills',()=>{
@@ -119,7 +119,7 @@ test('basic ability column matches skill name width while keeping efficiency and
  const base=html.match(/col\.rank\{width:(\d+)px\} col\.name\{width:(\d+)px\} col\.eff\{width:(\d+)px\} col\.score\{width:(\d+)px\}/);
  assert(base,'basic ranking columns must be specified');
  const skill=Object.fromEntries([...css.matchAll(/#skillRankingRoot \.(rank|name|eff|score)-col\{width:(\d+)px\}/g)].map(m=>[m[1],Number(m[2])]));
- assert.equal(Number(base[2]),199);
+ assert.equal(Number(base[2]),196);
  assert.deepEqual(base.slice(1).map(Number),[skill.rank,skill.name,skill.eff,skill.score]);
  assert.equal(base.slice(1).reduce((sum,v)=>sum+Number(v),0),337);
  assert(html.includes('min-width:517px'));
@@ -133,8 +133,8 @@ test('efficiency column headers stay on one line in both ranking views without c
   {text:html,selector:'#rankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px;}'},
   {text:css,selector:'#skillRankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px}'}
  ])assert(spec.text.includes(spec.selector));
- assert(html.includes('col.rank{width:31px} col.name{width:199px} col.eff{width:55px} col.score{width:52px}'));
- assert(css.includes('#skillRankingRoot .name-col{width:199px}'));
- assert(css.includes('#skillRankingRoot .eff-col{width:55px}'));
+ assert(html.includes('col.rank{width:31px} col.name{width:196px} col.eff{width:61px} col.score{width:49px}'));
+ assert(css.includes('#skillRankingRoot .name-col{width:196px}'));
+ assert(css.includes('#skillRankingRoot .eff-col{width:61px}'));
  assert(css.includes('#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}'));
 });
