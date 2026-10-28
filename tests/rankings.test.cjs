@@ -116,9 +116,9 @@ test('basic ranking selected class uses the same red family-tab style as skills'
 test('basic ability column matches skill name width while keeping efficiency and score in the same viewport',()=>{
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
  const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
- const base=html.match(/col\\.rank\\{width:(\\d+)px\\} col\\.name\\{width:(\\d+)px\\} col\\.eff\\{width:(\\d+)px\\} col\\.score\\{width:(\\d+)px\\}/);
+ const base=html.match(/col\.rank\{width:(\d+)px\} col\.name\{width:(\d+)px\} col\.eff\{width:(\d+)px\} col\.score\{width:(\d+)px\}/);
  assert(base,'basic ranking columns must be specified');
- const skill=Object.fromEntries([...css.matchAll(/#skillRankingRoot \\.(rank|name|eff|score)-col\\{width:(\\d+)px\\}/g)].map(m=>[m[1],Number(m[2])]));
+ const skill=Object.fromEntries([...css.matchAll(/#skillRankingRoot \.(rank|name|eff|score)-col\{width:(\d+)px\}/g)].map(m=>[m[1],Number(m[2])]));
  assert.equal(Number(base[2]),199);
  assert.deepEqual(base.slice(1).map(Number),[skill.rank,skill.name,skill.eff,skill.score]);
  assert.equal(base.slice(1).reduce((sum,v)=>sum+Number(v),0),337);
