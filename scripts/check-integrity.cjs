@@ -32,6 +32,8 @@ const photoVersion=photo.match(/const PHOTO_IMPORT_BUILD='([^']+)'/)[1];
 assert.equal(refs.find(r=>r.file==='photo_import.js').url.split('?v=')[1],photoVersion,'photo build/cache mismatch');
 const workerVersion=sources['resistance_patch.js'].match(/const PATCH_VERSION='([^']+)'/)[1];
 const dataContext={window:{}};new vm.Script(sources['data.js'],{filename:'data.js'}).runInNewContext(dataContext);
+new vm.Script(sources['skill_master.js'],{filename:'skill_master.js'}).runInNewContext(dataContext);
+assert(!fs.existsSync('skill_rankings_data.js'),'unused ranking snapshot should not exist');
 const data=dataContext.window.PAWAADO_DATA,resistanceRules=data.resistanceRules;
 assert(!Object.prototype.hasOwnProperty.call(data,'attributes'),'data.js: abandoned attribute selector data returned');
 assert(sources['index.html'].includes('id="attribute"'),'index.html: attribute selector missing');
@@ -42,7 +44,7 @@ assert(sources['index.html'].includes('id="customSkillName"')&&
   sources['index.html'].includes('class="custom-skill-required"')&&
   !sources['index.html'].includes('id="customSkillMode"'),
   'index.html: candidate skill conditions must have a required-only selector');
-assert(sources['data.js'].includes('window.PAWAADO_DATA.skillHintCosts='),'data.js: verified hint cost table missing');
+assert(sources['skill_master.js'].includes('window.PAWAADO_DATA.skillHintCosts = '),'skill_master.js: verified hint cost table missing');
 assert(sources['script.js'].includes('candidateSkills:candidateChoiceList()'),'script.js: worker must receive chosen skills');
 assert(sources['pawaado_worker.js'].includes('function workerCandidateActions('),'pawaado_worker.js: skill action optimizer missing');
 assert(sources['pawaado_worker_resistance.js'].includes('function dynamicCandidateSkillGain('),'pawaado_worker_resistance.js: resistance compaction integration missing');
