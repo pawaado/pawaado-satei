@@ -69,6 +69,21 @@ test('verified hint costs distinguish ability Lv from hint Lv and do not reverse
  assert.equal(cost(gale,1,0),null,'unverified generic no-hint cost for unique skill');
  assert(Array.isArray(cost(gale,1,1)));
 });
+test('Toughness and Protection use only recovered per-hint point vectors',()=>{
+ const c=worker();
+ const find=n=>c.PAWAADO_DATA.skillRankings.skills.find(x=>x.name===n);
+ const tough=find('タフネス');
+ const protect=find('加護');
+ assert.deepEqual(Array.from(c.workerCandidateCost(tough,2,2)),[150,0,0,0,110]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(tough,2,3)),[112,0,0,0,82]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(tough,2,4)),[75,0,0,0,55]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(tough,2,5)),[37,0,0,0,27]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(protect,1,2)),[0,83,0,36,36]);
+ assert.equal(c.workerCandidateCost(find('不朽の意志'),1,2),null,
+   'unverified Will tip2 must remain unavailable');
+ assert.equal(c.workerCandidateCost(find('不朽の意志'),1,5),null,
+   'unverified Will tip5 must remain unavailable');
+});
 test('job and attribute restrict candidates; selected level reserves both upgrade costs and required basics',()=>{
  const c=worker(),candidate={name:'ゲイルシュート',level:2,hint:1};
  const a=actions(c,payload(c,'弓使い','風属性',[candidate]));
