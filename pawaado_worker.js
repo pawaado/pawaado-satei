@@ -14,7 +14,7 @@ let workerDualLevel=Number(DUAL_MASTER?.initialLevel||1);
 let workerDualHint=0;
 let workerSelectedSupers=[];
 let workerSkillCandidates=[];
-let workerRequiredSkillNames=[];
+let workerRequiredSkillLevels=[];
 let workerCandidateAttribute='';
 const workerSkillMaster=new Map((D.skillRankings?.skills||[]).map(x=>[x.name,x]));
 function workerCandidateCost(def,level,hint){
@@ -26,19 +26,24 @@ function workerCandidateCost(def,level,hint){
   }
   return values;
 }
-function normalizeSkillCandidates(rows,excludedNames=[]){
-  const out=[],seen=new Set(),excluded=new Set(excludedNames);
+function normalizeSkillCandidates(rows,forbiddenRules=[]){
+  const out=[],seen=new Set(),forbiddenMinimum=new Map();
+  for(const rule of forbiddenRules){
+    const name=String(rule?.name||''),level=Number(rule?.level);
+    if(name&&Number.isInteger(level)&&level>=1)
+      forbiddenMinimum.set(name,Math.min(forbiddenMinimum.get(name)??Infinity,level));
+  }
   for(const item of Array.isArray(rows)?rows:[]){
     const name=String(item?.name||''),minimum=Number(item?.minLevel??item?.level),hint=Number(item?.hint);
     const def=workerSkillMaster.get(name);
-    if(!def||seen.has(name)||excluded.has(name)||!def.jobs.includes(job.value)||
+    if(!def||seen.has(name)||!def.jobs.includes(job.value)||
       (def.attribute&&def.attribute!==workerCandidateAttribute.replace(/属性$/,'')))continue;
     const max=def.kind==='汎用'&&!def.jobs.includes('双剣士')?1:def.levels.length;
     if(!Number.isInteger(minimum)||minimum<1||minimum>max||
       !Number.isInteger(hint)||hint<0||hint>5)continue;
     const id=seen.size;
     let found=false;
-    for(let level=minimum;level<=max;level++){
+    for(let level=minimum;level<=max&&level<(forbiddenMinimum.get(name)??Infinity);level++){
       const cost=workerCandidateCost(def,level,hint);
       if(!cost)continue;
       const scores=def.levels[level-1].scores?.[job.value];
@@ -1050,11 +1055,13 @@ function constrainedInitialState(exp){
       :Number(op.score||0);
     state=mixedApplyAction(state,{...op,kind:'special',gain,costSum:costSum(op.cost)});
   }
-  for(const name of workerRequiredSkillNames){
-    const entry=workerSkillCandidates.find(x=>x.name===name);
-    if(!entry)throw new Error('こだわり計算：'+name+'は取得候補にありません。');
+  for(const rule of workerRequiredSkillLevels){
+    const {name,level}=rule;
+    const entry=workerSkillCandidates.find(x=>x.name===name&&x.level===level);
+    if(!entry)throw new Error('こだわり計算：'+name+' Lv.'+level+'は取得候補にありません。');
+    if(Number(state.candidateLevels?.[entry.id]||0)>=level)continue;
     const op=workerCandidateAction(state,entry,exp);
-    if(!op)throw new Error('こだわり計算：'+name+'を取得するための経験点または能力条件が不足しています。');
+    if(!op)throw new Error('こだわり計算：'+name+' Lv.'+level+'を取得するための経験点または能力条件が不足しています。');
     state=mixedApplyAction(state,op);
   }
   // 取得するLv.5なら、未取得のLv.を順に獲得（費用・器用さ条件も各段階で計算）。
@@ -1161,8 +1168,8 @@ function __workerPayloadConfigKey(payload){
     specialPart,
     selectedSuperPart,
     (payload.candidateSkills||[]).map(x=>[x.name,x.minLevel??x.level,x.hint]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'ja')),
-    (custom.requiredSkillNames||[]).slice().sort(),
-    (custom.forbiddenSkillNames||[]).slice().sort(),
+    (custom.skillLevelRules||[]).map(x=>[String(x.name||''),Number(x.level||0),String(x.mode||'')])
+      .sort((a,b)=>a[0].localeCompare(b[0],'ja')||a[1]-b[1]),
     forbiddenPart,
     requiredPart,
     Number(custom.dualRequiredLevel||0),
@@ -1221,10 +1228,33 @@ function __applyWorkerPayload(payload){
       workerBasicRules[name]={value:target,mode};
     }
     workerCandidateAttribute=String(payload.attribute||'');
-    workerSkillCandidates=normalizeSkillCandidates(payload.candidateSkills||[],custom.forbiddenSkillNames||[]);
-    workerRequiredSkillNames=[...new Set(custom.requiredSkillNames||[])].map(String);
-    if(workerRequiredSkillNames.some(name=>(custom.forbiddenSkillNames||[]).includes(name)))
-      throw new Error('こだわり計算：必殺技等を取得する／しないの両方に指定しています。');
+    const candidateRows=payload.candidateSkills||[];
+    const skillRules=(custom.skillLevelRules||[]).map(row=>({
+      name:String(row?.name||''),level:Number(row?.level),mode:String(row?.mode||'')
+    }));
+    for(const rule of skillRules){
+      const row=candidateRows.find(x=>x.name===rule.name);
+      const def=workerSkillMaster.get(rule.name);
+      const max=def?(def.kind==='汎用'&&!def.jobs.includes('双剣士')?1:def.levels.length):0;
+      if(!row||!def||!Number.isInteger(rule.level)||rule.level<Number(row.minLevel??row.level)||
+         rule.level>max||!['required','forbidden'].includes(rule.mode))
+        throw new Error('こだわり計算：必殺技等の指定Lv.が正しくありません。');
+    }
+    const names=new Set(skillRules.map(rule=>rule.name));
+    for(const name of names){
+      const rules=skillRules.filter(rule=>rule.name===name);
+      const required=Math.max(0,...rules.filter(rule=>rule.mode==='required').map(rule=>rule.level));
+      const forbidden=Math.min(Infinity,...rules.filter(rule=>rule.mode==='forbidden').map(rule=>rule.level));
+      if(required>=forbidden)
+        throw new Error('こだわり計算：'+name+'の取得するLv.と取得しないLv.が矛盾しています。');
+    }
+    workerSkillCandidates=normalizeSkillCandidates(candidateRows,skillRules.filter(rule=>rule.mode==='forbidden'));
+    workerRequiredSkillLevels=skillRules.filter(rule=>rule.mode==='required')
+      .sort((a,b)=>a.name.localeCompare(b.name,'ja')||a.level-b.level);
+    for(const rule of workerRequiredSkillLevels){
+      if(!workerSkillCandidates.some(x=>x.name===rule.name&&x.level===rule.level))
+        throw new Error('こだわり計算：'+rule.name+' Lv.'+rule.level+'を取得候補として計算できません。');
+    }
     workerRequiredSpecialIndices=[...new Set((custom.requiredSpecialIndices||[])
       .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length))];
     workerDualRequiredLevel=Number(custom.dualRequiredLevel||0);
