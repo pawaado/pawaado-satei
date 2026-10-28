@@ -83,12 +83,10 @@
     const notes=[row.hp?'<span class="ranking-note-tag">HP依存</span>':'',
       row.resistance?'<span class="ranking-note-tag">耐性影響</span>':''].filter(Boolean).join('');
     const levelText=levelLabels[row.phase]||row.label;
-    const nameLength=[...row.name].length;
-    const nameClass=nameLength>=13?'skill-extra-long-name':nameLength>=10?'skill-long-name':'';
     return `<tr class="${cssClass}${rank===null?' skill-rank-unranked':''}">
-      <td class="skill-rank-num">${rank===null?'—':rank}</td>
+      <td class="skill-rank-num"><span class="skill-rank-index">${rank===null?'—':rank}</span><span class="skill-rank-level">${escapeHTML(levelText)}<span class="skill-rank-caret" aria-hidden="true">▾</span></span></td>
       <td class="skill-name-cell"><details><summary aria-label="${escapeHTML(row.name)} ${escapeHTML(levelText)}の詳細">
-        <span class="skill-name-line"><span class="skill-row-title ${nameClass}" title="${escapeHTML(row.name)}">${escapeHTML(row.name)}</span><span class="skill-level">${escapeHTML(levelText)}</span><span class="skill-caret" aria-hidden="true">▾</span></span>
+        <span class="skill-name-line"><span class="skill-row-title" title="${escapeHTML(row.name)}">${escapeHTML(row.name)}</span></span>
         </summary><div class="skill-row-detail">
         <div class="skill-full-name">${escapeHTML(row.name)} ${escapeHTML(levelText)}</div>
         <div>${escapeHTML(explain)}</div><div>経験点：${escapeHTML(vec)}</div>
