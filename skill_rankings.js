@@ -60,20 +60,11 @@
       for(const job of jobs){
         if(!skill.jobs.includes(job))continue;
         for(let i=0;i<skill.levels.length;i++){
-          const choices=[false];if(i>0)choices.push(true);
-          for(const cum of choices){
-            const row=asRow(skill,job,i,cum);
-            // 剣士・双剣士で同一費用・同一査定の同一技は重複行にしない。
-            const k=[skill.name,row.phase,row.cost.join(','),row.rawScore,skill.category].join('|');
-            // 同じ技を剣士・双剣士の両方が取れる場合は、費用と査定が一致する行だけ統合。
-            const existing=seen.get(k);
-            if(existing){
-              if(currentGroup==='剣士系統' && existing.job!==row.job)existing.job='剣士・双剣士';
-              continue;
-            }
-            seen.set(k,row);
-            items.push(row);
-          }
+          const row=asRow(skill,job,i);
+          const key=[skill.name,row.phase,row.cost.join(','),row.rawScore,skill.category].join('|');
+          if(seen.has(key))continue;
+          seen.set(key,row);
+          items.push(row);
         }
       }
     }
