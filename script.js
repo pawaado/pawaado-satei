@@ -30,7 +30,7 @@ const VALID_ATTRIBUTES=new Set(['火属性','風属性','水属性']);
 let pendingPhotoAbilities=null;
 const pendingSuperPrerequisites=new Set();
 function hasAttribute(){return VALID_ATTRIBUTES.has(attribute?.value||'');}
-function hasSpecialAccess(){return hasAcademyJob()&&hasAttribute();}
+function hasSpecialAccess(){return hasAttribute();}
 function skillDisplayName(name){
   const raw=String(name||'');
   return raw==='〜攻撃'||raw==='～攻撃'
@@ -129,10 +129,9 @@ function updateInputAvailabilityUI(){
   const specialLocked=!hasSpecialAccess();
   if(jobField)jobField.classList.toggle('is-locked',academyMissing);
   if(attribute){
-    attribute.disabled=basicLocked||isCalculating;
-    if(basicLocked)attribute.value='';
+    attribute.disabled=isCalculating;
   }
-  attributeField?.classList.toggle('is-locked',basicLocked);
+  attributeField?.classList.remove('is-locked');
   if(basicCard)basicCard.classList.toggle('is-locked',basicLocked);
   specialCard?.classList.toggle('is-locked',specialLocked);
   renderCustomConditions();
@@ -142,7 +141,6 @@ function updateJobs(){
   job.innerHTML=''; job.add(opt('ジョブを選択',''));
   jobs.forEach(j=>job.add(opt(j)));
   job.disabled=!academy.value;
-  if(attribute)attribute.value='';
   pendingPhotoAbilities=null;pendingSuperPrerequisites.clear();
   clearCustomConditionsState();
   updateInputAvailabilityUI();
@@ -150,7 +148,6 @@ function updateJobs(){
 }
 academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInline();});
 job.addEventListener('change',()=>{
-  if(attribute)attribute.value='';
   pendingPhotoAbilities=null;pendingSuperPrerequisites.clear();
   clearCustomConditionsState();
   updateInputAvailabilityUI();
