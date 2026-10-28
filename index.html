@@ -86,18 +86,23 @@
 
     <section id="skillCandidatesCard" class="card skill-candidates-card" aria-labelledby="skillCandidatesTitle">
       <div class="section-heading no-heading-diamond"><h2 id="skillCandidatesTitle">未取得（取得候補）の必殺技等</h2></div>
-      <p class="skill-candidate-note">ジョブ・属性を選ぶと、そのキャラクターが取得できる必殺技・アクションスキル・超特殊能力を選べます。追加した候補も査定計算で比較します。</p>
       <div class="skill-candidate-controls">
-        <label for="skillCandidateName">名称
-          <select id="skillCandidateName" aria-label="取得候補の名称"><option value="">名称を選択</option></select>
-        </label>
-        <div class="skill-candidate-controls-row">
-          <label for="skillCandidateLevel">能力Lv
-            <select id="skillCandidateLevel" aria-label="取得候補の能力Lv"><option value="">Lvを選択</option></select>
-          </label>
-          <label for="skillCandidateHint">コツLv
-            <select id="skillCandidateHint" aria-label="取得候補のコツLv"><option value="">コツを選択</option></select>
-          </label>
+        <div class="custom-select-control super-custom-select super-name-control skill-candidate-name-control">
+          <select id="skillCandidateName" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="必殺技等を選択"><option value="">必殺技等を選択</option></select>
+          <button id="skillCandidateNameSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="skillCandidateNameCustomMenu" disabled>
+            <span id="skillCandidateNameSelectText" class="super-name-text">必殺技等を選択</span>
+          </button>
+          <div id="skillCandidateNameCustomMenu" class="custom-select-menu" role="listbox" aria-label="必殺技・アクションスキル・超特殊能力" hidden></div>
+        </div>
+        <div class="skill-candidate-hint-row">
+          <label for="skillCandidateHint">コツLv.</label>
+          <div class="custom-select-control super-custom-select skill-candidate-hint-control">
+            <select id="skillCandidateHint" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="取得候補のコツLv"><option value="">コツLv.を選択</option></select>
+            <button id="skillCandidateHintSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="skillCandidateHintCustomMenu" disabled>
+              <span id="skillCandidateHintSelectText">コツLv.を選択</span>
+            </button>
+            <div id="skillCandidateHintCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
+          </div>
         </div>
         <button id="skillCandidateAdd" type="button" class="secondary" disabled>取得候補に追加</button>
       </div>
@@ -188,7 +193,7 @@
       <ol class="usage-list">
         <li>「能力アップ」、「能力データ」の画像を選択し、「画像を読み取る」を押すと、自動入力されます。内容を確認し、誤りがあれば修正をお願いします。画像で属性を確定できなかった場合は、火・風・水から手動で選択してください。属性を選ぶと特殊能力を操作できます。<br>なお、画像を用いず、手入力でも可能です。基本能力、特殊能力は名称をタップすると、それぞれ上限値、取得済になります。HP、耐性で査定が変動することがあるため、該当する超特殊能力があれば、選択してください。</li>
         <li>基本能力、特殊能力左の「＋」でコツLv.を設定します。</li>
-        <li>未取得（取得候補）の必殺技等は、ジョブ・属性を決めて名称・能力Lv・コツLvを選ぶと査定計算の候補になります。実測したコツ別経験点がある場合のみ計算します。「こだわり条件」では追加した候補を取得する／取得しないに指定できます。</li>
+        <li>未取得（取得候補）の必殺技等は、ジョブ・属性を決めて必殺技等（名称・能力Lv）とコツLvを選ぶと査定計算の候補になります。汎用技は元値からコツLv.0～5の費用を計算し、固有技や超特殊能力は確認済みのコツLvで計算します。「こだわり条件」では追加した候補を取得する／取得しないに指定できます。</li>
         <li>「計算する」を押すと、査定が最大となる組合せが表示されます。<br>なお、「能力データ」に加えて、「訓練」の画像を複数読み取ると、各訓練後の経験点パターンにて比較できます。「訓練後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せが表示されます。<br>また、「こだわり条件」で基本能力や特殊能力に条件を設定することもできます。</li>
       </ol>
       <div class="usage-note-block">
@@ -246,15 +251,25 @@
         };
         const rebuildMenu=()=>{
           const frag=document.createDocumentFragment();
-          for(const option of native.options){
+          const addOption=option=>{
             const item=document.createElement('button');
             item.type='button';
             item.className='custom-select-option'+(option.value===native.value?' is-selected':'');
             item.setAttribute('role','option');
             item.setAttribute('aria-selected',option.value===native.value?'true':'false');
             item.dataset.value=option.value;
-            item.textContent=option.textContent || option.value || config.placeholder;
+            item.textContent=option.textContent||option.value||config.placeholder;
             frag.appendChild(item);
+          };
+          for(const child of native.children){
+            if(child.tagName==='OPTGROUP'){
+              const heading=document.createElement('div');
+              heading.className='custom-select-group-heading';
+              heading.setAttribute('role','presentation');
+              heading.textContent=child.label;
+              frag.appendChild(heading);
+              for(const option of child.children)if(option.tagName==='OPTION')addOption(option);
+            }else if(child.tagName==='OPTION')addOption(child);
           }
           menu.replaceChildren(frag);
         };
@@ -321,6 +336,20 @@
           textId:'attributeSelectText',
           menuId:'attributeCustomMenu',
           placeholder:'属性を選択'
+        }),
+        createCustomSelect({
+          selectId:'skillCandidateName',
+          buttonId:'skillCandidateNameSelectButton',
+          textId:'skillCandidateNameSelectText',
+          menuId:'skillCandidateNameCustomMenu',
+          placeholder:'必殺技等を選択'
+        }),
+        createCustomSelect({
+          selectId:'skillCandidateHint',
+          buttonId:'skillCandidateHintSelectButton',
+          textId:'skillCandidateHintSelectText',
+          menuId:'skillCandidateHintCustomMenu',
+          placeholder:'コツLv.を選択'
         }),
         createCustomSelect({
           selectId:'customBasicName',
