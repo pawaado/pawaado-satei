@@ -37,7 +37,7 @@ function load(){
   return {context,elements,jobButtons,modeButtons};
 }
 function leader(html){
-  return html.match(/<td class="skill-rank-num">1<\/td>[\s\S]*?<span class="skill-row-title">([^<]+)/)?.[1];
+  return html.match(/<td class="skill-rank-num">1<\/td>[\s\S]*?<span class="skill-row-title[^"]*"[^>]*>([^<]+)/)?.[1];
 }
 
 test('skill rankings use only canonical data.js, not the old ranking snapshot',()=>{
@@ -75,4 +75,19 @@ test('changing only a master data score automatically changes ordering and shown
   assert.notEqual(before,'水斬撃');
   assert.equal(leader(rendered),'水斬撃');
   assert(rendered.includes('<td class="skill-rank-score">50000</td>'));
+});
+
+test('skill names remain on one line while efficiency and score remain visible together',()=>{
+ const style=file('skill_rankings.css');
+ const calc=Object.fromEntries([...style.matchAll(/#skillRankingRoot \.(rank|name|eff|score)-col\{width:(\d+)px\}/g)].map(m=>[m[1],Number(m[2])]));
+ assert.equal(calc.rank+calc.name+calc.eff+calc.score,337,'the first four columns must fit a compact iPhone viewport');
+ assert(calc.name>135,'name column should be wider than the former layout');
+ assert(style.includes('white-space:nowrap;overflow:hidden;text-overflow:ellipsis'));
+ assert(style.includes('.skill-row-title.skill-long-name{font-size:11px}'));
+ const {elements,jobButtons}=load();
+ jobButtons[2].click();
+ const h=elements.skillRankingRoot.innerHTML;
+ assert(h.includes('class="skill-row-title skill-long-name"') || h.includes('class="skill-row-title skill-extra-long-name"'));
+ assert(h.includes('class="skill-full-name"'),'tapping a name must display the full original name');
+ assert(h.includes('<th>査定効率</th><th>査定</th>'));
 });
