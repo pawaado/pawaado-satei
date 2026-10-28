@@ -13,6 +13,96 @@ let workerDualEnabled=false;
 let workerDualLevel=Number(DUAL_MASTER?.initialLevel||1);
 let workerDualHint=0;
 let workerSelectedSupers=[];
+let workerSkillCandidates=[];
+let workerRequiredSkillNames=[];
+let workerCandidateAttribute='';
+const workerSkillMaster=new Map((D.skillRankings?.skills||[]).map(x=>[x.name,x]));
+function workerCandidateCost(def,level,hint){
+  const values=[0,0,0,0,0];
+  for(const row of def.levels.slice(0,level)){
+    const parts=Number(row.tip)===hint?row.cost:D.skillHintCosts?.[def.name]?.[hint]?.[row.lv];
+    if(!Array.isArray(parts)||parts.length!==5||parts.some(x=>!Number.isInteger(Number(x))||Number(x)<0))return null;
+    for(let i=0;i<5;i++)values[i]+=Number(parts[i]);
+  }
+  return values;
+}
+function normalizeSkillCandidates(rows,excludedNames=[]){
+  const out=[],seen=new Set(),excluded=new Set(excludedNames);
+  for(const item of Array.isArray(rows)?rows:[]){
+    const name=String(item?.name||''),level=Number(item?.level),hint=Number(item?.hint);
+    const def=workerSkillMaster.get(name);
+    if(!def||seen.has(name)||excluded.has(name)||!def.jobs.includes(job.value)||
+      (def.attribute&&def.attribute!==workerCandidateAttribute.replace(/属性$/,'')))continue;
+    if(!Number.isInteger(level)||level<1||level>def.levels.length||
+      !Number.isInteger(hint)||hint<0||hint>5)continue;
+    const cost=workerCandidateCost(def,level,hint);
+    if(!cost)throw new Error(name+'の指定コツLvの必要経験点が未確認です。');
+    const scores=def.levels[level-1].scores?.[job.value];
+    if(!Array.isArray(scores)||!Number.isFinite(Number(scores[1])))continue;
+    seen.add(name);
+    const required={};
+    for(const lv of def.levels.slice(0,level)){
+      for(const match of String(lv.condition||'').matchAll(/(生命力|パワー|魔力|器用さ|耐久力|精神力)\s*(\d+)/g)){
+        required[match[1]]=Math.max(required[match[1]]||0,Number(match[2]));
+      }
+    }
+    out.push({name,level,hint,cost,required,score:Number(scores[1]),id:out.length,def});
+  }
+  return out;
+}
+function workerCandidateAction(st,entry,exp){
+  const bit=1n<<BigInt(entry.id);
+  if(((st.candidateBits||0n)&bit)!==0n)return null;
+  let costs=entry.cost.slice(),gain=entry.score;
+  const items=[],requiredLevels={};
+  const jobLimits=limits();
+  for(const [name,target] of Object.entries(entry.required)){
+    const index=basicNames.indexOf(name),current=Number(st.levels[index]);
+    if(target>Number(jobLimits[name]))return null;
+    if(target<=current)continue;
+    if(workerBasicRules[name]&&['exact','below'].includes(workerBasicRules[name].mode)&&target>workerBasicRules[name].value)return null;
+    const op=mixedBasicOption(name,current,target);
+    if(!op)return null;
+    costs=addCost(costs,op.cost);gain+=Number(op.score||0);
+    if(name==='生命力'){
+      const oldHp=currentHpForLife(current),newHp=currentHpForLife(target);
+      gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp);
+    }
+    items.push(...op.items);requiredLevels[name]=target;
+  }
+  let requiredBits=0n,extraScore=0;
+  const deps=D.superPrerequisites?.[entry.name]||D.superResistances?.[entry.name]?.includes||[];
+  for(const name of deps){
+    const index=specialNameIndex.get(String(name));
+    if(index===undefined||mixedIsAcquired(index,(st.bits??0n)|requiredBits))continue;
+    const op=itemForSpecialIndex(index,currentHpForLife(st.levels[0]),false);
+    if(!op)return null;
+    requiredBits|=op.bits;
+    costs=addCost(costs,op.cost);extraScore+=Number(op.score||0);
+    items.push(...op.items);
+  }
+  if((requiredBits&workerExcludedSpecialBits)!==0n||(requiredBits&conflictBitsFor(st.bits??0n))!==0n)return null;
+  gain+=extraScore;
+  const lifeAfter=requiredLevels['生命力']||st.levels[0];
+  if(entry.def.hp){
+    const rate=selectedSuperHpRate({name:entry.name,level:entry.level});
+    if(rate)gain+=(currentHpForLife(lifeAfter)-currentHpForLife(90))*rate;
+  }
+  if(!leq(addCost(st.cost,costs),exp))return null;
+  items.push({type:'candidate',name:entry.name,level:entry.level,hint:entry.hint});
+  const cs=costSum(costs);
+  return {kind:'candidate',name:entry.name,cost:costs,costSum:cs,gain,score:gain,
+    efficiency:gain/Math.max(1,cs),bits:requiredBits,candidateBit:bit,
+    requiredLevels,items};
+}
+function workerCandidateActions(st,exp){
+  const out=[];
+  for(const entry of workerSkillCandidates){
+    const op=workerCandidateAction(st,entry,exp);
+    if(op)out.push(op);
+  }
+  return out;
+}
 
 const basicNames=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
 const mutualGroups=[
@@ -424,7 +514,7 @@ function mixedLevelsKey(levels){
 
 function mixedStateKey(st){
   if(st._mixedStateKey!==undefined&&st._mixedStateKey!==null) return st._mixedStateKey;
-  const value=key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36));
+  const value=key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36))+'|c'+(st.candidateBits||0n).toString(36);
   st._mixedStateKey=value;
   return value;
 }
@@ -710,6 +800,7 @@ function mixedCandidateActions(st,exp){
   }
   const dualAction=mixedDualAction(st,exp);
   if(dualAction) normalActions.push(dualAction);
+  normalActions.push(...workerCandidateActions(st,exp));
   normalActions.sort(mixedActionSort);
 
   const branch=MIXED_BRANCH_NORMAL;
@@ -827,6 +918,12 @@ function mixedApplyAction(st,op){
     levels[0]=op.to;
     life=op.to;
     bits|=(op.bits??specialItemsBits(op.items));
+  }else if(op.kind==='candidate'){
+    for(const [name,target] of Object.entries(op.requiredLevels||{})){
+      const idx=basicNames.indexOf(name);
+      if(idx>=0){levels[idx]=Math.max(Number(levels[idx]),Number(target));if(name==='生命力')life=levels[idx];}
+    }
+    bits|=(op.bits||0n);
   }else if(op.kind==='dual'){
     const dexIndex=basicNames.indexOf('器用さ');
     if(Number(op.toDex)>Number(levels[dexIndex])) levels[dexIndex]=Number(op.toDex);
@@ -842,6 +939,7 @@ function mixedApplyAction(st,op){
     levels,
     bits,
     dualLevel,
+    candidateBits:(st.candidateBits||0n)|(op.candidateBit||0n),
     prev:st,
     choice:op.items||EMPTY_ITEMS,
     itemLen:itemLenOf(st)+(op.items?.length||0),
@@ -856,7 +954,7 @@ function constrainedInitialState(exp){
   const levels=mixedInitialLevels();
   let state={
     cost:[0,0,0,0,0],score:0,life:levels[0],levels,
-    bits:EMPTY_BITS,dualLevel:workerDualEnabled?workerDualLevel:null,
+    bits:EMPTY_BITS,candidateBits:0n,dualLevel:workerDualEnabled?workerDualLevel:null,
     prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
   };
   const lim=mixedLimits(),jobLimits=limits();
@@ -921,6 +1019,13 @@ function constrainedInitialState(exp){
       :Number(op.score||0);
     state=mixedApplyAction(state,{...op,kind:'special',gain,costSum:costSum(op.cost)});
   }
+  for(const name of workerRequiredSkillNames){
+    const entry=workerSkillCandidates.find(x=>x.name===name);
+    if(!entry)throw new Error('こだわり計算：'+name+'は取得候補にありません。');
+    const op=workerCandidateAction(state,entry,exp);
+    if(!op)throw new Error('こだわり計算：'+name+'を取得するための経験点または能力条件が不足しています。');
+    state=mixedApplyAction(state,op);
+  }
   // 取得するLv.5なら、未取得のLv.を順に獲得（費用・器用さ条件も各段階で計算）。
   if(workerDualRequiredLevel){
     while(Number(state.dualLevel||0)<workerDualRequiredLevel){
@@ -963,6 +1068,7 @@ function optimizeMixedAsync(exp){
       // 双剣士通常攻撃は器用さ条件込みの専用候補として必ず比較対象に残す。
       const dualChoice=actions.find(o=>o.kind==='dual');
       if(dualChoice&&!selected.includes(dualChoice)) selected.push(dualChoice);
+      for(const op of actions)if(op.kind==='candidate'&&!selected.includes(op))selected.push(op);
 
       for(const op of selected){
         const ns=mixedApplyAction(st,op);
