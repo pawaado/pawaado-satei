@@ -48,7 +48,9 @@ test('ranking notes use the renamed section and do not describe the expanded ele
  assert.equal((html.match(/<h2>注記<\/h2>/g)||[]).length,2);
  assert(html.includes('物理職は剣士・重戦士・弓使い系統を、魔法職は魔法使い・魔闘士系統を指します。'));
  assert(!html.includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'));
- assert(!html.includes('コツLv0で比較しています'));
+ const basicNotes=html.split('<section class="notes">')[1]?.split('</section>')[0]||'';
+ assert(!basicNotes.includes('コツLv0で比較しています'));
+ assert(html.includes('超特殊能力はコツLv1、必殺技・アクションスキルはコツLv0'));
  assert(html.includes('data-group="僧侶" aria-pressed="false">僧侶系統</button>'));
 });
 test('generic 〜攻撃 becomes three independently ranked rows ordered 火→風→水',()=>{
