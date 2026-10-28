@@ -35,7 +35,7 @@ function createHarness(scores){
    },
    throwIfCancelled(){},finalizeScore:x=>x,
    cleanupActiveWorker(){},applyBasicVisual(){},applySkillVisual(){},
-   renderExp(){},renderCustomConditions(){},animateResultCard(){},
+   renderExp(){},renderCustomConditions(){},updateInputAvailabilityUI(){},animateResultCard(){},
    yieldToBrowser:async()=>{},customConditionsSummaryHtml:()=>'<p>条件</p>',
    sampleResultHtml:entry=>'<div>完了パターン'+entry.index+':'+entry.scoreGain+'</div>',
    sampleLabel:i=>'パターン'+String.fromCharCode(65+i),
