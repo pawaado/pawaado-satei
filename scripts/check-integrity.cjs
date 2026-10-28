@@ -38,8 +38,10 @@ assert(sources['index.html'].includes('id="attribute"'),'index.html: attribute s
 assert(sources['index.html'].indexOf('id="skillCandidatesCard"')>0&&
   sources['index.html'].indexOf('id="skillCandidatesCard"')<sources['index.html'].indexOf('id="customCalcCard"'),
   'index.html: unacquired skills section must come immediately before custom conditions');
-assert(sources['index.html'].includes('id="customSkillName"')&&sources['index.html'].includes('id="customSkillMode"'),
-  'index.html: required/forbidden skill conditions missing');
+assert(sources['index.html'].includes('id="customSkillName"')&&
+  sources['index.html'].includes('class="custom-skill-required"')&&
+  !sources['index.html'].includes('id="customSkillMode"'),
+  'index.html: candidate skill conditions must have a required-only selector');
 assert(sources['data.js'].includes('window.PAWAADO_DATA.skillHintCosts='),'data.js: verified hint cost table missing');
 assert(sources['script.js'].includes('candidateSkills:candidateChoiceList()'),'script.js: worker must receive chosen skills');
 assert(sources['pawaado_worker.js'].includes('function workerCandidateActions('),'pawaado_worker.js: skill action optimizer missing');
