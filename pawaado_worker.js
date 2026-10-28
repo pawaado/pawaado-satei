@@ -1128,6 +1128,9 @@ function __workerPayloadConfigKey(payload){
     basicPart,
     specialPart,
     selectedSuperPart,
+    (payload.candidateSkills||[]).map(x=>[x.name,x.level,x.hint]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'ja')),
+    (custom.requiredSkillNames||[]).slice().sort(),
+    (custom.forbiddenSkillNames||[]).slice().sort(),
     forbiddenPart,
     requiredPart,
     Number(custom.dualRequiredLevel||0),
@@ -1185,6 +1188,11 @@ function __applyWorkerPayload(payload){
         throw new Error('こだわり計算：'+name+'の指定が正しくありません。');
       workerBasicRules[name]={value:target,mode};
     }
+    workerCandidateAttribute=String(payload.attribute||'');
+    workerSkillCandidates=normalizeSkillCandidates(payload.candidateSkills||[],custom.forbiddenSkillNames||[]);
+    workerRequiredSkillNames=[...new Set(custom.requiredSkillNames||[])].map(String);
+    if(workerRequiredSkillNames.some(name=>(custom.forbiddenSkillNames||[]).includes(name)))
+      throw new Error('こだわり計算：必殺技等を取得する／しないの両方に指定しています。');
     workerRequiredSpecialIndices=[...new Set((custom.requiredSpecialIndices||[])
       .map(Number).filter(i=>Number.isInteger(i)&&i>=0&&i<D.special.length))];
     workerDualRequiredLevel=Number(custom.dualRequiredLevel||0);
