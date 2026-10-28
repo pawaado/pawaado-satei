@@ -10,7 +10,7 @@ function worker(){
  const c={console,BigInt,Map,Set,WeakMap,Uint8Array,Number,String,Math,JSON,Array,Object,Promise};
  c.self=c;c.window=c;
  vm.createContext(c);
- c.importScripts=()=>vm.runInContext(read('data.js'),c,{filename:'data.js'});
+ c.importScripts=(...urls)=>urls.forEach(url=>{const file=url.replace(/^\.\//,'').split('?')[0];vm.runInContext(read(file),c,{filename:file});});
  c.postMessage=()=>{};
  vm.runInContext(read('pawaado_worker.js'),c,{filename:'pawaado_worker.js'});
  return c;
