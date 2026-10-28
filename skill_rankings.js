@@ -10,7 +10,6 @@
   const summary=document.getElementById('skillRankingSummary');
   const category=document.getElementById('skillCategory');
   const phase=document.getElementById('skillPhase');
-  const search=document.getElementById('skillSearch');
   const tipMode=document.getElementById('skillTipMode');
   if(!root || !baseView || !skillView || !dataset) return;
 
@@ -25,7 +24,10 @@
   const fmt=(n,d=3)=>Number.isFinite(n)?(Math.abs(n-Math.round(n))<1e-9?String(Math.round(n)):n.toFixed(d).replace(/0+$/,'').replace(/\.$/,'')):'—';
   const totalCost=arr=>arr.reduce((a,n)=>a+Number(n||0),0);
   const expKeys=['筋力','敏捷','技術','知力','精神'];
-  const categoryShort={'必殺技':'必殺','アクションスキル':'アクション','超特殊能力':'超特'};
+  const typeClasses={'必殺技':'skill-category-finisher','アクションスキル':'skill-category-action','超特殊能力':'skill-category-super'};
+  const levelLabels={single1:'Lv1',single2:'Lv2',single3:'Lv3',sum2:'Lv1〜2',sum3:'Lv1〜3'};
+  // 画面に表示する査定効率（小数第3位）が同じ場合は、査定→必要経験点の順で比較。
+  const visibleEfficiency=n=>Math.round(n*1000);
 
   function getCost(skill,level){
     // 「一点集中」のコツLv2だけ実測あり。それ以外の費用は元のマスターのコツ状態を使用。
@@ -47,17 +49,15 @@
       const parts=Object.entries(x.effect||{}).map(([name,value])=>`${name} ${typeof value==='number'&&value>0?'+':''}${value}${typeof value==='number'?'%':''}`);
       return `Lv${x.lv}：${parts.join('、')||'効果記録なし'}`;
     }).join(' ／ '):'';
-    const hint=(skill.hp?'※HP依存':skill.resistance?'※耐性影響':'');
     return {name:skill.name,kind:skill.kind,category:skill.category,job,attribute:skill.attribute,phase:key,label:phases[key]||`Lv${l.lv}`,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
-      conditions,detail,hint,tip:upto.map(x=>x.tip).join('、'),unrankedReason:hp?'HP依存のため基礎HP・取得状況で査定が変わります':(exp<=0?'必要経験点0／未確認':'査定の固定値が未確定')};
+      conditions,detail,hp,resistance:Boolean(skill.resistance),tip:upto.map(x=>x.tip).join('、'),unrankedReason:hp?'HP依存のため基礎HP・取得状況で査定が変わります':(exp<=0?'必要経験点0／未確認':'査定の固定値が未確定')};
   }
   function getRows(){
     const jobs=jobGroups[currentGroup];
-    const categoryFilter=category.value, phaseFilter=phase.value, keyword=search.value.trim().toLowerCase();
-    const items=[],seen=new Set();
+    const categoryFilter=category.value, phaseFilter=phase.value;
+    const items=[],seen=new Map();
     for(const skill of dataset.skills){
       if(categoryFilter!=='all' && skill.category!==categoryFilter)continue;
-      if(keyword && !(skill.name+' '+skill.category+' '+(skill.attribute||'')).toLowerCase().includes(keyword))continue;
       for(const job of jobs){
         if(!skill.jobs.includes(job))continue;
         for(let i=0;i<skill.levels.length;i++){
@@ -67,9 +67,13 @@
             if(phaseFilter!=='all' && row.phase!==phaseFilter)continue;
             // 剣士・双剣士で同一費用・同一査定の同一技は重複行にしない。
             const k=[skill.name,row.phase,row.cost.join(','),row.rawScore,skill.category].join('|');
-            if(seen.has(k))continue;
-            seen.add(k);
-            if(currentGroup==='剣士系統' && skill.jobs.includes('剣士') && skill.jobs.includes('双剣士'))row.job='剣士・双剣士';
+            // 同じ技を剣士・双剣士の両方が取れる場合は、費用と査定が一致する行だけ統合。
+            const existing=seen.get(k);
+            if(existing){
+              if(currentGroup==='剣士系統' && existing.job!==row.job)existing.job='剣士・双剣士';
+              continue;
+            }
+            seen.set(k,row);
             items.push(row);
           }
         }
@@ -77,30 +81,42 @@
     }
     const ranked=items.filter(x=>x.eff!==null);
     const unranked=items.filter(x=>x.eff===null);
-    ranked.sort((a,b)=>b.eff-a.eff||b.score-a.score||a.name.localeCompare(b.name,'ja')||a.label.localeCompare(b.label,'ja'));
+    ranked.sort((a,b)=>visibleEfficiency(b.eff)-visibleEfficiency(a.eff) ||
+      b.score-a.score || a.exp-b.exp || a.name.localeCompare(b.name,'ja') ||
+      a.label.localeCompare(b.label,'ja'));
     unranked.sort((a,b)=>a.name.localeCompare(b.name,'ja')||a.label.localeCompare(b.label,'ja'));
     return {ranked,unranked};
   }
   function tr(row,rank){
-    const tags=[categoryShort[row.category]||row.category,row.label,row.job,row.attribute?row.attribute+'属性':null].filter(Boolean);
+    const notes=[row.category];
+    if(row.job==='双剣士' || row.job==='剣士・双剣士') notes.push(row.job);
+    if(row.attribute)notes.push(row.attribute+'属性');
+    if(row.resistance)notes.push('耐性影響');
+    if(row.hp)notes.push('HP依存');
     const explain=`${row.conditions}${row.detail?' ／ '+row.detail:''}`;
     const vec=row.cost.map((v,i)=>`${expKeys[i]} ${v}`).join(' / ');
-    return `<tr class="${rank===null?'skill-rank-unranked':''}">
+    const cssClass=typeClasses[row.category]||'';
+    const levelText=levelLabels[row.phase]||row.label;
+    return `<tr class="${cssClass}${rank===null?' skill-rank-unranked':''}">
       <td class="skill-rank-num">${rank===null?'—':rank}</td>
-      <td class="skill-name-cell"><details><summary><span class="skill-row-title">${escapeHTML(row.name)}${row.hint?` <span class="skill-hint">${escapeHTML(row.hint)}</span>`:''}</span>
-        <span class="skill-tagline">${tags.map(t=>`<span class="skill-tag">${escapeHTML(t)}</span>`).join('')}</span>
-        <span class="skill-metrics">必要点 ${fmt(row.exp,0)} ／ 査定 ${row.rawScore==null?'条件依存':fmt(row.rawScore,2)}</span></summary>
-        <div class="skill-row-detail"><div>${escapeHTML(explain)}</div><div>経験点：${escapeHTML(vec)}</div>
+      <td class="skill-name-cell"><details><summary aria-label="${escapeHTML(row.name)} ${escapeHTML(levelText)}の詳細">
+        <span class="skill-name-line"><span class="skill-row-title">${escapeHTML(row.name)}</span><span class="skill-level">${escapeHTML(levelText)}</span><span class="skill-caret" aria-hidden="true">▾</span></span>
+        </summary><div class="skill-row-detail">
+        <div>${escapeHTML(explain)}</div><div>経験点：${escapeHTML(vec)}</div>
         ${row.unrankedReason&&rank===null?`<div>${escapeHTML(row.unrankedReason)}</div>`:''}
-        ${row.tip?`<div>コツLv：${escapeHTML(row.tip)}（表示費用）</div>`:''}</div></details></td>
-      <td class="skill-rank-eff">${row.eff===null?'—':fmt(row.eff,3)}</td></tr>`;
+        ${row.tip?`<div>コツLv：${escapeHTML(row.tip)}（表示費用）</div>`:''}
+        </div></details></td>
+      <td class="skill-rank-eff">${row.eff===null?'—':fmt(row.eff,3)}</td>
+      <td class="skill-rank-exp">${fmt(row.exp,0)}</td>
+      <td class="skill-rank-score">${row.rawScore==null?'—':fmt(row.rawScore,2)}</td>
+      <td class="skill-rank-notes">${escapeHTML(notes.join('、'))}</td></tr>`;
   }
   function render(){
     const {ranked,unranked}=getRows();
     summary.textContent=`${currentGroup}：査定効率を計算できるもの ${ranked.length}件${unranked.length?` ／ 条件依存・算定不可 ${unranked.length}件`:''}`;
-    let html='<table class="skill-rank-table"><colgroup><col class="rank-col"><col><col class="eff-col"></colgroup><thead><tr><th>順位</th><th>スキル・取得段階</th><th>査定効率</th></tr></thead><tbody>';
+    let html='<table class="skill-rank-table"><colgroup><col class="rank-col"><col class="name-col"><col class="eff-col"><col class="exp-col"><col class="score-col"><col class="notes-col"></colgroup><thead><tr><th>順位</th><th>名称</th><th>査定効率</th><th>必要経験点</th><th>査定</th><th>備考</th></tr></thead><tbody>';
     ranked.forEach((row,i)=>html+=tr(row,i+1));
-    if(unranked.length){html+=`<tr class="skill-separator"><td colspan="3">条件依存・査定未確定（順位対象外） ${unranked.length}件</td></tr>`;unranked.forEach(row=>html+=tr(row,null));}
+    if(unranked.length){html+=`<tr class="skill-separator"><td colspan="6">条件依存・査定未確定（順位対象外） ${unranked.length}件</td></tr>`;unranked.forEach(row=>html+=tr(row,null));}
     html+='</tbody></table>';
     root.innerHTML=ranked.length||unranked.length?html:'<div class="skill-empty">この条件に該当するスキルはありません。</div>';
     jobButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.skillJob===currentGroup)));
@@ -113,6 +129,5 @@
   }));
   jobButtons.forEach(btn=>btn.addEventListener('click',()=>{currentGroup=btn.dataset.skillJob;render();}));
   [category,phase,tipMode].forEach(el=>el?.addEventListener('change',render));
-  search?.addEventListener('input',render);
   if(new URLSearchParams(location.search).get('mode')==='skills')modeButtons.find(x=>x.dataset.rankingMode==='skills')?.click();
 })();
