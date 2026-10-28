@@ -4741,3 +4741,20 @@ window.PAWAADO_DATA.skillHintCosts={
     5:{1:[0,20,0,9,9],2:[0,24,0,10,10]}
   }
 };
+
+/* 未取得候補の能力Lvごとの「追加経験点」を確定値から取得。
+ * 汎用技のコツなし費用は割引前の元値なので、コツLv1〜5を各経験点ごとに切り捨て計算できる。
+ * 固有技・超特殊能力は、直接確認したコツLv以外の費用を逆算して作らない。
+ */
+window.PAWAADO_DATA.skillCandidateLevelCost=function(skill,level,hint){
+  const stage=skill?.levels?.find(row=>Number(row.lv)===Number(level));
+  if(!stage||!Number.isInteger(hint)||hint<0||hint>5)return null;
+  const source=Number(stage.tip)===hint?stage.cost:window.PAWAADO_DATA.skillHintCosts?.[skill.name]?.[hint]?.[stage.lv];
+  if(skill.kind==='汎用'&&Number(stage.tip)===0){
+    const rate=[0,.5,.6,.7,.8,.9][hint];
+    if(!Array.isArray(stage.cost)||stage.cost.length!==5)return null;
+    return stage.cost.map(raw=>Math.floor(Number(raw)*(1-rate)+1e-9));
+  }
+  if(!Array.isArray(source)||source.length!==5||source.some(x=>!Number.isInteger(Number(x))||Number(x)<0))return null;
+  return source.map(Number);
+};
