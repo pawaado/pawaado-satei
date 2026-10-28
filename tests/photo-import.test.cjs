@@ -883,3 +883,22 @@ test('IMG_1096 normal top row retains its original vertical position',()=>{
  assert.equal(cells[0].rect[1],281);
  assert.equal(cells[4].rect[1],330);
 });
+
+test('attribute is only auto-selected when a confidently recognized elemental attack is unique',async()=>{
+ const {h}=setup();h.stubReads();
+ h.stubAbilityResults(async()=>({specials:['〜攻撃'],supers:[],warnings:[],attributeHints:['風属性']}));
+ const data=await h.readImages([{kind:'data',dataJob:'剣士'},{job:'剣士',exp:100}]);
+ assert.equal(data.attribute,'風属性');
+ assert(data.specials.includes('〜攻撃'));
+});
+test('unknown or conflicting attribute marks do not trigger guessing',async()=>{
+ const {h}=setup();h.stubReads();
+ h.stubAbilityResults(async()=>({specials:[],supers:[],warnings:[],attributeHints:[]}));
+ const unknown=await h.readImages([{kind:'data',dataJob:'剣士'},{job:'剣士',exp:100}]);
+ assert.equal(unknown.attribute,'');
+ assert(unknown.warnings.some(x=>x.includes('属性マーク')));
+ h.stubAbilityResults(async()=>({specials:[],supers:[],warnings:[],attributeHints:['火属性','水属性']}));
+ const conflicting=await h.readImages([{kind:'data',dataJob:'剣士'},{job:'剣士',exp:100}]);
+ assert.equal(conflicting.attribute,'');
+ assert(conflicting.warnings.some(x=>x.includes('属性攻撃の読み取りが一致')));
+});
