@@ -236,6 +236,10 @@ main{
 }
 .basic-card.is-locked .hint-btn:disabled,
 .basic-card.is-locked .name-btn:disabled{opacity:1;filter:none;cursor:not-allowed}
+/* ジョブ選択後も属性を決めるまでは、特殊能力のコツと取得状態を操作させない。 */
+#specialCard.is-locked .skill-row{opacity:.58;filter:saturate(.5);pointer-events:none}
+#specialCard.is-locked .hint-btn:disabled,
+#specialCard.is-locked .name-btn:disabled{opacity:1;filter:none;cursor:not-allowed}
 select,input{
   width:100%;
   min-height:50px;
