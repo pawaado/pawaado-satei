@@ -86,28 +86,8 @@
 
     <section id="skillCandidatesCard" class="card skill-candidates-card" aria-labelledby="skillCandidatesTitle">
       <div class="section-heading no-heading-diamond"><h2 id="skillCandidatesTitle">未取得（取得候補）の必殺技等</h2></div>
-      <div class="skill-candidate-controls">
-        <div class="custom-select-control super-custom-select super-name-control skill-candidate-name-control">
-          <select id="skillCandidateName" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="必殺技等を選択"><option value="">必殺技等を選択</option></select>
-          <button id="skillCandidateNameSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="skillCandidateNameCustomMenu" disabled>
-            <span id="skillCandidateNameSelectText" class="super-name-text">必殺技等を選択</span>
-          </button>
-          <div id="skillCandidateNameCustomMenu" class="custom-select-menu" role="listbox" aria-label="必殺技・アクションスキル・超特殊能力" hidden></div>
-        </div>
-        <div class="skill-candidate-hint-row">
-          <label for="skillCandidateHint">コツLv.</label>
-          <div class="custom-select-control super-custom-select skill-candidate-hint-control">
-            <select id="skillCandidateHint" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="取得候補のコツLv"><option value="">コツLv.を選択</option></select>
-            <button id="skillCandidateHintSelectButton" class="custom-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="skillCandidateHintCustomMenu" disabled>
-              <span id="skillCandidateHintSelectText">コツLv.を選択</span>
-            </button>
-            <div id="skillCandidateHintCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
-          </div>
-        </div>
-        <button id="skillCandidateAdd" type="button" class="secondary" disabled>取得候補に追加</button>
-      </div>
+      <div id="skillCandidateRows" class="skill-candidate-rows" aria-label="未取得スキルの取得候補"></div>
       <p id="skillCandidateMessage" role="status" aria-live="polite" class="skill-candidate-message"></p>
-      <ul id="skillCandidateList" class="custom-condition-list" hidden></ul>
     </section>
 
     <section id="customCalcCard" class="card custom-calc-card is-locked" aria-labelledby="customCalcTitle">
@@ -380,6 +360,32 @@
           placeholder:'条件を選択'
         })
       ].filter(Boolean);
+
+      // 新規・選択済みの候補行にも既存のカスタム選択窓を適用する。
+      const bindCandidateSelects=()=>{
+        for(let i=customSelects.length-1;i>=0;i--){
+          if(!customSelects[i].control.isConnected)customSelects.splice(i,1);
+        }
+        for(const row of document.querySelectorAll('[data-skill-candidate-row]')){
+          for(const kind of ['Name','Hint']){
+            const base=kind==='Name'?'skillCandidateName':'skillCandidateHint';
+            const select=row.querySelector('select[data-skill-candidate-'+kind.toLowerCase()+']');
+            if(!select||select.dataset.customBound==='1')continue;
+            select.dataset.customBound='1';
+            const id=select.id;
+            const control=createCustomSelect({
+              selectId:id,
+              buttonId:id+'SelectButton',
+              textId:id+'SelectText',
+              menuId:id+'CustomMenu',
+              placeholder:kind==='Name'?'必殺技等を選択':'コツLv.を選択'
+            });
+            if(control)customSelects.push(control);
+          }
+        }
+      };
+      document.addEventListener('pawaado:skill-candidates-changed',()=>queueMicrotask(bindCandidateSelects));
+      bindCandidateSelects();
 
       const syncAllCustomSelects=()=>customSelects.forEach(x=>x.syncAll());
       for(const id of ['resetBtn','topResetBtn']){
