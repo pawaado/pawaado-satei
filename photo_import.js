@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261010-mental-60-fallback-1';
+  const PHOTO_IMPORT_BUILD='20261028-attribute1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -2002,7 +2002,7 @@
   }
 
   async function readAbilityCells(image,index){
-    const result={specials:[],supers:[],warnings:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{}};
+    const result={specials:[],supers:[],warnings:[],attributeHints:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{}};
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
     const explicitPairMarks=new Map();
@@ -2023,6 +2023,10 @@
         if(resolvedMark&&D.special.some(s=>normalize(s[1])===stem+resolvedMark)){
           visualName=stem+resolvedMark;
         }
+      }
+      // 属性マークそのものはテンプレート未登録。高信頼の属性攻撃名だけ補助情報として利用する。
+      if(['火攻撃','風攻撃','水攻撃'].includes(visualName)){
+        result.attributeHints.push(visualName.slice(0,1)+'属性');
       }
       let visualExact=!!visualName&&abilityNameExactByImage(image,cell,visualName);
 
@@ -2580,12 +2584,13 @@
   }
 
   async function readImages(images){
-    const out={academy:'',job:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
+    const out={academy:'',job:'',attribute:'',exp:{},basic:{},specials:[],supers:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},trainingPatterns:[],warnings:[],dataScreens:0,abilityUpScreens:0};
     const modalBasicSamples=Object.fromEntries(BASICS.map(n=>[n,[]]));
     const abilityUpIdentity={job:''};
     const dataIdentity={job:''};
     const conflicts=new WeakMap();
     const pairMarkObservations=new Map();
+    const attributeHints=new Set();
     function mergeField(target,key,value,label){
       if(value==null||value===''||conflicts.get(target)?.has(key))return;
       if(target[key]!=null&&target[key]!==''&&target[key]!==value){if(!conflicts.has(target))conflicts.set(target,new Set());conflicts.get(target).add(key);target[key]=null;out.warnings.push(label+'の読み取り値が一致しません。画像の数値を確認して入力してください。');}
@@ -2609,6 +2614,7 @@
         });
         const result=await readAbilityCells(image,i+1);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
+        for(const hint of result.attributeHints||[])if(['火属性','風属性','水属性'].includes(hint))attributeHints.add(hint);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
           if(mark!=='○'&&mark!=='◎')continue;
           if(!pairMarkObservations.has(stem))pairMarkObservations.set(stem,[]);
@@ -2655,6 +2661,13 @@
         delete out.explicitPairMarks[stem];
         out.warnings.push(stem+'の○/◎判定が画像間で一致しません。表示を確認してください。');
       }
+    }
+    // 属性攻撃を一意に特定できた場合のみ属性を補助入力する。属性固有マークには未対応。
+    if(attributeHints.size===1)out.attribute=[...attributeHints][0];
+    else if(out.dataScreens){
+      out.warnings.push(attributeHints.size>1
+        ? '属性攻撃の読み取りが一致しません。属性を手動で確認してください。'
+        : '属性マークは未対応のため、属性を手動で選択してください。');
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
     const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
