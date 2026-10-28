@@ -149,10 +149,10 @@ test('fixed finishers use un-discounted cost in efficiency, super Lv2 tips norma
  const dataset=context.PAWAADO_DATA.skillRankings.skills;
  const gale=dataset.find(s=>s.name==='ゲイルシュート');
  assert(gale&&gale.category==='必殺技'&&gale.levels[0].tip===1);
- jobButtons[0].click();
+ jobButtons[2].click();
  const rendered=rowForSkill(elements.skillRankingRoot.innerHTML,'ゲイルシュート',1);
  const undiscounted=gale.levels[0].cost.reduce((sum,n)=>sum+n*2,0);
- const assessment=gale.levels[0].scores['剣士'][0];
+ const assessment=gale.levels[0].scores['弓使い'][0];
  assert(rendered.includes('<td class="skill-rank-exp">'+undiscounted+'</td>'));
  assert(rendered.includes('<td class="skill-rank-eff">'+(assessment/undiscounted).toFixed(3)+'</td>'));
  const rescuer=dataset.find(s=>s.name==='救援者');
