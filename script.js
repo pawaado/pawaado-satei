@@ -76,6 +76,15 @@ function candidateRuleOptions(){
         range,label:range?row.name+' Lv.'+l.lv:candidateOptionLabel(skill,row.level)}));
   });
 }
+// 取得する上位Lv.に含まれる下位Lv.、取得しない下位Lv.が妨げる上位Lv.を候補に出さない。
+function candidateRuleAvailable(option){
+  if(candidateSkillConditions.has(option.key))return false;
+  const rules=[...candidateSkillConditions].map(([key,mode])=>({...candidateRuleParts(key),mode}))
+    .filter(rule=>rule.name===option.name);
+  const required=Math.max(0,...rules.filter(rule=>rule.mode==='required').map(rule=>rule.level));
+  const forbidden=Math.min(Infinity,...rules.filter(rule=>rule.mode==='forbidden').map(rule=>rule.level));
+  return option.level>required && option.level<forbidden;
+}
 function candidateRuleCompatible(name,level,mode){
   const rules=[...candidateSkillConditions].map(([key,ruleMode])=>({...candidateRuleParts(key),mode:ruleMode}))
     .filter(rule=>rule.name===name);
@@ -1379,7 +1388,7 @@ function refreshCustomChoices(){
   const skillMode=document.getElementById('customSkillMode');
   if(skillSelect){
     const selected=skillSelect.value;
-    const options=candidateRuleOptions().filter(x=>!candidateSkillConditions.has(x.key));
+    const options=candidateRuleOptions().filter(candidateRuleAvailable);
     skillSelect.innerHTML='<option value="">必殺技等を選択</option>'+options
       .map(x=>'<option value="'+escapeCustomText(x.key)+'">'+escapeCustomText(x.label)+'</option>').join('');
     skillSelect.value=options.some(x=>x.key===selected)?selected:'';
