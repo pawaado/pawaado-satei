@@ -141,7 +141,7 @@
       .tab{font-size:17px;padding:11px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028c">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261028d">
 </head>
 <body>
   <header class="site-header">
@@ -187,6 +187,14 @@
       </nav>
       <section class="ranking-card" aria-label="スキルの査定効率ランキング">
         <div id="skillRankingRoot"></div>
+      </section>
+      <section class="notes skill-ranking-note">
+        <h2>注記</h2>
+        <ul>
+          <li id="skillReferenceHpNote">HP依存の超特殊能力は生命力90で計算しています。</li>
+          <li>耐性に影響する超特殊能力は、重戦士の固有耐性や他の耐性系能力を持たない状態の基準査定です。</li>
+          <li>Lv2・Lv3は直前のLvからの追加査定と追加経験点で計算しています。</li>
+        </ul>
       </section>
     </div>
   </main>
@@ -245,6 +253,7 @@
     }
     const referenceHp=hpAtLife(90);
     document.getElementById('referenceHpNote').textContent=`HP依存特殊能力は生命力90（HP${referenceHp}）で計算しています。`;
+    document.getElementById('skillReferenceHpNote').textContent=`HP依存の超特殊能力は生命力90（HP${referenceHp}）で計算しています。`;
 
     function maximaFor(group){
       const jobs=groupDefs[group].jobs;
@@ -393,6 +402,6 @@
   })();
   </script>
   <script src="skill_rankings_data.js?v=20261028a"></script>
-  <script src="skill_rankings.js?v=20261028c"></script>
+  <script src="skill_rankings.js?v=20261028d"></script>
 </body>
 </html>
