@@ -11,9 +11,11 @@ test('attributes are offered exactly after academy/job, in 火・風・水 order
  const before=html.indexOf('id="jobFieldLabel"'),after=html.indexOf('id="attributeFieldLabel"');
  assert(before>=0&&after>before);
  const block=html.slice(after,html.indexOf('</section>',after));
- assert.match(block,/id="attribute"[^>]*disabled/);
+ assert.match(block,/id="attribute"/);
+ assert(!/id="attribute"[^>]*disabled/.test(block));
  assert.deepEqual([...block.matchAll(/<option value="([^"]*)">/g)].map(m=>m[1]),['','火属性','風属性','水属性']);
- assert.match(block,/id="attributeSelectButton"[^>]*disabled/);
+ assert.match(block,/id="attributeSelectButton"/);
+ assert(!/id="attributeSelectButton"[^>]*disabled/.test(block));
 });
 test('elemental ability display names and access depend on current attribute',()=>{
  const start=script.indexOf("const attribute=document.getElementById('attribute');");
@@ -32,7 +34,7 @@ test('elemental ability display names and access depend on current attribute',()
   assert.equal(out.access,true);assert.equal(out.attack,name);assert.equal(out.preserved,'通常攻撃○');
  }
  job.value='';
- assert.equal(vm.runInContext('hasSpecialAccess()',context),false);
+ assert.equal(vm.runInContext('hasSpecialAccess()',context),true,'attribute selection alone unlocks specials');
 });
 test('special abilities cannot change without attribute and calculator includes attribute in its cache',()=>{
  assert(script.includes("if(kind==='special-hint'){if(!hasSpecialAccess())return;"));
