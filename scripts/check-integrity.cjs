@@ -35,6 +35,15 @@ const dataContext={window:{}};new vm.Script(sources['data.js'],{filename:'data.j
 const data=dataContext.window.PAWAADO_DATA,resistanceRules=data.resistanceRules;
 assert(!Object.prototype.hasOwnProperty.call(data,'attributes'),'data.js: abandoned attribute selector data returned');
 assert(sources['index.html'].includes('id="attribute"'),'index.html: attribute selector missing');
+assert(sources['index.html'].indexOf('id="skillCandidatesCard"')>0&&
+  sources['index.html'].indexOf('id="skillCandidatesCard"')<sources['index.html'].indexOf('id="customCalcCard"'),
+  'index.html: unacquired skills section must come immediately before custom conditions');
+assert(sources['index.html'].includes('id="customSkillName"')&&sources['index.html'].includes('id="customSkillMode"'),
+  'index.html: required/forbidden skill conditions missing');
+assert(sources['data.js'].includes('window.PAWAADO_DATA.skillHintCosts='),'data.js: verified hint cost table missing');
+assert(sources['script.js'].includes('candidateSkills:candidateChoiceList()'),'script.js: worker must receive chosen skills');
+assert(sources['pawaado_worker.js'].includes('function workerCandidateActions('),'pawaado_worker.js: skill action optimizer missing');
+assert(sources['pawaado_worker_resistance.js'].includes('function dynamicCandidateSkillGain('),'pawaado_worker_resistance.js: resistance compaction integration missing');
 assert(sources['index.html'].includes('attributeSelectButton'),'index.html: attribute custom dropdown missing');
 assert(sources['script.js'].includes("getElementById('attribute')"),'script.js: attribute controller missing');
 assert(sources['script.js'].includes('function hasSpecialAccess()'),'script.js: special ability attribute guard missing');
