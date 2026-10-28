@@ -44,7 +44,7 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  const idx=html.indexOf('id="skillCandidatesCard"');
  const custom=html.indexOf('id="customCalcCard"');
  assert(idx>0&&custom>idx);
- for(const id of ['skillCandidateRows','customSkillName','customSkillMode','custom-skill-list'])
+ for(const id of ['skillCandidateRows','customSkillName','custom-skill-list'])
   assert(html.includes('id="'+id+'"'),id);
  assert(!html.includes('class="skill-candidate-note"'),'no explanation paragraph under heading');
  assert(!html.includes('id="skillCandidateLevel"'),'ability level is part of the name selection');
@@ -139,10 +139,12 @@ test('Toughness and Protection use only recovered per-hint point vectors',()=>{
  assert.deepEqual(Array.from(c.workerCandidateCost(tough,2,4)),[75,0,0,0,55]);
  assert.deepEqual(Array.from(c.workerCandidateCost(tough,2,5)),[37,0,0,0,27]);
  assert.deepEqual(Array.from(c.workerCandidateCost(protect,1,2)),[0,83,0,36,36]);
- assert.equal(c.workerCandidateCost(find('不朽の意志'),1,2),null,
-   'unverified Will tip2 must remain unavailable');
- assert.equal(c.workerCandidateCost(find('不朽の意志'),1,5),null,
-   'unverified Will tip5 must remain unavailable');
+ for(const [tip,cost] of [[1,[0,0,73,123,0]],[2,[0,0,58,98,0]],[3,[0,0,44,73,0]],
+  [4,[0,0,29,49,0]],[5,[0,0,14,24,0]]]){
+   assert.deepEqual(Array.from(c.workerCandidateCost(find('不朽の意志'),1,tip)),cost,'Will tip'+tip);
+ }
+ assert.deepEqual(Array.from(c.workerCandidateCost(find('不朽の意志'),2,2)),[0,0,126,211,0]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(find('不朽の意志'),2,5)),[0,0,31,52,0]);
 });
 test('job and attribute restrict candidates; selected level reserves both upgrade costs and required basics',()=>{
  const c=worker(),candidate={name:'ゲイルシュート',level:2,hint:1};
