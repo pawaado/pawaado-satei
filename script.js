@@ -162,7 +162,7 @@ function candidateChoiceFromValue(value){
   const skill=skillCandidateMaster[index];
   return skill&&skill.levels.some(l=>Number(l.lv)===level)?{skill,level}:null;
 }
-// 汎用技は基本的に能力Lvを持たない。双剣士専用の汎用技だけ例外。
+// 汎用技の能力Lvはスキル別に扱う。双剣士の汎用技にはLv.2以上を持つものがある（正常仕様）。
 function candidateHasLevels(skill){
   return skill.kind!=='汎用'||skill.jobs.includes('双剣士')&&skill.levels.length>1;
 }
