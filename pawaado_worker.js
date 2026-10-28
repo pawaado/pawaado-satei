@@ -20,9 +20,9 @@ const workerSkillMaster=new Map((D.skillRankings?.skills||[]).map(x=>[x.name,x])
 function workerCandidateCost(def,level,hint){
   const values=[0,0,0,0,0];
   for(const row of def.levels.slice(0,level)){
-    const parts=Number(row.tip)===hint?row.cost:D.skillHintCosts?.[def.name]?.[hint]?.[row.lv];
-    if(!Array.isArray(parts)||parts.length!==5||parts.some(x=>!Number.isInteger(Number(x))||Number(x)<0))return null;
-    for(let i=0;i<5;i++)values[i]+=Number(parts[i]);
+    const parts=D.skillCandidateLevelCost?.(def,row.lv,hint);
+    if(!parts)return null;
+    for(let i=0;i<5;i++)values[i]+=parts[i];
   }
   return values;
 }
