@@ -102,7 +102,7 @@ test('skill ranking table font sizes match the basic ranking table',()=>{
  const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
  assert(html.includes('td{font-size:13px;background:#fff}'));
  assert(html.includes('font-size:13px;') && css.includes('#skillRankingRoot th{font-size:13px;'));
- for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{display:block;font-weight:600;font-size:13px;', '#skillRankingRoot .skill-rank-level{display:block;margin-top:2px;font-size:9px;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
+ for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{display:block;flex:1 1 auto;font-weight:600;font-size:14px;', '.skill-level{display:inline-flex;align-items:center;flex:0 0 auto;font-size:11px;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
 });
 
 test('basic ranking selected class uses the same red family-tab style as skills',()=>{
