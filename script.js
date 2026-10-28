@@ -25,6 +25,18 @@ const jobClassMap={
 };
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
+const attribute=document.getElementById('attribute');
+const VALID_ATTRIBUTES=new Set(['火属性','風属性','水属性']);
+let pendingPhotoAbilities=null;
+const pendingSuperPrerequisites=new Set();
+function hasAttribute(){return VALID_ATTRIBUTES.has(attribute?.value||'');}
+function hasSpecialAccess(){return hasAcademyJob()&&hasAttribute();}
+function skillDisplayName(name){
+  const raw=String(name||'');
+  return raw==='〜攻撃'||raw==='～攻撃'
+    ? (hasAttribute()?attribute.value.slice(0,1)+'攻撃':raw)
+    : raw;
+}
 const DEFAULT_EXP_LIMIT=1000;
 const BOOTRAIN_EXP_LIMITS={筋力:1300,敏捷:1200,技術:1400,知力:1300,精神:1200};
 function expLimit(name){
@@ -109,12 +121,20 @@ function limits(){const r=academyRows()[0]; const m={}; basicNames.forEach((n,i)
 function initAcademies(){academy.innerHTML='';academy.add(opt('アカデミーを選択',''));Object.keys(jobsByAcademy).forEach(a=>academy.add(opt(a)));updateJobs();}
 function updateInputAvailabilityUI(){
   const jobField=document.getElementById('jobFieldLabel');
+  const attributeField=document.getElementById('attributeFieldLabel');
   const basicCard=document.getElementById('basicCard');
+  const specialCard=document.getElementById('specialCard');
   const academyMissing=!academy.value;
   const basicLocked=!hasAcademyJob();
-
-  if(jobField) jobField.classList.toggle('is-locked',academyMissing);
-  if(basicCard) basicCard.classList.toggle('is-locked',basicLocked);
+  const specialLocked=!hasSpecialAccess();
+  if(jobField)jobField.classList.toggle('is-locked',academyMissing);
+  if(attribute){
+    attribute.disabled=basicLocked||isCalculating;
+    if(basicLocked)attribute.value='';
+  }
+  attributeField?.classList.toggle('is-locked',basicLocked);
+  if(basicCard)basicCard.classList.toggle('is-locked',basicLocked);
+  specialCard?.classList.toggle('is-locked',specialLocked);
   renderCustomConditions();
 }
 function updateJobs(){
@@ -122,15 +142,35 @@ function updateJobs(){
   job.innerHTML=''; job.add(opt('ジョブを選択',''));
   jobs.forEach(j=>job.add(opt(j)));
   job.disabled=!academy.value;
+  if(attribute)attribute.value='';
+  pendingPhotoAbilities=null;pendingSuperPrerequisites.clear();
   clearCustomConditionsState();
   updateInputAvailabilityUI();
   clearBasicState(); renderBasic(); renderSpecials(); applyCurrentJobTheme();
 }
 academy.addEventListener('change',()=>{updateJobs();renderExp();validateAllInline();});
 job.addEventListener('change',()=>{
+  if(attribute)attribute.value='';
+  pendingPhotoAbilities=null;pendingSuperPrerequisites.clear();
   clearCustomConditionsState();
   updateInputAvailabilityUI();
   clearBasicState();renderBasic();renderSpecials();applyCurrentJobTheme();
+});
+attribute?.addEventListener('change',()=>{
+  if(!VALID_ATTRIBUTES.has(attribute.value))attribute.value='';
+  updateInputAvailabilityUI();
+  renderSpecials();
+  if(hasSpecialAccess()&&pendingPhotoAbilities){
+    const queued=pendingPhotoAbilities;pendingPhotoAbilities=null;
+    applyRecognizedPhotoAbilities(queued.data,queued.options);
+  }
+  if(hasSpecialAccess()&&pendingSuperPrerequisites.size){
+    for(const name of pendingSuperPrerequisites)applySuperIncludedSpecials(name);
+    pendingSuperPrerequisites.clear();
+  }
+  calcResultCache.clear();
+  document.getElementById('result').textContent='';
+  document.dispatchEvent(new Event('input',{bubbles:true}));
 });
 
 function clearBasicState(){basicNames.forEach(n=>{basicOwned[n]=false; basicHints[n]=basicHints[n]||0;});}
@@ -275,7 +315,7 @@ function renderBasic(){
   basicNames.forEach(n=>applyBasicVisual(n));
 }
 function renderSkillName(name){
-  const s=String(name);
+  const s=skillDisplayName(name);
   let rank=''; let base=s;
   if(s.endsWith('○')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="○">○</span>';}
   else if(s.endsWith('◎')){base=s.slice(0,-1);rank='<span class="rank-symbol" aria-label="◎">◎</span>';}
@@ -306,8 +346,8 @@ function renderSpecials(){
     if(!shouldShowSpecial(i)) return '';
     const st=getSpecialState(i);
     return `<div class="skill-row ${Number(st.own)?'owned':''}" data-index="${i}">
-      <button type="button" class="hint-btn" data-kind="special-hint" data-index="${i}">＋</button>
-      <button type="button" class="name-btn" data-kind="special-name" data-index="${i}"><span>${renderSkillName(s[1])}</span></button>
+      <button type="button" class="hint-btn" data-kind="special-hint" data-index="${i}" ${!hasSpecialAccess()?'disabled aria-disabled="true"':''}>＋</button>
+      <button type="button" class="name-btn" data-kind="special-name" data-index="${i}" ${!hasSpecialAccess()?'disabled aria-disabled="true"':''}><span>${renderSkillName(s[1])}</span></button>
     </div>`;
   }).join('');
   specialList.innerHTML=html;
@@ -347,6 +387,10 @@ function applyBasicVisual(name){
 function applySkillVisual(i){
   const row=document.querySelector(`.skill-row[data-index="${i}"]`); if(!row)return;
   const st=getSpecialState(i); setHintBtn(row.querySelector('.hint-btn'),st.hint); row.classList.toggle('owned',Number(st.own)===1);
+  const locked=!hasSpecialAccess()||isCalculating;
+  for(const control of [row.querySelector('.hint-btn'),row.querySelector('.name-btn')]){
+    if(control){control.disabled=locked;control.setAttribute('aria-disabled',locked?'true':'false');}
+  }
   const btn=row.querySelector('.name-btn');
   btn.innerHTML=`<span>${renderSkillName(D.special[i][1])}</span>${ownedLabel(Number(st.own)===1)}`;
 }
@@ -402,8 +446,8 @@ document.addEventListener('click',e=>{
     setBasicOwnedState(name,!basicOwned[name],{clearValueOnRelease:true});
     return;
   }
-  if(kind==='special-hint'){const i=Number(t.dataset.index); setSpecialHint(i,cycleHint(getSpecialState(i).hint)); return;}
-  if(kind==='special-name'){toggleSpecial(Number(t.dataset.index)); return;}
+  if(kind==='special-hint'){if(!hasSpecialAccess())return;const i=Number(t.dataset.index); setSpecialHint(i,cycleHint(getSpecialState(i).hint)); return;}
+  if(kind==='special-name'){if(!hasSpecialAccess())return;toggleSpecial(Number(t.dataset.index)); return;}
 });
 
 
@@ -578,7 +622,7 @@ function calcCacheKey(exp){
     ['dual-required',customDualRequiredLevel],
     ['dual-forbidden',customDualForbiddenLevel]
   ];
-  return [academy.value,job.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'custom:'+JSON.stringify(constraintsKey)].join('||');
+  return [academy.value,job.value,attribute.value,currentCalcMode(),key(exp),basicPart,specialPart,'dualAttack:'+dualPart,'extraResistance:'+resistancePart,'custom:'+JSON.stringify(constraintsKey)].join('||');
 }
 function cloneResult(st){
   const items=restoreItems(st);
@@ -697,6 +741,7 @@ function buildWorkerPayload(exp){
   return {
     academy:String(academy.value||''),
     job:String(job.value||''),
+    attribute:String(attribute.value||''),
     exp:exp.slice(),
     basicValues,
     basicOwned:{...basicOwned},
@@ -878,6 +923,7 @@ function validateInputs(){
 
   errs.push(...expErrs);
 
+  if(!hasAttribute()) errs.push('属性を選択してください。');
   if(!hasAcademyJob()){
     // 基本能力はアカデミー・ジョブ両方の選択後に入力可能になるため、
     // 未選択時は個別項目ではなくまとめて未入力を案内する。
