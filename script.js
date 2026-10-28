@@ -61,69 +61,150 @@ function skillCandidateEligible(skill){
     (!skill.attribute||String(skill.attribute)+'属性'===attribute.value) &&
     !(skill.category==='超特殊能力'&&selectedSuperState().some(x=>x.name===skill.name));
 }
+// 読みが異なる漢字の名称は明示して、プルダウン内を五十音順に保つ。
+const candidateSkillKana={
+  '光の太刀':'ひかりのたち','双翼の舞':'そうよくのまい','爆炎一閃':'ばくえんいっせん',
+  '疾風一閃':'しっぷういっせん','巨岩投炎撃':'きょがんとうえんげき',
+  '守りの態勢':'まもりのたいせい','蒼炎の弓矢':'そうえんのゆみや',
+  '夢幻の水矢':'むげんのみずや','水脚乱舞':'すいきゃくらんぶ',
+  '極上のおもてなし':'ごくじょうのおもてなし','渦巻く剣刃':'うずまくけんじん',
+  '守りの鼓舞':'まもりのこぶ','豪雷積層雲':'ごうらいせきそううん',
+  '根性注入':'こんじょうちゅうにゅう','聖炎の祝福':'せいえんのしゅくふく',
+  '疾風の波動':'しっぷうのはどう','爆熱フィスト':'ばくねつふぃすと',
+  '凶壊無間獄':'きょうかいむげんごく','生命の雫':'せいめいのしずく',
+  '水斬撃':'すいざんげき','双水斬':'そうすいざん','双風斬':'そうふうざん',
+  '水刃四連斬':'すいじんよんれんざん','双水の構え':'そうすいのかまえ',
+  '双風の構え':'そうふうのかまえ','双炎の構え':'そうえんのかまえ',
+  '真空斬り':'しんくうぎり','双炎斬':'そうえんざん',
+  '火連斬':'かれんざん','剣豪の構え':'けんごうのかまえ',
+  '火炎斬り':'かえんぎり','疾風斬':'しっぷうざん','心眼剣誓':'しんがんけんせい',
+  '生命の息吹':'せいめいのいぶき','烈風震破':'れっぷうしんぱ',
+  '虚弱の風':'きょじゃくのかぜ','秘弓・毒化粧':'ひきゅうどくげしょう',
+  '燃焼拳':'ねんしょうけん','風流拳':'ふうりゅうけん',
+  '受け流しの構え':'うけながしのかまえ','水流崩撃':'すいりゅうほうげき',
+  '守護水斬':'しゅごすいざん','流水払い':'りゅうすいばらい',
+  '清流の加護':'せいりゅうのかご','炎の盾':'ほのおのたて',
+  '風の盾':'かぜのたて','強靭の威光':'きょうじんのいこう',
+  '炎魔連撃':'えんまれんげき','火脚連撃':'かきゃくれんげき',
+  '水流拳':'すいりゅうけん','旋風双撃':'せんぷうそうげき',
+  '烈風の舞':'れっぷうのまい','魔力活性':'まりょくかっせい',
+  '魔力開眼':'まりょくかいがん','精神統一':'せいしんとういつ',
+  '超気合':'ちょうきあい','研鑽':'けんさん','戦い抜く覚悟':'たたかいぬくかくご',
+  '強運の覇者':'きょううんのはしゃ','剛力':'ごうりき',
+  '加護':'かご','大真面目':'おおまじめ','鉄壁の盾':'てっぺきのたて',
+  '慈愛の祈り':'じあいのいのり','不滅':'ふめつ',
+  '無頼漢の教え':'ぶらいかんのおしえ','不朽の意志':'ふきゅうのいし',
+  '魔力耐性':'まりょくたいせい','百戦の生存術':'ひゃくせんのせいぞんじゅつ',
+  '超免疫':'ちょうめんえき','救援者':'きゅうえんしゃ',
+  '対魔の盾':'たいまのたて','不屈の精神':'ふくつのせいしん',
+  '鉄人':'てつじん','火事場の馬鹿力':'かじばのばかぢから',
+  '安全運転':'あんぜんうんてん','平常心':'へいじょうしん',
+  '一点集中':'いってんしゅうちゅう','烈':'れつ',
+  '妖狐キラー':'ようこきらー','植物キラー':'しょくぶつきらー',
+  '怪力':'かいりき','初志貫徹':'しょしかんてつ',
+  '癒しの恩寵':'いやしのおんちょう','必殺の秘技':'ひっさつのひぎ',
+  '必殺の書':'ひっさつのしょ','魔族キラー':'まぞくきらー',
+  '治癒の教え':'ちゆのおしえ','自戒の念':'じかいのねん',
+  '魔力増強':'まりょくぞうきょう'
+};
+const candidateCategoryOrder=['必殺技','アクションスキル','超特殊能力'];
+const candidateKanaCollator=new Intl.Collator('ja');
 function candidateLevelCosts(skill,level,hint){
   if(!skill||!Number.isInteger(level)||level<1||level>skill.levels.length)return null;
   const score=skill.levels[level-1].scores?.[job.value]?.[1];
   if((score===null||!Number.isFinite(Number(score)))&&!skill.hp)return null;
   const costs=[];
   for(const lv of skill.levels.slice(0,level)){
-    const vec=Number(lv.tip)===hint?lv.cost:D.skillHintCosts?.[skill.name]?.[hint]?.[lv.lv];
-    if(!Array.isArray(vec)||vec.length!==5||vec.some(v=>!Number.isInteger(Number(v))||Number(v)<0))return null;
-    costs.push(vec.map(Number));
+    const vec=D.skillCandidateLevelCost?.(skill,lv.lv,hint);
+    if(!vec)return null;
+    costs.push(vec);
   }
   return costs;
 }
 function candidateChoiceList(){
   return [...candidateSkills.values()].filter(x=>skillCandidateEligible(skillByName.get(x.name)));
 }
+// 名称と能力Lvは1つの選択値（マスターデータのindex:Lv）として扱う。
+function candidateChoiceFromValue(value){
+  const match=/^(\d+):(\d+)$/.exec(String(value||''));
+  if(!match)return null;
+  const index=Number(match[1]),level=Number(match[2]);
+  const skill=skillCandidateMaster[index];
+  return skill&&skill.levels.some(l=>Number(l.lv)===level)?{skill,level}:null;
+}
 function refreshCandidateUI(){
-  const name=document.getElementById('skillCandidateName'),level=document.getElementById('skillCandidateLevel');
+  const name=document.getElementById('skillCandidateName');
   const hint=document.getElementById('skillCandidateHint'),add=document.getElementById('skillCandidateAdd');
   const list=document.getElementById('skillCandidateList');
-  if(!name||!level||!hint||!add||!list)return;
+  if(!name||!hint||!add||!list)return;
   for(const [key] of candidateSkills){
-    if(!skillCandidateEligible(skillByName.get(key))){candidateSkills.delete(key);candidateSkillConditions.delete(key);}
-  }
-  const current=name.value,curLevel=level.value,curHint=hint.value;
-  const available=skillCandidateMaster.filter(x=>skillCandidateEligible(x)&&!candidateSkills.has(x.name));
-  name.innerHTML='<option value="">名称を選択</option>'+available.map(x=>
-    '<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(x.name)+'（'+escapeCustomText(x.category)+'）</option>').join('');
-  name.value=available.some(x=>x.name===current)?current:'';
-  const skill=skillByName.get(name.value);
-  level.innerHTML='<option value="">能力Lvを選択</option>'+(skill?.levels||[]).map(l=>
-    '<option value="'+l.lv+'">Lv'+l.lv+'</option>').join('');
-  level.value=skill?.levels.some(l=>String(l.lv)===curLevel)?curLevel:'';
-  hint.innerHTML='<option value="">コツLvを選択</option>';
-  if(skill&&level.value){
-    for(let h=0;h<=5;h++){
-      if(candidateLevelCosts(skill,Number(level.value),h))
-        hint.innerHTML+='<option value="'+h+'">'+(h===0?'コツなし':'コツLv'+h)+'</option>';
+    if(!skillCandidateEligible(skillByName.get(key))){
+      candidateSkills.delete(key);candidateSkillConditions.delete(key);
     }
   }
-  hint.value=[...hint.options].some(o=>o.value===curHint)?curHint:'';
-  for(const el of [name,level,hint])el.disabled=!hasAcademyJob()||!hasAttribute()||isCalculating;
-  add.disabled=!skill||!level.value||hint.value===''||isCalculating;
+  const current=name.value,curHint=hint.value;
+  const groupOptions=[];
+  const placeholder=new Option('必殺技等を選択','');
+  for(const category of candidateCategoryOrder){
+    const available=skillCandidateMaster.map((skill,index)=>({skill,index}))
+      .filter(x=>x.skill.category===category&&skillCandidateEligible(x.skill)&&!candidateSkills.has(x.skill.name))
+      .sort((a,b)=>{
+        const ka=candidateSkillKana[a.skill.name]||a.skill.name;
+        const kb=candidateSkillKana[b.skill.name]||b.skill.name;
+        return candidateKanaCollator.compare(ka,kb)||candidateKanaCollator.compare(a.skill.name,b.skill.name);
+      });
+    if(!available.length)continue;
+    const group=document.createElement('optgroup');
+    group.label=category;
+    for(const {skill,index} of available){
+      const preferred=skill.kind==='汎用'?0:1;
+      for(const lv of skill.levels){
+        if(!candidateLevelCosts(skill,Number(lv.lv),preferred))continue;
+        group.appendChild(new Option(skill.name+' Lv.'+lv.lv,index+':'+lv.lv));
+      }
+    }
+    if(group.children.length)groupOptions.push(group);
+  }
+  name.replaceChildren(placeholder,...groupOptions);
+  name.value=[...name.options].some(opt=>opt.value===current)?current:'';
+  const selection=candidateChoiceFromValue(name.value);
+  const skill=selection?.skill,level=selection?.level;
+  const currentHint=Number(curHint);
+  hint.innerHTML='<option value="">コツLv.を選択</option>';
+  if(skill&&level){
+    for(let h=0;h<=5;h++){
+      if(candidateLevelCosts(skill,level,h)){
+        hint.add(new Option(h===0?'コツなし':'コツLv.'+h,String(h)));
+      }
+    }
+  }
+  const defaultHint=skill?.kind==='汎用'?'0':'1';
+  hint.value=[...hint.options].some(o=>o.value===curHint)&&curHint!==''?curHint:
+    ([...hint.options].some(o=>o.value===defaultHint)?defaultHint:hint.options[1]?.value||'');
+  for(const el of [name,hint])el.disabled=!hasAcademyJob()||!hasAttribute()||isCalculating;
+  add.disabled=!skill||!level||hint.value===''||isCalculating;
   list.innerHTML=candidateChoiceList().map(x=>
-    '<li><span>'+escapeCustomText(x.name)+' Lv'+x.level+'／'+(x.hint===0?'コツなし':'コツLv'+x.hint)+'</span>'+
+    '<li><span>'+escapeCustomText(x.name)+' Lv.'+x.level+'／'+(x.hint===0?'コツなし':'コツLv.'+x.hint)+'</span>'+
     '<button class="custom-condition-remove" type="button" data-candidate-remove="'+escapeCustomText(x.name)+'" aria-label="'+escapeCustomText(x.name)+'を削除">×</button></li>').join('');
   list.hidden=!list.innerHTML;
   const message=document.getElementById('skillCandidateMessage');
-  if(message)message.textContent=(skill&&level.value&&hint.options.length===1)
-    ?'この能力Lvの必要経験点または査定値は未確認です。確認できた値だけ選択できます。':'';
+  if(message)message.textContent=(skill&&level&&hint.options.length===1)
+    ?'この能力Lvの必要経験点または査定値は未確認です。':'';
 }
 function initSkillCandidates(){
   const name=document.getElementById('skillCandidateName');
-  const level=document.getElementById('skillCandidateLevel'),hint=document.getElementById('skillCandidateHint');
-  const add=document.getElementById('skillCandidateAdd'),card=document.getElementById('skillCandidatesCard');
-  if(!name||!level||!hint||!add||!card)return;
-  name.addEventListener('change',()=>{level.value='';hint.value='';refreshCandidateUI();});
-  level.addEventListener('change',()=>{hint.value='';refreshCandidateUI();});
+  const hint=document.getElementById('skillCandidateHint'),add=document.getElementById('skillCandidateAdd');
+  const card=document.getElementById('skillCandidatesCard');
+  if(!name||!hint||!add||!card)return;
+  name.addEventListener('change',()=>{hint.value='';refreshCandidateUI();});
   hint.addEventListener('change',refreshCandidateUI);
   add.addEventListener('click',()=>{
-    const def=skillByName.get(name.value),lv=Number(level.value),tip=Number(hint.value);
-    if(!skillCandidateEligible(def)||!candidateLevelCosts(def,lv,tip)||candidateSkills.has(def.name))return;
-    candidateSkills.set(def.name,{name:def.name,level:lv,hint:tip});
-    name.value='';level.value='';hint.value='';
+    const selected=candidateChoiceFromValue(name.value);
+    if(!selected)return;
+    const {skill,level}=selected,tip=Number(hint.value);
+    if(!skillCandidateEligible(skill)||!candidateLevelCosts(skill,level,tip)||candidateSkills.has(skill.name))return;
+    candidateSkills.set(skill.name,{name:skill.name,level,hint:tip});
+    name.value='';hint.value='';
     refreshCandidateUI();renderCustomConditions();calcResultCache.clear();
     document.getElementById('result').textContent='';
   });
