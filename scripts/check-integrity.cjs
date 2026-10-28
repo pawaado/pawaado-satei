@@ -67,7 +67,10 @@ assert(!sources['photo_import.js'].includes("SUPER_NAMES.includes('烈')&&/[烈�
 assert(sources['photo_import.js'].includes('if(entry.confirmed!==true&&entry.inferred!==true)continue;'),'photo_import.js: super must be confirmed or explicitly inferred');
 assert(sources['photo_import.js'].includes('s.level=null;'),'photo_import.js: conflicting super Lv must become unresolved');
 assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
-assert(!sources['rankings.html'].includes('コツLv0で比較しています'),'rankings.html: removed hint-level note returned');
+const basicRankingNote=sources['rankings.html'].split('<section class="notes">')[1]?.split('</section>')[0]||'';
+assert(!basicRankingNote.includes('コツLv0で比較しています'),'rankings.html: removed generic hint note must not return to basic ranking');
+assert(sources['rankings.html'].includes('超特殊能力はコツLv1、必殺技・アクションスキルはコツLv0'),'rankings.html: skill ranking tip normalization must be explained');
+assert(sources['skill_rankings.js'].includes('function rankingCost('),'skill_rankings.js: normalized cost conversion missing');
 assert(!sources['rankings.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'rankings.html: generic elemental attack note must be removed');
 assert(sources['rankings.html'].includes("const names=name==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[name];"),'rankings.html: elemental attacks must be expanded in 火→風→水 order');
 const healingHeart=(data.special||[]).find(row=>String(row[1])==='癒やしの心');
