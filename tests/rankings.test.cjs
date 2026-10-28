@@ -34,9 +34,12 @@ test('resistance-impact markers are derived from canonical data rules',()=>{
  const expected=new Set([...(rules.pairSources||[]).flatMap(x=>[x.lower,x.upper]),...Object.keys(rules.directEffects||{})]);
  assert.deepEqual([...c.audit.resistanceImpactSkills].sort(),[...expected].sort());
 });
-test('HP-based rankings still use the canonical HP 1925 without displaying an HP reference note',()=>{
+test('HP-based rankings retain life-90 notes without displaying HP1925',()=>{
  const {c}=load();assert.equal(c.audit.referenceHp,1925);
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
+ assert(html.includes('HP依存特殊能力は生命力90で計算しています。'));
+ assert(html.includes('HP依存の超特殊能力は生命力90で計算しています。'));
+ assert(!html.includes('HP1925'));
  assert(!html.includes('referenceHpNote'));assert(!html.includes('skillReferenceHpNote'));
  assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
 });
