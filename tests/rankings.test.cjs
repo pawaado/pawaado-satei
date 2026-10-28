@@ -50,7 +50,8 @@ test('ranking notes use the renamed section and do not describe the expanded ele
  assert(!html.includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'));
  const basicNotes=html.split('<section class="notes">')[1]?.split('</section>')[0]||'';
  assert(!basicNotes.includes('コツLv0で比較しています'));
- assert(html.includes('超特殊能力と固有の必殺技・アクションスキルはコツLv1、汎用の必殺技・アクションスキルはコツなし'));
+ assert(html.includes('コツLvは超特殊能力・固有の必殺技・アクションスキルをLv1、汎用の必殺技・アクションスキルをコツなし（Lv0）として'));
+ assert(!html.includes('コツLv2から換算した参考値'));
  assert(html.includes('data-group="僧侶" aria-pressed="false">僧侶系統</button>'));
 });
 test('generic 〜攻撃 becomes three independently ranked rows ordered 火→風→水',()=>{
