@@ -99,6 +99,28 @@ test('onward choices explore every level from selected minimum and charge only u
  assert(script.includes('candidateOptionLabel(item.skill,lv.lv)'));
  assert(script.includes('if(!candidateHasLevels(skill))return skill.name'));
 });
+test('fire swordsman can select the verified Wind Protection and Magic Modification supers',()=>{
+ const c=worker(),skills=c.PAWAADO_DATA.skillRankings.skills;
+ const wind=skills.find(x=>x.name==='ウィンドプロテクション');
+ const modified=skills.find(x=>x.name==='魔力改変');
+ assert(wind&&modified,'both confirmed supers must be registered');
+ for(const skill of [wind,modified]){
+  assert(skill.jobs.includes('剣士'));
+  assert.equal(skill.attribute,null);
+  assert.equal(skill.levels.length,2);
+  assert.equal(skill.levels[0].tip,1);
+  assert.equal(skill.levels[1].tip,1);
+ }
+ assert.deepEqual(Array.from(modified.levels[0].cost),[0,0,0,104,92]);
+ assert.deepEqual(Array.from(modified.levels[1].cost),[0,0,0,120,107]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(modified,2,1)),[0,0,0,224,199]);
+ const first=actions(c,payload(c,'剣士','火属性',[{name:'ウィンドプロテクション',level:1,minLevel:1,hint:1}]));
+ assert(first.some(x=>x.name==='ウィンドプロテクション'));
+ const second=actions(c,payload(c,'剣士','火属性',[{name:'魔力改変',level:1,minLevel:1,hint:1}]));
+ assert(second.some(x=>x.name==='魔力改変'));
+ assert(!skills.some(x=>x.name==='魔力探求'),
+   'do not fabricate the unverified complete Lv1/Lv2 cost vector of Magic Exploration');
+});
 test('verified hint costs distinguish ability Lv from hint Lv and do not reverse estimate',()=>{
  const c=worker(),master=c.PAWAADO_DATA.skillRankings.skills;
  const mental=master.find(x=>x.name==='精神統一');
