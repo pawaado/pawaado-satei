@@ -796,7 +796,6 @@ window.PAWAADO_DATA.skillRankings = {
       "category": "必殺技",
       "kind": "固有",
       "jobs": [
-        "剣士",
         "双剣士"
       ],
       "attribute": "風",
@@ -813,10 +812,6 @@ window.PAWAADO_DATA.skillRankings = {
           "tip": 1,
           "condition": "パワー20・器用さ20以上",
           "scores": {
-            "剣士": [
-              2000,
-              2000
-            ],
             "双剣士": [
               2000,
               2000
@@ -835,10 +830,6 @@ window.PAWAADO_DATA.skillRankings = {
           "tip": 1,
           "condition": "パワー50・器用さ50以上",
           "scores": {
-            "剣士": [
-              1600,
-              3600
-            ],
             "双剣士": [
               1600,
               3600
@@ -857,10 +848,6 @@ window.PAWAADO_DATA.skillRankings = {
           "tip": 1,
           "condition": "パワー70・器用さ70以上",
           "scores": {
-            "剣士": [
-              1600,
-              5200
-            ],
             "双剣士": [
               1600,
               5200
