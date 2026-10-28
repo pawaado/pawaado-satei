@@ -112,14 +112,6 @@
         <ul id="custom-basic-list" class="custom-condition-list" hidden></ul>
       </div>
       <div class="custom-condition-group">
-        <h3>必殺技・アクションスキル・超特殊能力</h3>
-        <div class="custom-condition-inputs custom-skill-inputs">
-          <select id="customSkillName" aria-label="必殺技等を選択"><option value="">取得候補を選択</option></select>
-          <select id="customSkillMode" aria-label="取得する・取得しない"><option value="">条件を選択</option><option value="required">取得する</option><option value="forbidden">取得しない</option></select>
-        </div>
-        <ul id="custom-skill-list" class="custom-condition-list" hidden></ul>
-      </div>
-      <div class="custom-condition-group">
         <h3>特殊能力</h3>
         <div class="custom-condition-inputs custom-special-inputs">
           <div class="custom-select-control custom-condition-select">
@@ -136,6 +128,18 @@
           </div>
         </div>
         <ul id="custom-special-list" class="custom-condition-list" hidden></ul>
+      </div>
+      <div class="custom-condition-group custom-skill-group">
+        <h3>必殺技等</h3>
+        <div class="custom-condition-inputs custom-skill-inputs">
+          <div class="custom-select-control custom-condition-select">
+            <select id="customSkillName" class="custom-native-select" tabindex="-1" aria-hidden="true" aria-label="必殺技等を選択" disabled><option value="">必殺技等を選択</option></select>
+            <button id="customSkillNameSelectButton" type="button" class="custom-select-button" aria-haspopup="listbox" aria-expanded="false" aria-controls="customSkillNameCustomMenu" disabled><span id="customSkillNameSelectText">必殺技等を選択</span></button>
+            <div id="customSkillNameCustomMenu" class="custom-select-menu" role="listbox" hidden></div>
+          </div>
+          <span class="custom-skill-required" aria-label="取得する（固定）">取得する</span>
+        </div>
+        <ul id="custom-skill-list" class="custom-condition-list" hidden></ul>
       </div>
       <p id="customCalcMessage" role="status" aria-live="polite" class="custom-calc-message"></p>
       <button id="customClearAll" type="button" class="secondary custom-clear-all" hidden>こだわり条件をすべて解除</button>
@@ -358,6 +362,13 @@
           textId:'customSpecialModeSelectText',
           menuId:'customSpecialModeCustomMenu',
           placeholder:'条件を選択'
+        }),
+        createCustomSelect({
+          selectId:'customSkillName',
+          buttonId:'customSkillNameSelectButton',
+          textId:'customSkillNameSelectText',
+          menuId:'customSkillNameCustomMenu',
+          placeholder:'必殺技等を選択'
         })
       ].filter(Boolean);
 
