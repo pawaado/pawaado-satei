@@ -38,7 +38,7 @@ function normalizeSkillCandidates(rows,excludedNames=[]){
     const cost=workerCandidateCost(def,level,hint);
     if(!cost)throw new Error(name+'の指定コツLvの必要経験点が未確認です。');
     const scores=def.levels[level-1].scores?.[job.value];
-    if(!Array.isArray(scores)||!Number.isFinite(Number(scores[1])))continue;
+    if(!Array.isArray(scores)||(!def.hp&&(!Number.isFinite(Number(scores[1]))||scores[1]===null)))continue;
     seen.add(name);
     const required={};
     for(const lv of def.levels.slice(0,level)){
@@ -46,7 +46,7 @@ function normalizeSkillCandidates(rows,excludedNames=[]){
         required[match[1]]=Math.max(required[match[1]]||0,Number(match[2]));
       }
     }
-    out.push({name,level,hint,cost,required,score:Number(scores[1]),id:out.length,def});
+    out.push({name,level,hint,cost,required,score:scores[1]===null?0:Number(scores[1]),id:out.length,def});
   }
   return out;
 }
@@ -66,7 +66,7 @@ function workerCandidateAction(st,entry,exp){
     costs=addCost(costs,op.cost);gain+=Number(op.score||0);
     if(name==='生命力'){
       const oldHp=currentHpForLife(current),newHp=currentHpForLife(target);
-      gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp);
+      gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp)+workerCandidateHpDelta(st.candidateBits,oldHp,newHp);
     }
     items.push(...op.items);requiredLevels[name]=target;
   }
@@ -86,7 +86,9 @@ function workerCandidateAction(st,entry,exp){
   const lifeAfter=requiredLevels['生命力']||st.levels[0];
   if(entry.def.hp){
     const rate=selectedSuperHpRate({name:entry.name,level:entry.level});
-    if(rate)gain+=(currentHpForLife(lifeAfter)-currentHpForLife(90))*rate;
+    if(rate)gain+=entry.def.levels[entry.level-1].scores?.[job.value]?.[1]===null
+      ? currentHpForLife(lifeAfter)*rate
+      : (currentHpForLife(lifeAfter)-currentHpForLife(90))*rate;
   }
   if(!leq(addCost(st.cost,costs),exp))return null;
   items.push({type:'candidate',name:entry.name,level:entry.level,hint:entry.hint});
@@ -94,6 +96,15 @@ function workerCandidateAction(st,entry,exp){
   return {kind:'candidate',name:entry.name,cost:costs,costSum:cs,gain,score:gain,
     efficiency:gain/Math.max(1,cs),bits:requiredBits,candidateBit:bit,
     requiredLevels,items};
+}
+function workerCandidateHpDelta(candidateBits,oldHp,newHp){
+  if(oldHp===newHp)return 0;
+  let value=0;
+  for(const entry of workerSkillCandidates){
+    if(!entry.def.hp||((candidateBits||0n)&(1n<<BigInt(entry.id)))===0n)continue;
+    value+=(newHp-oldHp)*selectedSuperHpRate({name:entry.name,level:entry.level});
+  }
+  return value;
 }
 function workerCandidateActions(st,exp){
   const out=[];
@@ -612,6 +623,7 @@ function mixedBasicActions(st,exp){
         const newHp=currentHpForLife(to);
         gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp);
         gain+=selectedSuperHpDelta(oldHp,newHp);
+        gain+=workerCandidateHpDelta(st.candidateBits,oldHp,newHp);
       }
       actions.push({...op,gain,efficiency:gain/Math.max(1,op.costSum)});
     }
