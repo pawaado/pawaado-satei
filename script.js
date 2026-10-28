@@ -724,7 +724,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261018-taterescure-caps-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261018-physical-magic-60-66-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
