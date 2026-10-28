@@ -28,23 +28,30 @@
   // 画面に表示する査定効率（小数第3位）が同じ場合は、査定→必要経験点の順で比較。
   const visibleEfficiency=n=>Math.round(n*1000);
 
-  function asRow(skill,job,levelIndex,isCumulative){
-    const l=skill.levels[levelIndex];
-    const upto=isCumulative?skill.levels.slice(0,levelIndex+1):[l];
-    const cost=Array(5).fill(0);
-    for(const x of upto) x.cost.forEach((v,i)=>cost[i]+=Number(v||0));
-    const exp=totalCost(cost);
-    const score=isCumulative?l.scores[job]?.[1]:l.scores[job]?.[0];
-    const hp=Boolean(skill.hp);
-    const canRank=exp>0 && typeof score==='number' && Number.isFinite(score) && !hp;
-    const key=(isCumulative?(l.lv===2?'sum2':'sum3'):'single'+l.lv);
-    const conditions=upto.map(x=>`Lv${x.lv}: ${x.condition}`).join(' ／ ');
-    const detail=skill.category==='超特殊能力'?upto.map(x=>{
-      const parts=Object.entries(x.effect||{}).map(([name,value])=>`${name} ${typeof value==='number'&&value>0?'+':''}${value}${typeof value==='number'?'%':''}`);
-      return `Lv${x.lv}：${parts.join('、')||'効果記録なし'}`;
-    }).join(' ／ '):'';
-    return {name:skill.name,kind:skill.kind,category:skill.category,job,onlyDual:skill.jobs.length===1&&skill.jobs[0]==='双剣士',attribute:skill.attribute,phase:key,label:phases[key]||`Lv${l.lv}`,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
-      conditions,detail,hp,resistance:Boolean(skill.resistance),tip:upto.map(x=>x.tip).join('、'),unrankedReason:hp?'HP依存のため基礎HP・取得状況で査定が変わります':(exp<=0?'必要経験点0／未確認':'査定の固定値が未確定')};
+  function hpScore(skill,job,index){
+    const rates=superRules[skill.name]?.hpRates;
+    if(!Array.isArray(rates)||referenceHp<=0)return null;
+    const now=Number(rates[index]),prior=index?Number(rates[index-1]):0;
+    if(!Number.isFinite(now)||!Number.isFinite(prior))return null;
+    let score=referenceHp*(now-prior);
+    if(skill.name==='大真面目'&&physicalJobs.has(job)){
+      const nowPhysical=Number(skill.levels[index].effect?.物理攻撃倍率||0);
+      const beforePhysical=index?Number(skill.levels[index-1].effect?.物理攻撃倍率||0):0;
+      score+=(nowPhysical-beforePhysical)*45;
+    }
+    return score;
+  }
+  function asRow(skill,job,index){
+    const l=skill.levels[index],cost=l.cost.map(x=>Number(x||0));
+    const exp=totalCost(cost),hp=Boolean(skill.hp);
+    const score=hp?hpScore(skill,job,index):l.scores[job]?.[0];
+    const canRank=exp>0&&typeof score==='number'&&Number.isFinite(score);
+    const phase='single'+l.lv;
+    const detail=skill.category==='超特殊能力'?Object.entries(l.effect||{}).map(([name,value])=>name+' '+(typeof value==='number'&&value>0?'+':'')+value+(typeof value==='number'?'%':'')).join('、'):'';
+    return {name:skill.name,kind:skill.kind,category:skill.category,job,attribute:skill.attribute,
+      phase,label:levelLabels[phase]||'Lv'+l.lv,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
+      conditions:'Lv'+l.lv+': '+l.condition,detail,hp,resistance:Boolean(skill.resistance),tip:l.tip,
+      unrankedReason:exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
   }
   function getRows(){
     const jobs=jobGroups[currentGroup];
