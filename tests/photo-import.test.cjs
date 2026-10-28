@@ -16,8 +16,9 @@ function setup(){
   let source=process.env.PHOTO_SOURCE?fs.readFileSync(process.env.PHOTO_SOURCE,'utf8'):fs.readFileSync(path.join(root,'photo_import.js'),'utf8');
   const hooks=`
   window.h={jobFromText,profileIdentityOf,dataJobFromHeader,dataJobByIcon,dataJobByHeaderImage,jobNameFromScores,jobNameFromIconScores,byteCorrelation,abilityByImage,classifyMarkCrossingScore,nativeMarkRun,abilityNameExactByImage,isSuperAbilityCellByColor,readAbilityCells,readImages,readTrainingPattern,levelByImage,matchesTemplate,academyOf,academyNameFromScores,cellAbility,findSpecials,classifyTrainingGlyph,classifyTrainingCurrentGlyph,classifyGlyph,decodeMask,digitSequenceToNumber,pairMarkByImage,abilityMasks:HYBRID_ABILITY_MASKS,trainingCurrentDigitMasks:TRAINING_CURRENT_DIGIT_MASKS,trainingGainColorMasks:TRAINING_GAIN_COLOR_MASKS,hybridLevelMasks:HYBRID_LEVEL_MASKS,
-   stubReads(){matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{},explicitPairConfidence:im.confidence||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
+   stubReads(){dataAttributeByIcon=im=>im.attributeIcon||'';matchesTemplate=async(im,name)=>name==='modal'?im.kind==='data':name==='basic';academyOf=async im=>im.academy||'パワフルアカデミー';profileIdentityOf=async im=>({job:im.dataJob||''});basicByImageStrict=()=>50;readAbilityCells=async im=>({specials:[],supers:[],warnings:[],explicitPairMarks:im.marks||{},explicitPairConfidence:im.confidence||{}});readTrainingPattern=async im=>im.training||null;jobOf=async im=>({job:im.job||'剣士'});numericRow=async im=>[im.exp??100,100,100,100,100];},
    stubAbilityResults(fn){readAbilityCells=fn;},
+    stubAttributeIcon(fn){dataAttributeByIcon=fn;},
    stubDataJobHeader(raw){dataJobByIcon=()=>'';textAt=async()=>({text:raw,confidence:99});},
    stubDataJobScores(scores){grayIconVector=()=>new Uint8Array(256);let i=0;byteMse=()=>Number(scores[i++]??99999);},
    stubAbilityMask(encoded){inkMask=()=>({mask:decodeMask(encoded,64*10),w:64,h:10});},
@@ -901,4 +902,31 @@ test('unknown or conflicting attribute marks do not trigger guessing',async()=>{
  const conflicting=await h.readImages([{kind:'data',dataJob:'剣士'},{job:'剣士',exp:100}]);
  assert.equal(conflicting.attribute,'');
  assert(conflicting.warnings.some(x=>x.includes('属性攻撃の読み取りが一致')));
+});
+
+test('green red and blue attribute icons map to wind fire and water',()=>{
+ const {h}=setup();
+ const pixels=(r,g,b)=>{const data=new Uint8ClampedArray(34*35*4);
+  for(let i=0;i<data.length;i+=4){data[i]=r;data[i+1]=g;data[i+2]=b;data[i+3]=255;}
+  return data;
+ };
+ assert.equal(h.attributeFromRgbPixels(pixels(25,175,50),34,35),'風属性');
+ assert.equal(h.attributeFromRgbPixels(pixels(218,38,36),34,35),'火属性');
+ assert.equal(h.attributeFromRgbPixels(pixels(25,75,230),34,35),'水属性');
+ assert.equal(h.attributeFromRgbPixels(pixels(238,231,203),34,35),'');
+});
+test('attribute icon determines imported attribute without an elemental attack',async()=>{
+ const {h}=setup();h.stubReads();
+ const data=await h.readImages([{kind:'data',dataJob:'剣士',attributeIcon:'水属性'},{job:'剣士',exp:100}]);
+ assert.equal(data.attribute,'水属性');
+});
+test('conflicting recognized attribute icons are not auto-selected',async()=>{
+ const {h}=setup();h.stubReads();
+ const data=await h.readImages([
+  {kind:'data',dataJob:'剣士',attributeIcon:'風属性'},
+  {kind:'data',dataJob:'剣士',attributeIcon:'火属性'},
+  {job:'剣士',exp:100}
+ ]);
+ assert.equal(data.attribute,'');
+ assert(data.warnings.some(w=>w.includes('属性マークの読み取り値が画像間で一致しません')));
 });
