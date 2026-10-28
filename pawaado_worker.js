@@ -29,31 +29,42 @@ function workerCandidateCost(def,level,hint){
 function normalizeSkillCandidates(rows,excludedNames=[]){
   const out=[],seen=new Set(),excluded=new Set(excludedNames);
   for(const item of Array.isArray(rows)?rows:[]){
-    const name=String(item?.name||''),level=Number(item?.level),hint=Number(item?.hint);
+    const name=String(item?.name||''),minimum=Number(item?.minLevel??item?.level),hint=Number(item?.hint);
     const def=workerSkillMaster.get(name);
     if(!def||seen.has(name)||excluded.has(name)||!def.jobs.includes(job.value)||
       (def.attribute&&def.attribute!==workerCandidateAttribute.replace(/属性$/,'')))continue;
-    if(!Number.isInteger(level)||level<1||level>def.levels.length||
+    const max=def.kind==='汎用'&&!def.jobs.includes('双剣士')?1:def.levels.length;
+    if(!Number.isInteger(minimum)||minimum<1||minimum>max||
       !Number.isInteger(hint)||hint<0||hint>5)continue;
-    const cost=workerCandidateCost(def,level,hint);
-    if(!cost)throw new Error(name+'の指定コツLvの必要経験点が未確認です。');
-    const scores=def.levels[level-1].scores?.[job.value];
-    if(!Array.isArray(scores)||(!def.hp&&(!Number.isFinite(Number(scores[1]))||scores[1]===null)))continue;
-    seen.add(name);
-    const required={};
-    for(const lv of def.levels.slice(0,level)){
-      for(const match of String(lv.condition||'').matchAll(/(生命力|パワー|魔力|器用さ|耐久力|精神力)\s*(\d+)/g)){
-        required[match[1]]=Math.max(required[match[1]]||0,Number(match[2]));
+    const id=seen.size;
+    let found=false;
+    for(let level=minimum;level<=max;level++){
+      const cost=workerCandidateCost(def,level,hint);
+      if(!cost)continue;
+      const scores=def.levels[level-1].scores?.[job.value];
+      if(!Array.isArray(scores)||(!def.hp&&(!Number.isFinite(Number(scores[1]))||scores[1]===null)))continue;
+      const required={};
+      for(const lv of def.levels.slice(0,level)){
+        for(const match of String(lv.condition||'').matchAll(/(生命力|パワー|魔力|器用さ|耐久力|精神力)\s*(\d+)/g)){
+          required[match[1]]=Math.max(required[match[1]]||0,Number(match[2]));
+        }
       }
+      out.push({name,level,minLevel:minimum,hint,cost,required,score:scores[1]===null?0:Number(scores[1]),id,def});
+      found=true;
     }
-    out.push({name,level,hint,cost,required,score:scores[1]===null?0:Number(scores[1]),id:out.length,def});
+    if(found)seen.add(name);
   }
   return out;
 }
 function workerCandidateAction(st,entry,exp){
   const bit=1n<<BigInt(entry.id);
-  if(((st.candidateBits||0n)&bit)!==0n)return null;
-  let costs=entry.cost.slice(),gain=entry.score;
+  const currentLevel=Number(st.candidateLevels?.[entry.id]||0);
+  if(currentLevel>=entry.level)return null;
+  const priorCost=currentLevel?workerCandidateCost(entry.def,currentLevel,entry.hint):[0,0,0,0,0];
+  if(!priorCost)return null;
+  let costs=entry.cost.map((v,i)=>v-priorCost[i]);
+  const priorScore=currentLevel?entry.def.levels[currentLevel-1].scores?.[job.value]?.[1]:0;
+  let gain=entry.score-Number(priorScore||0);
   const items=[],requiredLevels={};
   const jobLimits=limits();
   for(const [name,target] of Object.entries(entry.required)){
@@ -66,7 +77,7 @@ function workerCandidateAction(st,entry,exp){
     costs=addCost(costs,op.cost);gain+=Number(op.score||0);
     if(name==='生命力'){
       const oldHp=currentHpForLife(current),newHp=currentHpForLife(target);
-      gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp)+workerCandidateHpDelta(st.candidateBits,oldHp,newHp);
+      gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp)+selectedSuperHpDelta(oldHp,newHp)+workerCandidateHpDelta(st.candidateBits,oldHp,newHp,st.candidateLevels);
     }
     items.push(...op.items);requiredLevels[name]=target;
   }
@@ -84,26 +95,29 @@ function workerCandidateAction(st,entry,exp){
   if((requiredBits&workerExcludedSpecialBits)!==0n||(requiredBits&conflictBitsFor(st.bits??0n))!==0n)return null;
   gain+=extraScore;
   if(typeof dynamicCandidateSkillGain==='function')
-    gain+=dynamicCandidateSkillGain(st.bits||0n,st.candidateBits||0n,requiredBits,entry,items);
+    gain+=dynamicCandidateSkillGain(st.bits||0n,st.candidateBits||0n,requiredBits,entry,items,st.candidateLevels||{});
   const lifeAfter=requiredLevels['生命力']||st.levels[0];
   if(entry.def.hp){
     const rate=selectedSuperHpRate({name:entry.name,level:entry.level});
-    if(rate)gain+=entry.def.levels[entry.level-1].scores?.[job.value]?.[1]===null
-      ? currentHpForLife(lifeAfter)*rate
-      : (currentHpForLife(lifeAfter)-currentHpForLife(90))*rate;
+    const priorRate=currentLevel?selectedSuperHpRate({name:entry.name,level:currentLevel}):0;
+    if(rate!==priorRate)gain+=entry.def.levels[entry.level-1].scores?.[job.value]?.[1]===null
+      ? currentHpForLife(lifeAfter)*(rate-priorRate)
+      : (currentHpForLife(lifeAfter)-currentHpForLife(90))*(rate-priorRate);
   }
   if(!leq(addCost(st.cost,costs),exp))return null;
   items.push({type:'candidate',name:entry.name,level:entry.level,hint:entry.hint});
   const cs=costSum(costs);
   return {kind:'candidate',name:entry.name,cost:costs,costSum:cs,gain,score:gain,
     efficiency:gain/Math.max(1,cs),bits:requiredBits,candidateBit:bit,
+    candidateEntryId:entry.id,candidateLevel:entry.level,
     requiredLevels,items};
 }
-function workerCandidateHpDelta(candidateBits,oldHp,newHp){
+function workerCandidateHpDelta(candidateBits,oldHp,newHp,candidateLevels={}){
   if(oldHp===newHp)return 0;
   let value=0;
   for(const entry of workerSkillCandidates){
-    if(!entry.def.hp||((candidateBits||0n)&(1n<<BigInt(entry.id)))===0n)continue;
+    if(!entry.def.hp||Number(candidateLevels?.[entry.id]||0)!==entry.level||
+      ((candidateBits||0n)&(1n<<BigInt(entry.id)))===0n)continue;
     value+=(newHp-oldHp)*selectedSuperHpRate({name:entry.name,level:entry.level});
   }
   return value;
@@ -527,7 +541,7 @@ function mixedLevelsKey(levels){
 
 function mixedStateKey(st){
   if(st._mixedStateKey!==undefined&&st._mixedStateKey!==null) return st._mixedStateKey;
-  const value=key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36))+'|c'+(st.candidateBits||0n).toString(36);
+  const value=key(st.cost)+'|'+mixedLevelsKey(st.levels)+'|'+bitsKey(st.bits??EMPTY_BITS)+'|d'+(st.dualLevel==null?'':Number(st.dualLevel).toString(36))+'|c'+(st.candidateBits||0n).toString(36)+'|v'+Object.entries(st.candidateLevels||{}).map(([k,v])=>k+':'+v).join('.');
   st._mixedStateKey=value;
   return value;
 }
@@ -625,7 +639,7 @@ function mixedBasicActions(st,exp){
         const newHp=currentHpForLife(to);
         gain+=mixedHpDeltaForBits(st.bits??EMPTY_BITS,oldHp,newHp);
         gain+=selectedSuperHpDelta(oldHp,newHp);
-        gain+=workerCandidateHpDelta(st.candidateBits,oldHp,newHp);
+        gain+=workerCandidateHpDelta(st.candidateBits,oldHp,newHp,st.candidateLevels);
       }
       actions.push({...op,gain,efficiency:gain/Math.max(1,op.costSum)});
     }
@@ -954,6 +968,9 @@ function mixedApplyAction(st,op){
     bits,
     dualLevel,
     candidateBits:(st.candidateBits||0n)|(op.candidateBit||0n),
+    candidateLevels:op.kind==='candidate'
+      ?{...(st.candidateLevels||{}),[op.candidateEntryId]:op.candidateLevel}
+      :(st.candidateLevels||{}),
     prev:st,
     choice:op.items||EMPTY_ITEMS,
     itemLen:itemLenOf(st)+(op.items?.length||0),
@@ -968,7 +985,7 @@ function constrainedInitialState(exp){
   const levels=mixedInitialLevels();
   let state={
     cost:[0,0,0,0,0],score:0,life:levels[0],levels,
-    bits:EMPTY_BITS,candidateBits:0n,dualLevel:workerDualEnabled?workerDualLevel:null,
+    bits:EMPTY_BITS,candidateBits:0n,candidateLevels:{},dualLevel:workerDualEnabled?workerDualLevel:null,
     prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
   };
   const lim=mixedLimits(),jobLimits=limits();
@@ -1029,7 +1046,7 @@ function constrainedInitialState(exp){
     if(!leq(addCost(state.cost,op.cost),exp))
       throw new Error('こだわり計算：'+name+'の取得に必要な経験点が不足しています。');
     const gain=typeof dynamicSpecialGainForBits==='function'
-      ?dynamicSpecialGainForBits(state.bits??EMPTY_BITS,op.bits,op.items,Number(op.score||0),state.candidateBits||0n)
+      ?dynamicSpecialGainForBits(state.bits??EMPTY_BITS,op.bits,op.items,Number(op.score||0),state.candidateBits||0n,state.candidateLevels||{})
       :Number(op.score||0);
     state=mixedApplyAction(state,{...op,kind:'special',gain,costSum:costSum(op.cost)});
   }
@@ -1143,7 +1160,7 @@ function __workerPayloadConfigKey(payload){
     basicPart,
     specialPart,
     selectedSuperPart,
-    (payload.candidateSkills||[]).map(x=>[x.name,x.level,x.hint]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'ja')),
+    (payload.candidateSkills||[]).map(x=>[x.name,x.minLevel??x.level,x.hint]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'ja')),
     (custom.requiredSkillNames||[]).slice().sort(),
     (custom.forbiddenSkillNames||[]).slice().sort(),
     forbiddenPart,
