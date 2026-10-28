@@ -34,8 +34,11 @@ const workerVersion=sources['resistance_patch.js'].match(/const PATCH_VERSION='(
 const dataContext={window:{}};new vm.Script(sources['data.js'],{filename:'data.js'}).runInNewContext(dataContext);
 const data=dataContext.window.PAWAADO_DATA,resistanceRules=data.resistanceRules;
 assert(!Object.prototype.hasOwnProperty.call(data,'attributes'),'data.js: abandoned attribute selector data returned');
-assert(!sources['index.html'].includes('id="attribute"'),'index.html: abandoned attribute selector returned');
-assert(!sources['script.js'].includes("getElementById('attribute')"),'script.js: abandoned attribute UI returned');
+assert(sources['index.html'].includes('id="attribute"'),'index.html: attribute selector missing');
+assert(sources['index.html'].includes('attributeSelectButton'),'index.html: attribute custom dropdown missing');
+assert(sources['script.js'].includes("getElementById('attribute')"),'script.js: attribute controller missing');
+assert(sources['script.js'].includes('function hasSpecialAccess()'),'script.js: special ability attribute guard missing');
+assert(sources['script.js'].includes('skillDisplayName(D.special[i][1])'),'script.js: attribute-dependent attack label missing');
 assert(!sources['photo_import.js'].includes('attributeByIcon'),'photo_import.js: abandoned attribute recognition returned');
 assert(!sources['resistance_patch.js'].includes("createElement('style')"),'resistance_patch.js must contain behavior only; resistance appearance belongs in style.css');
 for(const selector of ['.extra-resistance-list{','.super-controls{','.extra-resistance-group-remove{'])assert(mainStyle.includes(selector),`style.css: resistance UI style missing: ${selector}`);
