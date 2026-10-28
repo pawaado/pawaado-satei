@@ -77,14 +77,9 @@
     return {ranked,unranked};
   }
   function tr(row,rank){
-    const notes=[];
-    if(row.onlyDual)notes.push('双剣士専用');
-    if(row.attribute)notes.push(row.attribute+'属性');
-    if(row.resistance)notes.push('耐性影響');
-    if(row.hp)notes.push('HP依存');
     const explain=`${row.conditions}${row.detail?' ／ '+row.detail:''}`;
     const vec=row.cost.map((v,i)=>`${expKeys[i]} ${v}`).join(' / ');
-    const cssClass=typeClasses[row.category]||'';
+    const cssClass=[typeClasses[row.category]||'',row.hp?'skill-hp-marker':'',row.resistance?'skill-resistance-marker':''].filter(Boolean).join(' ');
     const levelText=levelLabels[row.phase]||row.label;
     return `<tr class="${cssClass}${rank===null?' skill-rank-unranked':''}">
       <td class="skill-rank-num">${rank===null?'—':rank}</td>
