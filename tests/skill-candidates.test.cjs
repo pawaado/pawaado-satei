@@ -118,8 +118,17 @@ test('fire swordsman can select the verified Wind Protection and Magic Modificat
  assert(first.some(x=>x.name==='ウィンドプロテクション'));
  const second=actions(c,payload(c,'剣士','火属性',[{name:'魔力改変',level:1,minLevel:1,hint:1}]));
  assert(second.some(x=>x.name==='魔力改変'));
- assert(!skills.some(x=>x.name==='魔力探求'),
-   'do not fabricate the unverified complete Lv1/Lv2 cost vector of Magic Exploration');
+ const inquiry=skills.find(x=>x.name==='魔力探求');
+ assert(inquiry,'magic inquiry must now be registered from verified screenshots');
+ assert.equal(inquiry.attribute,null,'magic inquiry must be available in all attributes');
+ for(const job of ['剣士','弓使い','重戦士','魔法使い','僧侶','魔闘士','双剣士'])
+  assert(inquiry.jobs.includes(job),'magic inquiry must be available for '+job);
+ assert.equal(inquiry.levels[0].condition,'魔力50以上');
+ assert.equal(inquiry.levels[1].condition,'魔力60以上');
+ assert.deepEqual(Array.from(inquiry.levels[0].cost),[0,0,0,73,123]);
+ assert.deepEqual(Array.from(inquiry.levels[1].cost),[0,0,0,85,142]);
+ assert.deepEqual(Array.from(c.workerCandidateCost(inquiry,2,1)),[0,0,0,158,265]);
+ assert.equal(c.workerCandidateCost(inquiry,2,2),null,'unknown hint Lv2 must remain unavailable');
 });
 test('verified hint costs distinguish ability Lv from hint Lv and do not reverse estimate',()=>{
  const c=worker(),master=c.PAWAADO_DATA.skillRankings.skills;
