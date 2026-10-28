@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261028-attribute1';
+  const PHOTO_IMPORT_BUILD='20261028-attribute2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
@@ -15,6 +15,9 @@
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
   const DATA_JOB_ICON_RECT=[600,181,38,38];
+  // 能力データ左上：ジョブアイコンの右側の丸い属性マーク。
+  // 2026-10-28実画像3枚：緑=風、赤=火、青=水（1536×706の基準座標）。
+  const DATA_ATTRIBUTE_ICON_RECT=[644,184,34,35];
   const DATA_JOB_GRAY_TEMPLATES={
     '重戦士':'9fX19OChYjwwPWKf4PX19PX18blUQmaFj4VoQ1S38PT18aE8cKObkI+PnaJvOaPy9Lw9gp6NlZudnJWLnII+tudbap5+l5yXlpidl4KeaEe3P559dbXYjr2Q27V3fJ4ze1ibcnTb1M3vzNfYcXOcYVV1jnN76cj8/vfQ4XB0i35Jfo1ydODP3/Xb0dtwc4WHX22Sbmqu0X/bf9Wpam6Od41NoGtpbHV75nV4aGlrnVHLQZWAY2JefuV3X2JkfZMt73pNn3FcXGCIXlxcb6FOa/bYUF2gfl9WUVZdeqFgT8v19MtZS4ydlImSnYtMTLfg9fX13HkxPV5oXj4ubs3p4g==',
     '剣士':'9fX19N+hYj0wPGKf4PX19PX18blUQmeGkIVoQ1S38PX18aE9caWbj4+PnaJvOaTy9Lw8g6CPlZudl5SJnII+tedbaJ+Bmp2dl77nq4GcaEi1P559epCUkKbz/K14e54ze1mccnR5foXf/eZ9c3ObYVZ2j3N0cnC71OyybHVzi39Ifo1ya3SJr3zVfnFyc4aIYGySb2iaucKcrWZvb2+PeI9Mn2tpXq7wun1lampqnlLKQJSAYnbdnX6TXWRjepQu8HtPoHBytWNZV1lccaJOa/XZT12hfV5VV1hde6JgT8r19MtYSYydk4iTnYtLTLff9fX13HkyPV5pXT4ubs3p4Q==',
@@ -1434,6 +1437,35 @@
     }
     return out;
   }
+  function attributeFromRgbPixels(pixels,width,height){
+    const counts={'火属性':0,'風属性':0,'水属性':0};
+    const centerX=width/2,centerY=height/2;
+    const limit=Math.min(width,height)*.46;
+    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+      const dx=x+.5-centerX,dy=y+.5-centerY;
+      if(dx*dx+dy*dy>limit*limit)continue;
+      const i=(y*width+x)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),diff=max-min;
+      // 白い渦模様や黒い輪郭は、色の根拠として使わない。
+      if(max<90||diff<1||diff/max<.36)continue;
+      let hue;
+      if(max===r)hue=((g-b)/diff+6)%6*60;
+      else if(max===g)hue=((b-r)/diff+2)*60;
+      else hue=((r-g)/diff+4)*60;
+      if(hue<=22||hue>=345)counts['火属性']++;
+      else if(hue>=75&&hue<=165)counts['風属性']++;
+      else if(hue>=188&&hue<=260)counts['水属性']++;
+    }
+    const ordered=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const best=ordered[0],second=ordered[1];
+    // 充分な画素数と他候補との明確な差がなければ推測入力しない。
+    return best[1]>=90&&best[1]>=second[1]*2.5?best[0]:'';
+  }
+  function dataAttributeByIcon(image){
+    const crop=canonicalCrop(image,DATA_ATTRIBUTE_ICON_RECT);
+    const pixels=crop.getContext('2d').getImageData(0,0,crop.width,crop.height).data;
+    return attributeFromRgbPixels(pixels,crop.width,crop.height);
+  }
   function dataJobByIcon(image){
     const [x,y,w,h]=DATA_JOB_ICON_RECT;
     const bestMse=Object.fromEntries(Object.keys(dataJobTemplateCache).map(job=>[job,Infinity]));
@@ -2591,6 +2623,7 @@
     const conflicts=new WeakMap();
     const pairMarkObservations=new Map();
     const attributeHints=new Set();
+    const attributeIcons=new Set();
     function mergeField(target,key,value,label){
       if(value==null||value===''||conflicts.get(target)?.has(key))return;
       if(target[key]!=null&&target[key]!==''&&target[key]!==value){if(!conflicts.has(target))conflicts.set(target,new Set());conflicts.get(target).add(key);target[key]=null;out.warnings.push(label+'の読み取り値が一致しません。画像の数値を確認して入力してください。');}
@@ -2602,6 +2635,8 @@
       if(await matchesTemplate(image,'modal',[670,55,220,45])){
         out.dataScreens++;
         mergeField(out,'academy',await academyOf(image),'アカデミー');
+        const recognizedAttribute=dataAttributeByIcon(image);
+        if(recognizedAttribute)attributeIcons.add(recognizedAttribute);
         if(!abilityUpIdentity.job){
           const identity=await profileIdentityOf(image);
           if(identity.job)mergeField(dataIdentity,'job',identity.job,'能力データのジョブ');
@@ -2662,12 +2697,23 @@
         out.warnings.push(stem+'の○/◎判定が画像間で一致しません。表示を確認してください。');
       }
     }
-    // 属性攻撃を一意に特定できた場合のみ属性を補助入力する。属性固有マークには未対応。
-    if(attributeHints.size===1)out.attribute=[...attributeHints][0];
-    else if(out.dataScreens){
+    // 色付き属性アイコンを第一判定とし、同一人物の画像間で一致した結果だけ採用。
+    // マークが読めない時に限り、画像内で確定した「火/風/水攻撃」を補助に使う。
+    if(attributeIcons.size>1){
+      out.warnings.push('属性マークの読み取り値が画像間で一致しません。属性を手動で確認してください。');
+    }else if(attributeIcons.size===1){
+      const icon=[...attributeIcons][0];
+      if(attributeHints.size===1&&![...attributeHints].includes(icon)){
+        out.warnings.push('属性マークと属性攻撃の読み取り結果が一致しません。属性を手動で確認してください。');
+      }else{
+        out.attribute=icon;
+      }
+    }else if(attributeHints.size===1){
+      out.attribute=[...attributeHints][0];
+    }else if(out.dataScreens){
       out.warnings.push(attributeHints.size>1
         ? '属性攻撃の読み取りが一致しません。属性を手動で確認してください。'
-        : '属性マークは未対応のため、属性を手動で選択してください。');
+        : '属性マークを画像から読み取れませんでした。属性を手動で選択してください。');
     }
     // ジョブは文字が直接表示される能力アップ画面を優先し、無い場合は能力データのジョブ固有マークを使う。
     const dataJobConflict=conflicts.get(dataIdentity)?.has('job');
@@ -2854,5 +2900,5 @@
     }
   };
   for(const id of ['resetBtn','topResetBtn'])el(id)?.addEventListener('click',()=>{if(!busy)clear();});
-  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
+  window.__PAWAADO_PHOTO_TEST__={academyOf,profileIdentityOf,dataJobByIcon,dataAttributeByIcon,attributeFromRgbPixels,dataJobByHeaderImage,cellAbility,findSpecials,readImages,readTrainingPattern,abilityCells,cellAbility,jobOf,jobFromText,pairStemFromText,basicByImageStrict,classifyBasicDigit,levelByImage,referenceFrame,detectGameViewport,pairStemByImage,pairMarkByImage,pairStemConsensus,collectSpecialReads,textAt,digitSequenceToNumber,trainingCurrentNumberByImage,trainingBrightGlyphComponents,classifyTrainingCurrentGlyph,abilityNameExactByImage,isSuperAbilityCellByColor,jobNameFromScores,jobNameFromIconScores,byteCorrelation};
 })();
