@@ -14,6 +14,7 @@ assert(begin>=0&&finish>begin,'custom calculation code block not found');
 const code=ui.slice(begin,finish);
 const dataContext={window:{}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),dataContext);
+vm.runInNewContext(fs.readFileSync(path.join(root,'skill_master.js'),'utf8'),dataContext);
 const D=dataContext.window.PAWAADO_DATA;
 const mutualGroups=vm.runInNewContext(ui.match(/const mutualGroups=(\[[\s\S]*?\]);/)[1]);
 function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
