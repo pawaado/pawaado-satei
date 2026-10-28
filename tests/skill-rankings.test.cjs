@@ -108,7 +108,7 @@ function rowForSkill(html,name,level){
  const rows=html.match(/<tr class="[^"]*">[\s\S]*?<\/tr>/g)||[];
  return rows.find(row=>row.includes('title="'+name+'"') && row.includes('<span class="skill-level">Lv'+level+'<span'))||'';
 }
-test('uses super and unique skill tip1, generic skill no-tip; only three super levels need estimated costs',()=>{
+test('uses directly observed tip Lv1 for supers/unique skills and no-tip for every generic skill',()=>{
  const {context,elements,jobButtons}=load();
  const master=context.PAWAADO_DATA.skillRankings;
  const byCategory={};
@@ -119,10 +119,10 @@ test('uses super and unique skill tip1, generic skill no-tip; only three super l
    byCategory[skill.category][level.tip===tip?'same':'converted']++;
   }
  }
- assert.equal(byCategory['超特殊能力'].converted,3);
+ assert.equal(byCategory['超特殊能力'].converted,0);
  assert.equal(byCategory['アクションスキル'].converted,0);
  assert.equal(byCategory['必殺技'].converted,0);
- assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.converted,0),3);
+ assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.converted,0),0);
  assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.same+v.converted,0),326);
  const original=JSON.stringify(master.skills);
  for(const button of jobButtons){
@@ -134,20 +134,18 @@ test('uses super and unique skill tip1, generic skill no-tip; only three super l
     const row=rowForSkill(html,skill.name,lv.lv);
     if(!row)continue; // unranked or duplicate class rows can still be checked independently
     const target=skill.category==='超特殊能力'||skill.kind==='固有'?1:0;
-    const ratio={0:1,1:.5,2:.4};
-    const normalized=lv.cost.map(x=>Math.round(x*ratio[target]/ratio[lv.tip]));
-    const cost=normalized.reduce((sum,n)=>sum+n,0);
+    const cost=lv.cost.reduce((sum,n)=>sum+Number(n||0),0);
     assert(row.includes('<td class="skill-rank-exp">'+cost+'</td>'),skill.name+' Lv'+lv.lv+' / '+button.dataset.skillJob);
     if(target===0)assert(row.includes('コツなし（ランキング比較条件）'),'generic no-tip '+skill.name);
     else assert(row.includes('コツLv：1（ランキング比較条件'),'tip Lv1 '+skill.name);
-    if(lv.tip!==target)assert(row.includes('（換算値・参考）'),skill.name+' must mark estimated cost');
-    else assert(!row.includes('（換算値・参考）'),skill.name+' has directly observed cost');
+    assert.equal(lv.tip,target,skill.name+' Lv'+lv.lv+' must be directly observed at the intended hint level');
+    assert(!row.includes('（換算値・参考）')&&!row.includes('（必要経験点未確認）'),skill.name+' is confirmed, not estimated');
    }
   }
  }
  assert.equal(JSON.stringify(master.skills),original,'rendering must not rewrite the canonical observed costs/tips');
 });
-test('unique finishers use observed tip Lv1 cost, generic actions no tip, and three super levels normalize',()=>{
+test('unique finishers, generic actions and all supers use exact costs and the note describes hint levels',()=>{
  const {context,elements,jobButtons}=load();
  const dataset=context.PAWAADO_DATA.skillRankings.skills;
  const gale=dataset.find(s=>s.name==='ゲイルシュート');
@@ -167,26 +165,28 @@ test('unique finishers use observed tip Lv1 cost, generic actions no tip, and th
  assert(waterRow.includes('<td class="skill-rank-exp">'+water.levels[0].cost.reduce((sum,v)=>sum+v,0)+'</td>'));
  assert(waterRow.includes('コツなし（ランキング比較条件）'));
  const rescuer=dataset.find(s=>s.name==='救援者');
- assert(rescuer&&rescuer.levels[0].tip===2);
- const targetCost=rescuer.levels[0].cost.reduce((sum,n)=>sum+Math.round(n*1.25),0);
- let found='';
- for(const b of jobButtons){
-  b.click();const row=rowForSkill(elements.skillRankingRoot.innerHTML,'救援者',1);
-  if(row){found=row;break;}
+ const ace=dataset.find(s=>s.name==='エースアタッカー');
+ assert.deepEqual(Array.from(rescuer.levels[0].cost),[59,68,0,68,0]);
+ assert.deepEqual(Array.from(rescuer.levels[1].cost),[68,79,0,79,0]);
+ assert.deepEqual(Array.from(ace.levels[1].cost),[0,0,85,0,142]);
+ for(const [skill,level,expectedCost] of [[rescuer,1,195],[rescuer,2,226],[ace,2,227]]){
+  assert.equal(skill.levels[level-1].tip,1,skill.name+' Lv'+level);
+  jobButtons[0].click();
+  const row=rowForSkill(elements.skillRankingRoot.innerHTML,skill.name,level);
+  assert(row.includes('<td class="skill-rank-exp">'+expectedCost+'</td>'),skill.name+' Lv'+level);
+  assert(row.includes('コツLv：1（ランキング比較条件）'),skill.name+' Lv'+level);
+  assert(!row.includes('参考')&&!row.includes('未確認'),skill.name+' Lv'+level+' must use exact experience');
  }
- assert(found.includes('<td class="skill-rank-exp">'+targetCost+'</td>'));
- assert(found.includes('コツLv：1（ランキング比較条件／元データはコツLv2）'));
  const notes=file('rankings.html');
- assert(notes.includes('超特殊能力と固有の必殺技・アクションスキルはコツLv1、汎用の必殺技・アクションスキルはコツなし'));
- assert(notes.includes('救援者Lv1・Lv2、エースアタッカーLv2のみコツLv2から換算した参考値'));
- assert(notes.includes('端数により実際の表示値と異なる可能性があります。'));
+ assert(notes.includes('コツLvは超特殊能力・固有の必殺技・アクションスキルをLv1、汎用の必殺技・アクションスキルをコツなし（Lv0）として'));
+ assert(!notes.includes('換算した参考値です'));
 });
 
-test('unconfirmed tip1 source values are restricted to the three named super levels',()=>{
+test('no registered skill costs require a reverse estimate',()=>{
  const {context}=load();
  const unknown=context.PAWAADO_DATA.skillRankings.skills.flatMap(skill=>{
   const target=skill.category==='超特殊能力'||skill.kind==='固有'?1:0;
   return skill.levels.filter(level=>level.tip!==target).map(level=>skill.name+' Lv'+level.lv);
  }).sort();
- assert.deepEqual(Array.from(unknown),['エースアタッカー Lv2','救援者 Lv1','救援者 Lv2'].sort());
+ assert.deepEqual(Array.from(unknown),[]);
 });
