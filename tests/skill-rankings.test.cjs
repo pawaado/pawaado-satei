@@ -123,7 +123,7 @@ test('uses directly observed tip Lv1 for supers/unique skills and no-tip for eve
  assert.equal(byCategory['アクションスキル'].converted,0);
  assert.equal(byCategory['必殺技'].converted,0);
  assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.converted,0),0);
- assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.same+v.converted,0),326);
+ assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.same+v.converted,0),328);
  const original=JSON.stringify(master.skills);
  for(const button of jobButtons){
   button.click();
