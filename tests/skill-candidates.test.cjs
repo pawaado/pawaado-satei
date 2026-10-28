@@ -44,28 +44,60 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  const idx=html.indexOf('id="skillCandidatesCard"');
  const custom=html.indexOf('id="customCalcCard"');
  assert(idx>0&&custom>idx);
- for(const id of ['skillCandidateName','skillCandidateNameSelectButton','skillCandidateNameCustomMenu',
-  'skillCandidateHint','skillCandidateHintSelectButton','skillCandidateHintCustomMenu','skillCandidateAdd',
-  'skillCandidateList','customSkillName','customSkillMode','custom-skill-list'])
+ for(const id of ['skillCandidateRows','customSkillName','customSkillMode','custom-skill-list'])
   assert(html.includes('id="'+id+'"'),id);
  assert(!html.includes('class="skill-candidate-note"'),'no explanation paragraph under heading');
  assert(!html.includes('id="skillCandidateLevel"'),'ability level is part of the name selection');
- assert(html.includes('必殺技等を選択'));
+ assert(read('script.js').includes('必殺技等を選択'));
+ assert(!html.includes('skillCandidateAdd'),'no additional add button');
+ assert(!html.includes('skillCandidateList'),'selected entries display as inline rows');
  assert(html.includes('const addOption=option=>'));
  assert(html.includes("child.tagName==='OPTGROUP'"));
  const css=read('style.css');
  assert(css.includes('.skill-candidate-name-control .custom-select-button'));
+ assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 103px 38px'));
+ assert(css.includes('.skill-candidate-row .skill-candidate-remove'));
  assert(css.includes('.custom-select-group-heading'));
  const script=read('script.js');
  assert(script.includes('initSkillCandidates(); initCustomConditions()'));
  assert(script.includes('candidateSkills:candidateChoiceList()'));
  assert(script.includes("const candidateCategoryOrder=['必殺技','アクションスキル','超特殊能力']"));
  assert(script.includes("candidateKanaCollator.compare(ka,kb)"));
- assert(script.includes("new Option(skill.name+' Lv.'+lv.lv,index+':'+lv.lv)"));
- assert(script.includes("const defaultHint=skill?.kind==='汎用'?'0':'1'"));
+ assert(script.includes("return skill.name+' Lv.'+level+(level<max?'以降':'')"));
+ assert(script.includes("return skill.kind!=='汎用'||skill.jobs.includes('双剣士')"));
+ assert(script.includes("const entries=[...candidateSkills.values(),null]"));
+ assert(script.includes('data-candidate-remove'));
+ assert(script.includes("const preferred=skill.kind==='汎用'?0:1"));
  assert(script.includes('requiredSkillNames:'));
  assert(script.includes('forbiddenSkillNames:'));
  assert(script.includes("kind==='candidate'?escapeCustomText"));
+});
+test('onward choices explore every level from selected minimum and charge only upgrade differences',()=>{
+ const c=worker(),choice={name:'ゲイルシュート',level:1,minLevel:1,hint:1};
+ const p=payload(c,'弓使い','風属性',[choice]);
+ c.__applyWorkerPayload(p);
+ c.__skillCandidateExp=exp;
+ const result=vm.runInContext(`(()=>{
+  const st=constrainedInitialState(__skillCandidateExp);
+  const candidates=workerCandidateActions(st,__skillCandidateExp);
+  const first=candidates.find(x=>x.candidateLevel===1);
+  const second=candidates.find(x=>x.candidateLevel===2);
+  const next=mixedApplyAction(st,first);
+  const upgrade=workerCandidateActions(next,__skillCandidateExp).find(x=>x.candidateLevel===2);
+  return {levels:candidates.map(x=>x.candidateLevel),first,second,upgrade,
+    after:upgrade?mixedApplyAction(next,upgrade).candidateLevels[0]:null};
+ })()`,c);
+ assert.deepEqual(Array.from(result.levels),[1,2]);
+ assert(result.upgrade,'Lv.1以降 must permit an additional Lv.2 upgrade');
+ assert.equal(result.upgrade.gain>0,true);
+ const originalCost=result.second.cost.reduce((n,x)=>n+x,0);
+ const actualCost=result.first.cost.reduce((n,x)=>n+x,0)+result.upgrade.cost.reduce((n,x)=>n+x,0);
+ assert.equal(actualCost,originalCost,'upgrade must use only the marginal skill cost');
+ assert.equal(result.after,2);
+ assert.deepEqual(Array.from(actions(c,payload(c,'弓使い','風属性',[{...choice,level:2,minLevel:2}])).map(x=>x.items.at(-1).level)),[2]);
+ const script=read('script.js');
+ assert(script.includes('candidateOptionLabel(item.skill,lv.lv)'));
+ assert(script.includes('if(!candidateHasLevels(skill))return skill.name'));
 });
 test('verified hint costs distinguish ability Lv from hint Lv and do not reverse estimate',()=>{
  const c=worker(),master=c.PAWAADO_DATA.skillRankings.skills;
