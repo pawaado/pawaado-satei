@@ -1028,7 +1028,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-candidate-level-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-lv-choice-2');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
