@@ -25,13 +25,13 @@
   const expKeys=['筋力','敏捷','技術','知力','精神'];
   const typeClasses={'必殺技':'skill-category-finisher','アクションスキル':'skill-category-action','超特殊能力':'skill-category-super'};
   const levelLabels={single1:'Lv1',single2:'Lv2',single3:'Lv3'};
-  // 比較条件：超特殊能力はコツLv1、必殺技・アクションスキルはコツLv0。
+  // 比較条件：超特殊能力と固有スキルはコツLv1、汎用の必殺技・アクションはコツなし（Lv0）。
   // 元画像で確認した cost / tip は data.js に保存したまま、ランキング表示時のみ換算。
-  // コツLv1=50%OFF、Lv2=60%OFF。割引の端数が元データから復元できない箇所は概算扱い。
-  const targetTip=category=>category==='超特殊能力'?1:0;
+  // コツLv1=50%OFF、Lv2=60%OFF。逆算が必要な3段階は端数不明の参考値。
+  const targetTip=skill=>skill.category==='超特殊能力'||skill.kind==='固有'?1:0;
   const costRatioByTip={0:1,1:.5,2:.4};
   function rankingCost(skill,level){
-    const tip=targetTip(skill.category),sourceTip=Number(level.tip);
+    const tip=targetTip(skill),sourceTip=Number(level.tip);
     const original=level.cost.map(v=>Number(v||0));
     if(sourceTip===tip)return {cost:original,tip,estimated:false};
     const sourceRatio=costRatioByTip[sourceTip],targetRatio=costRatioByTip[tip];
@@ -108,7 +108,7 @@
         <div>${escapeHTML(explain)}</div>
         <div>経験点：${escapeHTML(vec)}${row.estimatedCost?'（換算値・参考）':''}</div>
         ${row.unrankedReason&&rank===null?`<div>${escapeHTML(row.unrankedReason)}</div>`:''}
-        <div>コツLv：${escapeHTML(row.tip)}（ランキング比較条件${row.estimatedCost?'／元データはコツLv'+escapeHTML(row.sourceTip):''}）</div>
+        <div>${row.tip===0?'コツなし（ランキング比較条件）':'コツLv：'+escapeHTML(row.tip)+'（ランキング比較条件'+(row.estimatedCost?'／元データはコツLv'+escapeHTML(row.sourceTip):'')+'）'}</div>
         </div></details></td>
       <td class="skill-rank-eff">${row.eff===null?'—':fmt(row.eff,3)}</td>
       <td class="skill-rank-score">${row.rawScore==null?'—':fmt(row.rawScore,2)}</td>
