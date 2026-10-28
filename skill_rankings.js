@@ -14,14 +14,17 @@
     '弓使い系統':['弓使い'], '魔法使い系統':['魔法使い'],
     '僧侶系統':['僧侶'], '魔闘士系統':['魔闘士']
   };
-  const phases={single1:'Lv1単体',single2:'Lv2単体',single3:'Lv3単体',sum2:'Lv1＋2累計',sum3:'Lv1＋2＋3累計'};
+  const physicalJobs=new Set(['剣士','双剣士','重戦士','弓使い']);
+  const superRules=window.PAWAADO_DATA?.superScoreRules||{};
+  const hpRows=window.PAWAADO_DATA?.hp||[];
+  const referenceHp=hpRows.reduce((hp,row)=>Number(row[0])<=90?Number(row[1]||0):hp,0);
   let currentGroup='剣士系統';
   const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=3)=>Number.isFinite(n)?(Math.abs(n-Math.round(n))<1e-9?String(Math.round(n)):n.toFixed(d).replace(/0+$/,'').replace(/\.$/,'')):'—';
   const totalCost=arr=>arr.reduce((a,n)=>a+Number(n||0),0);
   const expKeys=['筋力','敏捷','技術','知力','精神'];
   const typeClasses={'必殺技':'skill-category-finisher','アクションスキル':'skill-category-action','超特殊能力':'skill-category-super'};
-  const levelLabels={single1:'Lv1',single2:'Lv2',single3:'Lv3',sum2:'Lv1〜2',sum3:'Lv1〜3'};
+  const levelLabels={single1:'Lv1',single2:'Lv2',single3:'Lv3'};
   // 画面に表示する査定効率（小数第3位）が同じ場合は、査定→必要経験点の順で比較。
   const visibleEfficiency=n=>Math.round(n*1000);
 
