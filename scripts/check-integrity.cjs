@@ -150,7 +150,12 @@ assert(!sources['script.js'].includes('MIXED_BRANCH_NORMAL'),'script.js must not
 for(const deadName of ['TARGET_DEBUG','function optimizeMixedAsync','function optimizeSpecialsForLife','function buildBasicStates']){
  assert(!sources['script.js'].includes(deadName),`script.js: obsolete local calculation/debug code remained: ${deadName}`);
 }
-for(const r of refs.filter(r=>['pawaado_worker.js','resistance_patch.js'].includes(r.file)))assert.equal(r.url.split('?v=')[1],workerVersion,`${r.from}: worker cache mismatch`);
+const skillWorkerVersion=sources['pawaado_worker.js'].match(/importScripts\('\\.\\/data\\.js\\?v=([^']+)'/)?.[1];
+assert(skillWorkerVersion,'pawaado_worker.js: skill data asset version missing');
+for(const r of refs.filter(r=>['pawaado_worker.js','resistance_patch.js'].includes(r.file))){
+ const expected=r.file==='pawaado_worker.js'&&r.from==='script.js'?skillWorkerVersion:workerVersion;
+ assert.equal(r.url.split('?v=')[1],expected,`${r.from}: worker cache mismatch`);
+}
 const baseIndex=process.argv.indexOf('--base');
 if(baseIndex>=0){
  const base=process.argv[baseIndex+1];assert(base,'--base needs a commit');
@@ -169,7 +174,7 @@ if(baseIndex>=0){
 // Run the actual resistance loader against the actual worker source; stale patch anchors must fail CI.
 (async()=>{
  const messages=[],c={console,setTimeout,clearTimeout,performance};c.self=c;c.window=c;vm.createContext(c);
- c.postMessage=m=>messages.push(m);c.importScripts=url=>vm.runInContext(read(url.split('?')[0]),c);
+ c.postMessage=m=>messages.push(m);c.importScripts=(...urls)=>urls.forEach(url=>vm.runInContext(read(url.split('?')[0]),c));
  c.fetch=async()=>({ok:true,text:async()=>sources['pawaado_worker.js']});
  vm.runInContext(sources['pawaado_worker_resistance.js'],c);
  c.onmessage({data:{type:'calculate',payload:{academy:'パワフルアカデミー',job:'剣士',exp:[0,0,0,0,0]}}});
