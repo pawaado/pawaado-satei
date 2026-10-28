@@ -1326,15 +1326,14 @@ function refreshCustomChoices(){
   special.value=specialSelection;
   const card=document.getElementById('customCalcCard');
   card?.classList.toggle('is-locked',!ready);
-  const skillSelect=document.getElementById('customSkillName'),skillMode=document.getElementById('customSkillMode');
-  if(skillSelect&&skillMode){
+  const skillSelect=document.getElementById('customSkillName');
+  if(skillSelect){
     const selected=skillSelect.value;
-    skillSelect.innerHTML='<option value="">取得候補を選択</option>'+candidateChoiceList()
-      .filter(x=>!candidateSkillConditions.has(x.name))
+    const options=candidateChoiceList().filter(x=>!candidateSkillConditions.has(x.name));
+    skillSelect.innerHTML='<option value="">必殺技等を選択</option>'+options
       .map(x=>'<option value="'+escapeCustomText(x.name)+'">'+escapeCustomText(candidateOptionLabel(skillByName.get(x.name),x.level))+'</option>').join('');
-    skillSelect.value=selected;
-    skillSelect.disabled=!ready||isCalculating;
-    skillMode.disabled=!ready||isCalculating;
+    skillSelect.value=options.some(x=>x.name===selected)?selected:'';
+    skillSelect.disabled=!ready||isCalculating||options.length===0;
   }
   for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
     const el=document.getElementById(id);
@@ -1346,7 +1345,8 @@ function renderCustomConditions(){
   // 自動追加・全解除でselect.valueを直接初期化した場合も、カスタム選択ボタンの表示を同期する。
   for(const [id,placeholder] of [
     ['customBasicName','基本能力を選択'],['customBasicMode','条件を選択'],
-    ['customSpecialName','特殊能力を選択'],['customSpecialMode','条件を選択']
+    ['customSpecialName','特殊能力を選択'],['customSpecialMode','条件を選択'],
+    ['customSkillName','必殺技等を選択']
   ]){
     const select=document.getElementById(id),label=document.getElementById(id+'SelectText');
     if(!select||!label)continue;
@@ -1371,7 +1371,7 @@ function initCustomConditions(){
   const value=document.getElementById('customBasicValue');
   const card=document.getElementById('customCalcCard');
   if(!basic||!special||!basicMode||!specialMode||!value||!card)return;
-  const skill=document.getElementById('customSkillName'),skillMode=document.getElementById('customSkillMode');
+  const skill=document.getElementById('customSkillName');
   // 必要項目がそろったら追加。数値の入力途中に確定しないためinputではなくchangeで登録する。
   function autoAddBasic(){
     if(!hasAcademyJob()||isCalculating||!basic.value||!basicMode.value||value.value==='')return;
@@ -1440,10 +1440,10 @@ function initCustomConditions(){
     }
   });
   card.addEventListener('change',event=>{
-    if((event.target===skill||event.target===skillMode)&&skill?.value&&skillMode?.value){
-      if(candidateSkills.has(skill.value)&&['required','forbidden'].includes(skillMode.value)){
-        candidateSkillConditions.set(skill.value,skillMode.value);
-        skill.value='';skillMode.value='';
+    if(event.target===skill){
+      if(skill?.value&&candidateSkills.has(skill.value)&&hasAcademyJob()&&!isCalculating){
+        candidateSkillConditions.set(skill.value,'required');
+        skill.value='';
         showCustomMessage('');renderCustomConditions();
       }
       return;
