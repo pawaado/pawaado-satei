@@ -157,7 +157,7 @@
     <nav class="tabs" aria-label="職種分類">
       <button class="tab" type="button" data-group="物理職" aria-pressed="true">物理職</button>
       <button class="tab" type="button" data-group="魔法職" aria-pressed="false">魔法職</button>
-      <button class="tab" type="button" data-group="僧侶" aria-pressed="false">僧侶</button>
+      <button class="tab" type="button" data-group="僧侶" aria-pressed="false">僧侶系統</button>
     </nav>
 
     <section class="ranking-card">
@@ -165,13 +165,12 @@
     </section>
 
     <section class="notes">
-      <h2>備考</h2>
+      <h2>注記</h2>
       <ul>
-        <li>物理職は剣士・重戦士・弓使い・双剣士を、魔法職は魔法使い・魔闘士を指します。</li>
+        <li>物理職は剣士・重戦士・弓使い系統を、魔法職は魔法使い・魔闘士系統を指します。</li>
         <li>基本能力の小数点以下の査定が不明であることなどから、実際の査定効率と異なる可能性があります。</li>
         <li>HP依存特殊能力は生命力90で計算しています。</li>
         <li>耐性に影響する特殊能力は他の耐性に影響するものを除いた状態で計算しています。</li>
-        <li>～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。</li>
         <li>査定が0の特殊能力は掲載していません。</li>
       </ul>
     </section>
@@ -336,7 +335,12 @@
         const exp=[3,4,5,6,7].reduce((s,i)=>s+Number(row[i]||0),0);
         if(exp<=0) continue;
         const hpDep=Number(row[11]||0)!==0;
-        items.push({ability:name+(hpDep?' ※HP依存':''),eff:score/exp,exp,score,type:'special'});
+        // データ正本の「〜攻撃」は表示上のみ火・風・水の3行に展開する。
+        // 同じ査定効率の場合は、この順序を gameOrder として維持する。
+        const names=name==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[name];
+        for(const ability of names){
+          items.push({ability:ability+(hpDep?' ※HP依存':''),eff:score/exp,exp,score,type:'special'});
+        }
       }
       if(groupDefs[group].dual){
         const masters=D.academyMaster?.academies||[];
