@@ -7,6 +7,8 @@
   background:linear-gradient(#fff8e7,#eedbb4);color:#51361f;cursor:pointer;min-height:70px;
 }
 .ranking-mode-tab[aria-selected="true"]{background:linear-gradient(#39748d,#1b4b63);border-color:#183f52;color:white;box-shadow:0 3px 0 #173b48}
+/* 必殺技等タブは表内のアクションスキルと同じ水色で統一 */
+.ranking-mode-tab[data-ranking-mode="skills"][aria-selected="true"]{background:#c8e8f8;border-color:#709eb5;color:#274a5d;box-shadow:0 3px 0 rgba(88,135,157,.24)}
 .mode-title-first{display:block;white-space:nowrap}
 .mode-title-second{display:block;white-space:nowrap}
 .skill-job-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 12px}
