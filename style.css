@@ -996,8 +996,10 @@ img,svg,canvas{max-width:100%}
 .select-card .select-field-label{margin-bottom:0}
 .select-card{row-gap:8px}
 
-/* 基本能力の条件欄を広げ、数値入力欄を狭める */
-.custom-basic-inputs{grid-template-columns:minmax(0,1fr) minmax(0,1.9fr)}
-.custom-basic-inputs .custom-condition-options{grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);gap:4px}
+/* こだわり条件：基本能力と特殊能力の右端「条件を選択」を同じ幅・位置にする。
+   基本能力の入力3項目は同一グリッドで配置し、数値入力欄の表示幅を確保。 */
+.custom-special-inputs{grid-template-columns:minmax(0,1fr) 39%}
+.custom-basic-inputs{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr) 39%}
+.custom-basic-inputs .custom-condition-options{display:contents}
 .custom-basic-inputs #customBasicModeSelectButton{font-size:clamp(10px,2.7vw,13px);letter-spacing:-.06em;padding-left:5px;padding-right:17px}
 .custom-basic-inputs #customBasicValue{font-size:clamp(10px,2.7vw,13px);padding-left:2px;padding-right:2px}
