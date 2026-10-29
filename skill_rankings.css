@@ -6,9 +6,7 @@
   border:3px solid #80552f;border-radius:15px;padding:10px 6px;
   background:linear-gradient(#fff8e7,#eedbb4);color:#51361f;cursor:pointer;min-height:70px;
 }
-.ranking-mode-tab[aria-selected="true"]{background:linear-gradient(#39748d,#1b4b63);border-color:#183f52;color:white;box-shadow:0 3px 0 #173b48}
-/* 必殺技等タブは表内のアクションスキルと同じ水色で統一 */
-.ranking-mode-tab[data-ranking-mode="skills"][aria-selected="true"]{background:#c8e8f8;border-color:#709eb5;color:#274a5d;box-shadow:0 3px 0 rgba(88,135,157,.24)}
+.ranking-mode-tab[aria-selected="true"]{background:#c8e8f8;border-color:#709eb5;color:#274a5d;box-shadow:0 3px 0 rgba(88,135,157,.24)}
 .mode-title-first{display:block;white-space:nowrap}
 .mode-title-second{display:block;white-space:nowrap}
 .skill-job-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 12px}
@@ -17,7 +15,7 @@
 /* 6つの系統タブの下に置く、Lv.別／Lv.累計の切替 */
 .skill-level-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
 .skill-level-tab{min-height:41px;padding:9px 4px;font:800 13px/1.4 "Noto Sans JP",sans-serif;border:2px solid #9c8062;border-radius:11px;background:#fff9ed;color:#634932;cursor:pointer}
-.skill-level-tab[aria-pressed="true"]{border-color:#6b4c35;background:linear-gradient(#8c6e54,#6c503b);color:#fff}
+.skill-level-tab[aria-pressed="true"]{border-color:#ba8197;background:#f8c9da;color:#5d3243;box-shadow:0 2px 0 rgba(140,77,103,.2)}
 .skill-level-tab:focus-visible{outline:3px solid #efae36;outline-offset:2px}
 #skillRankingRoot{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;max-width:100%}
 #skillRankingRoot table{width:100%;min-width:486px;table-layout:fixed;border-collapse:collapse}
