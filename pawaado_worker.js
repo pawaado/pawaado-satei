@@ -65,6 +65,12 @@ function workerCandidateAction(st,entry,exp){
   const bit=1n<<BigInt(entry.id);
   const currentLevel=Number(st.candidateLevels?.[entry.id]||0);
   if(currentLevel>=entry.level)return null;
+  // 必殺技・アクションスキルはそれぞれ1種類だけ取得可能。
+  // 同名スキルの上位Lv.への強化は同じ枠なので許可する。
+  const category=entry.def.category;
+  if((category==='必殺技'||category==='アクションスキル') &&
+     st.candidateCategoryOwners?.[category]!==undefined &&
+     st.candidateCategoryOwners[category]!==entry.id)return null;
   const priorCost=currentLevel?workerCandidateCost(entry.def,currentLevel,entry.hint):[0,0,0,0,0];
   if(!priorCost)return null;
   let costs=entry.cost.map((v,i)=>v-priorCost[i]);
@@ -114,7 +120,7 @@ function workerCandidateAction(st,entry,exp){
   const cs=costSum(costs);
   return {kind:'candidate',name:entry.name,cost:costs,costSum:cs,gain,score:gain,
     efficiency:gain/Math.max(1,cs),bits:requiredBits,candidateBit:bit,
-    candidateEntryId:entry.id,candidateLevel:entry.level,
+    candidateEntryId:entry.id,candidateLevel:entry.level,candidateCategory:entry.def.category,
     requiredLevels,items};
 }
 function workerCandidateHpDelta(candidateBits,oldHp,newHp,candidateLevels={}){
@@ -976,6 +982,10 @@ function mixedApplyAction(st,op){
     candidateLevels:op.kind==='candidate'
       ?{...(st.candidateLevels||{}),[op.candidateEntryId]:op.candidateLevel}
       :(st.candidateLevels||{}),
+    candidateCategoryOwners:op.kind==='candidate'&&
+      (op.candidateCategory==='必殺技'||op.candidateCategory==='アクションスキル')
+      ?{...(st.candidateCategoryOwners||{}),[op.candidateCategory]:op.candidateEntryId}
+      :(st.candidateCategoryOwners||{}),
     prev:st,
     choice:op.items||EMPTY_ITEMS,
     itemLen:itemLenOf(st)+(op.items?.length||0),
@@ -990,7 +1000,8 @@ function constrainedInitialState(exp){
   const levels=mixedInitialLevels();
   let state={
     cost:[0,0,0,0,0],score:0,life:levels[0],levels,
-    bits:EMPTY_BITS,candidateBits:0n,candidateLevels:{},dualLevel:workerDualEnabled?workerDualLevel:null,
+    bits:EMPTY_BITS,candidateBits:0n,candidateLevels:{},candidateCategoryOwners:{},
+    dualLevel:workerDualEnabled?workerDualLevel:null,
     prev:null,choice:EMPTY_ITEMS,itemLen:0,usedCost:0
   };
   const lim=mixedLimits(),jobLimits=limits();
@@ -1060,6 +1071,10 @@ function constrainedInitialState(exp){
     const entry=workerSkillCandidates.find(x=>x.name===name&&x.level===level);
     if(!entry)throw new Error('こだわり計算：'+name+' Lv.'+level+'は取得候補にありません。');
     if(Number(state.candidateLevels?.[entry.id]||0)>=level)continue;
+    const selected=state.candidateCategoryOwners?.[entry.def.category];
+    if((entry.def.category==='必殺技'||entry.def.category==='アクションスキル') &&
+       selected!==undefined&&selected!==entry.id)
+      throw new Error('こだわり計算：'+entry.def.category+'は1種類までしか取得できません。取得する条件を見直してください。');
     const op=workerCandidateAction(state,entry,exp);
     if(!op)throw new Error('こだわり計算：'+name+' Lv.'+level+'を取得するための経験点または能力条件が不足しています。');
     state=mixedApplyAction(state,op);
