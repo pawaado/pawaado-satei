@@ -40,8 +40,8 @@
 
 /* 3色は名称欄のみ。数値のセルは共通の白背景。 */
 #skillRankingRoot tr.skill-category-finisher td.skill-name-cell{background:#f8c9da}
-#skillRankingRoot tr.skill-category-action td.skill-name-cell{background:#c8e8f8}
-#skillRankingRoot tr.skill-category-super td.skill-name-cell{background:#ffe39b}
+#skillRankingRoot tr.skill-category-action td.skill-name-cell{background:#ffe39b}
+#skillRankingRoot tr.skill-category-super td.skill-name-cell{background:#c8e8f8}
 #skillRankingRoot .skill-name-cell{padding:7px 2px}
 .skill-name-cell summary{list-style:none;cursor:pointer;display:block;min-width:0}
 .skill-name-cell summary::-webkit-details-marker{display:none}
