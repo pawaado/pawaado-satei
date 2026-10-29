@@ -8,6 +8,8 @@
   const jobButtons=[...document.querySelectorAll('[data-skill-job]')];
   const levelButtons=[...document.querySelectorAll('[data-skill-level-mode]')];
   const root=document.getElementById('skillRankingRoot');
+  const singleNote=document.getElementById('skillRankNoteSingle');
+  const totalNote=document.getElementById('skillRankNoteTotal');
   if(!root || !baseView || !skillView || !dataset) return;
 
   const D=window.PAWAADO_DATA;
@@ -202,6 +204,8 @@
     if(unranked.length){html+=`<tr class="skill-separator"><td colspan="6">条件依存・査定未確定（順位対象外） ${unranked.length}件</td></tr>`;unranked.forEach(row=>html+=tr(row,null));}
     html+='</tbody></table>';
     root.innerHTML=ranked.length||unranked.length?html:'<div class="skill-empty">この条件に該当するスキルはありません。</div>';
+    if(singleNote)singleNote.hidden=currentLevelMode==='total';
+    if(totalNote)totalNote.hidden=currentLevelMode!=='total';
     jobButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.skillJob===currentGroup)));
     levelButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.skillLevelMode===currentLevelMode)));
   }
