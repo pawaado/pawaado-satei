@@ -989,3 +989,9 @@ img,svg,canvas{max-width:100%}
 
 /* アカデミー・ジョブと同じ見出し色に統一 */
 #attributeFieldLabel>.select-label-text{color:var(--theme-accent-dark)}
+
+/* 3つの選択見出しを同色・同じ間隔に固定 */
+.select-card #attributeFieldLabel{margin-bottom:0}
+.select-card #attributeFieldLabel>.select-label-text{color:var(--ink);margin-bottom:8px}
+.select-card .select-field-label{margin-bottom:0}
+.select-card{row-gap:8px}
