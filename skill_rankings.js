@@ -1,4 +1,4 @@
-/* 査定効率ランキング：スキル系6系統／Lv別。ゲームデータ正本 data.js を直接参照。 */
+/* 査定効率ランキング：スキル系6系統／Lv.別・Lv.累計。ゲームデータ正本 data.js を直接参照。 */
 (()=>{
   'use strict';
   const dataset=window.PAWAADO_DATA?.skillRankings;
@@ -6,6 +6,7 @@
   const skillView=document.getElementById('skillRankingView');
   const modeButtons=[...document.querySelectorAll('[data-ranking-mode]')];
   const jobButtons=[...document.querySelectorAll('[data-skill-job]')];
+  const levelButtons=[...document.querySelectorAll('[data-skill-level-mode]')];
   const root=document.getElementById('skillRankingRoot');
   if(!root || !baseView || !skillView || !dataset) return;
 
@@ -19,6 +20,7 @@
   const hpRows=window.PAWAADO_DATA?.hp||[];
   const referenceHp=hpRows.reduce((hp,row)=>Number(row[0])<=90?Number(row[1]||0):hp,0);
   let currentGroup='剣士系統';
+  let currentLevelMode='single';
   const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=3)=>Number.isFinite(n)?(Math.abs(n-Math.round(n))<1e-9?String(Math.round(n)):n.toFixed(d).replace(/0+$/,'').replace(/\.$/,'')):'—';
   const totalCost=arr=>arr.reduce((a,n)=>a+Number(n||0),0);
@@ -63,14 +65,36 @@
       tip:normalized.tip,sourceTip:l.tip,verifiedCost:normalized.verified,
       unrankedReason:!normalized.verified?'指定コツLvの必要経験点が未確認':exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
   }
+  // Lv.累計は1つのスキルを1行にまとめる。追加査定・追加経験点を全Lv.分合算し、
+  // コツLv.が未確認の段階が1つでもあれば推測せず順位対象外にする。
+  function asTotalRow(skill,job){
+    const stages=skill.levels.map((_,index)=>asRow(skill,job,index));
+    const cost=expKeys.map((_,i)=>stages.reduce((sum,row)=>sum+row.cost[i],0));
+    const exp=totalCost(cost);
+    const verified=stages.every(row=>row.verifiedCost);
+    const scoresKnown=stages.every(row=>typeof row.rawScore==='number'&&Number.isFinite(row.rawScore));
+    // 僧侶などの端数はLv.ごとに切り捨てず、追加査定のまま合算する。
+    const score=scoresKnown?stages.reduce((sum,row)=>sum+row.rawScore,0):null;
+    const canRank=verified&&scoresKnown&&exp>0;
+    const maxLv=skill.levels[skill.levels.length-1].lv;
+    return {...stages[stages.length-1],
+      phase:'total',label:stages.length===1?'Lv.1':'Lv.1〜'+maxLv,
+      cost,exp,score:canRank?score:null,rawScore:score,
+      eff:canRank?score/exp:null,verifiedCost:verified,
+      conditions:stages.map(row=>row.conditions).join('／'),
+      detail:'',
+      unrankedReason:!verified?'指定コツLvの必要経験点が未確認':exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
+  }
   function getRows(){
     const jobs=jobGroups[currentGroup];
     const items=[],seen=new Map();
     for(const skill of dataset.skills){
       for(const job of jobs){
         if(!D.skillJobEligible(skill,job))continue;
-        for(let i=0;i<skill.levels.length;i++){
-          const row=asRow(skill,job,i);
+        const rows=currentLevelMode==='total'
+          ?[asTotalRow(skill,job)]
+          :skill.levels.map((_,i)=>asRow(skill,job,i));
+        for(const row of rows){
           const key=[skill.name,row.phase,row.cost.join(','),row.rawScore,skill.category].join('|');
           if(seen.has(key))continue;
           seen.set(key,row);
@@ -109,6 +133,7 @@
     html+='</tbody></table>';
     root.innerHTML=ranked.length||unranked.length?html:'<div class="skill-empty">この条件に該当するスキルはありません。</div>';
     jobButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.skillJob===currentGroup)));
+    levelButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.skillLevelMode===currentLevelMode)));
   }
   modeButtons.forEach(btn=>btn.addEventListener('click',()=>{
     const skills=btn.dataset.rankingMode==='skills';
@@ -117,5 +142,6 @@
     if(skills)render();
   }));
   jobButtons.forEach(btn=>btn.addEventListener('click',()=>{currentGroup=btn.dataset.skillJob;render();}));
+  levelButtons.forEach(btn=>btn.addEventListener('click',()=>{currentLevelMode=btn.dataset.skillLevelMode;render();}));
   if(new URLSearchParams(location.search).get('mode')==='skills')modeButtons.find(x=>x.dataset.rankingMode==='skills')?.click();
 })();
