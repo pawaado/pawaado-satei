@@ -88,7 +88,6 @@
   }
   function tr(row,rank){
     const explain=`${row.conditions}${row.detail?' ／ '+row.detail:''}`;
-    const vec=row.cost.map((v,i)=>`${expKeys[i]} ${v}`).join(' / ');
     const cssClass=[typeClasses[row.category]||''].filter(Boolean).join(' ');
     const notes=[row.hp?'<span class="ranking-note-tag">HP依存</span>':'',
       row.resistance?'<span class="ranking-note-tag">耐性影響</span>':''].filter(Boolean).join('');
