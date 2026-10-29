@@ -232,7 +232,7 @@ function refreshCandidateUI(){
       for(let tip=0;tip<=5;tip++){
         if(candidateLevelCosts(skill,row.level,tip)){
           validHints.push(tip);
-          const label=tip===0?'コツなし':'コツLv.'+tip;
+          const label=String(tip);
           hintOptions.push('<option value="'+tip+'"'+(tip===row.hint?' selected':'')+'>'+label+'</option>');
         }
       }
@@ -243,14 +243,14 @@ function refreshCandidateUI(){
     const hint=onlyHint
       ?'<div class="custom-select-control super-custom-select skill-candidate-hint-control is-single-tip">'+
         '<span class="custom-select-button skill-candidate-fixed-hint" aria-label="'+
-        (validHints[0]===0?'コツなし':'コツLv.'+validHints[0])+'">'+
-        (validHints[0]===0?'コツなし':'コツLv.'+validHints[0])+'</span></div>'
+        String(validHints[0])+'">'+
+        String(validHints[0])+'</span></div>'
       :candidateControlHtml('skillCandidateHint',index,hintOptions,
-        row?(row.hint===0?'コツなし':'コツLv.'+row.hint):'コツLv.を選択',!ready||!row);
+        row?String(row.hint):'選択',!ready||!row);
     const del=row?'<button type="button" class="extra-resistance-group-remove skill-candidate-remove" data-candidate-remove="'+escapeCustomText(row.name)+'" aria-label="'+escapeCustomText(row.name)+'を削除">×</button>':
       '<span class="skill-candidate-remove-placeholder" aria-hidden="true"></span>';
     return '<div class="skill-candidate-row'+(row?' has-skill':'')+'" data-skill-candidate-row data-candidate-name="'+escapeCustomText(previous)+'">'+
-      name+hint+del+'</div>';
+      name+'<span class="skill-candidate-hint-label">コツLv.</span>'+hint+del+'</div>';
   }).join('');
   const msg=document.getElementById('skillCandidateMessage');
   if(msg)msg.textContent='';
