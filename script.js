@@ -984,7 +984,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-jobfamily-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261030-one-skill-per-category-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
