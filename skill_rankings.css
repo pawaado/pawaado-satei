@@ -48,6 +48,9 @@
 .skill-name-line{display:flex;align-items:baseline;gap:2px;width:100%;min-width:0}
 .skill-row-title{display:block;flex:0 0 auto;font-weight:600;font-size:13px;line-height:1.4;white-space:nowrap;overflow:visible}
 .skill-level{display:block;flex:0 0 auto;font-size:10px;line-height:1.4;font-weight:600;white-space:nowrap;color:#52361f}
+/* 下位能力込みの名称は列幅を変えず2行に表示 */
+#skillRankingRoot tr.skill-with-lower .skill-name-line{flex-direction:column;align-items:flex-start;gap:0}
+#skillRankingRoot .skill-name-subline{display:block;font-size:10px;line-height:1.45;font-weight:600;white-space:nowrap;color:#52361f}
 .skill-caret{font-size:8px;margin-left:1px;color:#715c40}
 .skill-full-name{font-weight:700}
 #skillRankingRoot .skill-name-cell{overflow:hidden}
