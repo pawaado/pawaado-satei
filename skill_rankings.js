@@ -89,15 +89,74 @@
       detail:'',
       unrankedReason:!verified?'指定コツLvの必要経験点が未確認':exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
   }
+  // 下位特殊能力はコツなしの data.js 正本を使う。
+  // 超特殊能力だけコツLv.1。必要な下位能力はその前提もたどって重複なく数える。
+  const specialByName=new Map((D.special||[]).map(row=>[row[1],row]));
+  function lowerChain(skill){
+    if(skill.category!=='超特殊能力')return [];
+    const required=D.superPrerequisites?.[skill.name]||D.superResistances?.[skill.name]?.includes||[];
+    if(!required.length)return [];
+    const ordered=[],visited=new Set(),active=new Set();
+    function visit(name){
+      if(visited.has(name))return true;
+      if(active.has(name))return false;
+      const row=specialByName.get(name);
+      if(!row)return false;
+      active.add(name);
+      if(row[2]&&!visit(row[2]))return false;
+      active.delete(name);
+      visited.add(name);ordered.push(row);
+      return true;
+    }
+    return required.every(visit)?ordered:null;
+  }
+  function lowerScore(row,job){
+    const type=job==='僧侶'?2:physicalJobs.has(job)?0:1;
+    const score=row[8+type];
+    if(typeof score==='number'&&Number.isFinite(score))return score;
+    if(score==='HP依存'&&referenceHp>0){
+      const rate=Number(row[11]),fixed=Number(row[12+type]||0);
+      return Number.isFinite(rate)&&Number.isFinite(fixed)?referenceHp*rate+fixed:null;
+    }
+    return null;
+  }
+  function asLowerIncludedRow(skill,job,base){
+    const chain=lowerChain(skill);
+    if(!chain?.length)return null;
+    const extra=[0,0,0,0,0];
+    let lowerTotal=0,valid=true;
+    for(const row of chain){
+      const noHintCost=row.slice(3,8),score=lowerScore(row,job);
+      if(noHintCost.length!==5||noHintCost.some(n=>typeof n!=='number'||!Number.isFinite(n)||n<0)||score===null){
+        valid=false;break;
+      }
+      for(let i=0;i<5;i++)extra[i]+=noHintCost[i];
+      lowerTotal+=score;
+    }
+    const cost=base.cost.map((v,i)=>v+extra[i]);
+    const exp=totalCost(cost);
+    const rawScore=valid&&typeof base.rawScore==='number'?base.rawScore+lowerTotal:null;
+    const canRank=valid&&base.verifiedCost&&rawScore!==null&&exp>0;
+    return {...base,name:skill.name+'(下位能力込み)',sortName:skill.name,
+      withLower:true,phase:'total_with_lower',cost,exp,rawScore,
+      score:canRank?rawScore:null,eff:canRank?rawScore/exp:null,
+      conditions:chain.map(row=>row[1]).join('、')+'／'+base.conditions,
+      unrankedReason:!valid?'下位能力の経験点・査定が未確認':base.unrankedReason};
+  }
   function getRows(){
     const jobs=jobGroups[currentGroup];
     const items=[],seen=new Map();
     for(const skill of dataset.skills){
       for(const job of jobs){
         if(!D.skillJobEligible(skill,job))continue;
-        const rows=currentLevelMode==='total'
-          ?[asTotalRow(skill,job)]
-          :skill.levels.map((_,i)=>asRow(skill,job,i));
+        let rows;
+        if(currentLevelMode==='total'){
+          const total=asTotalRow(skill,job);
+          const included=asLowerIncludedRow(skill,job,total);
+          rows=included?[total,included]:[total];
+        }else{
+          rows=skill.levels.map((_,i)=>asRow(skill,job,i));
+        }
         for(const row of rows){
           const key=[skill.name,row.phase,row.cost.join(','),row.rawScore,skill.category].join('|');
           if(seen.has(key))continue;
@@ -109,9 +168,11 @@
     const ranked=items.filter(x=>x.eff!==null);
     const unranked=items.filter(x=>x.eff===null);
     ranked.sort((a,b)=>visibleEfficiency(b.eff)-visibleEfficiency(a.eff) ||
-      b.score-a.score || a.exp-b.exp || compareNames(a.name,b.name) ||
+      b.score-a.score || a.exp-b.exp || compareNames(a.sortName||a.name,b.sortName||b.name) ||
+      Number(Boolean(a.withLower))-Number(Boolean(b.withLower)) ||
       a.label.localeCompare(b.label,'ja'));
-    unranked.sort((a,b)=>compareNames(a.name,b.name)||a.label.localeCompare(b.label,'ja'));
+    unranked.sort((a,b)=>compareNames(a.sortName||a.name,b.sortName||b.name)||
+      Number(Boolean(a.withLower))-Number(Boolean(b.withLower))||a.label.localeCompare(b.label,'ja'));
     return {ranked,unranked};
   }
   function tr(row,rank){
@@ -122,9 +183,12 @@
     // 累計版はスキル名のみ。単独版は固有・超特と、能力Lv.を持つ双剣士の汎用を表示。
     const showLevel=currentLevelMode==='single'&&(row.kind!=='汎用'||row.hasAbilityLevels);
     const levelHtml=showLevel?'<span class="skill-level">'+escapeHTML(levelLabels[row.phase]||row.label)+'</span>':'';
-    return `<tr class="${cssClass}${rank===null?' skill-rank-unranked':''}">
+    const nameHtml=row.withLower
+      ?'<span class="skill-row-title" title="'+escapeHTML(row.name)+'">'+escapeHTML(row.sortName)+'</span><span class="skill-name-subline">(下位能力込み)</span>'
+      :'<span class="skill-row-title" title="'+escapeHTML(row.name)+'">'+escapeHTML(row.name)+'</span>'+levelHtml;
+    return `<tr class="${cssClass}${row.withLower?' skill-with-lower':''}${rank===null?' skill-rank-unranked':''}">
       <td class="skill-rank-num"><span class="skill-rank-index">${rank===null?'—':rank}</span></td>
-      <td class="skill-name-cell"><span class="skill-name-line"><span class="skill-row-title" title="${escapeHTML(row.name)}">${escapeHTML(row.name)}</span>${levelHtml}</span></td>
+      <td class="skill-name-cell"><span class="skill-name-line">${nameHtml}</span></td>
       <td class="skill-rank-eff">${row.eff===null?'—':fmt(row.eff,3)}</td>
       <td class="skill-rank-score">${row.rawScore==null?'—':fmt(row.rawScore,2)}</td>
       <td class="skill-rank-exp">${fmt(row.exp,0)}</td>
