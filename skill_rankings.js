@@ -24,7 +24,7 @@
   const totalCost=arr=>arr.reduce((a,n)=>a+Number(n||0),0);
   const expKeys=['筋力','敏捷','技術','知力','精神'];
   const typeClasses={'必殺技':'skill-category-finisher','アクションスキル':'skill-category-action','超特殊能力':'skill-category-super'};
-  const levelLabels={single1:'Lv1',single2:'Lv2',single3:'Lv3'};
+  const levelLabels={single1:'Lv.1',single2:'Lv.2',single3:'Lv.3'};
   // 比較条件：超特殊能力・固有の必殺技/アクションはコツLv1、汎用はコツなし。
   // 全段階の必要経験点は data.js の比較対象コツLvで直接確認済み。
   // 今後データのコツLvが一致しないものが追加されても逆算で推測せず、順位対象外とする。
@@ -58,8 +58,8 @@
     const phase='single'+l.lv;
     const detail=skill.category==='超特殊能力'?Object.entries(l.effect||{}).map(([name,value])=>name+' '+(typeof value==='number'&&value>0?'+':'')+value+(typeof value==='number'?'%':'')).join('、'):'';
     return {name:skill.name,kind:skill.kind,category:skill.category,job,attribute:skill.attribute,
-      phase,label:levelLabels[phase]||'Lv'+l.lv,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
-      conditions:'Lv'+l.lv+': '+l.condition,detail,hp,resistance:Boolean(skill.resistance),
+      phase,label:levelLabels[phase]||'Lv.'+l.lv,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
+      conditions:'Lv.'+l.lv+': '+l.condition,detail,hp,resistance:Boolean(skill.resistance),
       tip:normalized.tip,sourceTip:l.tip,verifiedCost:normalized.verified,
       unrankedReason:!normalized.verified?'指定コツLvの必要経験点が未確認':exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
   }
