@@ -96,7 +96,7 @@ function candidateRuleCompatible(name,level,mode){
 const skillCandidateMaster=D.skillRankings?.skills||[];
 const skillByName=new Map(skillCandidateMaster.map(skill=>[skill.name,skill]));
 function skillCandidateEligible(skill){
-  return skill?.jobs?.includes(job.value) &&
+  return D.skillJobEligible(skill,job.value) &&
     (!skill.attribute||String(skill.attribute)+'属性'===attribute.value) &&
     !(skill.category==='超特殊能力'&&selectedSuperState().some(x=>x.name===skill.name));
 }
@@ -150,7 +150,7 @@ const candidateCategoryOrder=['必殺技','アクションスキル','超特殊�
 const candidateKanaCollator=new Intl.Collator('ja');
 function candidateLevelCosts(skill,level,hint){
   if(!skill||!Number.isInteger(level)||level<1||level>skill.levels.length)return null;
-  const score=skill.levels[level-1].scores?.[job.value]?.[1];
+  const score=D.skillJobScore(skill,skill.levels[level-1],job.value)?.[1];
   if((score===null||!Number.isFinite(Number(score)))&&!skill.hp)return null;
   const costs=[];
   for(const lv of skill.levels.slice(0,level)){
@@ -1028,7 +1028,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-stamina5to6-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261029-jobfamily-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1837,8 +1837,7 @@ function applyRecognizedPhotoAbilities(data,{replace=false}={}){
   const variableScoreSupers=confirmedSupers.filter(entry=>{
     const def=D.superResistances?.[entry.name]||D.superScoreRules?.[entry.name];
     if(!def)return false;
-    if(!def.job)return true;
-    return def.job===data.job||def.job===job.value;
+    return D.superJobEligible(def,data.job)||D.superJobEligible(def,job.value);
   });
   // 全体入力では空配列でもリセットする。部分入力では確定値がある時だけ既存欄を置き換える。
   if(replace||variableScoreSupers.length)window.__PAWAADO_SET_SUPERS__?.(variableScoreSupers);
