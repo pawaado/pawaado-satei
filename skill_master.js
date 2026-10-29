@@ -7008,8 +7008,8 @@ window.PAWAADO_DATA.skillRankings = {
               260
             ],
             "僧侶": [
-              260,
-              260
+              520,
+              520
             ],
             "魔闘士": [
               260,
@@ -7054,8 +7054,8 @@ window.PAWAADO_DATA.skillRankings = {
               650
             ],
             "僧侶": [
-              390,
-              650
+              585,
+              1105
             ],
             "魔闘士": [
               390,
