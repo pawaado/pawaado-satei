@@ -59,7 +59,7 @@
     const canRank=exp>0&&typeof score==='number'&&Number.isFinite(score);
     const phase='single'+l.lv;
     const detail=skill.category==='超特殊能力'?Object.entries(l.effect||{}).map(([name,value])=>name+' '+(typeof value==='number'&&value>0?'+':'')+value+(typeof value==='number'?'%':'')).join('、'):'';
-    return {name:skill.name,kind:skill.kind,category:skill.category,job,attribute:skill.attribute,
+    return {name:skill.name,kind:skill.kind,hasAbilityLevels:skill.levels.length>1,category:skill.category,job,attribute:skill.attribute,
       phase,label:levelLabels[phase]||'Lv.'+l.lv,exp,cost,score:canRank?score:null,rawScore:score,eff:canRank?score/exp:null,
       conditions:'Lv.'+l.lv+': '+l.condition,detail,hp,resistance:Boolean(skill.resistance),
       tip:normalized.tip,sourceTip:l.tip,verifiedCost:normalized.verified,
@@ -115,8 +115,8 @@
     const cssClass=[typeClasses[row.category]||''].filter(Boolean).join(' ');
     const notes=[row.hp?'<span class="ranking-note-tag">HP依存</span>':'',
       row.resistance?'<span class="ranking-note-tag">耐性影響</span>':''].filter(Boolean).join('');
-    // 累計版はスキル名のみ。汎用スキルは能力Lv.がないため単独版でも表示しない。
-    const showLevel=currentLevelMode==='single'&&row.kind!=='汎用';
+    // 累計版はスキル名のみ。単独版は固有・超特と、能力Lv.を持つ双剣士の汎用を表示。
+    const showLevel=currentLevelMode==='single'&&(row.kind!=='汎用'||row.hasAbilityLevels);
     const levelHtml=showLevel?'<span class="skill-level">'+escapeHTML(levelLabels[row.phase]||row.label)+'</span>':'';
     return `<tr class="${cssClass}${rank===null?' skill-rank-unranked':''}">
       <td class="skill-rank-num"><span class="skill-rank-index">${rank===null?'—':rank}</span></td>
