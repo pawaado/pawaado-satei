@@ -11,6 +11,10 @@
   if(!root || !baseView || !skillView || !dataset) return;
 
   const D=window.PAWAADO_DATA;
+  // 読み仮名の正本は skill_master.js。読みのないカタカナ名は名称を使用。
+  const skillKana=dataset.readings||{};
+  const kanaCollator=new Intl.Collator('ja');
+  const compareNames=(a,b)=>kanaCollator.compare(skillKana[a]||a,skillKana[b]||b)||kanaCollator.compare(a,b);
   const jobGroups=Object.fromEntries(
     ['剣士系統','重戦士系統','弓使い系統','魔法使い系統','僧侶系統','魔闘士系統']
       .map(family=>[family,Object.keys(D.jobFamilyByJob||{}).filter(job=>D.jobFamilyByJob[job]===family)])
@@ -105,9 +109,9 @@
     const ranked=items.filter(x=>x.eff!==null);
     const unranked=items.filter(x=>x.eff===null);
     ranked.sort((a,b)=>visibleEfficiency(b.eff)-visibleEfficiency(a.eff) ||
-      b.score-a.score || a.exp-b.exp || a.name.localeCompare(b.name,'ja') ||
+      b.score-a.score || a.exp-b.exp || compareNames(a.name,b.name) ||
       a.label.localeCompare(b.label,'ja'));
-    unranked.sort((a,b)=>a.name.localeCompare(b.name,'ja')||a.label.localeCompare(b.label,'ja'));
+    unranked.sort((a,b)=>compareNames(a.name,b.name)||a.label.localeCompare(b.label,'ja'));
     return {ranked,unranked};
   }
   function tr(row,rank){
