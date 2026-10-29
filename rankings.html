@@ -146,7 +146,7 @@
       .tab{font-size:12px;padding:12px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261028o">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261030-levelmodes-1">
 </head>
 <body>
   <header class="site-header">
@@ -188,6 +188,10 @@
         <button type="button" class="skill-job-tab" data-skill-job="魔法使い系統" aria-pressed="false">魔法使い系統</button>
         <button type="button" class="skill-job-tab" data-skill-job="僧侶系統" aria-pressed="false">僧侶系統</button>
         <button type="button" class="skill-job-tab" data-skill-job="魔闘士系統" aria-pressed="false">魔闘士系統</button>
+      </nav>
+      <nav class="skill-level-tabs" aria-label="必殺技等のLv.集計方法">
+        <button type="button" class="skill-level-tab" data-skill-level-mode="single" aria-pressed="true">Lv.別</button>
+        <button type="button" class="skill-level-tab" data-skill-level-mode="total" aria-pressed="false">Lv.累計</button>
       </nav>
       <section class="ranking-card" aria-label="スキルの査定効率ランキング">
         <div id="skillRankingRoot"></div>
@@ -409,6 +413,6 @@
     render('物理職');
   })();
   </script>
-  <script src="skill_rankings.js?v=20261029-jobfamily-1"></script>
+  <script src="skill_rankings.js?v=20261030-levelmodes-1"></script>
 </body>
 </html>
