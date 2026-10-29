@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261028-candidates-5';
+  const PATCH_VERSION='20261029-jobfamily-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -11,7 +11,7 @@
     const resistance=D?.superResistances?.[key]||null;
     const score=superScoreRules[key]||null;
     if(!resistance&&!score)return null;
-    return {resistance,score,job:resistance?.job||score?.job||''};
+    return {resistance,score,job:resistance?.job||score?.job||'',jobFamily:resistance?.jobFamily||score?.jobFamily||''};
   }
 
   function abilityLetter(index){
@@ -121,8 +121,8 @@
         showResistanceCalcError('超特殊能力を確認してください。');
         return false;
       }
-      if(!level || names.has(name) || (def.job&&def.job!==document.getElementById('job').value)){
-        showResistanceCalcError(!level?'査定が変動する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':def.job+'専用の超特殊能力です。');
+      if(!level || names.has(name) || !D.superJobEligible(def,document.getElementById('job').value)){
+        showResistanceCalcError(!level?'査定が変動する超特殊能力のLvを選択してください。':names.has(name)?'同じ超特殊能力が重複しています。':(def.jobFamily||def.job)+'専用の超特殊能力です。');
         return false;
       }
       names.add(name);
@@ -263,7 +263,7 @@
     return [...new Set([...Object.keys(D.superResistances||{}),...Object.keys(superScoreRules)])]
       .filter(name=>{
         const def=superDefinition(name);
-        return def&&(!def.job||def.job===job);
+        return def&&D.superJobEligible(def,job);
       })
       .sort((a,b)=>(SUPER_ORDER_INDEX.get(a)??999)-(SUPER_ORDER_INDEX.get(b)??999));
   }
