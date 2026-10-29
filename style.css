@@ -995,3 +995,9 @@ img,svg,canvas{max-width:100%}
 .select-card #attributeFieldLabel>.select-label-text{color:var(--ink);margin-bottom:8px}
 .select-card .select-field-label{margin-bottom:0}
 .select-card{row-gap:8px}
+
+/* 基本能力の条件欄を広げ、数値入力欄を狭める */
+.custom-basic-inputs{grid-template-columns:minmax(0,1fr) minmax(0,1.9fr)}
+.custom-basic-inputs .custom-condition-options{grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);gap:4px}
+.custom-basic-inputs #customBasicModeSelectButton{font-size:clamp(10px,2.7vw,13px);letter-spacing:-.06em;padding-left:5px;padding-right:17px}
+.custom-basic-inputs #customBasicValue{font-size:clamp(10px,2.7vw,13px);padding-left:2px;padding-right:2px}
