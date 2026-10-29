@@ -210,11 +210,11 @@ main{
   letter-spacing:.02em;
 }
 
-.select-card{display:grid;gap:13px;padding-top:16px}
+.select-card{display:grid;gap:8px;padding-top:16px}
 .field-label{display:grid;gap:7px;font-weight:800;color:var(--ink)}
 .field-label>span{font-size:15px;padding-left:2px;color:var(--theme-accent-dark)}
 .select-field-label{margin-bottom:12px}
-#academyFieldLabel{margin-bottom:2px}
+#academyFieldLabel{margin-bottom:0}
 .select-field-label>.select-label-text{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-family:"Kaisei Decol",serif;font-size:clamp(19px,5.3vw,24px);font-weight:700;line-height:1.18;color:var(--theme-accent-dark);letter-spacing:.02em;text-shadow:0 1px 0 rgba(255,255,255,.92),0 2px 0 rgba(66,34,13,.17),0 3px 5px rgba(66,34,13,.10)}
 
 /* 入力順を視覚化：セクション自体は通常表示のまま、操作できない部品だけを薄くする */
@@ -506,7 +506,7 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
    幅の狭いiPhoneでも各セルが縮み、メニューは従来どおり開けるようにする。 */
 .custom-basic-inputs{grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr);gap:6px}
 .custom-condition-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}
-.custom-basic-inputs .custom-condition-options{grid-template-columns:minmax(0,.65fr) minmax(0,1.05fr);min-width:0;gap:6px}
+.custom-basic-inputs .custom-condition-options{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);min-width:0;gap:4px}
 /* 特殊能力も「能力名／条件」を1行に。狭いiPhoneでも右側の条件欄を確保する。 */
 .custom-special-inputs{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:6px}
 .custom-special-options{grid-template-columns:minmax(0,1fr);min-width:0}
@@ -516,7 +516,7 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .custom-basic-inputs .custom-select-button{padding:8px 21px 8px 7px;font-size:clamp(11px,3.05vw,14px);letter-spacing:-.04em}
 .custom-basic-inputs .custom-select-button::after{right:8px;width:7px;height:7px}
 .custom-basic-inputs .custom-select-button span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.custom-basic-inputs .custom-condition-options input{padding:8px 3px;font-size:clamp(12px,3.4vw,16px)}
+.custom-basic-inputs .custom-condition-options input{padding:8px 3px;font-size:clamp(11px,3.1vw,15px)}
 /* 狭幅時も2つの選択ボタンを切らさず、長い名前は開いたメニューで全文表示する。 */
 .custom-special-inputs .custom-select-button{padding:8px 22px 8px 8px;font-size:clamp(12px,3.35vw,14px);letter-spacing:-.035em}
 .custom-special-inputs .custom-select-button::after{right:8px;width:7px;height:7px}
@@ -986,3 +986,6 @@ img,svg,canvas{max-width:100%}
 .custom-skill-mode-control .custom-select-menu{left:auto;right:0;width:max-content;min-width:100%;max-width:min(210px,calc(100vw - 38px))}
 
 .skill-candidate-hint-label{font-size:12px;font-weight:700;white-space:nowrap}
+
+/* アカデミー・ジョブと同じ見出し色に統一 */
+#attributeFieldLabel>.select-label-text{color:var(--theme-accent-dark)}
