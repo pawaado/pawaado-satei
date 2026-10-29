@@ -2396,7 +2396,8 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
-      "upper": null
+      "upper": null,
+      "jobFamily": "魔法使い系統"
     },
     {
       "name": "レインバーン",
@@ -5182,7 +5183,8 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": true,
       "resistance": false,
-      "upper": null
+      "upper": null,
+      "jobFamily": "重戦士系統"
     },
     {
       "name": "慈愛の祈り",
@@ -6564,20 +6566,15 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": true,
-      "upper": null
+      "upper": null,
+      "jobFamily": "重戦士系統"
     },
     {
       "name": "不屈の精神",
       "category": "超特殊能力",
       "kind": "サポートスキル",
       "jobs": [
-        "剣士",
-        "弓使い",
-        "重戦士",
-        "魔法使い",
-        "僧侶",
-        "魔闘士",
-        "双剣士"
+        "僧侶"
       ],
       "attribute": null,
       "levels": [
@@ -6593,31 +6590,7 @@ window.PAWAADO_DATA.skillRankings = {
           "tip": 1,
           "condition": "耐久力40以上・精神力40以上",
           "scores": {
-            "剣士": [
-              560,
-              560
-            ],
-            "弓使い": [
-              560,
-              560
-            ],
-            "重戦士": [
-              560,
-              560
-            ],
-            "魔法使い": [
-              560,
-              560
-            ],
             "僧侶": [
-              560,
-              560
-            ],
-            "魔闘士": [
-              560,
-              560
-            ],
-            "双剣士": [
               560,
               560
             ]
@@ -6639,31 +6612,7 @@ window.PAWAADO_DATA.skillRankings = {
           "tip": 1,
           "condition": "耐久力50以上・精神力50以上",
           "scores": {
-            "剣士": [
-              420,
-              980
-            ],
-            "弓使い": [
-              420,
-              980
-            ],
-            "重戦士": [
-              420,
-              980
-            ],
-            "魔法使い": [
-              420,
-              980
-            ],
             "僧侶": [
-              420,
-              980
-            ],
-            "魔闘士": [
-              420,
-              980
-            ],
-            "双剣士": [
               420,
               980
             ]
@@ -6676,7 +6625,8 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": true,
-      "upper": null
+      "upper": null,
+      "jobFamily": "僧侶系統"
     },
     {
       "name": "鉄人",
@@ -8679,7 +8629,8 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
-      "upper": null
+      "upper": null,
+      "jobFamily": "魔法使い系統"
     },
     {
       "name": "癒しの恩寵",
@@ -8735,7 +8686,8 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
-      "upper": null
+      "upper": null,
+      "jobFamily": "僧侶系統"
     },
     {
       "name": "渦巻く剣刃",
