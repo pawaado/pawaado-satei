@@ -115,10 +115,12 @@
     const cssClass=[typeClasses[row.category]||''].filter(Boolean).join(' ');
     const notes=[row.hp?'<span class="ranking-note-tag">HP依存</span>':'',
       row.resistance?'<span class="ranking-note-tag">耐性影響</span>':''].filter(Boolean).join('');
-    const levelText=levelLabels[row.phase]||row.label;
+    // 累計版はスキル名のみ。汎用スキルは能力Lv.がないため単独版でも表示しない。
+    const showLevel=currentLevelMode==='single'&&row.kind!=='汎用';
+    const levelHtml=showLevel?'<span class="skill-level">'+escapeHTML(levelLabels[row.phase]||row.label)+'</span>':'';
     return `<tr class="${cssClass}${rank===null?' skill-rank-unranked':''}">
       <td class="skill-rank-num"><span class="skill-rank-index">${rank===null?'—':rank}</span></td>
-      <td class="skill-name-cell"><span class="skill-name-line"><span class="skill-row-title" title="${escapeHTML(row.name)}">${escapeHTML(row.name)}</span><span class="skill-level">${escapeHTML(levelText)}</span></span></td>
+      <td class="skill-name-cell"><span class="skill-name-line"><span class="skill-row-title" title="${escapeHTML(row.name)}">${escapeHTML(row.name)}</span>${levelHtml}</span></td>
       <td class="skill-rank-eff">${row.eff===null?'—':fmt(row.eff,3)}</td>
       <td class="skill-rank-score">${row.rawScore==null?'—':fmt(row.rawScore,2)}</td>
       <td class="skill-rank-exp">${fmt(row.exp,0)}</td>
