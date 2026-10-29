@@ -1073,12 +1073,24 @@ function resultTable(items,kind){
   }else if(kind==='basic'){
     filtered=mergeBasicResultItems(filtered);
   }else if(kind==='candidate'){
+    // 最終到達Lv.だけでなく、今回の取得候補で増やしたLv.をすべて結果に表示する。
+    // WorkerはLv.1→Lv.3を一度に取得できるため、結果の最終Lv.から段階を復元する。
     const last=new Map();
     for(const entry of filtered){
       if(!last.has(entry.name)||Number(entry.level)>Number(last.get(entry.name).level))
         last.set(entry.name,entry);
     }
-    filtered=[...last.values()];
+    filtered=[...last.values()].flatMap(entry=>{
+      const skill=skillByName.get(entry.name);
+      if(!skill||!candidateHasLevels(skill))return [entry];
+      const selected=candidateSkills.get(entry.name);
+      const first=Number(selected?.minLevel??selected?.level??1);
+      const final=Number(entry.level);
+      if(!Number.isInteger(first)||!Number.isInteger(final)||first>final)return [entry];
+      return skill.levels
+        .filter(level=>Number(level.lv)>=first&&Number(level.lv)<=final)
+        .map(level=>({...entry,level:Number(level.lv)}));
+    });
   }
 
   if(!filtered.length) return '<p class="result-empty"><strong>追加なし</strong></p>';
