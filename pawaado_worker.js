@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261029-stamina5to6-1', './skill_master.js?v=20261029-panic-dualskill-normal-2');
+importScripts('./data.js?v=20261029-jobfamily-1', './skill_master.js?v=20261029-jobfamily-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -36,7 +36,7 @@ function normalizeSkillCandidates(rows,forbiddenRules=[]){
   for(const item of Array.isArray(rows)?rows:[]){
     const name=String(item?.name||''),minimum=Number(item?.minLevel??item?.level),hint=Number(item?.hint);
     const def=workerSkillMaster.get(name);
-    if(!def||seen.has(name)||!def.jobs.includes(job.value)||
+    if(!def||seen.has(name)||!D.skillJobEligible(def,job.value)||
       (def.attribute&&def.attribute!==workerCandidateAttribute.replace(/属性$/,'')))continue;
     const max=def.kind==='汎用'&&!def.jobs.includes('双剣士')?1:def.levels.length;
     if(!Number.isInteger(minimum)||minimum<1||minimum>max||
@@ -46,7 +46,7 @@ function normalizeSkillCandidates(rows,forbiddenRules=[]){
     for(let level=minimum;level<=max&&level<(forbiddenMinimum.get(name)??Infinity);level++){
       const cost=workerCandidateCost(def,level,hint);
       if(!cost)continue;
-      const scores=def.levels[level-1].scores?.[job.value];
+      const scores=D.skillJobScore(def,def.levels[level-1],job.value);
       if(!Array.isArray(scores)||(!def.hp&&(!Number.isFinite(Number(scores[1]))||scores[1]===null)))continue;
       const required={};
       for(const lv of def.levels.slice(0,level)){
@@ -68,7 +68,7 @@ function workerCandidateAction(st,entry,exp){
   const priorCost=currentLevel?workerCandidateCost(entry.def,currentLevel,entry.hint):[0,0,0,0,0];
   if(!priorCost)return null;
   let costs=entry.cost.map((v,i)=>v-priorCost[i]);
-  const priorScore=currentLevel?entry.def.levels[currentLevel-1].scores?.[job.value]?.[1]:0;
+  const priorScore=currentLevel?D.skillJobScore(entry.def,entry.def.levels[currentLevel-1],job.value)?.[1]:0;
   let gain=entry.score-Number(priorScore||0);
   const items=[],requiredLevels={};
   const jobLimits=limits();
@@ -105,7 +105,7 @@ function workerCandidateAction(st,entry,exp){
   if(entry.def.hp){
     const rate=selectedSuperHpRate({name:entry.name,level:entry.level});
     const priorRate=currentLevel?selectedSuperHpRate({name:entry.name,level:currentLevel}):0;
-    if(rate!==priorRate)gain+=entry.def.levels[entry.level-1].scores?.[job.value]?.[1]===null
+    if(rate!==priorRate)gain+=D.skillJobScore(entry.def,entry.def.levels[entry.level-1],job.value)?.[1]===null
       ? currentHpForLife(lifeAfter)*(rate-priorRate)
       : (currentHpForLife(lifeAfter)-currentHpForLife(90))*(rate-priorRate);
   }
@@ -275,7 +275,7 @@ function normalizeSelectedSupers(rows){
     if(!name||seen.has(name)||(level!==1&&level!==2))continue;
     const def=D.superResistances?.[name]||D.superScoreRules?.[name];
     if(!def)continue;
-    if(def.job&&def.job!==job.value)continue;
+    if(!D.superJobEligible(def,job.value))continue;
     seen.add(name);
     out.push({name,level});
   }
