@@ -9,11 +9,11 @@
   const root=document.getElementById('skillRankingRoot');
   if(!root || !baseView || !skillView || !dataset) return;
 
-  const jobGroups={
-    '剣士系統':['剣士','双剣士'], '重戦士系統':['重戦士'],
-    '弓使い系統':['弓使い'], '魔法使い系統':['魔法使い'],
-    '僧侶系統':['僧侶'], '魔闘士系統':['魔闘士']
-  };
+  const D=window.PAWAADO_DATA;
+  const jobGroups=Object.fromEntries(
+    ['剣士系統','重戦士系統','弓使い系統','魔法使い系統','僧侶系統','魔闘士系統']
+      .map(family=>[family,Object.keys(D.jobFamilyByJob||{}).filter(job=>D.jobFamilyByJob[job]===family)])
+  );
   const physicalJobs=new Set(['剣士','双剣士','重戦士','弓使い']);
   const superRules=window.PAWAADO_DATA?.superScoreRules||{};
   const hpRows=window.PAWAADO_DATA?.hp||[];
@@ -53,7 +53,7 @@
   function asRow(skill,job,index){
     const l=skill.levels[index],normalized=rankingCost(skill,l),cost=normalized.cost;
     const exp=totalCost(cost),hp=Boolean(skill.hp);
-    const score=hp?hpScore(skill,job,index):l.scores[job]?.[0];
+    const score=hp?hpScore(skill,job,index):D.skillJobScore(skill,l,job)?.[0];
     const canRank=exp>0&&typeof score==='number'&&Number.isFinite(score);
     const phase='single'+l.lv;
     const detail=skill.category==='超特殊能力'?Object.entries(l.effect||{}).map(([name,value])=>name+' '+(typeof value==='number'&&value>0?'+':'')+value+(typeof value==='number'?'%':'')).join('、'):'';
@@ -68,7 +68,7 @@
     const items=[],seen=new Map();
     for(const skill of dataset.skills){
       for(const job of jobs){
-        if(!skill.jobs.includes(job))continue;
+        if(!D.skillJobEligible(skill,job))continue;
         for(let i=0;i<skill.levels.length;i++){
           const row=asRow(skill,job,i);
           const key=[skill.name,row.phase,row.cost.join(','),row.rawScore,skill.category].join('|');
