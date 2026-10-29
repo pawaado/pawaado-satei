@@ -4620,7 +4620,8 @@ window.PAWAADO_DATA.superResistances={
       8,
       14
     ],
-    "job": "重戦士"
+    "job": "重戦士",
+    "jobFamily": "重戦士系統"
   },
   "不屈の精神": {
     "types": [
@@ -4631,7 +4632,8 @@ window.PAWAADO_DATA.superResistances={
       4,
       7
     ],
-    "job": "僧侶"
+    "job": "僧侶",
+    "jobFamily": "僧侶系統"
   },
   "鉄人": {
     "types": [
@@ -4668,13 +4670,40 @@ window.PAWAADO_DATA.superResistances={
   }
 };
 
+// ジョブ系統。派生ジョブ追加時は所属系統を登録する。系統限定スキルだけがこの対応を利用する。
+window.PAWAADO_DATA.jobFamilyByJob={
+  "剣士":"剣士系統", "双剣士":"剣士系統",
+  "重戦士":"重戦士系統", "弓使い":"弓使い系統",
+  "魔法使い":"魔法使い系統", "僧侶":"僧侶系統", "魔闘士":"魔闘士系統"
+};
+window.PAWAADO_DATA.skillJobEligible=function(skill,job){
+  if(!skill||!job)return false;
+  if(skill.jobFamily)return this.jobFamilyByJob[job]===skill.jobFamily;
+  return Array.isArray(skill.jobs)&&skill.jobs.includes(job);
+};
+window.PAWAADO_DATA.skillJobScore=function(skill,level,job){
+  const exact=level?.scores?.[job];
+  if(Array.isArray(exact))return exact;
+  if(!skill?.jobFamily||this.jobFamilyByJob[job]!==skill.jobFamily)return null;
+  // 新しい派生ジョブが登場した場合、同一系統の原ジョブ値を参照する。
+  for(const base of skill.jobs||[]){
+    if(Array.isArray(level?.scores?.[base]))return level.scores[base];
+  }
+  return null;
+};
+window.PAWAADO_DATA.superJobEligible=function(def,job){
+  if(!def||!job)return false;
+  if(def.jobFamily)return this.jobFamilyByJob[job]===def.jobFamily;
+  return !def.job||def.job===job;
+};
+
 // Canonical score rules for already-owned super abilities whose appraisal changes with HP.
 // hpRates are multipliers of current HP; Lv2 replaces Lv1. For supers with a prerequisite, the lower ability HP rate is excluded here.
 window.PAWAADO_DATA.superScoreRules={
   "大真面目": {"hpRates": [0.06, 0.10]},
   "そよかぜの加護": {"hpRates": [0.11, 0.22]},
   "タフネス": {"hpRates": [0.07, 0.17]}, // 忍耐+3% gives combined Lv.1+10%, Lv.2+20%
-  "鉄壁の盾": {"hpRates": [0.10, 0.20], "job": "重戦士"}
+  "鉄壁の盾": {"hpRates": [0.10, 0.20], "job": "重戦士", "jobFamily": "重戦士系統"}
 };
 
 // A recognized upper ability implies ownership of its prerequisite chain.
