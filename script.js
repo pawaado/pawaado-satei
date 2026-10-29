@@ -226,7 +226,7 @@ function refreshCandidateUI(){
       if(options.length)choices.push('<optgroup label="'+escapeCustomText(category)+'">'+options.join('')+'</optgroup>');
     }
     const nameOptions='<option value="">必殺技等を選択</option>'+choices.join('');
-    const hintOptions=['<option value="">コツLv.を選択</option>'];
+    const hintOptions=['<option value=""></option>'];
     const validHints=[];
     if(skill){
       for(let tip=0;tip<=5;tip++){
@@ -246,7 +246,7 @@ function refreshCandidateUI(){
         String(validHints[0])+'">'+
         String(validHints[0])+'</span></div>'
       :candidateControlHtml('skillCandidateHint',index,hintOptions,
-        row?String(row.hint):'—',!ready||!row);
+        row?String(row.hint):'',!ready||!row);
     const del=row?'<button type="button" class="extra-resistance-group-remove skill-candidate-remove" data-candidate-remove="'+escapeCustomText(row.name)+'" aria-label="'+escapeCustomText(row.name)+'を削除">×</button>':
       '<span class="skill-candidate-remove-placeholder" aria-hidden="true"></span>';
     return '<div class="skill-candidate-row'+(row?' has-skill':'')+'" data-skill-candidate-row data-candidate-name="'+escapeCustomText(previous)+'">'+
