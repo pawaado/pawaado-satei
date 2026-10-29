@@ -2,23 +2,15 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261029-skill-lexicon1';
+  const PHOTO_IMPORT_BUILD='20261028-attribute2';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
-  // 過去の実画像を基に確定した必殺技・アクションスキル・超特殊能力の名称正本。
-  // 画像データの有無に関係なく、skill_master.js の登録済み全種類を認識辞書へ取り込む。
-  // 詳細画面の文字は能力データのセルとは描画形状が異なるため、画像マスクとして流用しない。
-  const SKILL_IMAGE_CATALOG=Array.isArray(D.skillRankings?.skills)?D.skillRankings.skills:[];
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances||{}),...Object.keys(D.superScoreRules||{}),...Object.keys(D.superPrerequisites||{})])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
-  // 査定入力が未対応の金色スキルを別スキルに誤認しない。追加スキルは自動的に対象へ加える。
-  // 未対応スキルのOCR一致はスキップする。勝手に取得・能力Lvを推測入力しない。
-  const IGNORED_SUPER_IMAGE_NAMES=new Set([
-    ...SKILL_IMAGE_CATALOG.filter(skill=>skill.category==='超特殊能力'&&!SUPER_NAMES.includes(skill.name)).map(skill=>skill.name),
-    '剛力','魔力増強','魔力探求','魔力開眼','魔族キラー'
-  ]);
+  // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
+  const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','魔力探求','魔力開眼','魔族キラー']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
   // 能力データ画面：キャラ右上のジョブ固有アイコンを読む。
   // 2026-10-02提供実画像（重戦士→剣士→弓使い→魔法使い→僧侶→魔闘士→双剣士）から切り出した固定テンプレート。
