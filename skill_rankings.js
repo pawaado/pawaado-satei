@@ -92,11 +92,17 @@
       unrankedReason:!verified?'指定コツLvの必要経験点が未確認':exp<=0?'必要経験点0／未確認':'査定の固定値が未確定'};
   }
   // 下位特殊能力はコツなしの data.js 正本を使う。
-  // 超特殊能力だけコツLv.1。必要な下位能力はその前提もたどって重複なく数える。
+  // 超特殊能力だけコツLv.1。下位はスキル自身の lowerAbilities / upper で指定できる。
+  // 既存の別表はレガシー登録のための互換フォールバックとして残す。
+  // 必要な下位能力はその前提（○→◎）も自動追跡し、重複なく数える。
   const specialByName=new Map((D.special||[]).map(row=>[row[1],row]));
   function lowerChain(skill){
     if(skill.category!=='超特殊能力')return [];
-    const required=D.superPrerequisites?.[skill.name]||D.superResistances?.[skill.name]?.includes||[];
+    const declared=skill.lowerAbilities;
+    const required=Array.isArray(declared)?declared:
+      typeof declared==='string'&&declared?[declared]:
+      typeof skill.upper==='string'&&skill.upper?[skill.upper]:
+      D.superPrerequisites?.[skill.name]||D.superResistances?.[skill.name]?.includes||[];
     if(!required.length)return [];
     const ordered=[],visited=new Set(),active=new Set();
     function visit(name){
