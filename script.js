@@ -1397,7 +1397,12 @@ function refreshCustomChoices(){
     const showMode=!!current?.range;
     const fixed=document.getElementById('customSkillFixedMode');
     const modeControl=document.getElementById('customSkillModeControl');
-    if(fixed)fixed.hidden=showMode;
+    if(fixed){
+      // 未選択時は条件未設定と表示。単独Lvの選択時だけ「取得する」を固定表示。
+      fixed.textContent=current?'取得する':'条件を選択';
+      fixed.setAttribute('aria-label',current?'取得する（固定）':'条件を選択');
+      fixed.hidden=showMode;
+    }
     if(modeControl)modeControl.hidden=!showMode;
     if(skillMode){
       if(!showMode)skillMode.value='';
