@@ -1000,7 +1000,7 @@ img,svg,canvas{max-width:100%}
    基本能力の入力3項目は同一グリッドで配置し、数値入力欄の表示幅を確保。 */
 /* 基本能力／特殊能力の条件選択は同じ右列を共有する幅指定 */
 .custom-special-inputs{grid-template-columns:minmax(0,1fr) minmax(0,39%)}
-.custom-basic-inputs{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr) minmax(0,39%)}
+.custom-basic-inputs{grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr) minmax(0,39%)}
 .custom-basic-inputs .custom-condition-options{display:contents}
 .custom-basic-inputs #customBasicModeSelectButton,
 .custom-special-inputs #customSpecialModeSelectButton{
@@ -1011,3 +1011,7 @@ img,svg,canvas{max-width:100%}
 .custom-basic-inputs #customBasicModeSelectButton::after,
 .custom-special-inputs #customSpecialModeSelectButton::after{right:8px}
 .custom-basic-inputs #customBasicValue{font-size:clamp(10px,2.7vw,13px);padding-left:2px;padding-right:2px}
+ /* 基本能力を選択の全文を優先し、数値欄は5文字のプレースホルダーを維持 */
+.custom-basic-inputs #customBasicNameSelectButton{padding-left:5px;padding-right:17px;font-size:clamp(11px,3.05vw,14px)}
+.custom-basic-inputs #customBasicNameSelectButton::after{right:6px}
+.custom-basic-inputs #customBasicValue::placeholder{font-size:clamp(10px,2.7vw,13px);letter-spacing:-.03em}
