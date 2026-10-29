@@ -15,7 +15,7 @@
 /* 6つの系統タブの下に置く、Lv.別／Lv.累計の切替 */
 .skill-level-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
 .skill-level-tab{min-height:41px;padding:9px 4px;font:800 13px/1.4 "Noto Sans JP",sans-serif;border:2px solid #9c8062;border-radius:11px;background:#fff9ed;color:#634932;cursor:pointer}
-.skill-level-tab[aria-pressed="true"]{border-color:#28536b;background:linear-gradient(#43819b,#24566d);color:#fff}
+.skill-level-tab[aria-pressed="true"]{border-color:#526b57;background:linear-gradient(#718c75,#4d6a54);color:#fff}
 .skill-level-tab:focus-visible{outline:3px solid #efae36;outline-offset:2px}
 #skillRankingRoot{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;max-width:100%}
 #skillRankingRoot table{width:100%;min-width:486px;table-layout:fixed;border-collapse:collapse}
