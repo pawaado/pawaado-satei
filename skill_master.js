@@ -4,6 +4,10 @@
  * levels[].condition: 修得条件 / levels[].tip: 登録されたコツLv
  * levels[].cost: そのLvの追加経験点 [筋力,敏捷,技術,知力,精神]
  * levels[].scores[ジョブ]: [追加査定, 累計査定]
+ * lowerAbilities: 下位特殊能力名の配列。必要な○は◎の前提能力を自動追跡。
+ *   例: "lowerAbilities": ["ケガしにくさ◎"]
+ *   新しい超特殊能力のデータにこれを指定すれば、Lv.累計に(下位能力込み)を自動追加。
+ *   下位能力は data.js の special 欄からコツなしで取得。超特はコツLv.1。
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
@@ -4017,6 +4021,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": true,
+      "lowerAbilities": ["意志"],
       "upper": null
     },
     {
@@ -4903,6 +4908,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": true,
       "resistance": false,
+      "lowerAbilities": ["忍耐"],
       "upper": null
     },
     {
@@ -6400,6 +6406,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": true,
+      "lowerAbilities": ["免疫強化"],
       "upper": null
     },
     {
@@ -6738,6 +6745,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": true,
+      "lowerAbilities": ["ケガしにくさ◎"],
       "upper": "ケガしにくさ◎"
     },
     {
@@ -7074,6 +7082,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["通常攻撃◎"],
       "upper": null
     },
     {
@@ -7190,6 +7199,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["アクションスキル◎"],
       "upper": null
     },
     {
@@ -7341,6 +7351,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["単体攻撃◎"],
       "upper": null
     },
     {
@@ -7454,6 +7465,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["列攻撃◎"],
       "upper": null
     },
     {
@@ -7564,6 +7576,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対サイクロプス◎"],
       "upper": null
     },
     {
@@ -7674,6 +7687,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対フィッシュ◎"],
       "upper": null
     },
     {
@@ -7787,6 +7801,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対妖狐◎"],
       "upper": null
     },
     {
@@ -7900,6 +7915,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対スケルトン◎"],
       "upper": null
     },
     {
@@ -8013,6 +8029,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対ヌメリン◎"],
       "upper": null
     },
     {
@@ -8126,6 +8143,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対ゴブリン◎"],
       "upper": null
     },
     {
@@ -8239,6 +8257,7 @@ window.PAWAADO_DATA.skillRankings = {
       ],
       "hp": false,
       "resistance": false,
+      "lowerAbilities": ["対植物◎"],
       "upper": null
     },
     {
