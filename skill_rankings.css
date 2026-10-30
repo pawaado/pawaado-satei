@@ -6,7 +6,7 @@
   border:3px solid #80552f;border-radius:15px;padding:10px 6px;
   background:linear-gradient(#fff8e7,#eedbb4);color:#51361f;cursor:pointer;min-height:70px;
 }
-.ranking-mode-tab[aria-selected="true"]{background:#a84834;border-color:#873822;color:#fff;box-shadow:0 3px 0 rgba(121,51,35,.24)}
+.ranking-mode-tab[aria-selected="true"]{background:#a84834;border-color:#d75e4f;color:#fff;box-shadow:0 3px 0 rgba(121,51,35,.24)}
 .mode-title-first{display:block;white-space:nowrap}
 .mode-title-second{display:block;white-space:nowrap}
 .skill-job-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 12px}
