@@ -64,9 +64,6 @@ test('real screenshot-derived job icon and header reference masks are embedded f
  assert.equal(match.length,2);
  assert.equal(Buffer.from(match[0],'base64').length,256,'16x16 grayscale icon');
  assert.equal(Buffer.from(match[1],'base64').length,192,'96x16 packed 1-bit header mask');
- const info=JSON.parse(read('tests/fixtures/orb-striker-20261031.json'));
- assert.equal(info.captureNames.length,8);
- assert.equal(info.special.steps.length,3);
 });
 
 test('both Orb Striker neutral generic finishers use observed no-tip costs and appraisal',()=>{
@@ -88,16 +85,6 @@ test('both Orb Striker neutral generic finishers use observed no-tip costs and a
   for(const l of skill.levels){assert.equal(l.tip,0);assert.equal(l.effect,undefined);assert.equal(l.description,undefined);}
  }
 });
-test('captured finisher detail image templates are retained as packed real-image masks without descriptions',()=>{
- const data=JSON.parse(read('tests/fixtures/orb-striker-finishers-20261031.json'));
- assert.equal(data.skills.length,2);
- assert.equal(data.imageTemplates.length,3);
- for(const t of data.imageTemplates)assert.equal(Buffer.from(t.mask,'base64').length,490);
- assert(data.skills.every(x=>x.levels.every(l=>!('effect' in l)&&!('description' in l))));
- const earlier=JSON.parse(read('tests/fixtures/orb-striker-20261031.json'));
- for(const l of earlier.special.steps)assert(!('power' in l)&&!('dragonEarthPercent' in l));
-});
-
 test('generic finishers with Lv.2 keep both choices in UI and optimizer',()=>{
  const script=read('script.js'),worker=read('pawaado_worker.js');
  assert(script.includes("return skill.kind!=='汎用'||skill.levels.length>1"));
@@ -109,4 +96,34 @@ test('generic finishers with Lv.2 keep both choices in UI and optimizer',()=>{
   assert.equal(skill.kind,'汎用');
   assert.deepEqual(Array.from(skill.levels.map(l=>D.skillCandidateLevelCost(skill,l.lv,0))).map(x=>Array.from(x)),Array.from(skill.levels.map(l=>Array.from(l.cost))));
  }
+});
+
+test('Quad Ignition is Orb Striker-exclusive fire action skill with verified Lv.1-3 incremental costs and appraisal',()=>{
+ const D=load().PAWAADO_DATA;
+ const skill=D.skillRankings.skills.find(x=>x.name==='クアッドイグニッション');
+ assert(skill,'action skill must be registered');
+ assert.equal(skill.category,'アクションスキル');
+ assert.equal(skill.kind,'固有');
+ assert.equal(skill.attribute,'火');
+ assert.deepEqual(Array.from(skill.jobs),['オーブストライカー']);
+ assert.equal(D.skillJobEligible(skill,'オーブストライカー'),true);
+ assert.equal(D.skillJobEligible(skill,'魔闘士'),false);
+ const costs=[[0,0,77,128,64],[0,0,99,165,82],[0,0,341,568,284]];
+ const scores=[[1500,1500],[900,2400],[900,3300]];
+ for(let i=0;i<3;i++){
+   const level=skill.levels[i];
+   assert.equal(level.lv,i+1);
+   assert.equal(level.tip,1);
+   assert.equal(level.condition,'器用さ'+[40,60,80][i]+'以上');
+   assert.deepEqual(Array.from(level.cost),costs[i]);
+   assert.deepEqual(Array.from(D.skillJobScore(skill,level,'オーブストライカー')),scores[i]);
+   assert.deepEqual(Array.from(D.skillCandidateLevelCost(skill,i+1,1)),costs[i]);
+   assert.equal(level.effect,undefined);
+   assert.equal(level.description,undefined);
+ }
+ assert.equal(skill.levels.reduce((a,l)=>a+l.cost.reduce((x,y)=>x+y,0),0),1808);
+});
+test('No separate screenshot-to-skill fixtures remain',()=>{
+ assert.equal(fs.existsSync(path.join(root,'tests/fixtures/orb-striker-20261031.json')),false);
+ assert.equal(fs.existsSync(path.join(root,'tests/fixtures/orb-striker-finishers-20261031.json')),false);
 });
