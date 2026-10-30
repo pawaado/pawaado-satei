@@ -71,9 +71,19 @@ test('generic 〜攻撃 becomes three independently ranked rows ordered 火→�
   }
  }
 });
-test('all numbers and ordering are unchanged by the display consolidation',{skip:!process.env.RANKINGS_BEFORE},()=>{
- const before=load(fs.readFileSync(process.env.RANKINGS_BEFORE,'utf8')).c.audit,after=load().c.audit;
- for(const group of Object.keys(after.groupDefs))assert.equal(JSON.stringify(after.allItems(group)),JSON.stringify(before.allItems(group)));
+test('display tab switches do not alter ranking numbers, experience, or ordering',()=>{
+ const {c,tabs}=load();
+ const groups=Object.keys(c.audit.groupDefs);
+ const before=Object.fromEntries(groups.map(group=>[group,JSON.stringify(c.audit.allItems(group))]));
+ // Re-rendering the current ranking UI must not mutate the calculations or their order.
+ for(let repeat=0;repeat<3;repeat++){
+  for(const tab of tabs){
+   tab.click();
+   for(const group of groups){
+    assert.equal(JSON.stringify(c.audit.allItems(group)),before[group],group+' changed after '+tab.dataset.group+' render');
+   }
+  }
+ }
 });
 
 test('target-specific fractional scores are preserved in rankings',()=>{
