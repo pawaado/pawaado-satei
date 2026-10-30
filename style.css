@@ -224,8 +224,9 @@ main{
 }
 /* アカデミー未選択時：ジョブ見出し・兜は通常表示、セレクト部分だけ薄くする */
 .select-field-label.is-locked .select-control{
-  opacity:.58;
-  filter:saturate(.5);
+  /* 無効なボタン自身の表示だけで統一し、親側では薄くしない */
+  opacity:1;
+  filter:none;
 }
 .select-field-label.is-locked select{cursor:not-allowed}
 /* アカデミー／ジョブが揃うまでは、基本能力の見出し・外枠は通常表示で6行だけ薄くする */
@@ -493,7 +494,8 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 /* 結果に表示された取得候補を除外して再計算する操作 */
 .custom-calc-card{overflow:visible}
 .custom-calc-card:has(.custom-condition-select.is-open){z-index:500}
-.custom-calc-card.is-locked .custom-condition-group{opacity:.62}
+/* 入力不可の色は各コントロールに任せ、グループ全体は薄くしない */
+.custom-calc-card.is-locked .custom-condition-group{opacity:1}
 /* 超特殊能力欄の密度に合わせ、見出しと項目間の余白を整理。入力欄の高さは維持する。 */
 .custom-calc-card>.section-heading{margin-bottom:8px}
 .custom-condition-group{padding:8px 0 6px;border-top:1px solid #dcc4a0}
@@ -533,7 +535,8 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
   max-width:min(220px,calc(100vw - 64px))
 }
 .custom-condition-options input{width:100%;min-width:0;height:52px;min-height:52px;border:2px solid #9c7039;border-radius:10px;background:linear-gradient(180deg,#fffdf4,#fff2ce);box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7);color:#422610;padding:8px;font-size:16px;font-weight:700;text-align:center}
-.custom-condition-options input:disabled{color:#8d8173;background:linear-gradient(180deg,#fbf6e9,#eadfca);border-color:#bca582}
+.custom-condition-options input:disabled{color:#8d8173;-webkit-text-fill-color:#8d8173;background:linear-gradient(180deg,#fbf6e9,#eadfca);border-color:#bca582;box-shadow:inset 0 2px 4px rgba(86,49,15,.11),0 1px 0 rgba(255,255,255,.7);filter:none;opacity:1;cursor:default}
+.custom-condition-options input:disabled::placeholder{color:#8d8173;-webkit-text-fill-color:#8d8173;opacity:1}
 .custom-condition-list{display:flex;flex-wrap:wrap;gap:7px;list-style:none;padding:0;margin:10px 0 0}
 .custom-condition-list[hidden]{display:none}
 .custom-condition-list li{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:4px 5px 4px 10px;border:1px solid #b79667;border-radius:9px;background:#f9e8c7;font-size:13px;font-weight:750;color:#51391f}
@@ -824,9 +827,11 @@ img,svg,canvas{max-width:100%}
     }
     .custom-select-button:disabled{
       color:#8d8173;
+      -webkit-text-fill-color:#8d8173;
       background:linear-gradient(180deg,#fbf6e9,#eadfca);
       border-color:#bca582;
       cursor:default;
+      filter:none;
       opacity:1;
     }
     .custom-select-menu{
