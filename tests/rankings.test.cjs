@@ -38,7 +38,7 @@ test('HP-based rankings retain life-90 notes without displaying HP1925',()=>{
  const {c}=load();assert.equal(c.audit.referenceHp,1925);
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
  assert(html.includes('HP依存特殊能力は生命力90で計算しています。'));
- assert(html.includes('HP依存の超特殊能力は生命力90で計算しています。'));
+ assert(!html.includes('HP依存の超特殊能力は生命力90で計算しています。'),'no redundant HP skill note');
  assert(!html.includes('HP1925'));
  assert(!html.includes('referenceHpNote'));assert(!html.includes('skillReferenceHpNote'));
  assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
@@ -50,7 +50,7 @@ test('ranking notes use the renamed section and do not describe the expanded ele
  assert(!html.includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'));
  const basicNotes=html.split('<section class="notes">')[1]?.split('</section>')[0]||'';
  assert(!basicNotes.includes('コツLv0で比較しています'));
- assert(html.includes('コツLvは超特殊能力・固有の必殺技・アクションスキルをLv1、汎用の必殺技・アクションスキルをコツなし（Lv0）として'));
+ assert(html.includes('汎用の必殺技・アクションスキルはコツなし、その他の必殺技等はコツLv.1で計算しています。'));
  assert(!html.includes('コツLv2から換算した参考値'));
  assert(html.includes('data-group="僧侶" aria-pressed="false">僧侶系統</button>'));
 });
@@ -96,7 +96,7 @@ test('target-specific fractional scores are preserved in rankings',()=>{
 test('both ranking note blocks use the requested resistance wording',()=>{
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
  assert(html.includes('耐性に影響する特殊能力は他の耐性に影響するものを除いた状態で計算しています。'));
- assert(html.includes('耐性に影響する超特殊能力は他の耐性に影響するものを除いた状態で計算しています。'));
+ assert(html.includes('id="skillRankNoteSingle"')&&html.includes('id="skillRankNoteTotal"'),'skill notes switch by display mode');
  assert(!html.includes('重戦士のジョブ固有耐性を含めず'));
  assert(!html.includes('重戦士の固有耐性や他の耐性系能力'));
 });
