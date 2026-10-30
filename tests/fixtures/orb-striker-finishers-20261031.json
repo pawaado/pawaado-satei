@@ -28,9 +28,9 @@
     {
       "name": "パワーコンバージョン",
       "category": "必殺技",
-      "kind": "固有",
+      "kind": "汎用",
       "attribute": null,
-      "tip": 1,
+      "tip": 0,
       "levels": [
         {
           "level": 1,
@@ -72,9 +72,9 @@
     {
       "name": "ヴォルテックスオーブ",
       "category": "必殺技",
-      "kind": "固有",
+      "kind": "汎用",
       "attribute": null,
-      "tip": 1,
+      "tip": 0,
       "levels": [
         {
           "level": 1,
