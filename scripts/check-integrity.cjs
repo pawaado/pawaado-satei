@@ -42,8 +42,9 @@ assert(sources['index.html'].indexOf('id="skillCandidatesCard"')>0&&
   'index.html: unacquired skills section must come immediately before custom conditions');
 assert(sources['index.html'].includes('id="customSkillName"')&&
   sources['index.html'].includes('class="custom-skill-required"')&&
-  !sources['index.html'].includes('id="customSkillMode"'),
-  'index.html: candidate skill conditions must have a required-only selector');
+  sources['index.html'].includes('id="customSkillMode"')&&
+  sources['script.js'].includes("candidateSkillConditions.set(option.key,'required')"),
+  'index.html: ordinary skill levels must be required-only, while Lv.以降 can choose required/forbidden');
 assert(sources['skill_master.js'].includes('window.PAWAADO_DATA.skillHintCosts = '),'skill_master.js: verified hint cost table missing');
 assert(sources['script.js'].includes('candidateSkills:candidateChoiceList()'),'script.js: worker must receive chosen skills');
 assert(sources['pawaado_worker.js'].includes('function workerCandidateActions('),'pawaado_worker.js: skill action optimizer missing');
@@ -82,7 +83,7 @@ assert(sources['photo_import.js'].includes('s.level=null;'),'photo_import.js: co
 assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
 const basicRankingNote=sources['rankings.html'].split('<section class="notes">')[1]?.split('</section>')[0]||'';
 assert(!basicRankingNote.includes('コツLv0で比較しています'),'rankings.html: removed generic hint note must not return to basic ranking');
-assert(sources['rankings.html'].includes('コツLvは超特殊能力・固有の必殺技・アクションスキルをLv1、汎用の必殺技・アクションスキルをコツなし（Lv0）'),'rankings.html: skill ranking hint bases must appear in the notes');
+assert(sources['rankings.html'].includes('汎用の必殺技・アクションスキルはコツなし、その他の必殺技等はコツLv.1で計算しています。'),'rankings.html: skill ranking hint bases must appear in the notes');
 assert(!sources['rankings.html'].includes('換算した参考値です'),'rankings.html: obsolete estimated skill experience note must be removed');
 assert(sources['skill_rankings.js'].includes("skill.category==='超特殊能力'||skill.kind==='固有'?1:0"),'skill_rankings.js: unique finishers/actions must use observed tip Lv1 cost');
 assert(sources['skill_rankings.js'].includes('function rankingCost('),'skill_rankings.js: source costs must be used directly');
@@ -123,7 +124,7 @@ assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1064
 assert(sources['photo_import.js'].includes('EXTRA_ABILITY_MASKS_20261003_IMG1076'),'photo_import.js: IMG_1076 対ドラゴンタートル◎ template missing');
 assert((sources['photo_import.js'].match(/"生存本能":\[(.*?)\],"護身の構え"/s)?.[1].match(/"[^"]+"/g)||[]).length===4,'photo_import.js: partial mask fragments must stay removed');
 assert(!/IGNORED_SUPER_IMAGE_NAMES[^\n]*(?:タフネス|そよかぜの加護|鉄壁の盾)/.test(sources['photo_import.js']),'photo_import.js: variable-score supers must not remain ignored');
-assert(sources['pawaado_worker.js'].includes("if(def.job&&def.job!==job.value)continue;"),'worker must reject job-specific supers for the wrong job');
+assert(sources['pawaado_worker.js'].includes("if(!D.superJobEligible(def,job.value))continue;"),'worker must use job-family-aware eligibility for supers');
 assert(sources['resistance_patch.js'].includes('査定が変動する超特殊能力'),'variable-score super UI title missing');
 assert(!sources['resistance_patch.js'].includes('class="super-note"')&&!sources['resistance_patch.js'].includes("querySelector('.super-note')")&&!sources['resistance_patch.js'].includes('下位能力込みの合計値です。'),'super-included-lower note must not appear in UI');
 assert(sources['script.js'].includes('__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__'),'script must expose super-to-lower ownership sync');
