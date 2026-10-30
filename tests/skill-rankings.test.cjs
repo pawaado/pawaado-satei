@@ -110,7 +110,11 @@ test('skill names remain on one line while efficiency and score remain visible t
 function rowForSkill(html,name,level){
  const escaped=String(name).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  const rows=html.match(/<tr class="[^"]*">[\s\S]*?<\/tr>/g)||[];
- return rows.find(row=>row.includes('title="'+name+'"') && row.includes('<span class="skill-level">Lv.'+level+'</span>'))||'';
+ return rows.find(row=>row.includes('title="'+name+'"') && (
+  row.includes('<span class="skill-level">Lv.'+level+'</span>') ||
+  // 1段階だけの汎用技は名称の横にLv.を表示しないのが現行仕様。
+  level===1&&!row.includes('<span class="skill-level">')
+ ))||'';
 }
 test('uses directly observed tip Lv1 for supers/unique skills and no-tip for every generic skill',()=>{
  const {context,elements,jobButtons}=load();
