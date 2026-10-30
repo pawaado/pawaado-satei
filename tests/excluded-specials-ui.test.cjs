@@ -12,6 +12,10 @@ const begin=ui.indexOf('function escapeCustomText(value){');
 const finish=ui.indexOf('function plannedExpNeedsConfirmation(){',begin);
 assert(begin>=0&&finish>begin,'custom calculation code block not found');
 const code=ui.slice(begin,finish);
+const ruleStart=ui.indexOf('function candidateRuleKey(name,level){');
+const ruleEnd=ui.indexOf('const skillCandidateMaster=',ruleStart);
+assert(ruleStart>=0&&ruleEnd>ruleStart,'production candidate-rule functions must exist');
+const ruleHelpers=ui.slice(ruleStart,ruleEnd);
 const dataContext={window:{}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'data.js'),'utf8'),dataContext);
 vm.runInNewContext(fs.readFileSync(path.join(root,'skill_master.js'),'utf8'),dataContext);
@@ -35,6 +39,11 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
    candidateSkills:candidates,candidateSkillConditions:new Map(),candidateChoiceList:()=>[...candidates.values()],
     skillByName:new Map(D.skillRankings.skills.map(x=>[x.name,x])),
     candidateOptionLabel:(skill,level)=>skill.name+' Lv.'+level,
+    candidateHasLevels:skill=>skill.kind!=='汎用'||skill.levels.length>1,
+    candidateLevelCosts:(skill,level,hint)=>{
+      const vec=skill?.levels?.slice(0,level).map(l=>D.skillCandidateLevelCost(skill,l.lv,hint));
+      return vec?.length===level&&vec.every(Array.isArray)?vec:null;
+    },
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
@@ -44,6 +53,7 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
    limits:()=>({生命力:110,パワー:115,魔力:110,器用さ:120,耐久力:100,精神力:100}),
    specialOwned:i=>owned.has(i),document:{getElementById:node,addEventListener(){}}};
  vm.createContext(state);
+ vm.runInContext(ruleHelpers,state);
  vm.runInContext(code,state);
  vm.runInContext('initCustomConditions()',state);
  const click=(id,dataset)=>{
@@ -69,20 +79,21 @@ test('custom conditions show required-only candidate skill selector after basic 
  assert(section.includes('>必殺技等を選択</span>'));
  assert(section.includes('class="custom-skill-required"'));
  assert(section.includes('>取得する</span>'));
- assert(!section.includes('id="customSkillMode"'));
+ assert(section.includes('id="customSkillMode"'),'Lv.以降 permits required/forbidden');
  const x=mock();
  assert.equal(x.node('customSkillName').disabled,true,'no selected candidate means unavailable');
  assert(!x.node('customSkillName').innerHTML.includes('ウィンドプロテクション'));
- const chosen={name:'ウィンドプロテクション',level:1,minLevel:1,hint:1};
+ const chosen={name:'ウィンドプロテクション',level:2,minLevel:2,hint:1};
  x.state.candidateSkills.set(chosen.name,chosen);
  vm.runInContext('renderCustomConditions()',x.state);
  assert.equal(x.node('customSkillName').disabled,false);
  assert(x.node('customSkillName').innerHTML.includes('ウィンドプロテクション'));
- x.node('customSkillName').value=chosen.name;x.change('customSkillName');
- assert.equal(x.state.candidateSkillConditions.get(chosen.name),'required');
+ const ruleKey=chosen.name+'::2';
+ x.node('customSkillName').value=ruleKey;x.change('customSkillName');
+ assert.equal(x.state.candidateSkillConditions.get(ruleKey),'required');
  assert(x.node('custom-skill-list').innerHTML.includes('取得する'));
  assert(x.node('customSkillName').disabled,true,'already constrained candidate is not listed again');
- x.click('remove',{kind:'skill',key:chosen.name});
+ x.click('remove',{kind:'skill',key:ruleKey});
  assert.equal(x.node('customSkillName').disabled,false);
  assert.equal(x.state.candidateSkillConditions.size,0);
  const cssText=css;
@@ -92,14 +103,14 @@ test('custom conditions show required-only candidate skill selector after basic 
 test('custom condition section and usage are concise',()=>{
   assert(html.includes('<h2 id="customCalcTitle">こだわり条件</h2>'));
   assert(/id="customBasicValue"[^>]*type="number"[^>]*aria-label="基本能力の指定値"/.test(html));
-  assert(/id="customBasicValue"[^>]*placeholder="数値"/.test(html));
+  assert(/id="customBasicValue"[^>]*placeholder="数値を入力"/.test(html));
   const usage=html.match(/<ol class="usage-list">([\s\S]*?)<\/ol>/);
   assert(usage,'usage list exists');
   assert.equal((usage[1].match(/<li>/g)||[]).length,4,'usage adds skill candidates as one additional step');
   assert(usage[1].includes('「計算する」を押すと、査定が最大となる組合せが表示されます。'));
   assert(usage[1].includes('各訓練後の経験点パターンにて比較できます。'));
-  assert(usage[1].includes('「訓練後の付与予定経験点」を入力すると、その経験点を各パターンに加算し、査定が最大となるパターンと組合せが表示されます。'));
-  assert(usage[1].includes('「こだわり条件」で基本能力や特殊能力に条件を設定することもできます。'));
+  assert(usage[1].includes('訓練後の付与予定経験点を入力すると、その経験点を各パターンに加算し'));
+  assert(usage[1].includes('こだわり条件で基本能力等に条件を設定することもできます。'));
   assert(!usage[1].includes('「こだわり計算」では'));
   assert(!ui.includes('<h3>こだわり条件</h3>'),'result view must not repeat the already-visible heading');
 });
@@ -121,7 +132,7 @@ test('custom basic ability controls stay on one row on desktop and iPhone',()=>{
  const outer=css.match(/\.custom-basic-inputs\{([^}]*)\}/)?.[1]||'';
  const nested=css.match(/\.custom-basic-inputs \.custom-condition-options\{([^}]*)\}/)?.[1]||'';
  assert(outer.includes('grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr)'),outer);
- assert(nested.includes('grid-template-columns:minmax(0,.65fr) minmax(0,1.05fr)'),nested);
+ assert(nested.includes('grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)'),nested);
  assert(css.includes('.custom-basic-inputs .custom-select-button span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'));
  assert(css.includes('.custom-basic-inputs .custom-select-button::after{right:8px'));
  assert(css.includes('@media(max-width:370px){\n  .custom-basic-inputs,.custom-basic-inputs .custom-condition-options,.custom-special-inputs{gap:4px}'));
@@ -237,7 +248,7 @@ test('invalid condition values do not add and clear-all resets defaults',()=>{
 test('Add buttons are absent, but both mode placeholders exist',()=>{
  for(const id of ['customAddBasic','customAddSpecial'])assert(!html.includes('id="'+id+'"'));
  assert(html.includes('<option value="">条件を選択</option>'));
- assert.equal((html.match(/<option value="">条件を選択<\/option>/g)||[]).length,2,'only basic and special modes show 条件を選択');
+ assert.equal((html.match(/<option value="">条件を選択<\/option>/g)||[]).length,3,'basic, special and Lv.以降 modes show 条件を選択');
 });
 test('mutually exclusive special abilities disappear after either one is required and return when removed',()=>{
  for(const pair of mutualGroups){
@@ -302,4 +313,17 @@ test('special custom conditions wait for attribute selection, but basic conditio
  x.node('customSpecialMode').value='required';
  x.change('customSpecialMode');
  assert.equal(x.state.customRequiredSpecials.size,before);
+});
+
+test('candidate Lv.以降 can be forbidden while a final single Lv is required',()=>{
+ const x=mock(),name='ウィンドプロテクション';
+ x.state.candidateSkills.set(name,{name,level:1,minLevel:1,hint:1});
+ vm.runInContext('renderCustomConditions()',x.state);
+ const key=name+'::1';
+ x.node('customSkillName').value=key;x.change('customSkillName');
+ assert.equal(x.node('customSkillMode').disabled,false);
+ x.node('customSkillMode').value='forbidden';x.change('customSkillMode');
+ assert.equal(x.state.candidateSkillConditions.get(key),'forbidden');
+ x.click('remove',{kind:'skill',key});
+ assert.equal(x.state.candidateSkillConditions.size,0);
 });
