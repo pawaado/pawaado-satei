@@ -11,9 +11,109 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-10-31-quad-ignition-costs-only",
+  "version": "2026-10-31-orb-fire-generic-actions",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
+    {
+      "name": "ファイアオーブ",
+      "category": "アクションスキル",
+      "kind": "汎用",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            0,
+            135,
+            240,
+            85
+          ],
+          "tip": 0,
+          "condition": "魔力20以上",
+          "scores": {
+            "オーブストライカー": [
+              650,
+              650
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            0,
+            169,
+            300,
+            106
+          ],
+          "tip": 0,
+          "condition": "魔力40以上",
+          "scores": {
+            "オーブストライカー": [
+              400,
+              1050
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "メテオパワー",
+      "category": "アクションスキル",
+      "kind": "汎用",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            67,
+            234,
+            0,
+            159
+          ],
+          "tip": 0,
+          "condition": "精神力20以上",
+          "scores": {
+            "オーブストライカー": [
+              650,
+              650
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            84,
+            293,
+            0,
+            198
+          ],
+          "tip": 0,
+          "condition": "精神力40以上",
+          "scores": {
+            "オーブストライカー": [
+              400,
+              1050
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
     {
       "name": "クアッドイグニッション",
       "category": "アクションスキル",
