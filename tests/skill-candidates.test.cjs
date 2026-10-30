@@ -68,8 +68,8 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  assert(script.includes("const entries=[...candidateSkills.values(),null]"));
  assert(script.includes('data-candidate-remove'));
  assert(script.includes("const preferred=skill.kind==='汎用'?0:1"));
- assert(script.includes('requiredSkillNames:'));
- assert(script.includes('forbiddenSkillNames:'));
+ assert(script.includes('skillLevelRules:'));
+ assert(script.includes('candidateSkillConditions'));
  assert(script.includes("kind==='candidate'?escapeCustomText"));
 });
 test('onward choices explore every level from selected minimum and charge only upgrade differences',()=>{
