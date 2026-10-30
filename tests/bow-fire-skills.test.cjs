@@ -14,7 +14,7 @@ function load(){
  return c.PAWAADO_DATA;
 }
 const cases=[
- {name:'ロウリエバースト',category:'必殺技',costs:[[126,32,126,0,63],[194,49,194,0,97]],scores:[[2000,2000],[1600,3600]],totals:[347,534],sum:881},
+ {name:'ロウリュバースト',category:'必殺技',costs:[[126,32,126,0,63],[194,49,194,0,97]],scores:[[2000,2000],[1600,3600]],totals:[347,534],sum:881},
  {name:'炎軌烈矢',category:'アクションスキル',costs:[[82,0,82,0,51],[99,0,99,0,61]],scores:[[1125,1125],[675,1800]],totals:[215,259],sum:474}
 ];
 for(const expected of cases){
@@ -45,10 +45,10 @@ for(const expected of cases){
 }
 test('bow-user fire skills use the same master and cache version on UI and worker',()=>{
  const main=read('index.html'),ranking=read('rankings.html'),worker=read('pawaado_worker.js');
- const url='skill_master.js?v=20261031-bow-fire-skills-1';
+ const url='skill_master.js?v=20261031-bow-fire-skills-name-fix-2';
  assert(main.includes(url));
  assert(ranking.includes(url));
  assert(worker.includes(url));
- assert(main.includes('script.js?v=20261031-bow-fire-skills-1'));
- assert(worker.includes('data.js?v=20261031-bow-fire-skills-1'));
+ assert(main.includes('script.js?v=20261031-bow-fire-skills-name-fix-2'));
+ assert(worker.includes('data.js?v=20261031-bow-fire-skills-name-fix-2'));
 });
