@@ -38,7 +38,7 @@ function normalizeSkillCandidates(rows,forbiddenRules=[]){
     const def=workerSkillMaster.get(name);
     if(!def||seen.has(name)||!D.skillJobEligible(def,job.value)||
       (def.attribute&&def.attribute!==workerCandidateAttribute.replace(/属性$/,'')))continue;
-    const max=def.kind==='汎用'&&!def.jobs.includes('双剣士')?1:def.levels.length;
+    const max=def.levels.length;
     if(!Number.isInteger(minimum)||minimum<1||minimum>max||
       !Number.isInteger(hint)||hint<0||hint>5)continue;
     const id=seen.size;
@@ -1250,7 +1250,7 @@ function __applyWorkerPayload(payload){
     for(const rule of skillRules){
       const row=candidateRows.find(x=>x.name===rule.name);
       const def=workerSkillMaster.get(rule.name);
-      const max=def?(def.kind==='汎用'&&!def.jobs.includes('双剣士')?1:def.levels.length):0;
+      const max=def?(def.levels.length):0;
       if(!row||!def||!Number.isInteger(rule.level)||rule.level<Number(row.minLevel??row.level)||
          rule.level>max||!['required','forbidden'].includes(rule.mode))
         throw new Error('こだわり計算：必殺技等の指定Lv.が正しくありません。');
