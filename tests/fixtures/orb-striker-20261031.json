@@ -90,11 +90,7 @@
         "require": {
           "magic": 20,
           "dexterity": 20
-        },
-        "dragonEarthPercent": 30,
-        "heavyWarriorPercent": 30,
-        "power": 35,
-        "hits": 4
+        }
       },
       {
         "level": 2,
@@ -110,11 +106,7 @@
         "require": {
           "magic": 50,
           "dexterity": 50
-        },
-        "dragonEarthPercent": 40,
-        "heavyWarriorPercent": 40,
-        "power": 55,
-        "hits": 4
+        }
       },
       {
         "level": 3,
@@ -130,11 +122,7 @@
         "require": {
           "magic": 70,
           "dexterity": 70
-        },
-        "dragonEarthPercent": 50,
-        "heavyWarriorPercent": 50,
-        "power": 75,
-        "hits": 4
+        }
       }
     ],
     "costOrder": [
@@ -150,6 +138,7 @@
     "コツLv.1・50%OFFの表記をIMG_2196とIMG_2199とIMG_2200から確認",
     "技能取得前後の冒険者ランク数値の差より2000/1600/1600査定を確認",
     "画像認識の実データは元スクリーンショットの縮小輝度バイト・二値文字マスクとして photo_import.js に保存",
-    "ゲームのフル画像自体は GitHub にはアップロードしていない"
+    "ゲームのフル画像自体は GitHub にはアップロードしていない",
+    "2026-10-31: ユーザー指示により、必殺技の効果説明・威力・効果倍率は記録しない。"
   ]
 }
