@@ -21,7 +21,8 @@ const jobClassMap={
   '双剣士':'job-dual',
   '魔法使い':'job-mage',
   '僧侶':'job-priest',
-  '魔闘士':'job-spellblade'
+  '魔闘士':'job-spellblade',
+  'オーブストライカー':'job-spellblade'
 };
 const academy=document.getElementById('academy');
 const job=document.getElementById('job');
@@ -984,7 +985,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261030-one-skill-per-category-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-orb-striker-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
