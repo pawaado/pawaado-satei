@@ -44,11 +44,14 @@ test('all worker and UI asset URLs use the current cache version',()=>{
   assert(v,'resistance patch version missing');
   const dataVersion=read('pawaado_worker.js').match(/importScripts\('\.\/data\.js\?v=([^']+)',\s*'\.\/skill_master\.js\?v=([^']+)'\)/)?.[1];
   assert(dataVersion,'worker data version missing');
-  assert(read('index.html').includes('data.js?v='+dataVersion));
+  assert(read('index.html').match(/data\.js\?v=([^\"]+)/)?.[1]===read('rankings.html').match(/data\.js\?v=([^\"]+)/)?.[1]);
   assert(read('index.html').includes('resistance_patch.js?v='+v));
   assert(read('pawaado_worker_resistance.js').includes('pawaado_worker.js?v='+v));
   assert(read('script.js').includes('pawaado_worker.js?v='+dataVersion));
-  assert(read('index.html').includes('skill_master.js?v='+dataVersion));
+  const skillVersion=read('pawaado_worker.js').match(/skill_master\.js\?v=([^\']+)/)?.[1];
+ assert(skillVersion);
+ assert(read('index.html').includes('skill_master.js?v='+skillVersion));
+ assert(read('rankings.html').includes('skill_master.js?v='+skillVersion));
   assert(read('script.js').includes('D.superResistances?.[superName]?.includes'));
   assert(read('pawaado_worker_resistance.js').includes('if(included.has(name)) continue;'));
 });
