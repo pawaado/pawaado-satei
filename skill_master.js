@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-10-31-bow-fire-skills-name-fix-2",
+  "version": "2026-10-31-magic-research-tip2-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -12325,6 +12325,12 @@ window.PAWAADO_DATA.skillRankings = {
  * 不朽の意志はゲーム実測と各成分の割引計算による確定値を含む。
  */
 window.PAWAADO_DATA.skillHintCosts = {
+  "魔力探求": {
+    2: {
+      1: [0, 0, 0, 58, 98],
+      2: [0, 0, 0, 68, 113],
+    },
+  },
   "平常心": {
     2: {
       1: [0, 12, 32, 0, 59],
