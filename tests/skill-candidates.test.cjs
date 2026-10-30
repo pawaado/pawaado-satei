@@ -64,7 +64,7 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  assert(script.includes("const candidateCategoryOrder=['必殺技','アクションスキル','超特殊能力']"));
  assert(script.includes("candidateKanaCollator.compare(ka,kb)"));
  assert(script.includes("return skill.name+' Lv.'+level+(level<max?'以降':'')"));
- assert(script.includes("return skill.kind!=='汎用'||skill.jobs.includes('双剣士')"));
+ assert(script.includes("return skill.kind!=='汎用'||skill.levels.length>1"));
  assert(script.includes("const entries=[...candidateSkills.values(),null]"));
  assert(script.includes('data-candidate-remove'));
  assert(script.includes("const preferred=skill.kind==='汎用'?0:1"));
