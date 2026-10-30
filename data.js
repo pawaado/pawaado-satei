@@ -74,6 +74,16 @@ window.PAWAADO_DATA = {
       75
     ],
     [
+      "カジナイトアカデミー",
+      "オーブストライカー",
+      95,
+      70,
+      115,
+      130,
+      80,
+      80
+    ],
+    [
       "タテレスキュアアカデミー",
       "重戦士",
       110,
@@ -4674,27 +4684,34 @@ window.PAWAADO_DATA.superResistances={
 window.PAWAADO_DATA.jobFamilyByJob={
   "剣士":"剣士系統", "双剣士":"剣士系統",
   "重戦士":"重戦士系統", "弓使い":"弓使い系統",
-  "魔法使い":"魔法使い系統", "僧侶":"僧侶系統", "魔闘士":"魔闘士系統"
+  "魔法使い":"魔法使い系統", "僧侶":"僧侶系統", "魔闘士":"魔闘士系統", "オーブストライカー":"魔闘士系統"
 };
+// 派生ジョブは親ジョブの汎用技・固有技・超特・査定を継承する。
+window.PAWAADO_DATA.baseJobByJob={"オーブストライカー":"魔闘士"};
 window.PAWAADO_DATA.skillJobEligible=function(skill,job){
   if(!skill||!job)return false;
   if(skill.jobFamily)return this.jobFamilyByJob[job]===skill.jobFamily;
-  return Array.isArray(skill.jobs)&&skill.jobs.includes(job);
+  const base=this.baseJobByJob?.[job]||job;
+  return Array.isArray(skill.jobs)&&(skill.jobs.includes(job)||skill.jobs.includes(base));
 };
 window.PAWAADO_DATA.skillJobScore=function(skill,level,job){
   const exact=level?.scores?.[job];
   if(Array.isArray(exact))return exact;
+  if(!this.skillJobEligible(skill,job))return null;
+  const base=this.baseJobByJob?.[job]||job;
+  const inherited=level?.scores?.[base];
+  if(Array.isArray(inherited))return inherited;
   if(!skill?.jobFamily||this.jobFamilyByJob[job]!==skill.jobFamily)return null;
-  // 新しい派生ジョブが登場した場合、同一系統の原ジョブ値を参照する。
-  for(const base of skill.jobs||[]){
-    if(Array.isArray(level?.scores?.[base]))return level.scores[base];
+  // ジョブ系統専用スキルは同系統で確認済みの査定値を継承する。
+  for(const owner of skill.jobs||[]){
+    if(Array.isArray(level?.scores?.[owner]))return level.scores[owner];
   }
   return null;
 };
 window.PAWAADO_DATA.superJobEligible=function(def,job){
   if(!def||!job)return false;
   if(def.jobFamily)return this.jobFamilyByJob[job]===def.jobFamily;
-  return !def.job||def.job===job;
+  return !def.job||def.job===job||def.job===this.baseJobByJob?.[job];
 };
 
 // Canonical score rules for already-owned super abilities whose appraisal changes with HP.
