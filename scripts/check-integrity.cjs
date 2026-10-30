@@ -80,7 +80,7 @@ assert(sources['photo_import.js'].includes('suggestedSuper:best.name'),'photo_im
 assert(!sources['photo_import.js'].includes("SUPER_NAMES.includes('烈')&&/[烈珠科杏吾]/"),'photo_import.js: guessed 烈 recognition returned');
 assert(sources['photo_import.js'].includes('if(entry.confirmed!==true&&entry.inferred!==true)continue;'),'photo_import.js: super must be confirmed or explicitly inferred');
 assert(sources['photo_import.js'].includes('s.level=null;'),'photo_import.js: conflicting super Lv must become unresolved');
-assert(sources['index.html'].includes('～攻撃は火攻撃、風攻撃、水攻撃のいずれかを指します。'),'index.html: original generic elemental attack note missing');
+assert(sources['script.js'].includes("raw==='〜攻撃'||raw==='～攻撃'")&&sources['script.js'].includes("attribute.value.slice(0,1)+'攻撃'"),'script.js: generic elemental attack must be displayed as selected attribute');
 const basicRankingNote=sources['rankings.html'].split('<section class="notes">')[1]?.split('</section>')[0]||'';
 assert(!basicRankingNote.includes('コツLv0で比較しています'),'rankings.html: removed generic hint note must not return to basic ranking');
 assert(sources['rankings.html'].includes('汎用の必殺技・アクションスキルはコツなし、その他の必殺技等はコツLv.1で計算しています。'),'rankings.html: skill ranking hint bases must appear in the notes');
