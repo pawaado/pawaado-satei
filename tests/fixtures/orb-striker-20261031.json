@@ -1,0 +1,155 @@
+{
+  "title": "オーブストライカー・プロミネンスタックル実画像読み取り記録",
+  "recordedAt": "2026-10-31",
+  "captureNames": [
+    "IMG_2194.jpeg",
+    "IMG_2195.jpeg",
+    "IMG_2196.jpeg",
+    "IMG_2197.jpeg",
+    "IMG_2198.jpeg",
+    "IMG_2199.jpeg",
+    "IMG_2200.jpeg",
+    "IMG_2201.jpeg"
+  ],
+  "source": "ユーザー提供の1536×706ゲームスクリーンショット8枚",
+  "job": {
+    "name": "オーブストライカー",
+    "academy": "カジナイトアカデミー",
+    "jobFamily": "魔闘士系統",
+    "baseJob": "魔闘士",
+    "initialSpecial": "通常攻撃 Lv.1",
+    "limits": [
+      95,
+      70,
+      115,
+      130,
+      80,
+      80
+    ],
+    "attributeShown": "火"
+  },
+  "imageTemplates": {
+    "icon": {
+      "source": "IMG_2194.jpeg",
+      "rect": [
+        600,
+        181,
+        38,
+        38
+      ],
+      "decodedSize": [
+        16,
+        16
+      ],
+      "encoding": "8-bit grayscale base64",
+      "registeredIn": "photo_import.js DATA_JOB_GRAY_TEMPLATES"
+    },
+    "header": {
+      "source": "IMG_2195.jpeg",
+      "rect": [
+        670,
+        20,
+        192,
+        32
+      ],
+      "decodedSize": [
+        96,
+        16
+      ],
+      "encoding": "packed 1-bit threshold<100 base64",
+      "registeredIn": "photo_import.js HYBRID_JOB_MASKS"
+    }
+  },
+  "special": {
+    "name": "プロミネンスタックル",
+    "type": "必殺技",
+    "kind": "固有",
+    "attribute": "火",
+    "job": "オーブストライカー",
+    "sourceImages": [
+      "IMG_2196.jpeg",
+      "IMG_2197.jpeg",
+      "IMG_2198.jpeg",
+      "IMG_2199.jpeg",
+      "IMG_2200.jpeg",
+      "IMG_2201.jpeg"
+    ],
+    "tips": 1,
+    "steps": [
+      {
+        "level": 1,
+        "scoreDelta": 2000,
+        "scoreTotal": 2000,
+        "cost": [
+          0,
+          63,
+          126,
+          95,
+          63
+        ],
+        "require": {
+          "magic": 20,
+          "dexterity": 20
+        },
+        "dragonEarthPercent": 30,
+        "heavyWarriorPercent": 30,
+        "power": 35,
+        "hits": 4
+      },
+      {
+        "level": 2,
+        "scoreDelta": 1600,
+        "scoreTotal": 3600,
+        "cost": [
+          0,
+          97,
+          194,
+          145,
+          97
+        ],
+        "require": {
+          "magic": 50,
+          "dexterity": 50
+        },
+        "dragonEarthPercent": 40,
+        "heavyWarriorPercent": 40,
+        "power": 55,
+        "hits": 4
+      },
+      {
+        "level": 3,
+        "scoreDelta": 1600,
+        "scoreTotal": 5200,
+        "cost": [
+          0,
+          292,
+          583,
+          437,
+          292
+        ],
+        "require": {
+          "magic": 70,
+          "dexterity": 70
+        },
+        "dragonEarthPercent": 50,
+        "heavyWarriorPercent": 50,
+        "power": 75,
+        "hits": 4
+      }
+    ],
+    "costOrder": [
+      "筋力",
+      "敏捷",
+      "技術",
+      "知力",
+      "精神"
+    ]
+  },
+  "evidenceNotes": [
+    "オーブストライカーの基本能力上限は IMG_2195 の下段上限値で確認",
+    "コツLv.1・50%OFFの表記をIMG_2196とIMG_2199とIMG_2200から確認",
+    "技能取得前後の冒険者ランク数値の差より2000/1600/1600査定を確認",
+    "画像認識の実データは元スクリーンショットの縮小輝度バイト・二値文字マスクとして photo_import.js に保存",
+    "ゲームのフル画像自体は GitHub にはアップロードしていない"
+  ]
+}
