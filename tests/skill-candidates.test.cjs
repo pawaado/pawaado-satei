@@ -55,7 +55,7 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  assert(html.includes("child.tagName==='OPTGROUP'"));
  const css=read('style.css');
  assert(css.includes('.skill-candidate-name-control .custom-select-button'));
- assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 103px 38px'));
+ assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) auto 56px 38px'));
  assert(css.includes('.skill-candidate-row .skill-candidate-remove'));
  assert(css.includes('.custom-select-group-heading'));
  const script=read('script.js');
@@ -192,14 +192,14 @@ test('job and attribute restrict candidates; selected level reserves both upgrad
 });
 test('candidate required and forbidden custom conditions change constrained optimization',()=>{
  const c=worker(),entry={name:'水斬撃',level:1,hint:0};
- const p=payload(c,'剣士','水属性',[entry],{requiredSkillNames:['水斬撃']});
+ const p=payload(c,'剣士','水属性',[entry],{skillLevelRules:[{name:'水斬撃',level:1,mode:'required'}]});
  c.__applyWorkerPayload(p);
  const required=vm.runInContext('constrainedInitialState([9999,9999,9999,9999,9999])',c);
  const chosen=vm.runInContext('restoreItems(__requiredState)',Object.assign(c,{__requiredState:required}));
  assert(chosen.some(x=>x.type==='candidate'&&x.name==='水斬撃'));
  assert(required.cost.some(x=>x>0));
  assert.throws(()=>vm.runInContext('constrainedInitialState([0,0,0,0,0])',c),/こだわり計算.*経験点/);
- const blocked=payload(c,'剣士','水属性',[entry],{forbiddenSkillNames:['水斬撃']});
+ const blocked=payload(c,'剣士','水属性',[entry],{skillLevelRules:[{name:'水斬撃',level:1,mode:'forbidden'}]});
  assert.deepEqual(Array.from(actions(c,blocked)),[]);
  assert.notEqual(c.__workerPayloadConfigKey(p),c.__workerPayloadConfigKey(blocked));
 });
