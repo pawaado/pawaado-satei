@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-10-29-readable-skill-master-magic-inquiry-conditions",
+  "version": "2026-10-31-orb-striker-finisher-costs-only",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -39,12 +39,7 @@ window.PAWAADO_DATA.skillRankings = {
               2000,
               2000
             ]
-          },
-          "effect": {
-            "ドラゴンアース特効": 30,
-            "重戦士系統特効": 30
-          },
-          "description": "威力35の魔法ダメージ×4（敵前衛1体）、1ターン継続"
+          }
         },
         {
           "lv": 2,
@@ -62,12 +57,7 @@ window.PAWAADO_DATA.skillRankings = {
               1600,
               3600
             ]
-          },
-          "effect": {
-            "ドラゴンアース特効": 40,
-            "重戦士系統特効": 40
-          },
-          "description": "威力55の魔法ダメージ×4（敵前衛1体）、1ターン継続"
+          }
         },
         {
           "lv": 3,
@@ -85,12 +75,107 @@ window.PAWAADO_DATA.skillRankings = {
               1600,
               5200
             ]
-          },
-          "effect": {
-            "ドラゴンアース特効": 50,
-            "重戦士系統特効": 50
-          },
-          "description": "威力75の魔法ダメージ×4（敵前衛1体）、1ターン継続"
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "パワーコンバージョン",
+      "category": "必殺技",
+      "kind": "固有",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": null,
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            62,
+            139,
+            0,
+            91
+          ],
+          "tip": 1,
+          "condition": "条件なし",
+          "scores": {
+            "オーブストライカー": [
+              1000,
+              1000
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            84,
+            191,
+            0,
+            124
+          ],
+          "tip": 1,
+          "condition": "器用さ40以上",
+          "scores": {
+            "オーブストライカー": [
+              575,
+              1575
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "ヴォルテックスオーブ",
+      "category": "必殺技",
+      "kind": "固有",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": null,
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            40,
+            110,
+            142,
+            0
+          ],
+          "tip": 1,
+          "condition": "条件なし",
+          "scores": {
+            "オーブストライカー": [
+              1000,
+              1000
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            54,
+            151,
+            194,
+            0
+          ],
+          "tip": 1,
+          "condition": "魔力40以上",
+          "scores": {
+            "オーブストライカー": [
+              575,
+              1575
+            ]
+          }
         }
       ],
       "hp": false,
