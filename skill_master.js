@@ -11,9 +11,109 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-10-31-orb-fire-generic-actions",
+  "version": "2026-10-31-bow-fire-skills-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
+    {
+      "name": "ロウリエバースト",
+      "category": "必殺技",
+      "kind": "固有",
+      "jobs": [
+        "弓使い"
+      ],
+      "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            126,
+            32,
+            126,
+            0,
+            63
+          ],
+          "tip": 1,
+          "condition": "器用さ40以上",
+          "scores": {
+            "弓使い": [
+              2000,
+              2000
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            194,
+            49,
+            194,
+            0,
+            97
+          ],
+          "tip": 1,
+          "condition": "器用さ60以上",
+          "scores": {
+            "弓使い": [
+              1600,
+              3600
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "炎軌烈矢",
+      "category": "アクションスキル",
+      "kind": "固有",
+      "jobs": [
+        "弓使い"
+      ],
+      "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            82,
+            0,
+            82,
+            0,
+            51
+          ],
+          "tip": 1,
+          "condition": "器用さ40以上",
+          "scores": {
+            "弓使い": [
+              1125,
+              1125
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            99,
+            0,
+            99,
+            0,
+            61
+          ],
+          "tip": 1,
+          "condition": "器用さ60以上",
+          "scores": {
+            "弓使い": [
+              675,
+              1800
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
     {
       "name": "ファイアオーブ",
       "category": "アクションスキル",
