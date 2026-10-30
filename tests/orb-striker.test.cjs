@@ -127,3 +127,38 @@ test('No separate screenshot-to-skill fixtures remain',()=>{
  assert.equal(fs.existsSync(path.join(root,'tests/fixtures/orb-striker-20261031.json')),false);
  assert.equal(fs.existsSync(path.join(root,'tests/fixtures/orb-striker-finishers-20261031.json')),false);
 });
+
+test('Fire Orb and Meteor Power are fire-only, Orb Striker-exclusive Lv.1-2 generic action skills',()=>{
+ const D=load().PAWAADO_DATA;
+ const tests=[
+  {name:'ファイアオーブ',costs:[[0,0,135,240,85],[0,0,169,300,106]],conditions:['魔力20以上','魔力40以上']},
+  {name:'メテオパワー',costs:[[0,67,234,0,159],[0,84,293,0,198]],conditions:['精神力20以上','精神力40以上']}
+ ];
+ for(const item of tests){
+  const skill=D.skillRankings.skills.find(s=>s.name===item.name);
+  assert(skill,item.name+' not registered');
+  assert.equal(skill.category,'アクションスキル');
+  assert.equal(skill.kind,'汎用');
+  assert.equal(skill.attribute,'火');
+  assert.deepEqual(Array.from(skill.jobs),['オーブストライカー']);
+  assert(D.skillJobEligible(skill,'オーブストライカー'));
+  assert(!D.skillJobEligible(skill,'魔闘士'));
+  assert.equal(skill.levels.length,2);
+  const scores=[[650,650],[400,1050]];
+  for(let i=0;i<2;i++){
+    const level=skill.levels[i];
+    assert.equal(level.lv,i+1);
+    assert.equal(level.tip,0);
+    assert.equal(level.condition,item.conditions[i]);
+    assert.deepEqual(Array.from(level.cost),item.costs[i]);
+    assert.deepEqual(Array.from(D.skillCandidateLevelCost(skill,level.lv,0)),item.costs[i]);
+    assert.deepEqual(Array.from(D.skillJobScore(skill,level,'オーブストライカー')),scores[i]);
+    assert.equal(level.effect,undefined);
+    assert.equal(level.description,undefined);
+  }
+  assert.equal(skill.levels.reduce((sum,l)=>sum+l.cost.reduce((a,b)=>a+b,0),0),1035);
+ }
+ const ui=read('script.js'),worker=read('pawaado_worker.js');
+ assert(ui.includes("return skill.kind!=='汎用'||skill.levels.length>1"));
+ assert(worker.includes("const max=def.levels.length"));
+});
