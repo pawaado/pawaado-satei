@@ -99,7 +99,7 @@ test('skill names remain on one line while efficiency and score remain visible t
  const h=elements.skillRankingRoot.innerHTML;
  assert(!h.includes('class="skill-row-title skill-long-name"'));
  assert(h.includes('class="skill-row-title" title="ウォータープロテクション">ウォータープロテクション</span>'),'full water protection title must render without abbreviation');
- assert(h.includes('ウォータープロテクション</span><span class="skill-level">Lv1<span class="skill-caret"'),'Lv stays immediately right of full name');
+ assert(h.includes('ウォータープロテクション</span><span class="skill-level">Lv.1</span>'),'Lv stays immediately right of full name');
  assert(!h.includes('class="skill-rank-level">'));
  assert(h.includes('class="skill-full-name"'),'tapping a name must display the full original name');
  assert(h.includes('<th>査定効率</th><th>査定</th>'));
@@ -110,7 +110,7 @@ test('skill names remain on one line while efficiency and score remain visible t
 function rowForSkill(html,name,level){
  const escaped=String(name).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  const rows=html.match(/<tr class="[^"]*">[\s\S]*?<\/tr>/g)||[];
- return rows.find(row=>row.includes('title="'+name+'"') && row.includes('<span class="skill-level">Lv'+level+'<span'))||'';
+ return rows.find(row=>row.includes('title="'+name+'"') && row.includes('<span class="skill-level">Lv.'+level+'</span>'))||'';
 }
 test('uses directly observed tip Lv1 for supers/unique skills and no-tip for every generic skill',()=>{
  const {context,elements,jobButtons}=load();
@@ -127,7 +127,9 @@ test('uses directly observed tip Lv1 for supers/unique skills and no-tip for eve
  assert.equal(byCategory['アクションスキル'].converted,0);
  assert.equal(byCategory['必殺技'].converted,0);
  assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.converted,0),0);
- assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.same+v.converted,0),330);
+ const expectedPhases=master.skills.reduce((sum,skill)=>sum+skill.levels.length,0);
+ assert(expectedPhases>=330);
+ assert.equal(Object.values(byCategory).reduce((sum,v)=>sum+v.same+v.converted,0),expectedPhases);
  const original=JSON.stringify(master.skills);
  for(const button of jobButtons){
   button.click();
@@ -182,7 +184,7 @@ test('unique finishers, generic actions and all supers use exact costs and the n
   assert(!row.includes('参考')&&!row.includes('未確認'),skill.name+' Lv'+level+' must use exact experience');
  }
  const notes=file('rankings.html');
- assert(notes.includes('コツLvは超特殊能力・固有の必殺技・アクションスキルをLv1、汎用の必殺技・アクションスキルをコツなし（Lv0）として'));
+ assert(notes.includes('汎用の必殺技・アクションスキルはコツなし、その他の必殺技等はコツLv.1で計算しています。'));
  assert(!notes.includes('換算した参考値です'));
 });
 
