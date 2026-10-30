@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261029-jobfamily-1', './skill_master.js?v=20261029-jobfamily-1');
+importScripts('./data.js?v=20261031-orb-striker-1', './skill_master.js?v=20261029-jobfamily-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -262,9 +262,9 @@ function specialOwned(i){return getSpecialState(i).own===1;}
 
 function specialHint(i){return Number(getSpecialState(i).hint||0);}
 
-function jobScoreIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 8; if(['魔闘士','魔法使い'].includes(job.value)) return 9; return 10;}
+function jobScoreIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 8; if(['魔闘士','魔法使い','オーブストライカー'].includes(job.value)) return 9; return 10;}
 
-function fixedAddIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 12; if(['魔闘士','魔法使い'].includes(job.value)) return 13; return 14;}
+function fixedAddIndex(){if(['剣士','弓使い','重戦士','双剣士'].includes(job.value)) return 12; if(['魔闘士','魔法使い','オーブストライカー'].includes(job.value)) return 13; return 14;}
 
 function skillScore(s,hp){const rate=Number(s[11]||0); if(rate){const fixed=Number(s[fixedAddIndex()]||0); return fixed+hp*rate;} const v=s[jobScoreIndex()]; if(v==='HP依存') return 0; return Number(v||0);}
 
@@ -361,7 +361,7 @@ function parseRange(r){const m=String(r).match(/(\d+)→(\d+)/); return m?{a:Num
 function tableFor(name){
   if(name==='生命力') return {cost:D.life,score:D.life};
   if(name==='パワー') return {cost:D.powerCost,score:['剣士','弓使い','重戦士','双剣士'].includes(job.value)?D.powerPhysicalScore:D.powerMagicScore};
-  if(name==='魔力') return {cost:D.magicCost,score:['魔闘士','魔法使い','僧侶'].includes(job.value)?D.magicMagicScore:D.magicPhysicalScore};
+  if(name==='魔力') return {cost:D.magicCost,score:['魔闘士','魔法使い','僧侶','オーブストライカー'].includes(job.value)?D.magicMagicScore:D.magicPhysicalScore};
   if(name==='器用さ') return {cost:D.dexCost,score:D.dexScore};
   if(name==='耐久力') return {cost:D.staminaCost,score:D.staminaScore};
   if(name==='精神力') return {cost:D.mentalCost,score:D.mentalScore};
