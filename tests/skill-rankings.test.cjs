@@ -101,7 +101,7 @@ test('skill names remain on one line while efficiency and score remain visible t
  assert(h.includes('class="skill-row-title" title="ウォータープロテクション">ウォータープロテクション</span>'),'full water protection title must render without abbreviation');
  assert(h.includes('ウォータープロテクション</span><span class="skill-level">Lv.1</span>'),'Lv stays immediately right of full name');
  assert(!h.includes('class="skill-rank-level">'));
- assert(h.includes('class="skill-full-name"'),'tapping a name must display the full original name');
+ assert(!h.includes('class="skill-full-name"'),'the obsolete tap-to-expand detail is no longer rendered');
  assert(h.includes('<th>査定効率</th><th>査定</th>'));
  const widthBudget=[...('ウォータープロテクション')].length*13 + 30 + 2 + 4;
  assert(widthBudget<=calc.name,'12-character name plus right-side Lv fits the 196px column at 13px');
@@ -142,8 +142,7 @@ test('uses directly observed tip Lv1 for supers/unique skills and no-tip for eve
     const target=skill.category==='超特殊能力'||skill.kind==='固有'?1:0;
     const cost=lv.cost.reduce((sum,n)=>sum+Number(n||0),0);
     assert(row.includes('<td class="skill-rank-exp">'+cost+'</td>'),skill.name+' Lv'+lv.lv+' / '+button.dataset.skillJob);
-    if(target===0)assert(row.includes('コツなし（ランキング比較条件）'),'generic no-tip '+skill.name);
-    else assert(row.includes('コツLv：1（ランキング比較条件'),'tip Lv1 '+skill.name);
+    assert(!row.includes('（ランキング比較条件）'),'hint basis belongs in the shared ranking notes, not every row');
     assert.equal(lv.tip,target,skill.name+' Lv'+lv.lv+' must be directly observed at the intended hint level');
     assert(!row.includes('（換算値・参考）')&&!row.includes('（必要経験点未確認）'),skill.name+' is confirmed, not estimated');
    }
@@ -163,13 +162,13 @@ test('unique finishers, generic actions and all supers use exact costs and the n
  assert(rendered.includes('<td class="skill-rank-exp">'+directCost+'</td>'));
  assert(rendered.includes('<td class="skill-rank-eff">'+(assessment/directCost).toFixed(3)+'</td>'));
  assert(!rendered.includes('換算値・参考'),'unique finisher observed cost should not be estimated');
- assert(rendered.includes('コツLv：1（ランキング比較条件）'));
+ assert(!rendered.includes('（ランキング比較条件）'));
  const water=dataset.find(s=>s.name==='水斬撃');
  assert(water&&water.kind==='汎用'&&water.levels[0].tip===0);
  jobButtons[0].click();
  const waterRow=rowForSkill(elements.skillRankingRoot.innerHTML,'水斬撃',1);
  assert(waterRow.includes('<td class="skill-rank-exp">'+water.levels[0].cost.reduce((sum,v)=>sum+v,0)+'</td>'));
- assert(waterRow.includes('コツなし（ランキング比較条件）'));
+ assert(!waterRow.includes('（ランキング比較条件）'));
  const rescuer=dataset.find(s=>s.name==='救援者');
  const ace=dataset.find(s=>s.name==='エースアタッカー');
  assert.deepEqual(Array.from(rescuer.levels[0].cost),[59,68,0,68,0]);
@@ -180,7 +179,7 @@ test('unique finishers, generic actions and all supers use exact costs and the n
   jobButtons[0].click();
   const row=rowForSkill(elements.skillRankingRoot.innerHTML,skill.name,level);
   assert(row.includes('<td class="skill-rank-exp">'+expectedCost+'</td>'),skill.name+' Lv'+level);
-  assert(row.includes('コツLv：1（ランキング比較条件）'),skill.name+' Lv'+level);
+  assert(!row.includes('（ランキング比較条件）'),skill.name+' Lv'+level);
   assert(!row.includes('参考')&&!row.includes('未確認'),skill.name+' Lv'+level+' must use exact experience');
  }
  const notes=file('rankings.html');
