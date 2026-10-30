@@ -6,16 +6,16 @@
   border:3px solid #80552f;border-radius:15px;padding:10px 6px;
   background:linear-gradient(#fff8e7,#eedbb4);color:#51361f;cursor:pointer;min-height:70px;
 }
-.ranking-mode-tab[aria-selected="true"]{background:#a84834;border-color:#d75e4f;color:#fff;box-shadow:0 3px 0 rgba(121,51,35,.24)}
+.ranking-mode-tab[aria-selected="true"]{background:#a84834;color:#fff;box-shadow:0 3px 0 rgba(121,51,35,.24)}
 .mode-title-first{display:block;white-space:nowrap}
 .mode-title-second{display:block;white-space:nowrap}
 .skill-job-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 12px}
 .skill-job-tab{font:800 13px/1.4 "Noto Sans JP",sans-serif;border:2px solid #795028;border-radius:12px;padding:12px 3px;background:linear-gradient(#fffbef,#eeddbb);color:#624222;min-height:45px;cursor:pointer;white-space:nowrap}
-.skill-job-tab[aria-pressed="true"]{background:#ffe39b;border-color:#bb891b;color:#563614;box-shadow:0 2px 0 rgba(161,112,21,.20)}
+.skill-job-tab[aria-pressed="true"]{background:#ffe39b;color:#563614;box-shadow:0 2px 0 rgba(161,112,21,.20)}
 /* 6つの系統タブの下に置く、Lv.別／Lv.累計の切替 */
 .skill-level-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px}
 .skill-level-tab{min-height:41px;padding:9px 4px;font:800 13px/1.4 "Noto Sans JP",sans-serif;border:2px solid #9c8062;border-radius:11px;background:#fff9ed;color:#634932;cursor:pointer}
-.skill-level-tab[aria-pressed="true"]{border-color:#245b7d;background:#c8e8f8;color:#245b7d;box-shadow:0 2px 0 rgba(32,89,126,.26)}
+.skill-level-tab[aria-pressed="true"]{background:#c8e8f8;color:#245b7d;box-shadow:0 2px 0 rgba(32,89,126,.26)}
 .skill-level-tab:focus-visible{outline:3px solid #efae36;outline-offset:2px}
 #skillRankingRoot{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;max-width:100%}
 #skillRankingRoot table{width:100%;min-width:486px;table-layout:fixed;border-collapse:collapse}
