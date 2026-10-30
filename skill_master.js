@@ -11,9 +11,77 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-10-31-orb-striker-finisher-costs-only",
+  "version": "2026-10-31-quad-ignition-costs-only",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
+    {
+      "name": "クアッドイグニッション",
+      "category": "アクションスキル",
+      "kind": "固有",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            0,
+            77,
+            128,
+            64
+          ],
+          "tip": 1,
+          "condition": "器用さ40以上",
+          "scores": {
+            "オーブストライカー": [
+              1500,
+              1500
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            0,
+            99,
+            165,
+            82
+          ],
+          "tip": 1,
+          "condition": "器用さ60以上",
+          "scores": {
+            "オーブストライカー": [
+              900,
+              2400
+            ]
+          }
+        },
+        {
+          "lv": 3,
+          "cost": [
+            0,
+            0,
+            341,
+            568,
+            284
+          ],
+          "tip": 1,
+          "condition": "器用さ80以上",
+          "scores": {
+            "オーブストライカー": [
+              900,
+              3300
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
     {
       "name": "プロミネンスタックル",
       "category": "必殺技",
