@@ -128,9 +128,9 @@ function candidateChoiceFromValue(value){
   const skill=skillCandidateMaster[index];
   return skill&&skill.levels.some(l=>Number(l.lv)===level)?{skill,level}:null;
 }
-// 汎用技の能力Lvはスキル別に扱う。双剣士の汎用技にはLv.2以上を持つものがある（正常仕様）。
+// 汎用技もレベル数が2以上ならLv.別候補を表示する（双剣士・オーブストライカーなど）。
 function candidateHasLevels(skill){
-  return skill.kind!=='汎用'||skill.jobs.includes('双剣士')&&skill.levels.length>1;
+  return skill.kind!=='汎用'||skill.levels.length>1;
 }
 function candidateOptionLabel(skill,level){
   if(!candidateHasLevels(skill))return skill.name;
@@ -985,7 +985,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-orb-striker-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-orb-generic-finishers-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
