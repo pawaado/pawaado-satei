@@ -85,7 +85,7 @@ window.PAWAADO_DATA.skillRankings = {
     {
       "name": "パワーコンバージョン",
       "category": "必殺技",
-      "kind": "固有",
+      "kind": "汎用",
       "jobs": [
         "オーブストライカー"
       ],
@@ -100,7 +100,7 @@ window.PAWAADO_DATA.skillRankings = {
             0,
             91
           ],
-          "tip": 1,
+          "tip": 0,
           "condition": "条件なし",
           "scores": {
             "オーブストライカー": [
@@ -118,7 +118,7 @@ window.PAWAADO_DATA.skillRankings = {
             0,
             124
           ],
-          "tip": 1,
+          "tip": 0,
           "condition": "器用さ40以上",
           "scores": {
             "オーブストライカー": [
@@ -135,7 +135,7 @@ window.PAWAADO_DATA.skillRankings = {
     {
       "name": "ヴォルテックスオーブ",
       "category": "必殺技",
-      "kind": "固有",
+      "kind": "汎用",
       "jobs": [
         "オーブストライカー"
       ],
@@ -150,7 +150,7 @@ window.PAWAADO_DATA.skillRankings = {
             142,
             0
           ],
-          "tip": 1,
+          "tip": 0,
           "condition": "条件なし",
           "scores": {
             "オーブストライカー": [
@@ -168,7 +168,7 @@ window.PAWAADO_DATA.skillRankings = {
             194,
             0
           ],
-          "tip": 1,
+          "tip": 0,
           "condition": "魔力40以上",
           "scores": {
             "オーブストライカー": [
