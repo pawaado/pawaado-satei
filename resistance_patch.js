@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261031-orb-generic-finishers-1';
+  const PATCH_VERSION='20261031-quad-ignition-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
