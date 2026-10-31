@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261031-physical-power135-1', './skill_master.js?v=20261031-power135-skill-sync-2');
+importScripts('./data.js?v=20261031-power135-verified-3', './skill_master.js?v=20261031-power135-skill-sync-2');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};

@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261031-power135-skill-sync-2',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261031-power135-verified-3',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 

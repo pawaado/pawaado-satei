@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261031-power135-skill-sync-2';
+  const PATCH_VERSION='20261031-power135-verified-3';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
