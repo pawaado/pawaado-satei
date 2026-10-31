@@ -12,7 +12,8 @@
   if(!D || !MASTER) return;
 
   const BOOTRAIN=MASTER.academies?.find(a=>a.name==='ブートレインアカデミー');
-  const DUAL=BOOTRAIN?.dualAttack;
+  const ATTACK_MASTERS=(MASTER.academies||[]).filter(a=>a.dualAttack).map(a=>({academy:a.name,attack:a.dualAttack}));
+  let DUAL=BOOTRAIN?.dualAttack;
   if(!BOOTRAIN || !DUAL){
     console.error('academyMasterにブートレインアカデミーの双剣士設定がありません。');
     return;
@@ -36,7 +37,13 @@
       D.academies.splice(0,D.academies.length,...newestRows,...otherRows);
     }
 
-    // 双剣士専用「通常攻撃」はdata.jsに必須。ここでダミーデータは生成しない。
+    // ジョブ専用「通常攻撃」はdata.jsに必須。ここでダミーデータは生成しない。
+    for(const entry of ATTACK_MASTERS){
+      if(!D.special.some(s=>String(s[1])===String(entry.attack.skillName))){
+        console.error(`data.jsに「${entry.attack.skillName}」がありません。`);
+        return false;
+      }
+    }
     const dualIndex=D.special.findIndex(s=>String(s[1])===String(DUAL.skillName));
     if(dualIndex<0){
       console.error(`data.jsに「${DUAL.skillName}」がありません。`);
@@ -60,7 +67,8 @@
     const ACADEMY=BOOTRAIN.name;
     const INTERNAL_DUAL_JOB=DUAL.internalJob;
     const DUAL_LABEL=DUAL.displayJob||'双剣士';
-    const DUAL_INDEX=Number(D.__dualAttackIndex);
+    let DUAL_INDEX=Number(D.__dualAttackIndex);
+    let activeAttackKey='';
     let dualLevel=DUAL.initialLevel;
     let dualHint=0;
     let dualError='';
@@ -88,7 +96,18 @@
         if(option.textContent!==label) option.textContent=label;
       }
     }
-    function isDual(){return academyEl()?.value===ACADEMY && jobEl()?.value===INTERNAL_DUAL_JOB;}
+    function selectedAttack(){return ATTACK_MASTERS.find(entry=>entry.academy===academyEl()?.value && entry.attack.internalJob===jobEl()?.value)||null;}
+    function isDual(){return !!selectedAttack();}
+    function syncAttackSelection(){
+      const selected=selectedAttack();
+      const nextKey=selected?selected.academy+'|'+selected.attack.internalJob:'';
+      if(activeAttackKey!==nextKey){
+        dualLevel=Number(selected?.attack.initialLevel||1);
+        dualHint=0;dualError='';activeAttackKey=nextKey;
+      }
+      DUAL=selected?.attack||BOOTRAIN.dualAttack;
+      DUAL_INDEX=D.special.findIndex(s=>String(s[1])===String(DUAL.skillName));
+    }
     function dexValue(){const n=Number(document.getElementById('basic_器用さ')?.value);return Number.isFinite(n)?n:0;}
     function requiredDex(level){return Number(DUAL.levels[level]?.reqDex||0);}
     function maxValidDualLevel(dex){
@@ -108,21 +127,26 @@
       }
     }
     function syncTheme(){
-      if(isDual()){
+      if(isDual() && jobEl()?.value==='双剣士'){
         document.body.classList.remove('theme-job-archer');
         document.body.classList.add('theme-job-dual');
       }else document.body.classList.remove('theme-job-dual');
     }
     function dualBaseRow(){return document.querySelector(`.skill-row[data-index="${DUAL_INDEX}"]`);}
-    function clearDualLevelRows(){document.querySelectorAll('.dual-attack-row[data-dual-level]').forEach(row=>row.remove());}
+    function clearDualLevelRows(){
+      document.querySelectorAll('.dual-attack-row[data-dual-level]').forEach(row=>row.remove());
+      for(const {attack} of ATTACK_MASTERS){
+        const idx=D.special.findIndex(s=>String(s[1])===String(attack.skillName));
+        if(idx>=0){const row=document.querySelector(`.skill-row[data-index="${idx}"]`);if(row)row.style.display='none';}
+      }
+    }
 
     function renderDualRows(){
+      clearDualLevelRows();
+      if(!isDual()) return;
       const base=dualBaseRow();
       if(!base) return;
-      clearDualLevelRows();
       // data.js上のダミー行は計算用識別子としてだけ残し、画面では専用Lv行に置き換える。
-      base.style.display='none';
-      if(!isDual()) return;
 
       const maxShown=Math.min(DUAL.maxLevel,dualLevel>=DUAL.maxLevel?DUAL.maxLevel:dualLevel+1);
       let anchor=base;
@@ -209,8 +233,7 @@
     });
 
     function afterSelectionChange(){
-      syncAcademyOptionLabels();syncJobLabel();syncTheme();
-      if(!isDual()){dualLevel=DUAL.initialLevel;dualHint=0;dualError='';}
+      syncAttackSelection();syncAcademyOptionLabels();syncJobLabel();syncTheme();
       setTimeout(()=>{syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRows();},0);
     }
     academyEl()?.addEventListener('change',afterSelectionChange);
@@ -254,7 +277,7 @@
       global.Worker=WrappedWorker;
     }
 
-    syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRows();
+    syncAttackSelection();syncAcademyOptionLabels();syncJobLabel();syncTheme();renderDualRows();
   }
 
   // script.js / photo_import.js の初期化完了後すぐ使えるよう、window.loadまでは待たない。
