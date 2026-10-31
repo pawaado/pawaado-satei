@@ -1332,7 +1332,8 @@ function refreshCustomChoices(){
   const special=document.getElementById('customSpecialName');
   if(!basic||!special)return;
   const ready=hasAcademyJob();
-  const specialReady=hasSpecialAccess();
+  // 特殊能力側はアカデミー・ジョブ・属性の3つがそろってから操作可能。
+  const specialReady=ready&&hasSpecialAccess();
   const basicSelection=basic.value;
   const specialSelection=special.value;
   if(!dualAttackMaster){
