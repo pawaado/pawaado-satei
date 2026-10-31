@@ -985,7 +985,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-power135-verified-3');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-dex140-magic-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
