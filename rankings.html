@@ -206,7 +206,7 @@
     </div>
   </main>
 
-  <script src="data.js?v=20261031-magic125-verified-1"></script>
+  <script src="data.js?v=20261031-dex140-magic-1"></script>
   <script src="skill_master.js?v=20261031-power135-skill-sync-2"></script>
   <script>
   (()=>{
@@ -313,8 +313,9 @@
         const max=Number(maxes[def.name]||0);
         if(max<=1) continue;
         const cuts=baseCuts.filter(v=>v<=max);
-        // 物理職パワーのみ130を節目に追加。ほかの職種・能力の区間は変更しない。
+        // 130の節目：物理職パワーと魔法職の器用さだけ区間を分ける。
         if(def.name==='パワー'&&group==='物理職'&&max>=130) cuts.push(130);
+        if(def.name==='器用さ'&&group==='魔法職'&&max>=130) cuts.push(130);
         if(cuts[0]!==1) cuts.unshift(1);
         if(cuts[cuts.length-1]!==max) cuts.push(max);
         for(let i=0;i<cuts.length-1;i++){
