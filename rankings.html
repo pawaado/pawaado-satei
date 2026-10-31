@@ -310,7 +310,9 @@
       const maxes=maximaFor(group);
       const items=[];
       for(const def of abilityDefs){
-        const max=Number(maxes[def.name]||0);
+        const abilityMax=Number(maxes[def.name]||0);
+        // 器用さの査定・費用は全ジョブ共通。120超の区間はランキング上のみ魔法職限定。
+        const max=(def.name==='器用さ'&&group!=='魔法職')?Math.min(abilityMax,120):abilityMax;
         if(max<=1) continue;
         const cuts=baseCuts.filter(v=>v<=max);
         // 130の節目：物理職パワーと魔法職の器用さだけ区間を分ける。
