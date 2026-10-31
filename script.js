@@ -264,16 +264,28 @@ function initSkillCandidates(){
   refreshCandidateUI();
 }
 // 双剣士専用の通常攻撃はLv.ごとに指定し、通常特殊能力のダミー行とは分離する。
-const dualAttackMaster=D.academyMaster?.academies?.find(a=>a.dualAttack?.internalJob==='双剣士')?.dualAttack;
-const dualSpecialIndex=D.special.findIndex(s=>String(s[1])===String(dualAttackMaster?.skillName));
+let dualAttackMaster=null;
+let dualSpecialIndex=-1;
+const normalAttackNames=new Set((D.academyMaster?.academies||[]).map(a=>a.dualAttack?.skillName).filter(Boolean));
+function syncDualAttackMaster(){
+  const next=(D.academyMaster?.academies||[]).find(a=>a.name===academy.value&&a.dualAttack?.internalJob===job.value)?.dualAttack||null;
+  if(next!==dualAttackMaster){
+    dualAttackMaster=next;
+    dualSpecialIndex=D.special.findIndex(s=>String(s[1])===String(dualAttackMaster?.skillName));
+    customDualRequiredLevel=0;customDualForbiddenLevel=0;
+  }
+  return dualAttackMaster;
+}
 let customDualRequiredLevel=0;
 let customDualForbiddenLevel=0;
 function currentDualAttackLevel(){
+  syncDualAttackMaster();
   const current=Number(window.__PAWAADO_GET_DUAL_ATTACK_LEVEL__?.()??dualAttackMaster?.initialLevel??1);
   return Number.isInteger(current)?current:Number(dualAttackMaster?.initialLevel||1);
 }
 function dualCustomLevelAvailable(level){
-  return job.value==='双剣士' && !!dualAttackMaster &&
+  syncDualAttackMaster();
+  return !!dualAttackMaster &&
     level>currentDualAttackLevel() && level<=Number(dualAttackMaster.maxLevel) &&
     (!customDualRequiredLevel||level>customDualRequiredLevel) &&
     (!customDualForbiddenLevel||level<customDualForbiddenLevel);
@@ -1273,6 +1285,7 @@ function clearCustomConditionsState(){
   showCustomMessage('');
 }
 function customConditionListHtml(kind){
+  syncDualAttackMaster();
   const entries=kind==='basic'
     ? [...customBasicRules.entries()].map(([name,rule])=>({key:name,label:name+' '+rule.value+customBasicModes[rule.mode]}))
     : [...customRequiredSpecials].map(i=>({kind:'required',key:i,label:skillDisplayName(D.special[i][1])+'（取得する）'}))
@@ -1296,9 +1309,10 @@ function showCustomMessage(message){
   if(node)node.textContent=message||'';
 }
 function customSpecialAvailable(index){
+  syncDualAttackMaster();
   const row=D.special[index];
   if(!row||specialOwned(index)||customRequiredSpecials.has(index)||customForbiddenSpecials.has(index))return false;
-  if(index===dualSpecialIndex)return false; // Lv.のないダミー行を選択させない
+  if(normalAttackNames.has(String(row[1])))return false; // 専用通常攻撃はLv.候補で別管理
   const name=String(row[1]);
   // 必須にした特殊能力と相互排他のものは、続けて「取得する」に指定できない。
   for(const group of mutualGroups){
@@ -1321,7 +1335,7 @@ function refreshCustomChoices(){
   const specialReady=hasSpecialAccess();
   const basicSelection=basic.value;
   const specialSelection=special.value;
-  if(job.value!=='双剣士'){
+  if(!dualAttackMaster){
     customDualRequiredLevel=0;customDualForbiddenLevel=0;
   }else{
     const ownedLevel=currentDualAttackLevel();
@@ -1334,12 +1348,12 @@ function refreshCustomChoices(){
   basic.value=basicSelection;
   // 上の特殊能力欄で取得済みのもの・すでに条件指定したものを候補から除外する。
   for(const index of [...customRequiredSpecials,...customForbiddenSpecials]){
-    if(specialOwned(index)||index===dualSpecialIndex){
+    if(specialOwned(index)||normalAttackNames.has(String(D.special[index]?.[1]))){
       customRequiredSpecials.delete(index);
       customForbiddenSpecials.delete(index);
     }
   }
-  const dualOptions=specialReady&&job.value==='双剣士'&&dualAttackMaster
+  const dualOptions=specialReady&&dualAttackMaster
     ? Array.from({length:Number(dualAttackMaster.maxLevel)-Number(dualAttackMaster.initialLevel)},
         (_,i)=>Number(dualAttackMaster.initialLevel)+i+1)
       .filter(level=>dualCustomLevelAvailable(level))
@@ -1381,6 +1395,7 @@ function refreshCustomChoices(){
   }
 }
 function renderCustomConditions(){
+  syncDualAttackMaster();
   refreshCustomChoices();
   // 自動追加・全解除でselect.valueを直接初期化した場合も、カスタム選択ボタンの表示を同期する。
   for(const [id,placeholder] of [
@@ -1904,8 +1919,8 @@ window.__PAWAADO_IMPORT_PHOTO__=data=>{
     if(!alreadyDetailed)addWarning('基本能力を一部読み取れませんでした。基本能力を確認してください。');
   }
 
-  if(data.job==='双剣士'){
-    // 双剣士専用「通常攻撃」は通常の特殊能力とは別枠で、画像から読んだLvをそのまま反映する。
+  if(data.job==='双剣士'||data.job==='オーブストライカー'){
+    // ジョブ専用「通常攻撃」は通常の特殊能力とは別枠で、画像から読んだLvを反映する。
     const dualLevel=Number(data.dualAttackLevel);
     window.__PAWAADO_SET_DUAL_ATTACK__?.(Number.isInteger(dualLevel)&&dualLevel>=1&&dualLevel<=6?dualLevel:1,0);
   }
