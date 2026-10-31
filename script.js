@@ -207,7 +207,7 @@ function refreshCandidateUI(){
     const del=row?'<button type="button" class="extra-resistance-group-remove skill-candidate-remove" data-candidate-remove="'+escapeCustomText(row.name)+'" aria-label="'+escapeCustomText(row.name)+'を削除">×</button>':
       '<span class="skill-candidate-remove-placeholder" aria-hidden="true"></span>';
     return '<div class="skill-candidate-row'+(row?' has-skill':'')+'" data-skill-candidate-row data-candidate-name="'+escapeCustomText(previous)+'">'+
-      name+'<span class="skill-candidate-hint-label">コツLv.</span>'+hint+del+'</div>';
+      name+'<span class="skill-candidate-hint-label" aria-label="コツLv."><span>コツ</span><span>Lv.</span></span>'+hint+del+'</div>';
   }).join('');
   const msg=document.getElementById('skillCandidateMessage');
   if(msg)msg.textContent='';
