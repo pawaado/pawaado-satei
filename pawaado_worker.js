@@ -7,8 +7,8 @@ importScripts('./data.js?v=20261031-dex140-magic-1', './skill_master.js?v=202610
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
 const BOOTRAIN_MASTER=(ACADEMY_MASTER.academies||[]).find(a=>a.name==='ブートレインアカデミー')||null;
-const DUAL_MASTER=BOOTRAIN_MASTER?.dualAttack||null;
-const DUAL_SKILL_INDEX=DUAL_MASTER?D.special.findIndex(s=>String(s[1])===String(DUAL_MASTER.skillName)):-1;
+let DUAL_MASTER=BOOTRAIN_MASTER?.dualAttack||null;
+let DUAL_SKILL_INDEX=DUAL_MASTER?D.special.findIndex(s=>String(s[1])===String(DUAL_MASTER.skillName)):-1;
 let workerDualEnabled=false;
 let workerDualLevel=Number(DUAL_MASTER?.initialLevel||1);
 let workerDualHint=0;
@@ -1195,10 +1195,11 @@ function __workerPayloadConfigKey(payload){
 }
 
 function __applyWorkerPayload(payload){
-  workerDualEnabled=!!payload.isDualSwordsman || (
-    String(payload.academy||'')===String(BOOTRAIN_MASTER?.name||'') &&
-    String(payload.job||'')===String(DUAL_MASTER?.internalJob||'')
-  );
+  const selected=(ACADEMY_MASTER.academies||[]).find(entry=>
+    entry.name===String(payload.academy||'')&&entry.dualAttack?.internalJob===String(payload.job||''));
+  DUAL_MASTER=selected?.dualAttack||null;
+  DUAL_SKILL_INDEX=DUAL_MASTER?D.special.findIndex(s=>String(s[1])===String(DUAL_MASTER.skillName)):-1;
+  workerDualEnabled=!!DUAL_MASTER&&DUAL_SKILL_INDEX>=0;
   workerDualLevel=Math.max(Number(DUAL_MASTER?.initialLevel||1),Math.min(Number(DUAL_MASTER?.maxLevel||1),Number(payload.dualAttackLevel||DUAL_MASTER?.initialLevel||1)));
   workerDualHint=Math.max(0,Math.min(5,Number(payload.dualAttackHint||0)));
   const nextConfigKey=__workerPayloadConfigKey(payload);
@@ -1277,9 +1278,9 @@ function __applyWorkerPayload(payload){
     const validDualConstraint=level=>level===0||
       (!!DUAL_MASTER&&Number.isInteger(level)&&level>Number(DUAL_MASTER.initialLevel)&&level<=Number(DUAL_MASTER.maxLevel));
     if(!validDualConstraint(workerDualRequiredLevel)||!validDualConstraint(workerDualForbiddenLevel))
-      throw new Error('こだわり計算：通常攻撃(双剣士)の指定Lv.が正しくありません。');
+      throw new Error('こだわり計算：専用通常攻撃の指定Lv.が正しくありません。');
     if((workerDualRequiredLevel||workerDualForbiddenLevel)&&!workerDualEnabled)
-      throw new Error('こだわり計算：通常攻撃(双剣士)は双剣士専用です。');
+      throw new Error('こだわり計算：このジョブで専用通常攻撃は取得できません。');
     if(workerDualForbiddenLevel&&workerDualLevel>=workerDualForbiddenLevel)
       throw new Error('こだわり計算：取得済みの通常攻撃 Lv.'+workerDualForbiddenLevel+'は取得しないに指定できません。');
     if(workerDualRequiredLevel&&workerDualForbiddenLevel&&workerDualRequiredLevel>=workerDualForbiddenLevel)
