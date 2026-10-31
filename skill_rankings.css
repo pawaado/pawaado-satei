@@ -20,8 +20,8 @@
 #skillRankingRoot{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;max-width:100%}
 #skillRankingRoot table{width:100%;min-width:537px;table-layout:fixed;border-collapse:collapse}
 #skillRankingRoot .rank-col{width:31px}
-#skillRankingRoot .name-col{width:240px}
-#skillRankingRoot .eff-col{width:61px}
+#skillRankingRoot .name-col{width:232px}
+#skillRankingRoot .eff-col{width:69px}
 #skillRankingRoot .exp-col{width:86px}
 #skillRankingRoot .score-col{width:49px}
 #skillRankingRoot .note-col{width:70px}
@@ -31,7 +31,7 @@
 #skillRankingRoot td.skill-rank-num{text-align:center;font-weight:700;padding:4px 1px}
 #skillRankingRoot .skill-rank-index{display:block;font-size:12px;line-height:1.3}
 #skillRankingRoot td.skill-rank-eff,#skillRankingRoot td.skill-rank-exp,#skillRankingRoot td.skill-rank-score{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-#skillRankingRoot td.skill-rank-eff{font-size:12px;font-weight:800}
+#skillRankingRoot td.skill-rank-eff{font-size:11px;font-weight:800}
 #skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:12px;font-weight:600}
 /* iPhoneの横スクロール中も順位と名称を見失わないよう左2列を固定 */
 #skillRankingRoot th:first-child,#skillRankingRoot td.skill-rank-num{position:sticky;left:0;z-index:2}
