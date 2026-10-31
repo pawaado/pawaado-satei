@@ -97,25 +97,25 @@
     }
     .tab[aria-pressed="true"]{color:#563614;background:#ffe39b;box-shadow:0 2px 0 rgba(161,112,21,.20)}
     .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-    table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;min-width:517px}
-    col.rank{width:31px} col.name{width:196px} col.eff{width:61px} col.score{width:49px} col.exp{width:99px} col.note{width:81px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff;min-width:561px}
+    col.rank{width:31px} col.name{width:240px} col.eff{width:61px} col.score{width:49px} col.exp{width:99px} col.note{width:81px}
     th,td{border:1px solid #4d9ec0;padding:9px 3px;vertical-align:middle}
     th{
       background:#a84834;
       color:#fff;
-      font-size:13px;
+      font-size:12px;
       text-align:center;
       white-space:normal;
     }
-    /* 「査定効率」は4文字を13pxで1行に収め、数値列の位置を変えない */
+    /* 査定効率の見出しを1行に収め、数値列の位置を変えない。 */
     #rankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px;}
-    td{font-size:13px;background:#fff}
+    td{font-size:12px;background:#fff}
     td:nth-child(1){text-align:center;font-weight:700}
     td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
     td:nth-child(3){font-weight:800}
     td:nth-child(4),td:nth-child(5){font-weight:600}
-    td.name-cell{font-weight:600;overflow-wrap:anywhere}
-    td.ranking-note-cell{font-size:11px;text-align:center;padding:5px 2px;line-height:1.4;color:#74501e}
+    td.name-cell{font-weight:600;overflow-wrap:anywhere;word-break:normal}
+    td.ranking-note-cell{font-size:10px;text-align:center;padding:5px 2px;line-height:1.4;color:#74501e}
     .ranking-note-tag{display:block;white-space:nowrap;font-weight:700}
     .ranking-note-tag+.ranking-note-tag{margin-top:2px}
     tr.basic td.name-cell{background:#ffe39b;color:#5a3c10}
@@ -145,7 +145,7 @@
       .tab{font-size:12px;padding:12px 2px}
     }
   </style>
-  <link rel="stylesheet" href="skill_rankings.css?v=20261031-brown-border-restored-1">
+  <link rel="stylesheet" href="skill_rankings.css?v=20261031-orb-attack-ranking-1">
 </head>
 <body>
   <header class="site-header">
@@ -206,7 +206,7 @@
     </div>
   </main>
 
-  <script src="data.js?v=20261031-dex140-magic-1"></script>
+  <script src="data.js?v=20261031-orb-attack-lv6-1"></script>
   <script src="skill_master.js?v=20261031-power135-skill-sync-2"></script>
   <script>
   (()=>{
@@ -344,7 +344,7 @@
       const items=[];
       for(const row of D.special||[]){
         const name=String(row[1]||'');
-        if(name==='通常攻撃(双剣士)') continue;
+        if((D.academyMaster?.academies||[]).some(a=>a.dualAttack?.skillName===name)) continue;
         const score=specialScore(row,group,referenceHp);
         if(score===0) continue;
         const exp=[3,4,5,6,7].reduce((s,i)=>s+Number(row[i]||0),0);
@@ -357,19 +357,18 @@
           items.push({ability:ability+(hpDep?' ※HP依存':''),eff:score/exp,exp,score,type:'special'});
         }
       }
-      if(groupDefs[group].dual){
-        const masters=D.academyMaster?.academies||[];
-        const dual=masters.map(a=>a?.dualAttack).find(Boolean);
-        if(dual?.levels){
-          Object.keys(dual.levels).map(Number).sort((a,b)=>a-b).forEach(lv=>{
-            const d=dual.levels[String(lv)]||dual.levels[lv];
-            const exp=(d.cost||[]).reduce((s,n)=>s+Number(n||0),0);
-            const score=Number(d.score||0);
-            if(exp>0&&score!==0){
-              items.push({ability:`通常攻撃(双剣士) Lv.${lv}`,eff:score/exp,exp,score,type:'special'});
-            }
-          });
-        }
+      // 各ジョブの専用「通常攻撃」を対応する職種ランキングへ追加する。
+      const masters=(D.academyMaster?.academies||[])
+        .map(a=>a?.dualAttack).filter(a=>a?.levels&&groupDefs[group].jobs.includes(a.internalJob));
+      for(const attack of masters){
+        Object.keys(attack.levels).map(Number).sort((a,b)=>a-b).forEach(lv=>{
+          const stage=attack.levels[String(lv)]||attack.levels[lv];
+          const exp=(stage.cost||[]).reduce((sum,n)=>sum+Number(n||0),0);
+          const score=Number(stage.score||0);
+          if(exp>0&&score!==0){
+            items.push({ability:`${attack.skillName} Lv.${lv}`,eff:score/exp,exp,score,type:'special'});
+          }
+        });
       }
       return items;
     }
