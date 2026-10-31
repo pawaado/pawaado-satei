@@ -24,7 +24,7 @@
   const physicalJobs=new Set(['剣士','双剣士','重戦士','弓使い']);
   const superRules=window.PAWAADO_DATA?.superScoreRules||{};
   const hpRows=window.PAWAADO_DATA?.hp||[];
-  const referenceHp=hpRows.reduce((hp,row)=>Number(row[0])<=90?Number(row[1]||0):hp,0);
+  const referenceHp=hpRows.reduce((hp,row)=>Number(row[0])<=100?Number(row[1]||0):hp,0);
   let currentGroup='剣士系統';
   let currentLevelMode='single';
   const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
