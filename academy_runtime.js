@@ -76,15 +76,14 @@
     const style=document.createElement('style');
     style.textContent=`
       body.theme-job-dual{--theme-accent:#174b63;--theme-accent-light:#55a7b7;--theme-accent-pale:#dceff1;--theme-accent-dark:#103746;--theme-line:rgba(16,55,70,.34);--theme-glow:rgba(23,75,99,.20)}
-      .dual-attack-row .name-btn{justify-content:flex-start!important}
-      .dual-level-text{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-      .dual-level-badge{display:inline-flex;align-items:center;justify-content:center;min-width:42px;padding:3px 7px;border:1px solid var(--theme-accent-dark);border-radius:999px;background:var(--theme-accent-pale);color:var(--theme-accent-dark);font-size:12px;font-weight:900}
-      /* オーブストライカーの長い通常攻撃名はLv.と取得済まで1行に収める。 */
-      .orb-attack-row .name-btn{padding:6px 7px;gap:4px;font-size:clamp(10.5px,3.45vw,13px);letter-spacing:-.025em;white-space:nowrap}
-      .orb-attack-row .dual-level-text{display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0;white-space:nowrap}
-      .orb-attack-row .dual-level-text>span:first-child{white-space:nowrap}
-      .orb-attack-row .dual-level-badge{min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:inherit;font-size:1em;line-height:1.2}
-      .orb-attack-row .owned-label{flex-shrink:0;padding:1px 3px;font-size:clamp(9px,2.65vw,10px);letter-spacing:-.02em}
+      /* 双剣士・オーブストライカーとも通常攻撃名、Lv.、取得済を横一列にする。 */
+      .dual-attack-row .name-btn{justify-content:flex-start!important;padding:6px 7px;gap:4px;white-space:nowrap}
+      .dual-level-text{display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0;white-space:nowrap}
+      .dual-level-text>span:first-child{white-space:nowrap}
+      .dual-level-badge{display:inline;min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:inherit;font-size:1em;font-weight:900;line-height:1.2}
+      .dual-attack-row .owned-label{flex-shrink:0;padding:1px 3px;font-size:clamp(9px,2.65vw,10px);letter-spacing:-.02em}
+      /* 長いオーブストライカー名はiPhone幅での1行表示を守りつつ少し大きく。 */
+      .orb-attack-row .name-btn{font-size:clamp(11.5px,3.6vw,14px);letter-spacing:-.025em}
       .dual-level-error{grid-column:1/-1;margin:0;padding:7px 10px 8px;border-top:1px solid rgba(178,71,60,.35);background:#fff0eb;color:#8a251f;font-size:13px;font-weight:800;line-height:1.45}
       .dual-level-error:empty{display:none}
     `;
