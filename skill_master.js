@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-10-31-orb-striker-wind-skills-1",
+  "version": "2026-10-31-orb-striker-water-skills-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -272,6 +272,108 @@ window.PAWAADO_DATA.skillRankings = {
         "オーブストライカー"
       ],
       "attribute": "風",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            67,
+            234,
+            0,
+            159
+          ],
+          "tip": 0,
+          "condition": "精神力20以上",
+          "scores": {
+            "オーブストライカー": [
+              650,
+              650
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            84,
+            293,
+            0,
+            198
+          ],
+          "tip": 0,
+          "condition": "精神力40以上",
+          "scores": {
+            "オーブストライカー": [
+              400,
+              1050
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    // 水属性・オーブストライカー汎用AS（コツなし）。敵前衛1体へ魔力24/28の魔法ダメージを3回、初回3T・再発動4T。
+    {
+      "name": "ウォーターオーブ",
+      "category": "アクションスキル",
+      "kind": "汎用",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": "水",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            0,
+            135,
+            240,
+            85
+          ],
+          "tip": 0,
+          "condition": "魔力20以上",
+          "scores": {
+            "オーブストライカー": [
+              650,
+              650
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            0,
+            169,
+            300,
+            106
+          ],
+          "tip": 0,
+          "condition": "魔力40以上",
+          "scores": {
+            "オーブストライカー": [
+              400,
+              1050
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    // 水属性・オーブストライカー汎用AS（コツなし）。必殺技倍率◎+55%/+75%、4T継続、初回3T・再発動4T。
+    {
+      "name": "アクアパワー",
+      "category": "アクションスキル",
+      "kind": "汎用",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": "水",
       "levels": [
         {
           "lv": 1,
