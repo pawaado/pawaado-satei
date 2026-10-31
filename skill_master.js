@@ -314,7 +314,6 @@ window.PAWAADO_DATA.skillRankings = {
       "resistance": false,
       "upper": null
     },
-    // 水属性・オーブストライカー汎用AS（コツなし）。敵前衛1体へ魔力24/28の魔法ダメージを3回、初回3T・再発動4T。
     {
       "name": "ウォーターオーブ",
       "category": "アクションスキル",
@@ -365,7 +364,6 @@ window.PAWAADO_DATA.skillRankings = {
       "resistance": false,
       "upper": null
     },
-    // 水属性・オーブストライカー汎用AS（コツなし）。必殺技倍率◎+55%/+75%、4T継続、初回3T・再発動4T。
     {
       "name": "アクアパワー",
       "category": "アクションスキル",
