@@ -118,11 +118,11 @@ test('skill ranking table font sizes match the basic ranking table',()=>{
  for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{display:block;flex:0 0 auto;font-weight:600;font-size:13px;', '.skill-level{display:block;flex:0 0 auto;font-size:10px;line-height:1.4;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
 });
 
-test('basic ranking selected class uses the same red family-tab style as skills',()=>{
+test('basic ranking selected class uses the same yellow family-tab style as skills',()=>{
  const html=fs.readFileSync(path.join(root,'rankings.html'),'utf8');
  const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
- assert(html.includes('.tab[aria-pressed="true"]{color:#fff;border-color:#793323;background:linear-gradient(180deg,#b65d3f,#8b392a)'));
- assert(css.includes('.skill-job-tab[aria-pressed="true"]{background:linear-gradient(#b65d3f,#8b392a);border-color:#793323;color:#fff}'));
+ assert(html.includes('.tab[aria-pressed="true"]{color:#563614;background:#ffe39b;box-shadow:0 2px 0 rgba(161,112,21,.20)}'));
+ assert(css.includes('.skill-job-tab[aria-pressed="true"]{background:#ffe39b;color:#563614;box-shadow:0 2px 0 rgba(161,112,21,.20)}'));
  assert(html.includes('.tab{font-size:12px;padding:12px 2px}'));
 });
 

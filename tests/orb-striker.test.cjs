@@ -16,7 +16,7 @@ function load(){
 test('Orb Striker in Kaji Knight academy has magic-class caps and inherited job family',()=>{
  const D=load().PAWAADO_DATA,job='オーブストライカー';
  const a=D.academies.find(r=>r[0]==='カジナイトアカデミー'&&r[1]===job);
- assert(a);assert.deepEqual(Array.from(a.slice(2)),[95,70,115,130,80,80]);
+ assert(a);assert.deepEqual(Array.from(a.slice(2)),[105,90,125,140,95,90]);
  assert.equal(D.jobFamilyByJob[job],'魔闘士系統');
  assert.equal(D.baseJobByJob[job],'魔闘士');
  assert(D.skillJobEligible({jobs:['魔闘士']},job));

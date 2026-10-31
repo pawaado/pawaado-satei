@@ -128,7 +128,7 @@ test('fire swordsman can select the verified Wind Protection and Magic Modificat
  assert.deepEqual(Array.from(inquiry.levels[0].cost),[0,0,0,73,123]);
  assert.deepEqual(Array.from(inquiry.levels[1].cost),[0,0,0,85,142]);
  assert.deepEqual(Array.from(c.workerCandidateCost(inquiry,2,1)),[0,0,0,158,265]);
- assert.equal(c.workerCandidateCost(inquiry,2,2),null,'unknown hint Lv2 must remain unavailable');
+ assert.deepEqual(Array.from(c.workerCandidateCost(inquiry,2,2)),[0,0,0,126,211],'verified hint Lv2 must be selectable');
 });
 test('verified hint costs distinguish ability Lv from hint Lv and do not reverse estimate',()=>{
  const c=worker(),master=c.PAWAADO_DATA.skillRankings.skills;

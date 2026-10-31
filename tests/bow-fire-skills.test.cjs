@@ -45,10 +45,14 @@ for(const expected of cases){
 }
 test('bow-user fire skills use the same master and cache version on UI and worker',()=>{
  const main=read('index.html'),ranking=read('rankings.html'),worker=read('pawaado_worker.js');
- const url='skill_master.js?v=20261031-bow-fire-skills-name-fix-2';
+ const skillVersion=worker.match(/skill_master\\.js\\?v=([^']+)/)?.[1];
+ const dataVersion=worker.match(/data\\.js\\?v=([^']+)/)?.[1];
+ assert(skillVersion&&dataVersion);
+ const url='skill_master.js?v='+skillVersion;
  assert(main.includes(url));
  assert(ranking.includes(url));
  assert(worker.includes(url));
- assert(main.includes('script.js?v=20261031-bow-fire-skills-name-fix-2'));
- assert(worker.includes('data.js?v=20261031-bow-fire-skills-name-fix-2'));
+ assert(main.includes('data.js?v='+dataVersion));
+ assert(ranking.includes('data.js?v='+dataVersion));
+ assert(read('script.js').includes('pawaado_worker.js?v='+read('resistance_patch.js').match(/const PATCH_VERSION='([^']+)'/)?.[1]));
 });
