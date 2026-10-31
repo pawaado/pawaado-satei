@@ -2748,15 +2748,17 @@
       const ranked=[...counts.entries()].sort((a,b)=>b[1]-a[1]);out.basic[n]=ranked[0]?.[0]??null;
       if(ranked.length>1&&ranked[0][1]===ranked[1][1])out.warnings.push(n+'の読み取り値が画像間で一致しません。確認してください。');
     }
-    // 双剣士専用通常攻撃は通常の特殊能力とは別管理。
-    // 専用Lv1の画像を拾えた場合はジョブ判定の補助にも使う。
+    // 通常攻撃の専用Lvは双剣士とオーブストライカーで共通の入力欄を使う。
+    // ジョブ文字・ジョブアイコンが確定済みの場合は、その判定を優先して維持する。
     if(out.dualAttackSeen||out.dualAttackLevel!=null){
-      if(!out.job)out.job='双剣士';
-      else if(out.job!=='双剣士')out.warnings.push('双剣士専用の通常攻撃を検出しました。ジョブを確認してください。');
+      if(!out.job)out.job='双剣士'; // 専用アイコンが識別できない場合だけ旧来の補助判定を使う。
+      else if(out.job!=='双剣士'&&out.job!=='オーブストライカー')
+        out.warnings.push('ジョブ専用の通常攻撃を検出しました。ジョブを確認してください。');
     }
-    // 専用通常攻撃そのものが画像に無い場合だけ初期Lv1を補う。
-    // 画像にLv表示があるのに読み取れなかったケースをLv1へ黙って潰さない。
-    if(out.job==='双剣士'&&out.dualAttackLevel==null&&!out.dualAttackSeen)out.dualAttackLevel=1;
+    // 専用通常攻撃が画像で読めなかった場合は両ジョブとも初期Lv.1にする。
+    // 画像上にLv表示があるのに未読のケースを黙って初期値へ潰さない。
+    if(['双剣士','オーブストライカー'].includes(out.job)&&out.dualAttackLevel==null&&!out.dualAttackSeen)
+      out.dualAttackLevel=1;
     out.specials=[...new Set(out.specials)];
     const superMap=new Map();
     for(const s of out.supers){
