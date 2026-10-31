@@ -2,7 +2,7 @@
  * パワアド：アカデミー固有UIランタイム
  *
  * 数値データは data.js を唯一の正本とし、このファイルは表示・入力状態と
- * 計算Workerへの双剣士専用「通常攻撃」状態の受け渡しだけを担当する。
+ * 計算Workerへのジョブ固有「通常攻撃」状態の受け渡しだけを担当する。
  */
 (function(global){
   'use strict';
@@ -142,6 +142,8 @@
     }
 
     function renderDualRows(){
+      // ジョブ変更時の一覧再描画にも追従する。
+      syncAttackSelection();
       clearDualLevelRows();
       if(!isDual()) return;
       const base=dualBaseRow();
@@ -254,7 +256,7 @@
     // 通常の特殊能力一覧が再描画された時だけ拾い、専用Lv行の再構築中は監視を止める。
     if(specialList) observer.observe(specialList,{childList:true});
 
-    // 双剣士の専用Lv/コツはUI状態なので、計算開始時だけWorker payloadへ付加する。
+    // ジョブ固有通常攻撃のLv/コツはUI状態なので、計算開始時だけWorker payloadへ付加する。
     // Worker本体のURLは書き換えず、script.jsが指定した最新版をそのまま使う。
     const NativeWorker=global.Worker;
     if(typeof NativeWorker==='function'){
