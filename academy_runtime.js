@@ -79,6 +79,12 @@
       .dual-attack-row .name-btn{justify-content:flex-start!important}
       .dual-level-text{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
       .dual-level-badge{display:inline-flex;align-items:center;justify-content:center;min-width:42px;padding:3px 7px;border:1px solid var(--theme-accent-dark);border-radius:999px;background:var(--theme-accent-pale);color:var(--theme-accent-dark);font-size:12px;font-weight:900}
+      /* オーブストライカーの長い通常攻撃名はLv.と取得済まで1行に収める。 */
+      .orb-attack-row .name-btn{padding:6px 7px;gap:4px;font-size:clamp(10.5px,3.45vw,13px);letter-spacing:-.025em;white-space:nowrap}
+      .orb-attack-row .dual-level-text{display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0;white-space:nowrap}
+      .orb-attack-row .dual-level-text>span:first-child{white-space:nowrap}
+      .orb-attack-row .dual-level-badge{min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:inherit;font-size:1em;line-height:1.2}
+      .orb-attack-row .owned-label{flex-shrink:0;padding:1px 3px;font-size:clamp(9px,2.65vw,10px);letter-spacing:-.02em}
       .dual-level-error{grid-column:1/-1;margin:0;padding:7px 10px 8px;border-top:1px solid rgba(178,71,60,.35);background:#fff0eb;color:#8a251f;font-size:13px;font-weight:800;line-height:1.45}
       .dual-level-error:empty{display:none}
     `;
@@ -155,7 +161,7 @@
       for(let level=DUAL.initialLevel;level<=maxShown;level++){
         const owned=level<=dualLevel;
         const row=document.createElement('div');
-        row.className=`skill-row dual-attack-row${owned?' owned':''}`;
+        row.className=`skill-row dual-attack-row${DUAL.skillName==='通常攻撃(オーブストライカー)'?' orb-attack-row':''}${owned?' owned':''}`;
         row.dataset.dualLevel=String(level);
         row.innerHTML=`
           <button type="button" class="hint-btn dual-hint-btn" data-dual-action="hint" aria-label="通常攻撃のコツレベルを設定する">${dualHint>0?`Lv.${dualHint}`:'＋'}</button>
