@@ -1389,15 +1389,33 @@ function refreshCustomChoices(){
       skillMode.disabled=!showMode||!ready||isCalculating;
     }
   }
-  for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
+  // こだわり条件の左側で能力名を選ぶまで、右側の「条件を選択」は無効。
+  // ネイティブselectと画面に見えるカスタムボタンを両方同時に無効化する。
+  const basicChosen=basic.value!=='' && [...basic.options].some(option=>option.value===basic.value);
+  const specialChosen=special.value!=='' && [...special.options].some(option=>option.value===special.value);
+  const controlEnabled={
+    customBasicName:ready,
+    customBasicMode:ready&&basicChosen,
+    customBasicValue:ready&&basicChosen,
+    customSpecialName:specialReady,
+    customSpecialMode:specialReady&&specialChosen
+  };
+  for(const [id,canUse] of Object.entries(controlEnabled)){
     const el=document.getElementById(id);
     if(!el)continue;
-    // 能力名が未選択なら、対応する条件欄（および基本能力の数値欄）を操作不可にする。
-    const categoryReady=id.startsWith('customSpecial')?specialReady:ready;
-    const selectionReady=id==='customBasicMode'||id==='customBasicValue'
-      ? !!basic.value
-      : id==='customSpecialMode' ? !!special.value : true;
-    el.disabled=!categoryReady||!selectionReady||isCalculating;
+    const disabled=!canUse||isCalculating;
+    el.disabled=disabled;
+    const visibleButton=document.getElementById(id+'SelectButton');
+    if(visibleButton){
+      visibleButton.disabled=disabled;
+      visibleButton.setAttribute('aria-disabled',String(disabled));
+      if(disabled){
+        visibleButton.setAttribute('aria-expanded','false');
+        const menu=document.getElementById(id+'CustomMenu');
+        if(menu)menu.hidden=true;
+        visibleButton.closest('.custom-select-control')?.classList.remove('is-open');
+      }
+    }
   }
 }
 function renderCustomConditions(){
