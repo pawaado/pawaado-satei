@@ -1391,7 +1391,13 @@ function refreshCustomChoices(){
   }
   for(const id of ['customBasicName','customBasicMode','customBasicValue','customSpecialName','customSpecialMode']){
     const el=document.getElementById(id);
-    if(el)el.disabled=!(id.startsWith('customSpecial')?specialReady:ready)||isCalculating;
+    if(!el)continue;
+    // 能力名が未選択なら、対応する条件欄（および基本能力の数値欄）を操作不可にする。
+    const categoryReady=id.startsWith('customSpecial')?specialReady:ready;
+    const selectionReady=id==='customBasicMode'||id==='customBasicValue'
+      ? !!basic.value
+      : id==='customSpecialMode' ? !!special.value : true;
+    el.disabled=!categoryReady||!selectionReady||isCalculating;
   }
 }
 function renderCustomConditions(){
@@ -1525,8 +1531,15 @@ function initCustomConditions(){
       showCustomMessage('');renderCustomConditions();
       return;
     }
-    if(event.target===basic||event.target===basicMode||event.target===value)autoAddBasic();
-    else if(event.target===special||event.target===specialMode)autoAddSpecial();
+    if(event.target===basic){
+      // 能力名が変わったら前の入力条件を引き継がず、有効/無効表示を更新する。
+      basicMode.value='';value.value='';
+      renderCustomConditions();
+    }else if(event.target===special){
+      specialMode.value='';
+      renderCustomConditions();
+    }else if(event.target===basicMode||event.target===value)autoAddBasic();
+    else if(event.target===specialMode)autoAddSpecial();
   });
   // Enterでも数値を確定できるが、inputイベントでは登録しない。
   value.addEventListener('keydown',event=>{
