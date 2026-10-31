@@ -206,7 +206,7 @@
     </div>
   </main>
 
-  <script src="data.js?v=20261031-kajinaito-life105-1"></script>
+  <script src="data.js?v=20261031-physical-power135-1"></script>
   <script src="skill_master.js?v=20261031-orb-striker-water-skills-1"></script>
   <script>
   (()=>{
@@ -313,6 +313,8 @@
         const max=Number(maxes[def.name]||0);
         if(max<=1) continue;
         const cuts=baseCuts.filter(v=>v<=max);
+        // 物理職パワーのみ130を節目に追加。ほかの職種・能力の区間は変更しない。
+        if(def.name==='パワー'&&group==='物理職'&&max>=130) cuts.push(130);
         if(cuts[0]!==1) cuts.unshift(1);
         if(cuts[cuts.length-1]!==max) cuts.push(max);
         for(let i=0;i<cuts.length-1;i++){

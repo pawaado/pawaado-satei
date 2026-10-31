@@ -151,3 +151,41 @@ test('efficiency column headers stay on one line in both ranking views without c
  assert(css.includes('#skillRankingRoot .eff-col{width:61px}'));
  assert(css.includes('#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}'));
 });
+
+test('physical power 110–135 rankings use five verified steps grouped as three rows',()=>{
+ const {c,tabs,elements}=load();
+ const expected=[
+  ['パワー 110→120',1183,2100],
+  ['パワー 120→130',1183,2500],
+  ['パワー 130→135',580,1250]
+ ];
+ const rows=c.audit.allItems('物理職');
+ for(const [name,score,exp] of expected){
+  const r=rows.find(x=>x.ability===name);
+  assert(r,'missing '+name);assert.equal(r.score,score);assert.equal(r.exp,exp);
+  assert(Math.abs(r.eff-score/exp)<1e-12);
+ }
+ for(const group of ['魔法職','僧侶']){
+  assert(!c.audit.basicItems(group).some(x=>expected.some(([name])=>x.ability===name)));
+ }
+ tabs[0].click();for(const [name] of expected)assert(elements.rankingRoot.innerHTML.includes(name));
+ const D=c.PAWAADO_DATA;
+ const at=(t,v)=>t.find(x=>{const [a,b]=x[0].split('→').map(Number);return a<=v&&v<b;});
+ for(const [from,to,vec,score] of [
+  [110,119,[1080,180,630,0,0],1044],
+  [119,120,[120,20,70,0,0],139],
+  [120,129,[1278,225,747,0,0],1044],
+  [129,130,[142,25,83,0,0],139],
+  [130,135,[710,125,415,0,0],580]
+ ]){
+  const actual=[0,0,0,0,0];let gained=0;
+  for(let n=from;n<to;n++){
+   const cst=at(D.powerCost,n),scr=at(D.powerPhysicalScore,n);
+   assert(cst&&scr,'power '+n+' is covered');
+   for(let i=0;i<5;i++)actual[i]+=cst[i+1];
+   const [a,b]=scr[0].split('→').map(Number);gained+=scr[1]/(b-a);
+  }
+  assert.deepEqual(actual,vec,from+'→'+to+' cost');
+  assert(Math.abs(gained-score)<1e-9,from+'→'+to+' appraisal');
+ }
+});

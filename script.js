@@ -985,7 +985,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-kajinaito-life105-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261031-physical-power135-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
