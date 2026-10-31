@@ -2,13 +2,15 @@
 (() => {
   'use strict';
   const D=window.PAWAADO_DATA;
-  const PHOTO_IMPORT_BUILD='20261031-orb-striker-1';
+  const PHOTO_IMPORT_BUILD='20261031-orb-normal-attack-lv1';
   window.__PAWAADO_PHOTO_IMPORT_BUILD__=PHOTO_IMPORT_BUILD;
   const BASICS=['生命力','パワー','魔力','器用さ','耐久力','精神力'];
   const EXPS=['筋力','敏捷','技術','知力','精神'];
   const JOBS=[...new Set(D.academies.map(r=>r[1]))];
   const SUPER_NAMES=[...new Set([...Object.keys(D.superResistances||{}),...Object.keys(D.superScoreRules||{}),...Object.keys(D.superPrerequisites||{})])].sort((a,b)=>a.localeCompare(b,'ja'));
   const DUAL_NORMAL_ATTACK='通常攻撃(双剣士)';
+  const ORB_NORMAL_ATTACK='通常攻撃(オーブストライカー)';
+  const NORMAL_ATTACK_BY_JOB={'双剣士':DUAL_NORMAL_ATTACK,'オーブストライカー':ORB_NORMAL_ATTACK};
   // 金色セルだが査定入力には使わない超特殊能力。画像比較では識別して誤認を防ぐ。
   const IGNORED_SUPER_IMAGE_NAMES=new Set(['剛力','魔力増強','魔力探求','魔力開眼','魔族キラー']);
   const REFERENCES=[['パワフルアカデミー','powerful'],['タテレスキュアアカデミー','tateless'],['カジナイトアカデミー','kaji'],['ブートレインアカデミー','bootrain']];
@@ -33,6 +35,14 @@
   // OCRだけに依存しないハイブリッド認識。
   // 提供済みの実ゲーム画像から、誤読しやすい文字列・数字を「黒画素の形」として登録している。
   // 未登録の能力は従来OCRへフォールバックするため、全能力の画像を事前登録する必要はない。
+  const ORB_NORMAL_ATTACK_LV1_MASKS=[
+    // 2026-10-31 提供「能力データ」画面、左上の青い「通常攻撃 Lv.1」セル。
+    // 1536×706 基準、rect [718,284/288/292/296,128,20] → 64×10 の二値画像。
+    'f/////////L/////////+LwcAAAAAAAYsAYAAAAAABjjYwvjUBh3EMTzG+f9/n+AzNED9/3/f4DMGR/3/P5/gM65n/Pw/n+Yznnv8/jtPxg=',
+    'vBwAAAAAABiwBgAAAAAAGONjC+NQGHcQxPMb5/3+f4DM0QP3/f9/gMwZH/f8/n+Azrmf8/D+f5jOee/z+O0/GMxxjuf5/gwY5/Mf9tk+f5g=',
+    '42ML41AYdxDE8xvn/f5/gMzRA/f9/3+AzBkf9/z+f4DOuZ/z8P5/mM557/P47T8YzHGO5/n+DBjn8x/22T5/mOPHCADAEBwYsA4AAAAAAAA=',
+    'zNED9/3/f4DMGR/3/P5/gM65n/Pw/n+Yznnv8/jtPxjMcY7n+f4MGOfzH/bZPn+Y48cIAMAQHBiwDgAAAAAAABwcAAAABwAcD/gAAAANAHQ='
+  ];
   const HYBRID_ABILITY_MASKS={
     '通常攻撃(双剣士)':['//////////i8HAAAAAAAGLAGAAAAAAAY5lML41AYdxDH4xvn/f5/gMdxA/f9/3+Aw6Ef9/z+f4DH8Z/z8P5/mM/R7/P47T8Yy2mO5/n+DBg=','njwAAAAAABi4DgAAAAAAGOQWAAAAAAAYZ0Mb49n4d4DH8Qnn/f9/gMfhA/f8/n+Ax/Gf87j+f4DH8c/z8N4/mM3Z7vf57QwY33sf9tn+f5g=','5BYAAAAAABhnQxvj2fh3gMfxCef9/3+Ax+ED9/z+f4DH8Z/zuP5/gMfxz/Pw3j+Yzdnu9/ntDBjfex/22f5/mPwbH/bYNhwYsAYAAAAAABg='],
     '烈':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf8AAAAAAAAA/wAAAAAAAAH/AAAAAAAAAP8AAAAAAAAA5wAAAAgAAADOAAAACAAAAb8AAAAI=',
@@ -683,9 +693,10 @@
     '双剣士':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/nnh4AAAAAAAAAAf/v/h4AAAAAAAAAAYA8dhYAAAAAAAAAAe+zN/fgAAAAAAAAAa24dwBgAAAAAAAAAc189wBgAAAAAAAAAMx+9/fgAAAAAAAAAMZe9hYAAAAAAAAAAdx89/fAAAAAAAAAAbk7d/PgAAAAAAAAAf//94BgAAAAAAAAAO7//f/AAAAAAAAAAAAAAAAAAAAA',
     '僧侶':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/P/AAAAAAAAAAAAP/v/gAAAAAAAAAAAMB7ZgAAAAAAAAAAAaW7dgAAAAAAAAAAASWzBgAAAAA+AAAAAaWzngAAAAA4AAAAAb/7ngAAAAAAAAAAAbB6BgAAAAAAAAAAALd69gAAAAAAAAAAALd6BgAAAAAAAAAAALB6dgAAAAAAAAAAAP///gAAAAAAAAAAAAAAAAAAAAA'
   };
+  HYBRID_ABILITY_MASKS[ORB_NORMAL_ATTACK]=ORB_NORMAL_ATTACK_LV1_MASKS;
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normalize=s=>String(s).normalize('NFKC').replace(/\s/g,'').replace(/[〇◯]/g,'○');
-  const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>normalize(n)!==normalize(DUAL_NORMAL_ATTACK));
+  const GENERIC_SPECIAL_NAMES=D.special.map(s=>s[1]).filter(n=>!Object.values(NORMAL_ATTACK_BY_JOB).some(attack=>normalize(n)===normalize(attack)));
   const section=document.createElement('section'); section.className='card photo-card';
   section.innerHTML=`<h2>ゲーム画像</h2>
     <button id="choosePhotos" class="secondary photo-choose" type="button">画像を選択</button>
@@ -957,7 +968,7 @@
     return best.head<=.06&&best.full<=.075&&beatsNegative&&(!second||second.head-best.head>=.03)?best.name:'';
   }
 
-  function abilityByImage(image,cell){
+  function abilityByImage(image,cell,knownJob=''){
     const [x,y,w]=cell.rect;
     // 能力の並び順や隣接能力には依存せず、セル内の文字そのものだけを照合する。
     // まず通常条件で全テンプレートを比較し、外れたセルだけ追加条件で再比較する。
@@ -985,6 +996,8 @@
     // 金色セルは超特殊能力（＋明示的な無視対象）だけ、青系セルは通常特殊能力だけで比較する。
     // 色カテゴリをまたいだ近似一致を禁止して、似た文字列の誤認を防ぐ。
     const entries=Object.entries(HYBRID_ABILITY_MASKS).filter(([name])=>{
+      // 能力データの専用通常攻撃は、先に判定したジョブに合うものだけ照合する。
+      if(Object.values(NORMAL_ATTACK_BY_JOB).includes(name)&&name!==NORMAL_ATTACK_BY_JOB[knownJob])return false;
       const knownSuper=SUPER_NAMES.includes(name);
       const ignoredSuper=IGNORED_SUPER_IMAGE_NAMES.has(name);
       return cell.superCell ? (knownSuper||ignoredSuper) : (!knownSuper&&!ignoredSuper);
@@ -2037,7 +2050,7 @@
     return observations;
   }
 
-  async function readAbilityCells(image,index){
+  async function readAbilityCells(image,index,knownJob=''){
     const result={specials:[],supers:[],warnings:[],attributeHints:[],dualAttackLevel:null,dualAttackSeen:false,explicitPairMarks:{},explicitPairConfidence:{}};
     // 同じ能力の○/◎が画面に直接表示されている場合、その記号を最終的な正本にする。
     // 超特殊能力の下位補完やOCR推測が、明示された○を◎へ上書きしないための記録。
@@ -2047,7 +2060,7 @@
     const missed=[],candidates=[];
     for(const cell of cells){
       // まず画像の形を照合し、誤読しやすい能力だけOCRより優先する。
-      let visualName=abilityByImage(image,cell)||elementalAttackByImage(image,cell);
+      let visualName=abilityByImage(image,cell,knownJob)||elementalAttackByImage(image,cell);
       // ○/◎は能力名の全体テンプレートより、元スクショから切り出した末尾記号を優先する。
       // 高信頼で判定できない場合だけ、同じ能力名の○/◎テンプレート比較へフォールバックする。
       const visualPair=normalize(visualName).match(/^(.+)([○◎])$/);
@@ -2097,7 +2110,7 @@
           }
         }
       }
-      if(visualName===DUAL_NORMAL_ATTACK){
+      if(NORMAL_ATTACK_BY_JOB[knownJob]&&visualName===NORMAL_ATTACK_BY_JOB[knownJob]){
         result.dualAttackSeen=true;
         let level=levelByImage(image,cell,6);
         if(level==null){
@@ -2108,7 +2121,7 @@
           if(m)level=Number(m[1]);
         }
         if(level!=null)result.dualAttackLevel=Math.max(result.dualAttackLevel||0,level);
-        else result.warnings.push(`${index}枚目：双剣士専用「通常攻撃」のLvを読み取れませんでした。読み取り結果のLvを確認してください。`);
+        else result.warnings.push(`${index}枚目：${knownJob}専用「通常攻撃」のLvを読み取れませんでした。読み取り結果のLvを確認してください。`);
         if(window.__PHOTO_DEBUG__)console.log(index,cell.row,cell.col,'[image] '+visualName,level==null?'Lv?':'Lv'+level);
         continue;
       }
@@ -2651,7 +2664,9 @@
           if(values[j]!=null)modalBasicSamples[n].push(values[j]);
           else out.warnings.push(`${i+1}枚目：${n}を画像比較で読み取れませんでした。基本能力を確認してください。`);
         });
-        const result=await readAbilityCells(image,i+1);
+        // 能力アップ画面にジョブ名があれば優先。無ければこの能力データ画像のアイコン判定を使用。
+        const recognizedJob=abilityUpIdentity.job||dataIdentity.job||'';
+        const result=await readAbilityCells(image,i+1,recognizedJob);
         out.specials.push(...result.specials);out.supers.push(...result.supers);
         for(const hint of result.attributeHints||[])if(['火属性','風属性','水属性'].includes(hint))attributeHints.add(hint);
         for(const [stem,mark] of Object.entries(result.explicitPairMarks||{})){
@@ -2751,7 +2766,7 @@
     // 通常攻撃の専用Lvは双剣士とオーブストライカーで共通の入力欄を使う。
     // ジョブ文字・ジョブアイコンが確定済みの場合は、その判定を優先して維持する。
     if(out.dualAttackSeen||out.dualAttackLevel!=null){
-      if(!out.job)out.job='双剣士'; // 専用アイコンが識別できない場合だけ旧来の補助判定を使う。
+      if(!out.job)out.warnings.push('通常攻撃を検出しましたが、ジョブを識別できませんでした。ジョブを確認してください。');
       else if(out.job!=='双剣士'&&out.job!=='オーブストライカー')
         out.warnings.push('ジョブ専用の通常攻撃を検出しました。ジョブを確認してください。');
     }
