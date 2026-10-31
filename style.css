@@ -1021,8 +1021,8 @@ img,svg,canvas{max-width:100%}
 }
 .custom-basic-inputs #customBasicModeSelectButton::after,
 .custom-special-inputs #customSpecialModeSelectButton::after{right:8px}
-.custom-basic-inputs #customBasicValue{font-size:clamp(10px,2.7vw,13px);padding-left:2px;padding-right:2px}
+.custom-basic-inputs #customBasicValue{font-size:clamp(13px,3.65vw,15px);padding-left:2px;padding-right:2px}
  /* 基本能力を選択の全文を優先し、数値欄は5文字のプレースホルダーを維持 */
 .custom-basic-inputs #customBasicNameSelectButton{padding-left:5px;padding-right:17px;font-size:clamp(11px,3.05vw,14px)}
 .custom-basic-inputs #customBasicNameSelectButton::after{right:6px}
-.custom-basic-inputs #customBasicValue::placeholder{font-size:clamp(10px,2.7vw,13px);letter-spacing:-.03em}
+.custom-basic-inputs #customBasicValue::placeholder{font-size:clamp(12px,3.3vw,13px);letter-spacing:-.055em}
