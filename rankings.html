@@ -173,7 +173,7 @@
       <ul>
         <li>物理職は剣士・重戦士・弓使い系統を、魔法職は魔法使い・魔闘士系統を指します。</li>
         <li>基本能力の小数点以下の査定が不明であることなどから、実際の査定効率と異なる可能性があります。</li>
-        <li>HP依存特殊能力は生命力90で計算しています。</li>
+        <li>HP依存の査定は全ジョブ生命力100で計算しています。</li>
         <li>耐性に影響する特殊能力は他の耐性に影響するものを除いた状態で計算しています。</li>
         <li>査定が0の特殊能力は掲載していません。</li>
       </ul>
@@ -202,6 +202,7 @@
           <p style="margin:0">・汎用の必殺技・アクションスキルはコツなし、その他の必殺技等はコツLv.1で計算しています。</p>
           <p style="margin:6px 0 0">・下位能力込みと記載した超特殊能力は下位の特殊能力（コツなし）を含めて計算しています。</p>
         </div>
+        <p style="margin:6px 0 0">HP依存の査定は全ジョブ生命力100で計算しています。</p>
       </section>
     </div>
   </main>
@@ -259,7 +260,7 @@
       }
       return hp;
     }
-    const referenceHp=hpAtLife(90);
+    const referenceHp=hpAtLife(100);
 
     function maximaFor(group){
       const jobs=groupDefs[group].jobs;
@@ -420,6 +421,6 @@
     render('物理職');
   })();
   </script>
-  <script src="skill_rankings.js?v=20261030-lower-metadata-1"></script>
+  <script src="skill_rankings.js?v=20261031-hp100-1"></script>
 </body>
 </html>
