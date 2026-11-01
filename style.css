@@ -542,6 +542,11 @@ button:disabled{cursor:not-allowed;opacity:.62;filter:saturate(.55)}
 .custom-condition-list li{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:4px 5px 4px 10px;border:1px solid #b79667;border-radius:9px;background:#f9e8c7;font-size:13px;font-weight:750;color:#51391f}
 .custom-condition-list li span{overflow-wrap:anywhere}
 .custom-condition-list li button{display:grid;place-items:center;width:28px;height:28px;min-height:28px;min-width:28px;padding:0;margin:0;background:#fff8e8;color:#624526;border:1px solid #b79667;border-radius:7px;box-shadow:none;font-size:18px}
+/* 必殺技等の取得条件は行幅を揃え、名称の長さによる文字サイズ差を作らない。 */
+#custom-skill-list{flex-direction:column;align-items:stretch}
+#custom-skill-list li{width:100%;min-width:0;max-width:100%;font-size:14px}
+#custom-skill-list li span{flex:1;min-width:0;font-size:inherit;line-height:1.4;overflow-wrap:anywhere}
+#custom-skill-list li button{flex:0 0 28px}
 .custom-calc-message{margin:6px 0;color:#a24c20;font-size:13px;line-height:1.5}
 .custom-calc-message:empty{display:none}
 .custom-clear-all{width:100%;margin-top:10px;min-height:44px}
