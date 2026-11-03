@@ -8048,6 +8048,7 @@ window.PAWAADO_DATA.skillRankings = {
           },
           "effect": {
             "列攻撃倍率_画面表示": 16,
+            "列HP回復倍率_画面表示": 8,
             "列攻撃倍率_下位除外": 11
           }
         },
