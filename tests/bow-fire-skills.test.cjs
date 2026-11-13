@@ -54,5 +54,8 @@ test('bow-user fire skills use the same master and cache version on UI and worke
  assert(worker.includes(url));
  assert(main.includes('data.js?v='+dataVersion));
  assert(ranking.includes('data.js?v='+dataVersion));
- assert(read('script.js').includes('pawaado_worker.js?v='+read('resistance_patch.js').match(/const PATCH_VERSION='([^']+)'/)?.[1]));
+ assert(read('script.js').includes('pawaado_worker.js?v='+dataVersion));
+  const patchVersion=read('resistance_patch.js').match(/const PATCH_VERSION='([^']+)'/)?.[1];
+  assert(read('resistance_patch.js').includes('pawaado_worker_resistance.js?v=${PATCH_VERSION}'));
+  assert(read('pawaado_worker_resistance.js').includes('pawaado_worker.js?v='+patchVersion));
 });
