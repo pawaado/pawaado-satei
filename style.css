@@ -917,25 +917,29 @@ img,svg,canvas{max-width:100%}
 /* 耐性に影響する超特殊能力：見た目は style.css を正本とする。 */
 .extra-resistance-list{display:grid;gap:4px}
 .extra-resistance-group-rows{display:none}
-.extra-resistance-group{padding:6px 7px;border:2px solid #c39a63;border-radius:12px;background:rgba(255,250,238,.68)}
+.extra-resistance-group{padding:0;border:0;border-radius:0;background:transparent}
 .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
 .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
 .super-control-row{display:block;height:52px;min-height:52px;margin:0;padding:0}
-.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 70px 38px;gap:4px;align-items:center;height:52px;min-height:52px;margin:0;padding:0}
+.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 21px 46px 34px;gap:3px;align-items:center;height:52px;min-height:52px;margin:0;padding:0}
 .super-controls .super-field{min-width:0}
-.super-level-field{display:grid;grid-template-columns:17px minmax(0,1fr);gap:2px;align-items:center}
-.super-level-label{font-size:13px;line-height:1;text-align:right;white-space:nowrap}
+.super-name-field{grid-column:1;grid-row:1}
+.super-level-field{display:contents}
+.super-level-label{grid-column:2;grid-row:1;display:flex;align-items:center;justify-content:center;min-width:0;margin:0;font-size:10px;line-height:1.3;white-space:nowrap}
+.super-level-control{grid-column:3;grid-row:1}
 .super-custom-select{position:relative;min-width:0}
-.super-custom-select .custom-select-button{height:52px;min-height:52px;font-size:16px;padding:8px 38px 8px 10px}
-.super-name-control .custom-select-button{font-size:clamp(13px,3.55vw,14px);letter-spacing:-.055em;padding-left:9px;padding-right:26px}
+.super-custom-select .custom-select-button{height:52px;min-height:52px}
+.super-name-control .custom-select-button{font-size:clamp(12px,3.4vw,14px);letter-spacing:-.045em;padding:8px 15px 8px 7px}
+.super-name-control .custom-select-button::after{right:5px;width:7px;height:7px}
 .super-name-text{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:clip}
-.super-level-control .custom-select-button{padding-left:5px;padding-right:22px}
-.super-name-control .custom-select-menu{width:min(360px,calc(100vw - 28px));min-width:min(360px,calc(100vw - 28px));max-width:calc(100vw - 28px);left:0;right:auto}
+.super-level-control .custom-select-button{padding:8px 15px 8px 6px;font-size:clamp(11px,3vw,13px);letter-spacing:-.04em}
+.super-level-control .custom-select-button::after{right:6px;width:7px;height:7px}
+.super-name-control .custom-select-menu{width:min(365px,calc(100vw - 28px));min-width:100%;max-width:calc(100vw - 28px);left:0;right:auto;max-height:min(430px,65vh)}
 .super-level-control .custom-select-menu{width:100%;min-width:100%;left:0;right:auto}
 .super-name-control .custom-select-option{white-space:nowrap;overflow:visible;line-height:1.35}
 .super-level-control .custom-select-option{white-space:nowrap;padding:8px 4px;text-align:center;color:#fff;overflow:visible;font-size:16px}
 .super-level-control .custom-select-option::before{display:none;content:none;width:0;margin:0}
-.extra-resistance-group-remove{display:block;margin:0;width:38px;min-width:38px;height:48px;min-height:48px;padding:3px;border-radius:9px;font-size:18px;line-height:1}
+.extra-resistance-group-remove{display:block;grid-column:4;grid-row:1;margin:0;width:34px;min-width:34px;height:48px;min-height:48px;padding:3px;border-radius:9px;font-size:18px;line-height:1}
 .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{visibility:hidden;pointer-events:none}
 .super-note{margin:4px 0 0;font-size:12px;line-height:1.35}
 .super-note:empty{display:none}
@@ -947,7 +951,6 @@ img,svg,canvas{max-width:100%}
 .extra-resistance-error{grid-column:1/-1;margin:-2px 0 1px;color:#a52f2f;font-size:12px;font-weight:700;line-height:1.45}
 .extra-resistance-row.is-invalid .extra-resistance-value-wrap{border-color:#a52f2f;box-shadow:0 0 0 1px rgba(165,47,47,.12)}
 @media(max-width:620px){
-  .extra-resistance-group{padding:6px}
   .extra-resistance-row{grid-template-columns:minmax(0,1fr) minmax(100px,.72fr);gap:8px}
   .extra-resistance-value{font-size:14px}
 }
@@ -982,10 +985,12 @@ img,svg,canvas{max-width:100%}
 .skill-candidate-message{margin:7px 0;color:#a53b25;font-size:13px;line-height:1.5}
 .skill-candidate-message:empty{display:none}
 @media(max-width:370px){
-  .skill-candidate-row{grid-template-columns:minmax(0,1fr) 20px 44px 34px;gap:3px}
+  .skill-candidate-row,.super-controls{grid-template-columns:minmax(0,1fr) 20px 44px 34px;gap:3px}
   .skill-candidate-name-control .custom-select-button{height:auto;min-height:52px;font-size:12px;padding-left:6px;padding-right:16px;white-space:normal}
   .skill-candidate-name-control .super-name-text{white-space:normal;overflow-wrap:anywhere;line-height:1.3}
-  .skill-candidate-hint-control .custom-select-button{font-size:11px}
+  .skill-candidate-hint-control .custom-select-button,.super-level-control .custom-select-button{font-size:11px}
+  .super-name-control .custom-select-button{height:auto;min-height:52px;font-size:12px;padding-left:6px;padding-right:16px;white-space:normal}
+  .super-name-control .super-name-text{white-space:normal;overflow-wrap:anywhere;line-height:1.3}
 }
 /* こだわり条件の必殺技等：Lv.〜以降を選択した場合だけ各Lvの取得有無を指定 */
 .custom-skill-inputs{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:6px;align-items:stretch}
