@@ -55,7 +55,7 @@ test('unacquired skills UI is directly above the custom constraints section',()=
  assert(html.includes("child.tagName==='OPTGROUP'"));
  const css=read('style.css');
  assert(css.includes('.skill-candidate-name-control .custom-select-button'));
- assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) auto 56px 38px'));
+ assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 21px 46px 34px'));
  assert(css.includes('.skill-candidate-row .skill-candidate-remove'));
  assert(css.includes('.custom-select-group-heading'));
  const script=read('script.js');
