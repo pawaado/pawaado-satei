@@ -992,6 +992,22 @@ img,svg,canvas{max-width:100%}
   .super-name-control .custom-select-button{height:auto;min-height:52px;font-size:12px;padding-left:6px;padding-right:16px;white-space:normal}
   .super-name-control .super-name-text{white-space:normal;overflow-wrap:anywhere;line-height:1.3}
 }
+/* 空欄では削除×用の34pxを確保せず、Lv./コツLv.選択窓を右端まで広げる。
+   名称欄の幅は選択済み行とほぼ同じままにして、2つの入力欄の位置を揃える。 */
+.extra-resistance-group:not(.has-super-name) .super-controls,
+.skill-candidate-row:not(.has-skill){
+  grid-template-columns:minmax(0,1fr) 21px 79px;
+}
+.extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove,
+.skill-candidate-row:not(.has-skill) .skill-candidate-remove-placeholder{
+  display:none;
+}
+@media(max-width:370px){
+  .extra-resistance-group:not(.has-super-name) .super-controls,
+  .skill-candidate-row:not(.has-skill){
+    grid-template-columns:minmax(0,1fr) 20px 77px;
+  }
+}
 /* こだわり条件の必殺技等：Lv.〜以降を選択した場合だけ各Lvの取得有無を指定 */
 .custom-skill-inputs{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:6px;align-items:stretch}
 .custom-skill-inputs>.custom-condition-select{min-width:0}
