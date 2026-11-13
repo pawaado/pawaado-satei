@@ -25,8 +25,17 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
  const dom={},owned=new Set(),candidates=new Map();
  const node=id=>{
    if(dom[id])return dom[id];
-   const obj={id,value:'',hidden:true,innerHTML:'',textContent:'',handlers:{},disabled:false,
-     classList:{toggle(){}},
+   const obj={id,value:'',hidden:true,textContent:'',handlers:{},disabled:false,options:[],_innerHTML:'',
+     classList:{toggle(){},remove(){},add(){}},
+     set innerHTML(markup){
+       this._innerHTML=String(markup);
+       this.options=[...this._innerHTML.matchAll(/<option value="([^"]*)"[^>]*>([\\s\\S]*?)<\\/option>/g)]
+         .map(([,value,textContent])=>({value,textContent}));
+       if(this.options.length&&!this.options.some(option=>option.value===this.value))this.value=this.options[0].value;
+     },
+     get innerHTML(){return this._innerHTML;},
+     get selectedIndex(){return this.options.findIndex(option=>option.value===this.value);},
+     setAttribute(){},removeAttribute(){},
      addEventListener(t,cb){this.handlers[t]=cb;},closest(){return this;},
      dataset:{},hasAttribute(name){return name==='data-kind'&&this.dataset.kind!=null||name==='data-key'&&this.dataset.key!=null;}};
    dom[id]=obj;return obj;
@@ -46,6 +55,7 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
     },
    basicNames:['生命力','パワー','魔力','器用さ','耐久力','精神力'],
    mutualGroups,specialNameIndex:new Map(D.special.map((row,index)=>[String(row[1]),index])),
+    normalAttackNames:new Set((D.academyMaster?.academies||[]).map(a=>a.dualAttack?.skillName).filter(Boolean)),
    isCalculating:false,job:{value:jobName},hasAcademyJob:()=>ready,
    hasSpecialAccess:()=>ready&&attributeSelected,skillDisplayName:name=>name==='〜攻撃'?'火攻撃':name,
     dualSpecialIndex:D.special.findIndex(row=>row[1]==='通常攻撃(双剣士)'),dualAttackMaster:null,customDualRequiredLevel:0,customDualForbiddenLevel:0,
