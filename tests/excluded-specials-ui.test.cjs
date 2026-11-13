@@ -50,6 +50,7 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
    hasSpecialAccess:()=>ready&&attributeSelected,skillDisplayName:name=>name==='〜攻撃'?'火攻撃':name,
     dualSpecialIndex:D.special.findIndex(row=>row[1]==='通常攻撃(双剣士)'),dualAttackMaster:null,customDualRequiredLevel:0,customDualForbiddenLevel:0,
     currentDualAttackLevel:()=>1,dualCustomLevelAvailable:()=>false,
+     syncDualAttackMaster:()=>{},
    limits:()=>({生命力:110,パワー:115,魔力:110,器用さ:120,耐久力:100,精神力:100}),
    specialOwned:i=>owned.has(i),document:{getElementById:node,addEventListener(){}}};
  vm.createContext(state);
