@@ -198,7 +198,7 @@ test('basic conditions add when all values are complete and use updated mode',()
  x.node('customBasicValue').value='75';x.enter('customBasicValue');
  assert(x.node('custom-basic-list').innerHTML.includes('器用さ 75以下'));
 });
-test('special conditions add in either order, and reset the selection after each addition',()=>{
+test('special conditions add after selecting a skill and mode, and reset after each addition',()=>{
  const x=mock();
  const lower=D.special.findIndex(s=>s[1]==='アクションスキル○');
  const upper=D.special.findIndex(s=>s[1]==='アクションスキル◎');
@@ -211,8 +211,8 @@ test('special conditions add in either order, and reset the selection after each
  assert.equal(x.node('customSpecialName').value,'');
  assert.equal(x.node('customSpecialMode').value,'');
  assert.equal(x.node('customSpecialModeSelectText').textContent,'条件を選択');
- x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
  x.node('customSpecialName').value=String(upper);x.change('customSpecialName');
+ x.node('customSpecialMode').value='forbidden';x.change('customSpecialMode');
  assert(x.state.customForbiddenSpecials.has(upper));
  assert(x.node('custom-special-list').innerHTML.includes('取得しない'));
  x.click('remove',{kind:'forbidden',key:String(upper)});
@@ -286,8 +286,8 @@ test('requiring ◎ hides its prerequisite ○, while requiring ○ still permit
  assert(!x.node('customSpecialName').innerHTML.includes('>アクションスキル○</option>'));
  x.click('remove',{kind:'required',key:String(upper)});
  assert(x.node('customSpecialName').innerHTML.includes('>アクションスキル○</option>'));
- x.node('customSpecialMode').value='required';x.change('customSpecialMode');
  x.node('customSpecialName').value=String(lower);x.change('customSpecialName');
+ x.node('customSpecialMode').value='required';x.change('customSpecialMode');
  assert(x.state.customRequiredSpecials.has(lower));
  assert(x.node('customSpecialName').innerHTML.includes('>アクションスキル◎</option>'));
 });
