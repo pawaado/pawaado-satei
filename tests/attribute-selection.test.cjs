@@ -41,7 +41,7 @@ test('special abilities cannot change without attribute and calculator includes 
  assert(script.includes("if(kind==='special-name'){if(!hasSpecialAccess())return;"));
  assert(script.includes("const locked=!hasSpecialAccess()||isCalculating;"));
  assert(script.includes('specialCard?.classList.toggle(\'is-locked\',specialLocked)'));
- assert(script.includes("const specialReady=hasSpecialAccess();"));
+ assert(script.includes("const specialReady=ready&&hasSpecialAccess();"));
  assert(script.includes("if(!hasSpecialAccess()||isCalculating||special.value===''"));
  assert(script.includes("return [academy.value,job.value,attribute.value,currentCalcMode()"));
  assert(script.includes("if(!hasAttribute()) errs.push('属性を選択してください。');"));
