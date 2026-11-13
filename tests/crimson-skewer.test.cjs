@@ -11,7 +11,7 @@ function dataset(){
  vm.runInNewContext(read('skill_master.js'),c);
  return c.window.PAWAADO_DATA;
 }
-test('クリムゾンスキュアー: observed Lv1/Lv2 scores, exact tips, cost, eligibility and descriptions',()=>{
+test('クリムゾンスキュアー: observed Lv1/Lv2 scores, exact tips, cost, eligibility and no stored description',()=>{
  const D=dataset(), entries=D.skillRankings.skills.filter(x=>x.name==='クリムゾンスキュアー');
  assert.equal(entries.length,1);
  const s=entries[0];
@@ -31,11 +31,11 @@ test('クリムゾンスキュアー: observed Lv1/Lv2 scores, exact tips, cost,
  assert.equal(b.cost.reduce((p,n)=>p+n,0),534);
  assert.equal(a.tip,1);assert.equal(b.tip,1);
  assert.equal(a.condition,'魔力40以上');assert.equal(b.condition,'魔力60以上');
- assert.equal(a.effect['弓使い系統特効'],50); assert.equal(b.effect['僧侶系統特効'],50);
- assert.equal(a.effect['継続ターン'],1); assert.equal(b.effect['継続ターン'],1);
- assert.equal(a.effect['敵後列への魔法ダメージ威力'],90);
- assert.equal(b.effect['敵後列への魔法ダメージ威力'],130);
- assert(a.description.includes('威力90')); assert(b.description.includes('威力130'));
+ assert.equal(Object.hasOwn(s,'description'),false,'do not store finisher explanation');
+ for(const lv of [a,b]){
+  assert.equal(Object.hasOwn(lv,'description'),false,'do not store level explanation');
+  assert.equal(Object.hasOwn(lv,'effect'),false,'do not record explanation-derived metadata');
+ }
  assert.deepEqual(Array.from(D.skillJobScore(s,a,'魔法使い')),[2000,2000]);
  assert.deepEqual(Array.from(D.skillJobScore(s,b,'魔法使い')),[1600,3600]);
  assert.deepEqual(Array.from(D.skillCandidateLevelCost(s,1,1)),[0,32,126,126,63]);
@@ -67,12 +67,12 @@ test('クリムゾンスキュアー: 魔法使いのLv.別と累計ランキン
 });
 test('propagate changed worker and skill files through every browser cache reference',()=>{
  const refs={
-  'index.html':['skill_master.js?v=20261114-crimson-skewer-1','data.js?v=20261114-skewer-worker-refresh-1','resistance_patch.js?v=20261114-skewer-worker-refresh-1','script.js?v=20261114-skewer-worker-refresh-1'],
-  'rankings.html':['skill_master.js?v=20261114-crimson-skewer-1','data.js?v=20261114-skewer-worker-refresh-1'],
-  'pawaado_worker.js':['skill_master.js?v=20261114-crimson-skewer-1','data.js?v=20261114-skewer-worker-refresh-1'],
-  'pawaado_worker_resistance.js':['pawaado_worker.js?v=20261114-skewer-worker-refresh-1'],
-  'script.js':['pawaado_worker.js?v=20261114-skewer-worker-refresh-1']
+  'index.html':['skill_master.js?v=20261114-crimson-no-description-1','data.js?v=20261114-crimson-no-description-worker-1','resistance_patch.js?v=20261114-crimson-no-description-worker-1','script.js?v=20261114-crimson-no-description-worker-1'],
+  'rankings.html':['skill_master.js?v=20261114-crimson-no-description-1','data.js?v=20261114-crimson-no-description-worker-1'],
+  'pawaado_worker.js':['skill_master.js?v=20261114-crimson-no-description-1','data.js?v=20261114-crimson-no-description-worker-1'],
+  'pawaado_worker_resistance.js':['pawaado_worker.js?v=20261114-crimson-no-description-worker-1'],
+  'script.js':['pawaado_worker.js?v=20261114-crimson-no-description-worker-1']
  };
  for(const [file,links] of Object.entries(refs))for(const link of links)assert(read(file).includes(link),file+' missing '+link);
- assert(read('resistance_patch.js').includes("const PATCH_VERSION='20261114-skewer-worker-refresh-1'"));
+ assert(read('resistance_patch.js').includes("const PATCH_VERSION='20261114-crimson-no-description-worker-1'"));
 });
