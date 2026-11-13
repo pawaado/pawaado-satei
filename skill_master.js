@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-11-14-ichigeki-funsai-1",
+  "version": "2026-11-14-ichigeki-and-crimson-skewer-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -12632,6 +12632,71 @@ window.PAWAADO_DATA.skillRankings = {
       "hp": false,
       "resistance": false,
       "upper": null
+    },
+    {
+      "name": "クリムゾンスキュアー",
+      "category": "必殺技",
+      "kind": "固有",
+      "jobs": [
+        "魔法使い"
+      ],
+      "attribute": "火",
+      "description": "自身の弓使い系統特効と僧侶系統特効をそれぞれ50%アップ（1ターン継続）。敵後列への魔法ダメージ。",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            32,
+            126,
+            126,
+            63
+          ],
+          "tip": 1,
+          "condition": "魔力40以上",
+          "description": "自身の弓使い系統特効を50%アップ。さらに僧侶系統特効を50%アップ。1ターン継続。敵後列に威力90の魔法ダメージ。",
+          "scores": {
+            "魔法使い": [
+              2000,
+              2000
+            ]
+          },
+          "effect": {
+            "弓使い系統特効": 50,
+            "僧侶系統特効": 50,
+            "継続ターン": 1,
+            "敵後列への魔法ダメージ威力": 90
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            49,
+            194,
+            194,
+            97
+          ],
+          "tip": 1,
+          "condition": "魔力60以上",
+          "description": "自身の弓使い系統特効を50%アップ。さらに僧侶系統特効を50%アップ。1ターン継続。敵後列に威力130の魔法ダメージ。",
+          "scores": {
+            "魔法使い": [
+              1600,
+              3600
+            ]
+          },
+          "effect": {
+            "弓使い系統特効": 50,
+            "僧侶系統特効": 50,
+            "継続ターン": 1,
+            "敵後列への魔法ダメージ威力": 130
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
     }
   ]
 };
@@ -12764,6 +12829,7 @@ window.PAWAADO_DATA.skillHintCosts = {
 // カタカナのみの名称は名称そのものを比較キーとする。
 window.PAWAADO_DATA.skillRankings.readings={
   "一撃粉砕": "いちげきふんさい",
+  "クリムゾンスキュアー": "クリムゾンスキュアー",
   "光の太刀": "ひかりのたち",
   "双翼の舞": "そうよくのまい",
   "爆炎一閃": "ばくえんいっせん",
