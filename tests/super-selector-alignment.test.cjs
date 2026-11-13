@@ -37,5 +37,23 @@ test('variable-score super selectors align with unacquired skill candidate selec
   assert(supers.includes('class="super-field super-name-field"'));
   assert(supers.includes('class="super-field super-level-field"'));
   assert(supers.includes("superSelectControlHtml('level',levelOptions,'')"));
-  assert(html.includes('style.css?v=20261113-align-super-with-candidates'));
+  assert(html.includes('style.css?v=20261114-fill-empty-selector-space'));
+});
+
+test('empty candidate and super rows fill the right edge without reserving the hidden remove button',()=>{
+  // Selected rows still reserve the 34px remove button, so users can delete a chosen item.
+  assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 21px 46px 34px'));
+  assert(css.includes('.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 21px 46px 34px'));
+  // The two unselected rows share the same narrower three-track grid, with a larger right selector.
+  assert(css.includes('.extra-resistance-group:not(.has-super-name) .super-controls,\\n.skill-candidate-row:not(.has-skill){\\n  grid-template-columns:minmax(0,1fr) 21px 79px;'.replaceAll('\\n','\n')));
+  assert(css.includes('.extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove,\\n.skill-candidate-row:not(.has-skill) .skill-candidate-remove-placeholder{\\n  display:none;'.replaceAll('\\n','\n')));
+  // At <=370px (the screenshot's phone width), both use the same compact layout.
+  assert(css.includes('.extra-resistance-group:not(.has-super-name) .super-controls,\\n  .skill-candidate-row:not(.has-skill){\\n    grid-template-columns:minmax(0,1fr) 20px 77px;'.replaceAll('\\n','\n')));
+  // Reclaiming the remove track leaves the name selector within 4px of the original width.
+  const normalFixedWidth=21+46+34+3*3;
+  const emptyFixedWidth=21+79+2*3;
+  assert.equal(normalFixedWidth-emptyFixedWidth,4);
+  assert(supers.includes("group?.classList.toggle('has-super-name',hasName)"));
+  const candidates=fs.readFileSync(path.join(root,'script.js'),'utf8');
+  assert(candidates.includes("class=\\\"skill-candidate-row'+(row?' has-skill':'')+'\\\"".replaceAll('\\\"','\"')));
 });
