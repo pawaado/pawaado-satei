@@ -37,23 +37,22 @@ test('variable-score super selectors align with unacquired skill candidate selec
   assert(supers.includes('class="super-field super-name-field"'));
   assert(supers.includes('class="super-field super-level-field"'));
   assert(supers.includes("superSelectControlHtml('level',levelOptions,'')"));
-  assert(html.includes('style.css?v=20261114-wide-name-compact-number'));
+  assert(html.includes('style.css?v=20261114-stable-remove-slot'));
 });
 
-test('empty candidate and super rows fill the right edge without reserving the hidden remove button',()=>{
-  // Selected rows still reserve the 34px remove button, so users can delete a chosen item.
-  assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 21px 44px 34px'));
-  assert(css.includes('.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 21px 44px 34px'));
-  // Both empty rows use a three-track grid with a compact 44px number selector flush right.
-  assert(css.includes('.extra-resistance-group:not(.has-super-name) .super-controls,\\n.skill-candidate-row:not(.has-skill){\\n  grid-template-columns:minmax(0,1fr) 21px 44px;'.replaceAll('\\n','\n')));
-  assert(css.includes('.extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove,\\n.skill-candidate-row:not(.has-skill) .skill-candidate-remove-placeholder{\\n  display:none;'.replaceAll('\\n','\n')));
-  // At <=370px (the screenshot's phone width), both use the same compact layout.
-  assert(css.includes('.extra-resistance-group:not(.has-super-name) .super-controls,\\n  .skill-candidate-row:not(.has-skill){\\n    grid-template-columns:minmax(0,1fr) 20px 44px;'.replaceAll('\\n','\n')));
-  // Freeing the remove slot expands the name field by 37px, without adding right padding.
-  const normalFixedWidth=21+44+34+3*3;
-  const emptyFixedWidth=21+44+2*3;
-  assert.equal(normalFixedWidth-emptyFixedWidth,37);
-  assert(supers.includes("group?.classList.toggle('has-super-name',hasName)"));
+test('empty candidate and super rows keep the same four columns as selected rows',()=>{
+  const tracks='minmax(0,1fr) 21px 44px 34px';
+  assert(css.includes('.super-controls{display:grid;grid-template-columns:'+tracks+';gap:3px;'));
+  assert(css.includes('.skill-candidate-row{display:grid;grid-template-columns:'+tracks+';align-items:center;'));
+  // No selected/unselected-specific grid-width overrides may shift the selectors.
+  assert(!css.includes('.extra-resistance-group:not(.has-super-name) .super-controls,'));
+  assert(!css.includes('.skill-candidate-row:not(.has-skill){'));
+  // The super row's delete button hides visually without disappearing from layout.
+  assert(css.includes('.extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove{visibility:hidden;pointer-events:none}'));
+  // The skill candidate row uses a same-size invisible placeholder until selected.
+  assert(css.includes('.skill-candidate-remove-placeholder{display:block;width:34px;height:48px}'));
   const candidates=fs.readFileSync(path.join(root,'script.js'),'utf8');
-  assert(candidates.includes("class=\\\"skill-candidate-row'+(row?' has-skill':'')+'\\\"".replaceAll('\\\"','\"')));
+  assert(candidates.includes('skill-candidate-remove-placeholder'));
+  assert(supers.includes('class="secondary extra-resistance-group-remove"'));
+  assert(css.includes('.skill-candidate-row,.super-controls{grid-template-columns:minmax(0,1fr) 20px 44px 34px;gap:3px}'));
 });
