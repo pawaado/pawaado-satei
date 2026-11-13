@@ -136,7 +136,7 @@ assert(sources['academy_runtime.js'].includes('__PAWAADO_DUAL_ATTACK_SIGNATURE__
 assert(sources['academy_runtime.js'].includes('for(let level=DUAL.initialLevel;level<=maxShown;level++)'),'dual attack UI must show initial Lv1 row');
 assert(sources['academy_runtime.js'].includes('dual-level-badge">Lv.${level}'),'dual attack UI must display Lv. punctuation');
 assert(sources['resistance_patch.js'].includes('super-level-label">Lv.</span>'),'variable-score super UI must display Lv. punctuation');
-assert(sources['rankings.html'].includes('通常攻撃(双剣士) Lv.${lv}'),'ranking dual levels must display Lv. punctuation');
+assert(sources['rankings.html'].includes('ability:`${attack.skillName} Lv.${lv}`'),'ranking dual levels must display Lv. punctuation');
 assert(sources['photo_import.js'].includes('const colorValue=trainingGainColorNumber(image,y,kind)'),'training gains must inspect colored digits');
 assert(sources['photo_import.js'].includes("const softBlueBubble=kind==='blue'&&Number.isInteger(colorValue)&&trainingBubbleRatio(image,y,kind)>.12"),'faint blue gains must require both digit and bubble-background signals');
 assert(sources['script.js'].includes("'dualAttack:'+dualPart"),'calculation cache key must include dual attack level/hint');
