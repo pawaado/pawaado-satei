@@ -81,19 +81,19 @@ test('changing only a master data score automatically changes ordering and shown
   assert(rendered.includes('<td class="skill-rank-score">50000</td>'));
 });
 
-test('skill names remain on one line while efficiency and score remain visible together',()=>{
+test('skill names remain readable in wide scrollable sticky column alongside numeric columns',()=>{
  const style=file('skill_rankings.css');
  const calc=Object.fromEntries([...style.matchAll(/#skillRankingRoot \.(rank|name|eff|score)-col\{width:(\d+)px\}/g)].map(m=>[m[1],Number(m[2])]));
- assert.equal(calc.rank+calc.name+calc.eff+calc.score,337,'the first four columns must fit a compact iPhone viewport');
- assert.equal(calc.name,196,'name column still accommodates the longest 12-character label plus Lv');
+ assert.equal(calc.rank+calc.name+calc.eff+calc.score,365,'rank, name, efficiency and score columns have consistent scrollable widths');
+ assert.equal(calc.name,224,'name column allows long skill labels and Lv while horizontally scrolling on phones');
  assert(calc.eff>=61&&calc.score>=49,'efficiency and assessment values must remain visible');
  assert(style.includes('left:31px;z-index:2'),'sticky name offset follows rank width');
- assert(style.includes('.skill-row-title{display:block;flex:0 0 auto;font-weight:600;font-size:13px;line-height:1.4;white-space:nowrap;overflow:visible}'));
+ assert(style.includes('.skill-row-title{display:block;flex:0 1 auto;min-width:0;font-weight:600;font-size:12px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}'));
  assert(!style.includes('.skill-row-title.skill-long-name{font-size:11px}'));
  assert(!style.includes('.skill-row-title.skill-extra-long-name{font-size:10px}'));
  assert(!style.includes('font-size:14px;line-height:1.4;min-width:0;white-space:nowrap;overflow:hidden'));
- assert(style.includes('.skill-level{display:block;flex:0 0 auto;font-size:10px;line-height:1.4;'));
- assert(style.includes('.skill-name-line{display:flex;align-items:baseline;gap:2px;'));
+ assert(style.includes('.skill-level{display:block;flex:0 0 auto;font-size:9px;line-height:1.4;'));
+ assert(style.includes('.skill-name-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px;'));
  const {elements,jobButtons}=load();
  jobButtons[2].click();
  const h=elements.skillRankingRoot.innerHTML;
@@ -103,8 +103,8 @@ test('skill names remain on one line while efficiency and score remain visible t
  assert(!h.includes('class="skill-rank-level">'));
  assert(!h.includes('class="skill-full-name"'),'the obsolete tap-to-expand detail is no longer rendered');
  assert(h.includes('<th>査定効率</th><th>査定</th>'));
- const widthBudget=[...('ウォータープロテクション')].length*13 + 30 + 2 + 4;
- assert(widthBudget<=calc.name,'12-character name plus right-side Lv fits the 196px column at 13px');
+ const widthBudget=[...('ウォータープロテクション')].length*12 + 30 + 2 + 4;
+ assert(widthBudget<=calc.name,'long name and Lv have enough room in the 224px column at 12px');
 });
 
 function rowForSkill(html,name,level){
