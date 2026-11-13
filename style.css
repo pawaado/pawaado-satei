@@ -921,7 +921,7 @@ img,svg,canvas{max-width:100%}
 .extra-resistance-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.72fr);gap:10px;align-items:center}
 .extra-resistance-type-label{min-width:0;padding:6px 2px;color:#5a371d;font-weight:800;line-height:1.35}
 .super-control-row{display:block;height:52px;min-height:52px;margin:0;padding:0}
-.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 21px 46px 34px;gap:3px;align-items:center;height:52px;min-height:52px;margin:0;padding:0}
+.super-controls{display:grid;grid-template-columns:minmax(0,1fr) 21px 44px 34px;gap:3px;align-items:center;height:52px;min-height:52px;margin:0;padding:0}
 .super-controls .super-field{min-width:0}
 .super-name-field{grid-column:1;grid-row:1}
 .super-level-field{display:contents}
@@ -960,7 +960,7 @@ img,svg,canvas{max-width:100%}
 .skill-candidates-card:has(.custom-select-control.is-open){z-index:500}
 .skill-candidate-rows{display:grid;gap:5px}
 /* 未取得候補：名称幅を極力確保しつつ「コツ」「Lv.」を数値欄の左に縦表示する。 */
-.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 21px 46px 34px;align-items:center;gap:3px;min-height:52px}
+.skill-candidate-row{display:grid;grid-template-columns:minmax(0,1fr) 21px 44px 34px;align-items:center;gap:3px;min-height:52px}
 .skill-candidate-name-control,.skill-candidate-hint-control{min-width:0}
 .skill-candidate-name-control{grid-column:1;grid-row:1}
 .skill-candidate-row .skill-candidate-hint-label{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0;min-width:0;pointer-events:none;white-space:nowrap;font-size:10px;line-height:1.3}
@@ -992,11 +992,11 @@ img,svg,canvas{max-width:100%}
   .super-name-control .custom-select-button{height:auto;min-height:52px;font-size:12px;padding-left:6px;padding-right:16px;white-space:normal}
   .super-name-control .super-name-text{white-space:normal;overflow-wrap:anywhere;line-height:1.3}
 }
-/* 空欄では削除×用の34pxを確保せず、Lv./コツLv.選択窓を右端まで広げる。
-   名称欄の幅は選択済み行とほぼ同じままにして、2つの入力欄の位置を揃える。 */
+/* 名称を優先して幅広にし、数値選択窓は必要最小限の44pxに統一する。
+   未選択行では削除×用の幅を使わず、数字窓を右端に寄せて余白を残さない。 */
 .extra-resistance-group:not(.has-super-name) .super-controls,
 .skill-candidate-row:not(.has-skill){
-  grid-template-columns:minmax(0,1fr) 21px 79px;
+  grid-template-columns:minmax(0,1fr) 21px 44px;
 }
 .extra-resistance-group:not(.has-super-name) .extra-resistance-group-remove,
 .skill-candidate-row:not(.has-skill) .skill-candidate-remove-placeholder{
@@ -1005,7 +1005,7 @@ img,svg,canvas{max-width:100%}
 @media(max-width:370px){
   .extra-resistance-group:not(.has-super-name) .super-controls,
   .skill-candidate-row:not(.has-skill){
-    grid-template-columns:minmax(0,1fr) 20px 77px;
+    grid-template-columns:minmax(0,1fr) 20px 44px;
   }
 }
 /* こだわり条件の必殺技等：Lv.〜以降を選択した場合だけ各Lvの取得有無を指定 */
