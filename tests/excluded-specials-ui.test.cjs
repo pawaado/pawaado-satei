@@ -29,7 +29,7 @@ function mock({ready=true,attributeSelected=true,jobName='剣士'}={}){
      classList:{toggle(){},remove(){},add(){}},
      set innerHTML(markup){
        this._innerHTML=String(markup);
-       this.options=[...this._innerHTML.matchAll(/<option value="([^"]*)"[^>]*>([\\s\\S]*?)<\\/option>/g)]
+       this.options=[...this._innerHTML.matchAll(/<option value="([^"]*)"[^>]*>([\s\S]*?)<\/option>/g)]
          .map(([,value,textContent])=>({value,textContent}));
        if(this.options.length&&!this.options.some(option=>option.value===this.value))this.value=this.options[0].value;
      },
