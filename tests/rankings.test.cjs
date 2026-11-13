@@ -22,7 +22,7 @@ test('special scores/costs match master data, zero scores are excluded, dual lev
  const {c}=load();const d=c.PAWAADO_DATA;
  for(const [g,def] of Object.entries(c.audit.groupDefs)){
   const rows=c.audit.specialItems(g);
-  for(const s of d.special){if(s[1]==='通常攻撃(双剣士)')continue;const score=Number(s[11])?Number(s[def.fixedIndex]||0)+1925*Number(s[11]):Number(s[def.scoreIndex]||0);const exp=s.slice(3,8).reduce((a,v)=>a+Number(v||0),0);const names=s[1]==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[s[1]];for(const name of names){const item=rows.find(r=>r.ability===name||r.ability===name+' ※HP依存');if(score===0||exp<=0){assert(!item);continue;}assert(item,name);assert.equal(item.score,score);assert.equal(item.exp,exp);}}
+  for(const s of d.special){if(s[1]==='通常攻撃(双剣士)')continue;const score=Number(s[11])?Number(s[def.fixedIndex]||0)+c.audit.referenceHp*Number(s[11]):Number(s[def.scoreIndex]||0);const exp=s.slice(3,8).reduce((a,v)=>a+Number(v||0),0);const names=s[1]==='〜攻撃'?['火攻撃','風攻撃','水攻撃']:[s[1]];for(const name of names){const item=rows.find(r=>r.ability===name||r.ability===name+' ※HP依存');if(score===0||exp<=0){assert(!item);continue;}assert(item,name);assert.equal(item.score,score);assert.equal(item.exp,exp);}}
   const dual=rows.filter(r=>r.ability.startsWith('通常攻撃(双剣士)'));assert.equal(dual.length,g==='物理職'?5:0);
  }
 });
@@ -34,11 +34,11 @@ test('resistance-impact markers are derived from canonical data rules',()=>{
  const expected=new Set([...(rules.pairSources||[]).flatMap(x=>[x.lower,x.upper]),...Object.keys(rules.directEffects||{})]);
  assert.deepEqual([...c.audit.resistanceImpactSkills].sort(),[...expected].sort());
 });
-test('HP-based rankings retain life-90 notes without displaying HP1925',()=>{
- const {c}=load();assert.equal(c.audit.referenceHp,1925);
+test('HP-based rankings consistently use life-100 and avoid raw HP values',()=>{
+ const {c}=load();assert.equal(c.audit.referenceHp,2670);
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
- assert(html.includes('HP依存特殊能力は生命力90で計算しています。'));
- assert(!html.includes('HP依存の超特殊能力は生命力90で計算しています。'),'no redundant HP skill note');
+ assert(html.includes('HP依存の特殊能力は生命力100の状態で計算しています。'));
+ assert(html.includes('HP依存の超特殊能力は生命力100の状態で計算しています。'),'skill rankings use the same life reference');
  assert(!html.includes('HP1925'));
  assert(!html.includes('referenceHpNote'));assert(!html.includes('skillReferenceHpNote'));
  assert(load(undefined,false).elements.rankingRoot.innerHTML.includes('読み込めませんでした'));
@@ -113,9 +113,9 @@ test('both ranking note blocks use the requested resistance wording',()=>{
 test('skill ranking table font sizes match the basic ranking table',()=>{
  const html=fs.readFileSync(process.env.RANKINGS_SOURCE||path.join(root,'rankings.html'),'utf8');
  const css=fs.readFileSync(path.join(root,'skill_rankings.css'),'utf8');
- assert(html.includes('td{font-size:13px;background:#fff}'));
- assert(html.includes('font-size:13px;') && css.includes('#skillRankingRoot th{font-size:13px;'));
- for(const selector of ['#skillRankingRoot td{font-size:13px;', '.skill-row-title{display:block;flex:0 0 auto;font-weight:600;font-size:13px;', '.skill-level{display:block;flex:0 0 auto;font-size:10px;line-height:1.4;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:13px;font-weight:600}'])assert(css.includes(selector),selector);
+ assert(html.includes('td{font-size:12px;background:#fff}'));
+ assert(html.includes('font-size:12px;') && css.includes('#skillRankingRoot th{font-size:12px;'));
+ for(const selector of ['#skillRankingRoot td{font-size:12px;', '.skill-row-title{display:block;flex:0 1 auto;min-width:0;font-weight:600;font-size:12px;', '.skill-level{display:block;flex:0 0 auto;font-size:9px;line-height:1.4;', '.skill-row-detail{font-size:13px;', '#skillRankingRoot td.skill-rank-eff{font-size:12px;font-weight:800}', '#skillRankingRoot td.skill-rank-score,#skillRankingRoot td.skill-rank-exp{font-size:12px;font-weight:600}'])assert(css.includes(selector),selector);
 });
 
 test('basic ranking selected class uses the same yellow family-tab style as skills',()=>{
@@ -132,10 +132,12 @@ test('basic ability column matches skill name width while keeping efficiency and
  const base=html.match(/col\.rank\{width:(\d+)px\} col\.name\{width:(\d+)px\} col\.eff\{width:(\d+)px\} col\.score\{width:(\d+)px\}/);
  assert(base,'basic ranking columns must be specified');
  const skill=Object.fromEntries([...css.matchAll(/#skillRankingRoot \.(rank|name|eff|score)-col\{width:(\d+)px\}/g)].map(m=>[m[1],Number(m[2])]));
- assert.equal(Number(base[2]),196);
+ assert.equal(Number(base[2]),224);
  assert.deepEqual(base.slice(1).map(Number),[skill.rank,skill.name,skill.eff,skill.score]);
- assert.equal(base.slice(1).reduce((sum,v)=>sum+Number(v),0),337);
- assert(html.includes('min-width:517px'));
+ assert.equal(base.slice(1).reduce((sum,v)=>sum+Number(v),0),365);
+ assert(html.includes('min-width:499px'));
+  assert(html.includes('.table-wrap{overflow-x:auto;'));
+  assert(css.includes('#skillRankingRoot{overflow-x:auto;'));
  assert(html.includes('th,td{border:1px solid #4d9ec0;padding:9px 3px;vertical-align:middle}'));
 });
 
@@ -146,10 +148,10 @@ test('efficiency column headers stay on one line in both ranking views without c
   {text:html,selector:'#rankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px;}'},
   {text:css,selector:'#skillRankingRoot th:nth-child(3){white-space:nowrap;padding-left:0;padding-right:0;letter-spacing:-.5px}'}
  ])assert(spec.text.includes(spec.selector));
- assert(html.includes('col.rank{width:31px} col.name{width:196px} col.eff{width:61px} col.score{width:49px}'));
- assert(css.includes('#skillRankingRoot .name-col{width:196px}'));
+ assert(html.includes('col.rank{width:31px} col.name{width:224px} col.eff{width:61px} col.score{width:49px}'));
+ assert(css.includes('#skillRankingRoot .name-col{width:224px}'));
  assert(css.includes('#skillRankingRoot .eff-col{width:61px}'));
- assert(css.includes('#skillRankingRoot td.skill-rank-eff{font-size:13px;font-weight:800}'));
+ assert(css.includes('#skillRankingRoot td.skill-rank-eff{font-size:12px;font-weight:800}'));
 });
 
 test('physical power 110–135 rankings use five verified steps grouped as three rows',()=>{
