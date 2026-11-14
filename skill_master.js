@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-11-14-crimson-no-description-1",
+  "version": "2026-11-14-hawkeye-lethal-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -72,6 +72,56 @@ window.PAWAADO_DATA.skillRankings = {
         "弓使い"
       ],
       "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            82,
+            0,
+            82,
+            0,
+            51
+          ],
+          "tip": 1,
+          "condition": "器用さ40以上",
+          "scores": {
+            "弓使い": [
+              1125,
+              1125
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            99,
+            0,
+            99,
+            0,
+            61
+          ],
+          "tip": 1,
+          "condition": "器用さ60以上",
+          "scores": {
+            "弓使い": [
+              675,
+              1800
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "ホークアイリーサル",
+      "category": "アクションスキル",
+      "kind": "固有",
+      "jobs": [
+        "弓使い"
+      ],
+      "attribute": "風",
       "levels": [
         {
           "lv": 1,
