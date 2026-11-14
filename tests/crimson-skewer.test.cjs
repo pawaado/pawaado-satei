@@ -66,13 +66,17 @@ test('クリムゾンスキュアー: 魔法使いのLv.別と累計ランキン
  assert(total[0].includes('<td class="skill-rank-exp">881</td>'));
 });
 test('propagate changed worker and skill files through every browser cache reference',()=>{
+ const worker=read('pawaado_worker.js');
+ const skillVersion=worker.match(/skill_master\.js\?v=([^']+)/)?.[1];
+ const workerVersion=worker.match(/data\.js\?v=([^']+)/)?.[1];
+ assert(skillVersion&&workerVersion,'worker must import versioned master data');
  const refs={
-  'index.html':['skill_master.js?v=20261114-crimson-no-description-1','data.js?v=20261114-crimson-no-description-worker-1','resistance_patch.js?v=20261114-crimson-no-description-worker-1','script.js?v=20261114-crimson-no-description-worker-1'],
-  'rankings.html':['skill_master.js?v=20261114-crimson-no-description-1','data.js?v=20261114-crimson-no-description-worker-1'],
-  'pawaado_worker.js':['skill_master.js?v=20261114-crimson-no-description-1','data.js?v=20261114-crimson-no-description-worker-1'],
-  'pawaado_worker_resistance.js':['pawaado_worker.js?v=20261114-crimson-no-description-worker-1'],
-  'script.js':['pawaado_worker.js?v=20261114-crimson-no-description-worker-1']
+  'index.html':['skill_master.js?v='+skillVersion,'data.js?v='+workerVersion,'resistance_patch.js?v='+workerVersion,'script.js?v='+workerVersion],
+  'rankings.html':['skill_master.js?v='+skillVersion,'data.js?v='+workerVersion],
+  'pawaado_worker.js':['skill_master.js?v='+skillVersion,'data.js?v='+workerVersion],
+  'pawaado_worker_resistance.js':['pawaado_worker.js?v='+workerVersion],
+  'script.js':['pawaado_worker.js?v='+workerVersion]
  };
  for(const [file,links] of Object.entries(refs))for(const link of links)assert(read(file).includes(link),file+' missing '+link);
- assert(read('resistance_patch.js').includes("const PATCH_VERSION='20261114-crimson-no-description-worker-1'"));
+ assert(read('resistance_patch.js').includes("const PATCH_VERSION='"+workerVersion+"'"));
 });
