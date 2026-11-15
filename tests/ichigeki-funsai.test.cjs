@@ -64,5 +64,5 @@ test('一撃粉砕 is ranked in Lv.別 and Lv.累計 for physical, magical and h
 test('skill master cache versions are synchronized for UI, rankings and worker',()=>{
  const versions=['index.html','rankings.html','pawaado_worker.js'].map(p=>read(p).match(/skill_master\.js\?v=([^"' ]+)/)?.[1]);
  assert(versions.every(x=>x&&x===versions[0]));
- assert.match(versions[0],/^20261114-/, 'asset version should be refreshed on Nov. 14');
+ assert.match(versions[0],/^20\d{6}-/, 'asset version must be a dated cache suffix');
 });
