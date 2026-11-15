@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-11-14-hawkeye-lethal-1",
+  "version": "2026-11-16-hawkeye-lethal-cyclone-crash-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -524,6 +524,74 @@ window.PAWAADO_DATA.skillRankings = {
             "オーブストライカー": [
               900,
               3300
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "サイクロンクラッシュ",
+      "category": "必殺技",
+      "kind": "固有",
+      "jobs": [
+        "オーブストライカー"
+      ],
+      "attribute": "風",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            32,
+            126,
+            126,
+            63
+          ],
+          "tip": 1,
+          "condition": "魔力20以上・器用さ20以上",
+          "scores": {
+            "オーブストライカー": [
+              2000,
+              2000
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            49,
+            194,
+            194,
+            97
+          ],
+          "tip": 1,
+          "condition": "魔力50以上・器用さ50以上",
+          "scores": {
+            "オーブストライカー": [
+              1600,
+              3600
+            ]
+          }
+        },
+        {
+          "lv": 3,
+          "cost": [
+            0,
+            146,
+            583,
+            583,
+            292
+          ],
+          "tip": 1,
+          "condition": "魔力70以上・器用さ70以上",
+          "scores": {
+            "オーブストライカー": [
+              1600,
+              5200
             ]
           }
         }
