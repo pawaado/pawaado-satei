@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-11-16-hawkeye-lethal-cyclone-crash-1",
+  "version": "2026-11-16-hawkeye-lethal-cyclone-crash-thermal-enhance-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -12793,6 +12793,56 @@ window.PAWAADO_DATA.skillRankings = {
             "魔法使い": [
               1600,
               3600
+            ]
+          }
+        }
+      ],
+      "hp": false,
+      "resistance": false,
+      "upper": null
+    },
+    {
+      "name": "サーマルエンハンス",
+      "category": "アクションスキル",
+      "kind": "固有",
+      "jobs": [
+        "僧侶"
+      ],
+      "attribute": "火",
+      "levels": [
+        {
+          "lv": 1,
+          "cost": [
+            0,
+            0,
+            64,
+            64,
+            86
+          ],
+          "tip": 1,
+          "condition": "魔力40以上",
+          "scores": {
+            "僧侶": [
+              1125,
+              1125
+            ]
+          }
+        },
+        {
+          "lv": 2,
+          "cost": [
+            0,
+            0,
+            78,
+            78,
+            103
+          ],
+          "tip": 1,
+          "condition": "魔力60以上",
+          "scores": {
+            "僧侶": [
+              675,
+              1800
             ]
           }
         }
