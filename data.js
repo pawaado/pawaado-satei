@@ -4604,6 +4604,7 @@ window.PAWAADO_DATA.resistanceRules={
     "無属性耐性": 70,
     "列攻撃耐性": 50,
     "アクションスキル耐性": 18,
+    "会心ダメージ耐性": 0,
     "ダメージ状態異常耐性": 20,
     "弱体化状態異常耐性": 20,
     "行動不能状態異常耐性": 20
@@ -4673,7 +4674,7 @@ window.PAWAADO_DATA.resistanceRules={
 
 // User-confirmed totals; level 2 replaces level 1, including lower abilities.
 window.PAWAADO_DATA.superResistances={
-  "受技の心得": {"types": ["アクションスキル耐性"], "levels": [14,25,36]},
+  "受技の心得": {"types": ["アクションスキル耐性","会心ダメージ耐性"], "levels": [14,25,36], "levelsByType": {"会心ダメージ耐性": [14,22,30]}},
   "慈愛の祈り": {
     "types": [
       "物理攻撃耐性",

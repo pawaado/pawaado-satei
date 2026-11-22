@@ -19,8 +19,23 @@ test('受技の心得 correct scores costs effect condition for Lv1-3',()=>{
   }
  }
  const r=D.superResistances['受技の心得'];
- assert.deepEqual(Array.from(r.types),['アクションスキル耐性']);
- assert.deepEqual(Array.from(r.levels),[14,25,36]);assert.equal(D.resistanceRules.scorePerPercent['アクションスキル耐性'],18);
+ assert.deepEqual(Array.from(r.types),['アクションスキル耐性','会心ダメージ耐性']);
+ assert.deepEqual(Array.from(r.levels),[14,25,36]);
+ assert.deepEqual(Array.from(r.levelsByType['会心ダメージ耐性']),[14,22,30]);
+ assert.equal(D.resistanceRules.scorePerPercent['アクションスキル耐性'],18);
+ assert.equal(D.resistanceRules.scorePerPercent['会心ダメージ耐性'],0);
+ assert.deepEqual([14*18+14*0,11*18+8*0,11*18+8*0],[252,198,198]);
+});
+test('受技の心得 is in variable-super selector and critical resistance has its own values',()=>{
+ const ui=read('resistance_patch.js'),worker=read('pawaado_worker_resistance.js');
+ const m=ui.match(/const SUPER_ORDER=\[([\s\S]*?)\];/);
+ assert(m);const order=vm.runInNewContext('['+m[1]+']');
+ assert(order.includes('受技の心得'));
+ assert(order.indexOf('ウォータープロテクション')<order.indexOf('受技の心得'));
+ assert(order.indexOf('受技の心得')<order.indexOf('大真面目'));
+ assert(ui.includes('Array.from({length:maxLevel}'));
+ assert(ui.includes('def.levelsByType?.[def.types[i]]?.[lv-1]'));
+ assert(worker.includes('def?.levelsByType?.[type]?.[entry.level-1]'));
 });
 test('updated scripts, workers, ranking versions are in sync',()=>{
  const v=read('pawaado_worker.js').match(/data\.js\?v=([^']+)/)?.[1];

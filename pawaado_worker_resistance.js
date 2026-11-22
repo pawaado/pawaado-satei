@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261123-kenko-ukewaza-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261123-ukewaza-critical-2',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -105,7 +105,7 @@ function resistanceSourcesForBits(bits,candidateBits=0n,candidateLevels={}){
     const def=D.superResistances?.[entry.name];
     const values=def?.levels||[];
     for(const type of def?.types||[]){
-      addResistanceSource(byType,type,'candidate:'+entry.name,values[entry.level-1]||0);
+      addResistanceSource(byType,type,'candidate:'+entry.name,def?.levelsByType?.[type]?.[entry.level-1]??values[entry.level-1]??0);
     }
     for(const [type,value] of Object.entries(entry.def.levels[entry.level-1].effect||{})){
       if(!(def?.types||[]).includes(type))

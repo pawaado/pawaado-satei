@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261123-kenko-ukewaza-1';
+  const PATCH_VERSION='20261123-ukewaza-critical-2';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -235,11 +235,13 @@
     '安全運転',
     'ウィンドプロテクション',
     'ウォータープロテクション',
+    '受技の心得',
     '大真面目',
     '加護',
     '火事場の馬鹿力',
     'カチカチボディ',
     '救援者',
+    '堅固の心得',
     '慈愛の祈り',
     'そよかぜの加護',
     '対魔の盾',
@@ -511,7 +513,7 @@
     if(def) [...rows.children].forEach((row,i)=>{
       row.querySelector('.extra-resistance-type').value=def.types[i];
       row.querySelector('.extra-resistance-type-label').textContent=def.types[i];
-      row.querySelector('.extra-resistance-value').value=lv?def.levels[lv-1]:'';
+      row.querySelector('.extra-resistance-value').value=lv?(def.levelsByType?.[def.types[i]]?.[lv-1]??def.levels[lv-1]):'';
     });
     if(superDefinition(name)&&lv) window.__PAWAADO_APPLY_SUPER_INCLUDED_SPECIALS__?.(name);
   }
