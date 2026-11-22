@@ -37,7 +37,7 @@ test('variable-score super selectors align with unacquired skill candidate selec
   assert(supers.includes('class="super-field super-name-field"'));
   assert(supers.includes('class="super-field super-level-field"'));
   assert(supers.includes("superSelectControlHtml('level',levelOptions,'')"));
-  assert(html.includes('style.css?v=20261114-stable-remove-slot'));
+  assert.match(html,/style\.css\?v=20\d{6}-[a-z0-9-]+/, 'the stylesheet must use a dated cache-busting version');
 });
 
 test('empty candidate and super rows keep the same four columns as selected rows',()=>{

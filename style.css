@@ -1038,3 +1038,20 @@ img,svg,canvas{max-width:100%}
 .custom-basic-inputs #customBasicNameSelectButton{padding-left:5px;padding-right:17px;font-size:clamp(11px,3.05vw,14px)}
 .custom-basic-inputs #customBasicNameSelectButton::after{right:6px}
 .custom-basic-inputs #customBasicValue::placeholder{font-size:clamp(12px,3.3vw,13px);letter-spacing:-.055em}
+
+
+/* 未取得の必殺技等の選択肢（14px / 最小38px / 上下8px）に4か所の行間を揃える。
+   対象：査定変動超特殊能力、こだわり条件の基本・特殊・必殺技等。
+   開閉ボタン本体（52px）、メニュー幅、選択済みチェックは変更しない。 */
+.super-name-control .custom-select-option,
+.super-level-control .custom-select-option,
+.custom-basic-inputs .custom-condition-select .custom-select-option,
+.custom-special-inputs .custom-condition-select .custom-select-option,
+.custom-skill-inputs .custom-condition-select .custom-select-option{
+  min-height:38px;
+  padding:8px 6px;
+  font-size:14px;
+  line-height:1.35;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
