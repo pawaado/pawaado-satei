@@ -13414,6 +13414,7 @@ window.PAWAADO_DATA.skillHintCosts = {
 // カタカナのみの名称は名称そのものを比較キーとする。
 window.PAWAADO_DATA.skillRankings.readings={
   "受技の心得": "うけわざのこころえ",
+  "堅固の心得": "けんごのこころえ",
   "一意専心": "いちいせんしん",
   "一撃粉砕": "いちげきふんさい",
   "クリムゾンスキュアー": "クリムゾンスキュアー",
