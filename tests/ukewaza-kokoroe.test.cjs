@@ -23,7 +23,8 @@ test('受技の心得 correct scores costs effect condition for Lv1-3',()=>{
  assert.deepEqual(Array.from(r.levels),[14,25,36]);assert.equal(D.resistanceRules.scorePerPercent['アクションスキル耐性'],18);
 });
 test('updated scripts, workers, ranking versions are in sync',()=>{
- const v='20261123-ukewaza-kokoroe-1';
+ const v=read('pawaado_worker.js').match(/data\.js\?v=([^']+)/)?.[1];
+ assert(v&&/^20\d{6}-/.test(v),'current data asset needs dated version');
  for(const f of ['index.html','rankings.html','pawaado_worker.js']){
   assert(read(f).includes('data.js?v='+v));assert(read(f).includes('skill_master.js?v='+v));
  }
