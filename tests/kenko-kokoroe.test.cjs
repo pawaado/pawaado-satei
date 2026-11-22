@@ -68,7 +68,7 @@ test('堅固の心得: variable super panel and worker respect separate 0-apprai
  for(let i=0;i<3;i++){
    const lv=skill.levels[i];
    const values=def.types.map(t=>def.levelsByType?.[t]?.[i]??def.levels[i]);
-   assert.deepEqual(values,[lv.effect['単体攻撃耐性'],lv.effect['会心耐性率']]);
+   assert.deepEqual(Array.from(values),[lv.effect['単体攻撃耐性'],lv.effect['会心耐性率']]);
    assert.equal(values[0]*D.resistanceRules.scorePerPercent['単体攻撃耐性']+values[1]*D.resistanceRules.scorePerPercent['会心耐性率'],lv.scores.剣士[1]);
  }
  assert(ui.includes('Object.keys(D?.resistanceRules?.scorePerPercent||{})'),'0-score types remain selectable');
