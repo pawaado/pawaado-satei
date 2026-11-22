@@ -20,6 +20,9 @@ test('堅固の心得: observed Lv.1-Lv.3 costs, conditions, resistance and appr
   assert.equal(skill.resistance,true);
   assert.equal(skill.levels.length,3);
   assert.deepEqual(Array.from(D.superResistances[skill.name].levels),[6,10,14]);
+  assert.deepEqual(Array.from(D.superResistances[skill.name].types),['単体攻撃耐性','会心耐性率']);
+  assert.deepEqual(Array.from(D.superResistances[skill.name].levelsByType['会心耐性率']),[5,9,13]);
+  assert.equal(D.resistanceRules.scorePerPercent['会心耐性率'],0);
   const observed=[
     [1,[78,78,0,0,39],[420,420],6,5,40,195],
     [2,[90,90,0,0,47],[280,700],10,9,50,227],
@@ -36,7 +39,7 @@ test('堅固の心得: observed Lv.1-Lv.3 costs, conditions, resistance and appr
     assert.equal(level.effect['単体攻撃耐性'],single);
     assert.equal(level.effect['会心耐性率'],critical);
     assert.equal(D.resistanceRules.scorePerPercent['単体攻撃耐性'],70);
-    assert.equal(expectedScore[1],single*70,'critical resistance adds no observed appraisal');
+    assert.equal(expectedScore[1],single*70+critical*D.resistanceRules.scorePerPercent['会心耐性率'], 'critical rate resistance contributes zero appraisal');
     assert.deepEqual(Array.from(D.skillCandidateLevelCost(skill,i,1)),expectedCost);
     assert.equal(D.skillCandidateLevelCost(skill,i,2),null);
     for(const job of jobs){
@@ -54,4 +57,22 @@ test('堅固の心得: Lv.3 selection is supported but existing 2-level skills a
   assert(ui.includes('level<=maxLevel'),'UI selection must validate the maximum level');
   assert(worker.includes('level>maxLevel'),'worker must validate selected-super level');
   assert(worker.includes('row[1]<=('),'worker cache key must include Lv.3');
+});
+
+test('堅固の心得: variable super panel and worker respect separate 0-appraisal critical-rate resistance',()=>{
+ const ui=read('resistance_patch.js'),worker=read('pawaado_worker_resistance.js'),D=dataset();
+ const def=D.superResistances['堅固の心得'];
+ const skill=D.skillRankings.skills.find(s=>s.name==='堅固の心得');
+ assert.equal(D.resistanceRules.scorePerPercent['会心耐性率'],0);
+ assert.deepEqual(Array.from(def.types),['単体攻撃耐性','会心耐性率']);
+ for(let i=0;i<3;i++){
+   const lv=skill.levels[i];
+   const values=def.types.map(t=>def.levelsByType?.[t]?.[i]??def.levels[i]);
+   assert.deepEqual(Array.from(values),[lv.effect['単体攻撃耐性'],lv.effect['会心耐性率']]);
+   assert.equal(values[0]*D.resistanceRules.scorePerPercent['単体攻撃耐性']+values[1]*D.resistanceRules.scorePerPercent['会心耐性率'],lv.scores.剣士[1]);
+ }
+ assert(ui.includes('Object.keys(D?.resistanceRules?.scorePerPercent||{})'),'0-score types remain selectable');
+ assert(ui.includes('def.levelsByType?.[def.types[i]]?.[lv-1]'),'selector must use per-type levels');
+ assert(worker.includes('def?.levelsByType?.[type]?.[entry.level-1]'),'worker must use per-type levels');
+ assert(ui.includes("'堅固の心得'"),'registered in variable-super selection order');
 });
