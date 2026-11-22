@@ -4774,6 +4774,10 @@ window.PAWAADO_DATA.superResistances={
       18
     ]
   },
+  "堅固の心得": {
+    "types": ["単体攻撃耐性"],
+    "levels": [6, 10, 14]
+  },
   "超気合": {
     "types": [
       "弱体化状態異常耐性"
