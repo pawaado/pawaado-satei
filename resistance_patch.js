@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261123-ukewaza-kokoroe-1';
+  const PATCH_VERSION='20261123-kenko-ukewaza-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
@@ -35,7 +35,9 @@
       const name=group.querySelector('.super-name')?.value||'';
       if(!name)return;
       const level=Number(group.querySelector('.super-level')?.value||0);
-      out.push({name,level:level===1||level===2?level:0});
+      const def=D.superResistances?.[name]||D.superScoreRules?.[name];
+      const maxLevel=Array.isArray(def?.levels)?def.levels.length:(Array.isArray(def?.hpRates)?def.hpRates.length:2);
+      out.push({name,level:Number.isInteger(level)&&level>=1&&level<=maxLevel?level:0});
     });
     return out;
   }
@@ -488,6 +490,11 @@
     const def=D.superResistances[name];
     const levelSelect=group.querySelector('.super-level');
     const levelButton=group.querySelector('.super-level-button');
+    // Lv.3は対応スキルのみ表示。
+    const previousLevel=Number(levelSelect.value||0);
+    const maxLevel=Array.isArray(def?.levels)?def.levels.length:(Array.isArray(D.superScoreRules?.[name]?.hpRates)?D.superScoreRules[name].hpRates.length:2);
+    levelSelect.innerHTML='<option value=""></option>'+Array.from({length:maxLevel},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
+    levelSelect.value=name&&(previousLevel>=1&&previousLevel<=maxLevel)?String(previousLevel):(name?String(Math.min(2,maxLevel)):'');
     if(!name){
       levelSelect.value='';
       levelSelect.disabled=true;
