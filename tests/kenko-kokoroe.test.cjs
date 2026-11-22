@@ -76,3 +76,46 @@ test('堅固の心得: variable super panel and worker respect separate 0-apprai
  assert(worker.includes('def?.levelsByType?.[type]?.[entry.level-1]'),'worker must use per-type levels');
  assert(ui.includes("'堅固の心得'"),'registered in variable-super selection order');
 });
+
+test('堅固の心得: kana order in variable super selector and unacquired skills',()=>{
+ const D=dataset();
+ assert.equal(D.skillRankings.readings['堅固の心得'],'けんごのこころえ');
+ const ui=read('resistance_patch.js');
+ const match=ui.match(/const SUPER_ORDER=\[([\s\S]*?)\];/);
+ assert(match,'variable super selection order must exist');
+ const order=vm.runInNewContext('['+match[1]+']');
+ assert(order.indexOf('堅固の心得')>order.indexOf('救援者'));
+ assert(order.indexOf('堅固の心得')<order.indexOf('慈愛の祈り'));
+ const collator=new Intl.Collator('ja');
+ const names=['慈愛の祈り','堅固の心得','救援者'];
+ const sorted=names.slice().sort((a,b)=>collator.compare(D.skillRankings.readings[a]||a,D.skillRankings.readings[b]||b));
+ assert.equal(sorted.indexOf('堅固の心得'),1,'a registered kana must sort between the neighboring kana names');
+ assert(read('script.js').includes('candidateSkillKana'),'unacquired candidates must use skill master kana');
+ assert(read('skill_rankings.js').includes('dataset.readings'),'rankings must use skill master kana');
+});
+test('堅固の心得: all 3 level ranking rows, total appraisal, experience and resistance note',()=>{
+ const elems={basicRankingView:{hidden:false},skillRankingView:{hidden:true},skillRankingRoot:{innerHTML:''}};
+ const btn=dataset=>({dataset,setAttribute(){},addEventListener(event,handler){if(event==='click')this.click=handler}});
+ const modes=['basic','skills'].map(rankingMode=>btn({rankingMode}));
+ const jobs=['剣士系統','魔闘士系統'].map(skillJob=>btn({skillJob}));
+ const levels=['single','total'].map(skillLevelMode=>btn({skillLevelMode}));
+ const c={location:{search:'?mode=skills'},URLSearchParams,document:{getElementById:id=>elems[id]||null,querySelectorAll:q=>q==='[data-ranking-mode]'?modes:q==='[data-skill-job]'?jobs:q==='[data-skill-level-mode]'?levels:[]}};
+ c.window=c;vm.createContext(c);
+ for(const file of ['data.js','skill_master.js','skill_rankings.js'])vm.runInContext(read(file),c,{filename:file});
+ const rows=()=> (elems.skillRankingRoot.innerHTML.match(/<tr class="[^"]*">[\s\S]*?<\/tr>/g)||[]).filter(r=>r.includes('title="堅固の心得"'));
+ for(const job of jobs){
+   job.click();
+   let singles=rows();
+   assert.equal(singles.length,3,'three level-specific rows for '+job.dataset.skillJob);
+   for(const [lv,score,cost] of [[1,420,195],[2,280,227],[3,280,313]]){
+     assert(singles.some(row=>row.includes('Lv.'+lv+'</span>')&&row.includes('<td class="skill-rank-score">'+score+'</td>')&&row.includes('<td class="skill-rank-exp">'+cost+'</td>')&&row.includes('耐性影響')),'missing Lv'+lv+' in '+job.dataset.skillJob);
+   }
+   levels[1].click();
+   const total=rows();
+   assert.equal(total.length,1);
+   assert(total[0].includes('<td class="skill-rank-score">980</td>'));
+   assert(total[0].includes('<td class="skill-rank-exp">735</td>'));
+   assert(total[0].includes('耐性影響'));
+   levels[0].click();
+ }
+});
