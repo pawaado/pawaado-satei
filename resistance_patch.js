@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261116-hawkeye-lethal-cyclone-crash-thermal-enhance-worker-1';
+  const PATCH_VERSION='20261123-ukewaza-kokoroe-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};

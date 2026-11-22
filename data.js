@@ -4673,6 +4673,7 @@ window.PAWAADO_DATA.resistanceRules={
 
 // User-confirmed totals; level 2 replaces level 1, including lower abilities.
 window.PAWAADO_DATA.superResistances={
+  "受技の心得": {"types": ["アクションスキル耐性"], "levels": [14,25,36]},
   "慈愛の祈り": {
     "types": [
       "物理攻撃耐性",
