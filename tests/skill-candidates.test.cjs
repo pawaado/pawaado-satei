@@ -221,3 +221,27 @@ test('life-dependent candidate score responds to life level changes',()=>{
  assert(Math.abs(result.rate-0.07)<1e-9);
  assert(Math.abs(result.delta-4.76)<1e-9,'HP 68 increase should add 7% to Toughness owned appraisal');
 });
+
+
+test('option row spacing matches unacquired skill candidate menu across the four requested sections',()=>{
+ const css=read('style.css');
+ const html=read('index.html');
+ const base=css.match(/\.skill-candidate-name-control \.custom-select-option\{([^}]+)\}/);
+ assert(base,'candidate menu row style must exist');
+ const final=css.match(/\/\* 未取得の必殺技等の選択肢（14px[\s\S]*?\*\/\s*([^{]+)\{([^}]+)\}/);
+ assert(final,'compact menu row override must exist');
+ const selectors=final[1],declarations=final[2];
+ for(const selector of [
+   '.super-name-control .custom-select-option',
+   '.super-level-control .custom-select-option',
+   '.custom-basic-inputs .custom-condition-select .custom-select-option',
+   '.custom-special-inputs .custom-condition-select .custom-select-option',
+   '.custom-skill-inputs .custom-condition-select .custom-select-option'
+ ])assert(selectors.includes(selector),'missing dropdown option rule: '+selector);
+ for(const prop of ['min-height','padding','font-size','line-height','white-space','overflow-wrap']){
+   const get=block=>block.match(new RegExp('(?:^|;)\\s*'+prop+'\\s*:\\s*([^;\\n}]+)'))?.[1]?.trim();
+   assert.equal(get(declarations),get(base[1]),'candidate option '+prop+' should match the four sections');
+ }
+ assert(html.includes('style.css?v=20261123-compact-choice-rows-1'),'changed stylesheet must bust Safari cache');
+ assert(css.includes('.custom-condition-select .custom-select-button{height:52px;min-height:52px'),'do not resize the selection control');
+});
