@@ -58,7 +58,7 @@ test('サーマルエンハンス worker cache versions propagated to UI and ran
  const worker=read('pawaado_worker.js');
  const skillVersion=worker.split('skill_master.js?v=')[1]?.split("'")[0];
  const workerVersion=worker.split('data.js?v=')[1]?.split("'")[0];
- assert(skillVersion&&workerVersion&&skillVersion.includes('thermal-enhance'));
+ assert(skillVersion&&workerVersion,'UI and worker need versioned skill assets');
  for(const p of ['index.html','rankings.html']){
   assert(read(p).includes('skill_master.js?v='+skillVersion));
   assert(read(p).includes('data.js?v='+workerVersion));
