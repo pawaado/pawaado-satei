@@ -11,7 +11,7 @@
  * ※ HP依存スキルの固定査定はnull（別途HPで計算）。
  */
 window.PAWAADO_DATA.skillRankings = {
-  "version": "2026-11-23-ukewaza-critical-2",
+  "version": "2026-11-23-kenko-reading-1",
   "description": "元画像・過去会話から統合されたスキルマスターを基に作成。レベル別費用は表示コツ時点の値。",
   "skills": [
     {
@@ -13414,6 +13414,7 @@ window.PAWAADO_DATA.skillHintCosts = {
 // カタカナのみの名称は名称そのものを比較キーとする。
 window.PAWAADO_DATA.skillRankings.readings={
   "受技の心得": "うけわざのこころえ",
+  "堅固の心得": "けんごのこころえ",
   "一意専心": "いちいせんしん",
   "一撃粉砕": "いちげきふんさい",
   "クリムゾンスキュアー": "クリムゾンスキュアー",
