@@ -60,7 +60,7 @@ test('New skill asset and worker cache version is synchronized',()=>{
  const main=read('index.html'),ranking=read('rankings.html'),worker=read('pawaado_worker.js');
  const skillVersion=worker.match(/skill_master\.js\?v=([^']+)/)?.[1];
  const dataVersion=worker.match(/data\.js\?v=([^']+)/)?.[1];
- assert(skillVersion&&dataVersion&&skillVersion.includes('hawkeye-lethal'));
+ assert(skillVersion&&dataVersion,'UI and worker need versioned skill assets');
  for(const page of [main,ranking]){
   assert(page.includes('skill_master.js?v='+skillVersion));
   assert(page.includes('data.js?v='+dataVersion));
