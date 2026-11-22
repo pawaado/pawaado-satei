@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261123-ukewaza-kokoroe-1', './skill_master.js?v=20261123-ukewaza-kokoroe-1');
+importScripts('./data.js?v=20261123-kenko-ukewaza-1', './skill_master.js?v=20261123-kenko-ukewaza-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};
@@ -278,9 +278,11 @@ function normalizeSelectedSupers(rows){
   for(const row of Array.isArray(rows)?rows:[]){
     const name=String(row?.name||'');
     const level=Number(row?.level||0);
-    if(!name||seen.has(name)||(level!==1&&level!==2))continue;
+    if(!name||seen.has(name))continue;
     const def=D.superResistances?.[name]||D.superScoreRules?.[name];
     if(!def)continue;
+    const maxLevel=Array.isArray(def.levels)?def.levels.length:(Array.isArray(def.hpRates)?def.hpRates.length:2);
+    if(!Number.isInteger(level)||level<1||level>maxLevel)continue;
     if(!D.superJobEligible(def,job.value))continue;
     seen.add(name);
     out.push({name,level});
@@ -1164,7 +1166,7 @@ function __workerPayloadConfigKey(payload){
     .sort((a,b)=>Number(a[0])-Number(b[0]));
   const selectedSuperPart=(payload.selectedSupers||[])
     .map(row=>[String(row?.name||''),Number(row?.level||0)])
-    .filter(row=>row[0]&&(row[1]===1||row[1]===2))
+    .filter(row=>row[0]&&row[1]>=1&&row[1]<=(D.superResistances?.[row[0]]?.levels?.length||D.superScoreRules?.[row[0]]?.hpRates?.length||2))
     .sort((a,b)=>a[0].localeCompare(b[0],'ja')||a[1]-b[1]);
   const custom=payload.customConditions||{};
   const forbiddenPart=(custom.forbiddenSpecialIndices||[])
