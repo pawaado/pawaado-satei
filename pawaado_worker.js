@@ -2,7 +2,7 @@
  * Worker-only runtime. UI/rendering and legacy optimizer code intentionally live outside this file.
  */
 self.window=self;
-importScripts('./data.js?v=20261123-kenko-reading-1', './skill_master.js?v=20261123-kenko-reading-1');
+importScripts('./data.js?v=20261124-additive-resistances-1', './skill_master.js?v=20261124-additive-resistances-1');
 
 const D=window.PAWAADO_DATA;
 const ACADEMY_MASTER=D.academyMaster||{academies:[]};

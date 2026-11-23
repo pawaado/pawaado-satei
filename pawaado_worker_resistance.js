@@ -12,7 +12,7 @@
   };
 
   (async()=>{
-    const response=await fetch('./pawaado_worker.js?v=20261123-kenko-reading-1',{cache:'default'});
+    const response=await fetch('./pawaado_worker.js?v=20261124-additive-resistances-1',{cache:'default'});
     if(!response.ok) throw new Error(`計算Workerの読み込みに失敗しました (${response.status})`);
     let source=await response.text();
 
@@ -20,6 +20,7 @@
 let workerExtraResistances=[];
 const RESISTANCE_RULES=D.resistanceRules||{};
 const RESISTANCE_SCORE_RATES=RESISTANCE_RULES.scorePerPercent||{};
+const RESISTANCE_ADDITIVE_TYPES=new Set(RESISTANCE_RULES.additiveTypes||[]);
 const RESISTANCE_PAIR_SOURCES=RESISTANCE_RULES.pairSources||[];
 const RESISTANCE_DIRECT_EFFECTS=RESISTANCE_RULES.directEffects||{};
 const resistanceScoreCache=new Map();
@@ -133,6 +134,16 @@ function resistanceSourcesForBits(bits,candidateBits=0n,candidateLevels={}){
   }
   return byType;
 }
+function aggregateResistancePercent(type,sources){
+  if(RESISTANCE_ADDITIVE_TYPES.has(type)){
+    let total=0;
+    for(const value of sources.values()) total+=Number(value);
+    return total;
+  }
+  let remaining=1;
+  for(const value of sources.values()) remaining*=1-Number(value)/100;
+  return (1-remaining)*100;
+}
 function resistanceScoreForBits(bits,candidateBits=0n,candidateLevels={}){
   // 候補技の取得Lvが変化したときも耐性圧縮を再計算する。
   const relevant=(bits??EMPTY_BITS)&resistanceRelevantMask();
@@ -142,9 +153,7 @@ function resistanceScoreForBits(bits,candidateBits=0n,candidateLevels={}){
   let total=0;
   const byType=resistanceSourcesForBits(relevant,candidateBits,candidateLevels);
   for(const [type,sources] of byType){
-    let remaining=1;
-    for(const value of sources.values()) remaining*=1-Number(value)/100;
-    const rawPercent=(1-remaining)*100;
+    const rawPercent=aggregateResistancePercent(type,sources);
     const displayed=ceilResistanceTenth(rawPercent);
     total+=displayed*Number(RESISTANCE_SCORE_RATES[type]||0);
   }
