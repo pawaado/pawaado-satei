@@ -31,7 +31,12 @@ test('tab clicks render each group and expose a single pressed state',()=>{
 });
 test('resistance-impact markers are derived from canonical data rules',()=>{
  const {c}=load();const rules=c.PAWAADO_DATA.resistanceRules;
- const expected=new Set([...(rules.pairSources||[]).flatMap(x=>[x.lower,x.upper]),...Object.keys(rules.directEffects||{})]);
+ const additive=new Set(rules.additiveTypes||[]);
+  const expected=new Set([
+    ...(rules.pairSources||[]).filter(x=>(x.types||[x.type]).some(t=>!additive.has(t))).flatMap(x=>[x.lower,x.upper]),
+    ...Object.entries(rules.directEffects||{}).filter(([,effects])=>effects.some(([type])=>!additive.has(type))).map(([name])=>name)
+  ]);
+  for(const name of ['免疫強化','意志','ガッツ','生命管理'])assert(!expected.has(name),name+' must have fixed appraisal');
  assert.deepEqual([...c.audit.resistanceImpactSkills].sort(),[...expected].sort());
 });
 test('HP-based rankings consistently use life-100 and avoid raw HP values',()=>{

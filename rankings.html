@@ -216,8 +216,8 @@
     </div>
   </main>
 
-  <script src="data.js?v=20261124-additive-resistances-1"></script>
-  <script src="skill_master.js?v=20261124-additive-resistances-1"></script>
+  <script src="data.js?v=20261124-variable-notes-1"></script>
+  <script src="skill_master.js?v=20261124-variable-notes-1"></script>
   <script>
   (()=>{
     const D=window.PAWAADO_DATA;
@@ -230,9 +230,15 @@
     }
 
   const resistanceRules=D.resistanceRules||{};
+  const additiveResistanceTypes=new Set(resistanceRules.additiveTypes||[]);
+  // 圧縮計算により査定が変動する能力だけ「耐性影響」を表示。
   const resistanceImpactSkills=new Set([
-    ...(resistanceRules.pairSources||[]).flatMap(rule=>[rule.lower,rule.upper]),
-    ...Object.keys(resistanceRules.directEffects||{})
+    ...(resistanceRules.pairSources||[])
+      .filter(rule=>(rule.types||[rule.type]).some(type=>!additiveResistanceTypes.has(type)))
+      .flatMap(rule=>[rule.lower,rule.upper]),
+    ...Object.entries(resistanceRules.directEffects||{})
+      .filter(([,effects])=>effects.some(([type])=>!additiveResistanceTypes.has(type)))
+      .map(([name])=>name)
   ]);
 
     const groupDefs={

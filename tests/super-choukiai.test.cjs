@@ -13,7 +13,7 @@ const D=context.window.PAWAADO_DATA;
 
 test('超気合 applies total weakening resistance (including 意志) for every job',()=>{
   const def=D.superResistances['超気合'];
-  assert(def,'超気合 must be registered as variable-score super');
+  assert(def,'超気合 resistance totals must be retained as fixed-score data');
   assert.deepEqual(Array.from(def.types),['弱体化状態異常耐性']);
   assert.deepEqual(Array.from(def.levels),[28,50]);
   assert.deepEqual(Array.from(def.includes),['意志']);
@@ -25,17 +25,16 @@ test('超気合 applies total weakening resistance (including 意志) for every 
   assert.equal((def.levels[1]-def.levels[0])*20,440,'Lv2 upgrade appraisal');
 });
 
-test('超気合 is between タフネス and 超免疫 in the fixed kana-sorted selector',()=>{
-  const ui=read('resistance_patch.js');
-  const names=ui.match(/const SUPER_ORDER=\[([\s\S]*?)\];/);
-  assert(names,'missing super order');
-  const order=vm.runInNewContext('['+names[1]+']');
-  const before=order.indexOf('タフネス');
-  const current=order.indexOf('超気合');
-  const after=order.indexOf('超免疫');
-  assert.equal(current,before+1);
-  assert.equal(after,current+1);
-  assert(!/["']超気合["']\s*:\s*\{[^}]*?job\s*:/.test(read('data.js')),'should not be job limited');
+test('超気合・超免疫 are excluded from the fixed variable-super list',()=>{
+   const ui=read('resistance_patch.js');
+   const names=ui.match(/const SUPER_ORDER=\[([\s\S]*?)\];/);
+   assert(names,'missing super order');
+   const order=vm.runInNewContext('['+names[1]+']');
+   for(const name of ['超気合','超免疫'])assert(!order.includes(name),name+' has fixed appraisal');
+   assert(order.indexOf('タフネス')>=0);
+   assert(order.indexOf('鉄人')>order.indexOf('タフネス'));
+   assert(ui.includes('additiveResistanceTypes'),'must check the canonical additive-types rule');
+   assert(!/["']超気合["']\s*:\s*\{[^}]*?job\s*:/.test(read('data.js')));
 });
 
 test('all worker and UI asset URLs use the current cache version',()=>{

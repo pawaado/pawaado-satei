@@ -4936,7 +4936,7 @@ window.PAWAADO_DATA.skillRankings = {
         }
       ],
       "hp": false,
-      "resistance": true,
+      "resistance": false,
       "lowerAbilities": ["意志"],
       "upper": null
     },
@@ -7321,7 +7321,7 @@ window.PAWAADO_DATA.skillRankings = {
         }
       ],
       "hp": false,
-      "resistance": true,
+      "resistance": false,
       "lowerAbilities": ["免疫強化"],
       "upper": null
     },

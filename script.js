@@ -997,7 +997,7 @@ function ensureActiveCalcWorker(){
   if(typeof Worker==='undefined'){
     throw new Error('このブラウザではWeb Workerを利用できません。');
   }
-  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261124-additive-resistances-1');
+  activeCalcWorker=new Worker('./pawaado_worker.js?v=20261124-variable-notes-1');
   return activeCalcWorker;
 }
 async function optimizeAsync(exp){
@@ -1855,7 +1855,10 @@ function applyRecognizedPhotoAbilities(data,{replace=false}={}){
   const variableScoreSupers=confirmedSupers.filter(entry=>{
     const def=D.superResistances?.[entry.name]||D.superScoreRules?.[entry.name];
     if(!def)return false;
-    return D.superJobEligible(def,data.job)||D.superJobEligible(def,job.value);
+    const additiveTypes=new Set(D.resistanceRules?.additiveTypes||[]);
+    const variable=Boolean(D.superScoreRules?.[entry.name]||
+      def.types?.some(type=>!additiveTypes.has(type)));
+    return variable&&(D.superJobEligible(def,data.job)||D.superJobEligible(def,job.value));
   });
   // 全体入力では空配列でもリセットする。部分入力では確定値がある時だけ既存欄を置き換える。
   if(replace||variableScoreSupers.length)window.__PAWAADO_SET_SUPERS__?.(variableScoreSupers);

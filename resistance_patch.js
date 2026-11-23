@@ -1,16 +1,18 @@
 (() => {
   'use strict';
 
-  const PATCH_VERSION='20261124-additive-resistances-1';
+  const PATCH_VERSION='20261124-variable-notes-1';
   const D=window.PAWAADO_DATA;
   const resistanceTypes=Object.keys(D?.resistanceRules?.scorePerPercent||{});
   const superScoreRules=D?.superScoreRules||{};
+  const additiveResistanceTypes=new Set(D?.resistanceRules?.additiveTypes||[]);
 
   function superDefinition(name){
     const key=String(name||'');
     const resistance=D?.superResistances?.[key]||null;
     const score=superScoreRules[key]||null;
-    if(!resistance&&!score)return null;
+    // 加算方式だけの超特は固定査定なので「査定が変動する」欄から外す。
+    if(!score&&(!resistance||!resistance.types?.some(type=>!additiveResistanceTypes.has(type))))return null;
     return {resistance,score,job:resistance?.job||score?.job||'',jobFamily:resistance?.jobFamily||score?.jobFamily||''};
   }
 
@@ -33,7 +35,7 @@
     const out=[];
     document.querySelectorAll('.extra-resistance-group').forEach(group=>{
       const name=group.querySelector('.super-name')?.value||'';
-      if(!name)return;
+      if(!name||!superDefinition(name))return;
       const level=Number(group.querySelector('.super-level')?.value||0);
       const def=D.superResistances?.[name]||D.superScoreRules?.[name];
       const maxLevel=Array.isArray(def?.levels)?def.levels.length:(Array.isArray(def?.hpRates)?def.hpRates.length:2);
@@ -247,8 +249,6 @@
     '対魔の盾',
     '戦い抜く覚悟',
     'タフネス',
-    '超気合',
-    '超免疫',
     '鉄人',
     '鉄壁の盾',
     '百戦の生存術',
@@ -542,12 +542,13 @@
   window.__PAWAADO_REMOVE_SUPERS_REQUIRING_SPECIAL__=removeSupersRequiringSpecial;
 
   window.__PAWAADO_SET_SUPERS__=entries=>{
+    const validEntries=(Array.isArray(entries)?entries:[]).filter(entry=>superDefinition(entry?.name));
     const list=document.getElementById('extraResistanceList');
-    list.innerHTML=(entries.length?entries:[{}]).map((_,i)=>resistanceGroupHtml(i,true)).join('');
+    list.innerHTML=(validEntries.length?validEntries:[{}]).map((_,i)=>resistanceGroupHtml(i,true)).join('');
     initSuperSelects(list);
     renumberResistanceGroups();
     refreshSuperControlsForJob(false);
-    entries.forEach((entry,i)=>{
+    validEntries.forEach((entry,i)=>{
       const group=list.children[i];
       group.querySelector('.super-name').value=entry.name;
       group.querySelector('.super-level').value=entry.level||'';
